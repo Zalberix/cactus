@@ -18,6 +18,7 @@ type Config struct {
 	Env        string     `yaml:"env" env-default:"dev"`
 	HTTPServer HTTPServer `yaml:"http_server"`
 	Database   Database   `yaml:"db"`
+	Minio      Minio      `yaml:"minio"`
 }
 
 type HTTPServer struct {
@@ -34,7 +35,15 @@ type Database struct {
 	Pass string `yaml:"pass" env-default:"root"`
 }
 
+type Minio struct {
+	Endpoint   string `yaml:"endpoint" env-default:"local.work.ru:9000"`
+	PublicKey  string `yaml:"publicKey"`
+	PrivateKey string `yaml:"privateKey"`
+	UseSSL     bool   `yaml:"useSSL" env-default:"false"`
+}
+
 func MustLoad() *Config {
+
 	// TODO переделать на переменную среды так как нужно будет менять его при переезде на продакшен
 	configPath := "./config/dev.yaml"
 

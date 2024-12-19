@@ -14,15 +14,11 @@ func main() {
 
 	cfg := config.MustLoad()
 
-	isDev := cfg.Env == config.AppEnvDevelopment || cfg.Env == config.AppEnvLocal
+	// isDev := cfg.Env == config.AppEnvDevelopment || cfg.Env == config.AppEnvLocal
 
 	slog.SetDefault(logger.SetupLogger(cfg.Env))
 
-	serverApp, err := server.Create(server.CreateServerOption{
-		Db:     cfg.Database,
-		Server: cfg.HTTPServer,
-		IsDev:  isDev,
-	})
+	serverApp, err := server.Create(*cfg)
 	if err != nil {
 		slog.Error(
 			"Инициализация сервера",

@@ -1,14 +1,14 @@
 package chat
 
 import (
-	chatservice "cactus/internal/service/chat-service"
+	chat_service "cactus/internal/service/chat"
 	"log/slog"
 
 	"net/http"
 )
 
 // Подключение к сокету
-func Chat(s *chatservice.Service) http.HandlerFunc {
+func Chat(s *chat_service.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		// ctx := r.Context()
@@ -19,7 +19,7 @@ func Chat(s *chatservice.Service) http.HandlerFunc {
 		}
 		defer ws.Close()
 
-		client := chatservice.NewClient(ws, s)
+		client := chat_service.NewClient(ws, s)
 		s.Add(client)
 		client.Listen()
 	}

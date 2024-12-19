@@ -1,0 +1,12 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    database:
+      uri: postgresql://root:root@localhost:5432/postgres
+    queries: "./db/query"
+    schema: "./db/migrations"
+    gen:
+      go:
+        package: "db"
+        emit_json_tags: true
+        out: "./internal/storage/db"

@@ -2,13 +2,14 @@ package server
 
 import (
 	"cactus/internal/config"
-	"cactus/internal/db"
-	dbstorage "cactus/internal/db-storage"
-	filestorage "cactus/internal/file-storage"
-	apiroute "cactus/internal/route/api-route"
-	wsroute "cactus/internal/route/ws-route"
-	chatservice "cactus/internal/service/chat-service"
-	emailservice "cactus/internal/service/email-service"
+	sqlxconect "cactus/internal/pkg/db"
+	"cactus/internal/route"
+	chat_service "cactus/internal/service/chat"
+	"cactus/internal/service/core"
+	email_service "cactus/internal/service/email"
+	"cactus/internal/storage/db"
+	filestorage "cactus/internal/storage/file"
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -16,7 +17,6 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -25,68 +25,58 @@ type Server struct {
 	app *http.Server
 }
 
-type CreateServerOption struct {
-	Db     config.Database
-	Server config.HTTPServer
-	IsDev  bool
-}
+func Create(conf config.Config) (Server, error) {
+	ctx := context.Background()
 
-func Create(options CreateServerOption) (Server, error) {
-
-	database, err := db.New(
-		options.Db.Host,
-		options.Db.Port,
-		options.Db.Name,
-		options.Db.User,
-		options.Db.Pass,
+	databaseConect, err := sqlxconect.New(
+		ctx,
+		conf.Database.Host,
+		conf.Database.Port,
+		conf.Database.Name,
+		conf.Database.User,
+		conf.Database.Pass,
 	)
+
 	if err != nil {
 		return Server{}, fmt.Errorf("create database: %w", err)
 	}
 
-	// TODO вынести в конфиг
-	endpoint := "local.work.ru:9000"
+	DBStorage := db.New(databaseConect)
 
-	accessKeyID := "H2opu9nTT9JCVaiFer0o"
-	secretAccessKey := "MhO1IZ7vOQB5lzaU6Rg4nPBO8NnrFSDUo5eXi47Z"
-	useSSL := false
-
-	minioClient, err := minio.New(endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(accessKeyID, secretAccessKey, ""),
-		Secure: useSSL,
-	})
+	minioClient, err := minio.New(
+		conf.Minio.Endpoint,
+		&minio.Options{
+			Creds:  credentials.NewStaticV4(conf.Minio.PublicKey, conf.Minio.PrivateKey, ""),
+			Secure: conf.Minio.UseSSL,
+		},
+	)
 	if err != nil {
 		slog.Error(err.Error())
 	}
 
-	dbStorage := dbstorage.New(database)
 	fileStorage := filestorage.New(minioClient)
 
-	// appService := appservice.New(dbStorage)
-	emailService := emailservice.New(dbStorage, fileStorage)
-	chatServer := chatservice.NewService()
+	emailService := email_service.New(databaseConect, DBStorage, fileStorage)
+	coreService := core.New(databaseConect, DBStorage, fileStorage)
+	chatServer := chat_service.NewService()
+
 	// TODO: сделать общий обработчик ошибок на уровне middleware для http(s)
-	r := chi.NewRouter()
-	apiRoute := apiroute.New(
+	r := route.New(
+		coreService,
 		emailService,
-	)
-	wsRoute := wsroute.New(
 		chatServer,
 	)
 
-	r.Mount("/api", apiRoute)
-	r.Mount("/ws", wsRoute)
-
 	app := &http.Server{
-		Addr:         options.Server.Address,
+		Addr:         conf.HTTPServer.Address,
 		Handler:      r,
-		IdleTimeout:  options.Server.IdleTimeout,
-		ReadTimeout:  options.Server.Timeout,
-		WriteTimeout: options.Server.Timeout,
+		IdleTimeout:  conf.HTTPServer.IdleTimeout,
+		ReadTimeout:  conf.HTTPServer.Timeout,
+		WriteTimeout: conf.HTTPServer.Timeout,
 	}
 
 	return Server{
-		db:  database,
+		db:  databaseConect,
 		app: app,
 	}, nil
 }
