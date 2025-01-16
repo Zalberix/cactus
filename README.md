@@ -13,5 +13,5 @@ dbmate --env-file ".env.dbmate.local" up
  
 Для запуска сидов для заполнения базы выполнить команду.
 ```
-go run .\cmd\seeding\seeding.go
+go run .\cmd\seeding\main.go
 ```

@@ -5,6 +5,7 @@ import (
 )
 
 type PushPlugin struct {
+	plugin.CorePlugin
 	Schema PushSchema
 	Slug   string
 }

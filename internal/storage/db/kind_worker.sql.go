@@ -45,3 +45,23 @@ func (q *Queries) CreateKindWorker(ctx context.Context, arg CreateKindWorkerPara
 	)
 	return i, err
 }
+
+const getKindWokerById = `-- name: GetKindWokerById :one
+SELECT id, name, slug, config_schema, config 
+FROM kind_worker kw
+WHERE kw.id = $1
+LIMIT 1
+`
+
+func (q *Queries) GetKindWokerById(ctx context.Context, id int32) (KindWorker, error) {
+	row := q.db.QueryRowContext(ctx, getKindWokerById, id)
+	var i KindWorker
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Slug,
+		&i.ConfigSchema,
+		&i.Config,
+	)
+	return i, err
+}

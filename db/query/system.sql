@@ -1,9 +1,7 @@
--- name: GetSystemIdByToken :one
-SELECT s.id
+-- name: GetSystemById :one 
+SELECT * 
 FROM system s
-INNER JOIN "token" t ON t.id_system = s.id
-WHERE public_token = $1
-LIMIT 1;
+WHERE s.id = $1;
 
 -- name: CreateSystem :one
 INSERT INTO "system" (

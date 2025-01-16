@@ -59,19 +59,14 @@ type PermissionRole struct {
 	IDRole       int32 `json:"id_role"`
 }
 
-type Pipline struct {
-	ID              int32        `json:"id"`
-	IDPiplineStatus int32        `json:"id_pipline_status"`
-	IDMessage       int32        `json:"id_message"`
-	Step            int32        `json:"step"`
-	Name            string       `json:"name"`
-	TimeStart       sql.NullTime `json:"time_start"`
-	TimeEnd         sql.NullTime `json:"time_end"`
-}
-
-type PiplineStatus struct {
-	ID   int32  `json:"id"`
-	Name string `json:"name"`
+type Pipeline struct {
+	ID        int32        `json:"id"`
+	IDMessage int32        `json:"id_message"`
+	Status    string       `json:"status"`
+	Step      int32        `json:"step"`
+	Name      string       `json:"name"`
+	TimeStart sql.NullTime `json:"time_start"`
+	TimeEnd   sql.NullTime `json:"time_end"`
 }
 
 type Priority struct {

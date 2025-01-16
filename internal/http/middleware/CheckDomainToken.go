@@ -2,27 +2,29 @@ package middleware
 
 import (
 	"cactus/internal/pkg/contextkeys"
+	"cactus/internal/storage/db"
 	"context"
 	"net/http"
 )
 
-type EmailService interface {
-	GetSystemIdByToken(ctx context.Context, token string) (int32, error)
+type coreService interface {
+	GetTokenByPublicToken(ctx context.Context, token string) (db.Token, error)
 }
 
-func CheckDomainToken(s EmailService) func(next http.Handler) http.Handler {
+func CheckDomainToken(s coreService) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			token := r.Header.Get("X-Token-Domain") // TODO в env
 			ctx := r.Context()
-			systemID, err := s.GetSystemIdByToken(ctx, token)
-			if err != nil || systemID == 0 {
+			Token, err := s.GetTokenByPublicToken(ctx, token)
+			if err != nil || Token.IDSystem == 0 {
 				rw.Header().Set("Content-Type", "application/json")
 				rw.WriteHeader(401)
 				return
 			}
 
-			ctx = context.WithValue(ctx, contextkeys.SystemIDKey, systemID)
+			ctx = context.WithValue(ctx, contextkeys.SystemIDKey, Token.IDSystem)
+			ctx = context.WithValue(ctx, contextkeys.KindIDKey, Token.IDKindWorker)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

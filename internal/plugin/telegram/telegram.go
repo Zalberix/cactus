@@ -5,6 +5,7 @@ import (
 )
 
 type TelegramPlugin struct {
+	plugin.CorePlugin
 	Schema TelegramSchema
 	Slug   string
 }

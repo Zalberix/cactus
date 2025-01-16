@@ -1,10 +1,11 @@
 package core
 
 import (
+	"cactus/internal/storage/db"
 	"context"
 )
 
-func (s *Service) GetSystemIdByToken(ctx context.Context, token string) (int32, error) {
-	system, err := s.storage.GetSystemIdByToken(ctx, token)
-	return system, err
+func (s *Service) GetTokenByPublicToken(ctx context.Context, token string) (db.Token, error) {
+	dbToken, err := s.storage.GetTokenByPublicToken(ctx, token)
+	return dbToken, err
 }

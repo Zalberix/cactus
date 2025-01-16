@@ -108,11 +108,10 @@ func (q *Queries) GetMessagesBy(ctx context.Context, arg GetMessagesByParams) ([
 const getStatusMessageByUUID = `-- name: GetStatusMessageByUUID :one
 WITH min_step AS (
     SELECT MIN(step) AS min_step
-    FROM pipline
+    FROM pipeline
     WHERE time_end IS NULL
 )
-SELECT ps."name" as status FROM pipline_status ps 
-JOIN pipline p ON p.id_pipline_status = ps.id
+SELECT p.status FROM pipeline p
 JOIN message m on m.id = p.id_message
 JOIN min_step ms ON p.step = ms.min_step
 WHERE m."uuid" = $1

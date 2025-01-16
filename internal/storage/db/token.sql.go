@@ -46,3 +46,23 @@ func (q *Queries) CreateToken(ctx context.Context, arg CreateTokenParams) (Token
 	)
 	return i, err
 }
+
+const getTokenByPublicToken = `-- name: GetTokenByPublicToken :one
+SELECT id_system, id_kind_worker, is_active, public_token, secret_token
+FROM "token" t
+WHERE public_token = $1
+LIMIT 1
+`
+
+func (q *Queries) GetTokenByPublicToken(ctx context.Context, publicToken string) (Token, error) {
+	row := q.db.QueryRowContext(ctx, getTokenByPublicToken, publicToken)
+	var i Token
+	err := row.Scan(
+		&i.IDSystem,
+		&i.IDKindWorker,
+		&i.IsActive,
+		&i.PublicToken,
+		&i.SecretToken,
+	)
+	return i, err
+}

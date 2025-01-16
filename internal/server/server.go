@@ -6,14 +6,17 @@ import (
 	"cactus/internal/plugin/email"
 	"cactus/internal/route"
 	"cactus/internal/service/core"
+	"cactus/internal/service/pipeline"
 	"cactus/internal/storage/db"
 	filestorage "cactus/internal/storage/file"
 	plugin_storage "cactus/internal/storage/plugin"
+	rdb "cactus/internal/storage/redis"
 	"context"
 	"fmt"
 	"net/http"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/redis/go-redis/v9"
 )
 
 type Server struct {
@@ -32,12 +35,21 @@ func Create(conf config.Config) (Server, error) {
 		conf.Database.User,
 		conf.Database.Pass,
 	)
-
 	if err != nil {
 		return Server{}, fmt.Errorf("create database: %w", err)
 	}
 
 	DBStorage := db.New(databaseConect)
+	RDBStorage, err := rdb.New(ctx, &redis.Options{
+		Addr:     conf.Redis.Addr,
+		Password: conf.Redis.Password,
+		Username: conf.Redis.User,
+	})
+	if err != nil {
+		return Server{}, fmt.Errorf("create redis conection: %w", err)
+	}
+
+	_ = RDBStorage // TODO передать в сервис
 
 	fileStorage, _ := filestorage.New("app/files") // TODO path вынести в конфиг
 
@@ -46,7 +58,8 @@ func Create(conf config.Config) (Server, error) {
 	// pluginStorage.Add("telegram", telegram.New())
 	// pluginStorage.Add("push", push.New())
 
-	coreService := core.New(databaseConect, DBStorage, fileStorage, pluginStorage)
+	coreService := core.New(databaseConect, DBStorage, RDBStorage, fileStorage, pluginStorage)
+	pipelineService := pipeline.New(databaseConect, DBStorage, RDBStorage, pluginStorage)
 
 	// TODO сделать WS сервис для отслеживания pipeline сообщений в реальном времени
 	// chatServer := chat_service.NewService()
@@ -54,6 +67,7 @@ func Create(conf config.Config) (Server, error) {
 	// TODO: сделать общий обработчик ошибок на уровне middleware для http(s)
 	r := route.New(
 		coreService,
+		pipelineService,
 		pluginStorage,
 	)
 

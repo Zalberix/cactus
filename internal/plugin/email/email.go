@@ -5,6 +5,7 @@ import (
 )
 
 type EmailPlugin struct {
+	plugin.CorePlugin
 	Schema EmailSchema
 	Slug   string
 }

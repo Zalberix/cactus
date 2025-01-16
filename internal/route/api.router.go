@@ -5,12 +5,14 @@ import (
 	"cactus/internal/http/middleware"
 	"cactus/internal/pkg/router"
 	"cactus/internal/service/core"
+	"cactus/internal/service/pipeline"
 	"cactus/internal/storage/plugin"
 )
 
 func addRouteApi(
 	r *router.ServerRouter,
 	coreService *core.Service,
+	pipelineService *pipeline.Service,
 	plugins *plugin.Storage,
 ) *router.ServerRouter {
 	// TODO: Добавить middleware для авторизованных действий
@@ -26,7 +28,7 @@ func addRouteApi(
 		sr.Use(middleware.CheckDomainToken(coreService))
 
 		// TODO: исправить на message вместо email, и core_controller
-		sr.HandleFunc("POST /api/{slug}/send", core_controller.Send(coreService, plugins))
+		sr.HandleFunc("POST /api/{slug}/send", core_controller.Send(coreService, pipelineService, plugins))
 		sr.HandleFunc("POST /api/status", core_controller.GetStatus(coreService))
 		sr.HandleFunc("POST /api/abort", core_controller.AbortMessage(coreService))
 		sr.HandleFunc("POST /api/link", core_controller.GetLink(coreService))

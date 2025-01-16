@@ -6,18 +6,21 @@ import (
 	"cactus/internal/storage/plugin"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/redis/go-redis/v9"
 )
 
 type Service struct {
 	db          *sqlx.DB
+	rdb         *redis.Client
 	storage     *db.Queries
 	fileStorage *file.FileStorage
 	plugins     *plugin.Storage
 }
 
-func New(db *sqlx.DB, storage *db.Queries, fileStorage *file.FileStorage, plugins *plugin.Storage) *Service {
+func New(db *sqlx.DB, storage *db.Queries, rdb *redis.Client, fileStorage *file.FileStorage, plugins *plugin.Storage) *Service {
 	return &Service{
 		db:          db,
+		rdb:         rdb,
 		storage:     storage,
 		fileStorage: fileStorage,
 		plugins:     plugins,

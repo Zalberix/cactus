@@ -7,6 +7,7 @@ import (
 	"cactus/internal/http/response"
 	"cactus/internal/pkg/contextkeys"
 	"cactus/internal/service/core"
+	"cactus/internal/service/pipeline"
 	"cactus/internal/storage/plugin"
 	"encoding/json"
 	"fmt"
@@ -25,16 +26,28 @@ type sendService interface {
 	CreateMessage(
 		ctx context.Context,
 		arg core.CreateMessageParams,
+		pipelineService pipeline.Service,
 	) (dto.CreateMessage, error)
 }
 
 // Отправка сообщения
-func Send(service sendService, plugins *plugin.Storage) http.HandlerFunc {
+func Send(service sendService, piplineService *pipeline.Service, plugins *plugin.Storage) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
 		IDSystemValue := ctx.Value(contextkeys.SystemIDKey)
 		IDSystem, ok := IDSystemValue.(int32)
+		if !ok {
+			slog.Error("Доступ запрещен")
+
+			response.ResponseValidationJSON(w, "Доступ запрещен", map[string]string{
+				"Token": "Доступ запрещен",
+			})
+			return
+		}
+
+		IDKindWorkerValue := ctx.Value(contextkeys.KindIDKey)
+		IDKindWorker, ok := IDKindWorkerValue.(int32)
 		if !ok {
 			slog.Error("Доступ запрещен")
 
@@ -105,6 +118,7 @@ func Send(service sendService, plugins *plugin.Storage) http.HandlerFunc {
 
 		allowedExtensions := []string{".pdf", ".jpg", ".jpeg", ".png", ".doc", ".docx", ".xls", ".xlsx", ".zip"} // TODO вынести в plugin или в базу данных (или в базу а брать через плагин, так через настройки плагина можно будет настраивать это поведение)
 
+		// TODO вынести бы в функцию, но только если будет гдето еще использоваться, а так пусть тут.
 		var files []core.SetFileParams
 		if len(r.MultipartForm.File) == len(req.Files) && len(req.Files) != 0 {
 			for i, file := range req.Files {
@@ -151,6 +165,7 @@ func Send(service sendService, plugins *plugin.Storage) http.HandlerFunc {
 			ctx,
 			core.CreateMessageParams{
 				Plugin:       plugin,
+				IDKindWorker: IDKindWorker,
 				IDSystem:     IDSystem,
 				PrioritySlug: req.PrioritySlug,
 				ChangelSlug:  pluginSlug,
@@ -161,6 +176,7 @@ func Send(service sendService, plugins *plugin.Storage) http.HandlerFunc {
 				Subject:      req.Subject,
 				Files:        files,
 			},
+			*piplineService,
 		)
 		if err != nil {
 			slog.Error("ошибка создания сообщения", slog.String("error-message", err.Error()), slog.String("slug", pluginSlug))

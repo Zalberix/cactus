@@ -68,17 +68,22 @@ func (q *Queries) CreateSystem(ctx context.Context, arg CreateSystemParams) (Sys
 	return i, err
 }
 
-const getSystemIdByToken = `-- name: GetSystemIdByToken :one
-SELECT s.id
+const getSystemById = `-- name: GetSystemById :one
+SELECT id, create_user, id_priority, name, description, is_active 
 FROM system s
-INNER JOIN "token" t ON t.id_system = s.id
-WHERE public_token = $1
-LIMIT 1
+WHERE s.id = $1
 `
 
-func (q *Queries) GetSystemIdByToken(ctx context.Context, publicToken string) (int32, error) {
-	row := q.db.QueryRowContext(ctx, getSystemIdByToken, publicToken)
-	var id int32
-	err := row.Scan(&id)
-	return id, err
+func (q *Queries) GetSystemById(ctx context.Context, id int32) (System, error) {
+	row := q.db.QueryRowContext(ctx, getSystemById, id)
+	var i System
+	err := row.Scan(
+		&i.ID,
+		&i.CreateUser,
+		&i.IDPriority,
+		&i.Name,
+		&i.Description,
+		&i.IsActive,
+	)
+	return i, err
 }

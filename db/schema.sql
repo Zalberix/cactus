@@ -170,13 +170,13 @@ CREATE TABLE public.permission_role (
 
 
 --
--- Name: pipline; Type: TABLE; Schema: public; Owner: -
+-- Name: pipeline; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.pipline (
+CREATE TABLE public.pipeline (
     id integer NOT NULL,
-    id_pipline_status integer NOT NULL,
     id_message integer NOT NULL,
+    status character varying(255) NOT NULL,
     step integer NOT NULL,
     name character varying(255) NOT NULL,
     time_start timestamp without time zone,
@@ -185,10 +185,10 @@ CREATE TABLE public.pipline (
 
 
 --
--- Name: pipline_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: pipeline_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.pipline_id_seq
+CREATE SEQUENCE public.pipeline_id_seq
     AS integer
     START WITH 1
     INCREMENT BY 1
@@ -198,40 +198,10 @@ CREATE SEQUENCE public.pipline_id_seq
 
 
 --
--- Name: pipline_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: pipeline_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
-ALTER SEQUENCE public.pipline_id_seq OWNED BY public.pipline.id;
-
-
---
--- Name: pipline_status; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.pipline_status (
-    id integer NOT NULL,
-    name character varying(255) NOT NULL
-);
-
-
---
--- Name: pipline_status_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.pipline_status_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: pipline_status_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.pipline_status_id_seq OWNED BY public.pipline_status.id;
+ALTER SEQUENCE public.pipeline_id_seq OWNED BY public.pipeline.id;
 
 
 --
@@ -491,17 +461,10 @@ ALTER TABLE ONLY public.permission ALTER COLUMN id SET DEFAULT nextval('public.p
 
 
 --
--- Name: pipline id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: pipeline id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.pipline ALTER COLUMN id SET DEFAULT nextval('public.pipline_id_seq'::regclass);
-
-
---
--- Name: pipline_status id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.pipline_status ALTER COLUMN id SET DEFAULT nextval('public.pipline_status_id_seq'::regclass);
+ALTER TABLE ONLY public.pipeline ALTER COLUMN id SET DEFAULT nextval('public.pipeline_id_seq'::regclass);
 
 
 --
@@ -627,26 +590,18 @@ ALTER TABLE ONLY public.permission
 
 
 --
--- Name: pipline pipline_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: pipeline pipeline_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.pipline
-    ADD CONSTRAINT pipline_pkey PRIMARY KEY (id);
-
-
---
--- Name: pipline_status pipline_status_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.pipline_status
-    ADD CONSTRAINT pipline_status_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.pipeline
+    ADD CONSTRAINT pipeline_pkey PRIMARY KEY (id);
 
 
 --
--- Name: pipline pipline_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: pipeline pipline_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.pipline
+ALTER TABLE ONLY public.pipeline
     ADD CONSTRAINT pipline_unique UNIQUE (step, id_message);
 
 
@@ -859,19 +814,11 @@ ALTER TABLE ONLY public.permission_role
 
 
 --
--- Name: pipline pipline_id_message_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: pipeline pipline_id_message_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.pipline
+ALTER TABLE ONLY public.pipeline
     ADD CONSTRAINT pipline_id_message_fkey FOREIGN KEY (id_message) REFERENCES public.message(id) ON DELETE CASCADE;
-
-
---
--- Name: pipline pipline_id_pipline_status_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.pipline
-    ADD CONSTRAINT pipline_id_pipline_status_fkey FOREIGN KEY (id_pipline_status) REFERENCES public.pipline_status(id) ON DELETE CASCADE;
 
 
 --
@@ -941,7 +888,6 @@ ALTER TABLE ONLY public.worker
 
 INSERT INTO public.schema_migrations (version) VALUES
     ('20241124130311'),
-    ('20241124130729'),
     ('20241124130842'),
     ('20241124130953'),
     ('20241124131041'),

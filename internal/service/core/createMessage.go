@@ -2,7 +2,9 @@ package core
 
 import (
 	dto "cactus/internal/DTO"
+	pl "cactus/internal/pkg/pipeline"
 	"cactus/internal/plugin"
+	"cactus/internal/service/pipeline"
 	"cactus/internal/storage/db"
 	"context"
 	"database/sql"
@@ -16,6 +18,7 @@ import (
 
 type CreateMessageParams struct {
 	Plugin         plugin.Plugin
+	IDKindWorker   int32
 	IDSystem       int32
 	PrioritySlug   string
 	ChangelSlug    string
@@ -29,6 +32,7 @@ type CreateMessageParams struct {
 func (s *Service) CreateMessage(
 	ctx context.Context,
 	arg CreateMessageParams,
+	piplineService pipeline.Service, // TODO переписать на interface
 ) (dto.CreateMessage, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -51,17 +55,26 @@ func (s *Service) CreateMessage(
 		}
 	}
 
+	// system, err := storage.GetSystemById(ctx, arg.IDSystem)
+	systemPriority, err := storage.GetPriorityBySystemId(ctx, arg.IDSystem)
+	if err != nil {
+		return dto.CreateMessage{}, fmt.Errorf("ошибка получения приоритета системы: %w", err)
+	}
+
+	kindWorker, err := storage.GetKindWokerById(ctx, arg.IDKindWorker)
+	if err != nil {
+		return dto.CreateMessage{}, fmt.Errorf("ошибка получения вида воркера: %w", err)
+	}
+
 	messagePriority, err := storage.GetPriorityBySlug(ctx, arg.PrioritySlug)
 	if err != nil {
 		return dto.CreateMessage{}, fmt.Errorf("ошибка получения приоритета по slug: %w", err)
 	}
 
-	Process, err := storage.GetTypeWorkerBySlug(ctx, arg.ChangelSlug)
+	TypeWorker, err := storage.GetTypeWorkerBySlug(ctx, arg.ChangelSlug)
 	if err != nil {
 		return dto.CreateMessage{}, fmt.Errorf("ошибка получения типа воркера по slug: %w", err)
 	}
-
-	// TODO: [Вынести логику redis, это не относится к созданию сообщения] после добавления redis дополнить метод удалением из очереди в redis
 
 	value, err := json.Marshal(arg.Schema)
 	if err != nil {
@@ -74,7 +87,7 @@ func (s *Service) CreateMessage(
 			IDWorker: sql.NullInt32{
 				Valid: false, // TODO: Пока NULL но надо определять по sendLater текущий Worker
 			},
-			IDTypeWorker: Process.ID,
+			IDTypeWorker: TypeWorker.ID,
 			IDSystem:     arg.IDSystem,
 			Uuid:         uuid.New(),
 			Value:        value,
@@ -98,7 +111,6 @@ func (s *Service) CreateMessage(
 			files = append(files, ff)
 		}
 	}
-
 	dtoMessage := dto.CreateMessage{
 		Message: dto.Message{
 			Message: newMessage,
@@ -106,6 +118,35 @@ func (s *Service) CreateMessage(
 		},
 		Files: &files,
 	}
+	piplines := []pl.PipelineStep{
+		// pl.PipelineStepWaitSendQueue,  // TODO включать при send_later != nil
+		pl.PipelineStepWaitQueue,
+		pl.PipelineStepWork,
+		pl.PipelineStepDone,
+	}
+
+	err = arg.Plugin.ExtendPipline(&piplines)
+	if err != nil {
+		return dto.CreateMessage{}, fmt.Errorf("ошибка при расширении pipepline: %w", err)
+	}
+	pipeline, err := piplineService.CreatePipelineTX(ctx, tx, pipeline.CreatePipelineParams{
+		Pipeline: piplines,
+		Message:  dtoMessage.Message,
+	})
+	if err != nil {
+		return dto.CreateMessage{}, fmt.Errorf("ошибка при создании pipepline: %w", err)
+	}
+
+	_ = pipeline
+
+	s.AddMessageToQueue(ctx, AddMessageToQueueParams{
+		SlugKindWorker:        kindWorker.Slug,
+		Message:               newMessage,
+		SlugTypeWorker:        arg.ChangelSlug,
+		WeightPriorityMessage: systemPriority.Weight + messagePriority.Weight,
+	})
+	// s.pipeline[0]
+
 	err = tx.Commit()
 	return dtoMessage, err
 }
