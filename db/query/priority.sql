@@ -12,3 +12,6 @@ WHERE s.id = $1;
 INSERT INTO priority ("name", weight, slug) 
 VALUES ($1, $2, $3)
 RETURNING *;
+
+-- name: GetMaxPriorityWeight :one
+SELECT MAX(weight) FROM priority LIMIT 1;

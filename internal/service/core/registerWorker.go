@@ -1,0 +1,122 @@
+package core
+
+import (
+	dto "cactus/internal/DTO"
+	configschema "cactus/internal/pkg/configSchema"
+	"cactus/internal/storage/db"
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+
+	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
+)
+
+type RegisterWorkerParams struct {
+	WorkerUUID   uuid.UUID
+	Kind         string
+	Type         string
+	ConfigSchema []configschema.ConfigField
+}
+
+func (s *Service) RegisterWorker(
+	ctx context.Context,
+	arg RegisterWorkerParams,
+) (dto.RegisteWorker, error) {
+
+	if _, ok := s.plugins.Get(arg.Type); !ok {
+		return dto.RegisteWorker{}, fmt.Errorf("воркеры с таким типом не включены или не поддерживаются")
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		slog.Error("Ошибка создания транзакции при регистрации воркера:", slog.String("error", err.Error()))
+		return dto.RegisteWorker{}, fmt.Errorf("невозможно зарегистрировать воркер: %w", err)
+	}
+	defer tx.Rollback()
+
+	storage := s.storage.WithTx(tx)
+
+	kindWorker, err := storage.GetKindWorkerBySlug(ctx, arg.Kind)
+	if err == sql.ErrNoRows {
+		configSchemaByte, err := json.Marshal(arg.ConfigSchema)
+		if err != nil {
+			slog.Error("Ошибка создания json настроке воркера:", slog.String("error", err.Error()))
+			return dto.RegisteWorker{}, fmt.Errorf("ошибка создания json настроек: %w", err)
+		}
+		kindWorker, err = storage.CreateKindWorker(ctx, db.CreateKindWorkerParams{
+			Name:         "",
+			Slug:         arg.Kind,
+			ConfigSchema: json.RawMessage(configSchemaByte),
+			Config: pqtype.NullRawMessage{
+				Valid: false,
+			},
+		})
+		if err != nil {
+			slog.Error("Ошибка при создании вида воркера:", slog.String("error", err.Error()))
+			return dto.RegisteWorker{}, fmt.Errorf("ошибка при создании вида воркера: %w", err)
+		}
+	} else if err != nil {
+		slog.Error("Ошибка при получении вида воркера:", slog.String("error", err.Error()))
+		return dto.RegisteWorker{}, fmt.Errorf("ошибка при получении вида воркер: %w", err)
+	}
+
+	var config = map[string]interface{}{}
+	if kindWorker.Config.Valid {
+		err := json.Unmarshal(kindWorker.Config.RawMessage, &config)
+		if err != nil {
+			slog.Error("неудалось обработать конфиг из базы данных:", slog.String("error", err.Error()))
+			return dto.RegisteWorker{}, fmt.Errorf("неудалось обработать конфиг из базы данных: %w", err)
+		}
+	}
+
+	typeWorker, err := storage.GetTypeWorkerBySlug(ctx, arg.Type)
+	if err == sql.ErrNoRows {
+		typeWorker, err = storage.CreateTypeWorker(ctx, db.CreateTypeWorkerParams{
+			Name: "",
+			Slug: arg.Kind,
+		})
+		if err != nil {
+			slog.Error("Ошибка при создании типа воркера:", slog.String("error", err.Error()))
+			return dto.RegisteWorker{}, fmt.Errorf("ошибка при создании типа воркера: %w", err)
+		}
+	} else if err != nil {
+		slog.Error("Ошибка при получении типа воркера:", slog.String("error", err.Error()))
+		return dto.RegisteWorker{}, fmt.Errorf("ошибка при получении типа воркер: %w", err)
+	}
+
+	created := false
+	worker, err := storage.GetWorkerByUUID(ctx, arg.WorkerUUID)
+	if err == sql.ErrNoRows {
+		created = true
+		worker, err = storage.CreateWorker(ctx, db.CreateWorkerParams{
+			Uuid:         arg.WorkerUUID,
+			IsActive:     false,
+			IDTypeWorker: typeWorker.ID,
+			IDKindWorker: kindWorker.ID,
+		})
+		if err != nil {
+			slog.Error("Ошибка при регистрации воркера:", slog.String("error", err.Error()))
+			return dto.RegisteWorker{}, fmt.Errorf("ошибка при регистрации воркера: ")
+		}
+	} else if err != nil {
+		slog.Error("Ошибка при получении воркера:", slog.String("error", err.Error()))
+		return dto.RegisteWorker{}, fmt.Errorf("ошибка при получении воркер: %w", err)
+	}
+
+	// Проверка целостности воркера.
+	if !created && worker.IDKindWorker != kindWorker.ID && worker.IDTypeWorker != typeWorker.ID {
+		// TODO сделать востановление
+		slog.Error("Ошибка целостности воркера:", slog.String("error", err.Error()))
+		return dto.RegisteWorker{}, fmt.Errorf("ошибка целостности воркера: %w", err)
+	}
+
+	err = tx.Commit()
+	return dto.RegisteWorker{
+		Created: created,
+		Id:      worker.ID,
+		Config:  config,
+	}, err
+}

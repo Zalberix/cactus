@@ -5,6 +5,7 @@ import (
 	sqlxconect "cactus/internal/pkg/db"
 	"cactus/internal/plugin/email"
 	"cactus/internal/route"
+	"cactus/internal/server/meta"
 	"cactus/internal/service/core"
 	"cactus/internal/service/pipeline"
 	"cactus/internal/storage/db"
@@ -14,14 +15,17 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/redis/go-redis/v9"
 )
 
 type Server struct {
-	db  *sqlx.DB
-	app *http.Server
+	db   *sqlx.DB
+	rdb  *redis.Client
+	app  *http.Server
+	Meta meta.ServerMeta
 }
 
 func Create(conf config.Config) (Server, error) {
@@ -41,7 +45,7 @@ func Create(conf config.Config) (Server, error) {
 
 	DBStorage := db.New(databaseConect)
 	RDBStorage, err := rdb.New(ctx, &redis.Options{
-		Addr:     conf.Redis.Addr,
+		Addr:     conf.Redis.Address,
 		Password: conf.Redis.Password,
 		Username: conf.Redis.User,
 	})
@@ -54,11 +58,29 @@ func Create(conf config.Config) (Server, error) {
 	fileStorage, _ := filestorage.New("app/files") // TODO path вынести в конфиг
 
 	pluginStorage := plugin_storage.New()
-	pluginStorage.Add("email", email.New())
+	pluginStorage.Add("email", email.New()) // TODO сделать SMTP а не email так как под каждый вид воркера настраиваеится структура
 	// pluginStorage.Add("telegram", telegram.New())
 	// pluginStorage.Add("push", push.New())
 
-	coreService := core.New(databaseConect, DBStorage, RDBStorage, fileStorage, pluginStorage)
+	host, err := os.Hostname()
+	if err != nil {
+		return Server{}, fmt.Errorf("неудалось получить hostname приложения: %w", err)
+	}
+
+	endpoint := fmt.Sprintf("http://%v:%v/api/register/worker", host, conf.HTTPServer.Port)
+
+	var maxPriority int32
+	maxPriority, err = DBStorage.GetMaxPriorityWeight(ctx)
+	if err != nil {
+		maxPriority = 0
+	}
+
+	metaServer := &meta.ServerMeta{
+		HostName: host,
+		Port:     conf.HTTPServer.Port,
+	}
+
+	coreService := core.New(databaseConect, DBStorage, RDBStorage, fileStorage, pluginStorage, metaServer)
 	pipelineService := pipeline.New(databaseConect, DBStorage, RDBStorage, pluginStorage)
 
 	// TODO сделать WS сервис для отслеживания pipeline сообщений в реальном времени
@@ -71,8 +93,19 @@ func Create(conf config.Config) (Server, error) {
 		pluginStorage,
 	)
 
+	err = RDBStorage.XAdd(ctx, &redis.XAddArgs{
+		Stream: "event:meta",
+		Values: map[string]interface{}{
+			"max_priority":      maxPriority,
+			"register_endpoint": endpoint,
+		},
+	}).Err()
+	if err != nil {
+		return Server{}, fmt.Errorf("неудалось записать hostname в redis: %w", err)
+	}
+
 	app := &http.Server{
-		Addr:         conf.HTTPServer.Address,
+		Addr:         fmt.Sprintf("%v:%v", conf.HTTPServer.Host, conf.HTTPServer.Port),
 		Handler:      r,
 		IdleTimeout:  conf.HTTPServer.IdleTimeout,
 		ReadTimeout:  conf.HTTPServer.Timeout,
@@ -81,12 +114,14 @@ func Create(conf config.Config) (Server, error) {
 
 	return Server{
 		db:  databaseConect,
+		rdb: RDBStorage,
 		app: app,
 	}, nil
 }
 
 func (s *Server) Start() error {
 	defer s.db.Close()
+	defer s.rdb.Close()
 
 	if err := s.app.ListenAndServe(); err != nil {
 		return err

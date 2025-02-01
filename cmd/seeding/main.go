@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"time"
 
+	configschema "cactus/internal/pkg/configSchema"
 	sqlxconect "cactus/internal/pkg/db"
 	"cactus/internal/storage/db"
 
@@ -43,6 +44,10 @@ func main() {
 	}
 
 	DBStorage := db.New(databaseConect)
+
+	// RDBStorage, err := rdb.New(ctx, &redis.Options{
+	// 	Addr: cfg.Redis.Address,
+	// })
 
 	// fileStorage := filestorage.New()
 
@@ -81,12 +86,31 @@ func main() {
 		return
 	}
 
-	configSchema := json.RawMessage(`[{"type":"ip", "legend":"IP сервера"}, {"type":"number", "legend":"port сервера"}]`)
-
+	configSchema, err := json.Marshal([]configschema.ConfigField{
+		{
+			Type: "numeric",
+			Slug: "host",
+			Name: "ip адрес сервера SMTP",
+		},
+		{
+			Type: "numeric",
+			Slug: "port",
+			Name: "Порт сервера",
+		},
+		{
+			Type: "text",
+			Slug: "from",
+			Name: "Адрем отправителя",
+		},
+	})
+	if err != nil {
+		slog.Info("ошибка сериализации JSON для запроса в endpoint для регистрации worker")
+		return
+	}
 	SMTPKindWorker, err := CreateKindWorker(ctx, DBStorage, db.CreateKindWorkerParams{
 		Name:         "smtp сервер",
 		Slug:         "smtp",
-		ConfigSchema: pqtype.NullRawMessage{Valid: true, RawMessage: configSchema},
+		ConfigSchema: configSchema,
 		Config:       pqtype.NullRawMessage{Valid: false}, // Значит что еще не настроен
 	})
 	if err != nil {
@@ -147,11 +171,11 @@ func CreateDefaultTypesWorker(ctx context.Context, storage *db.Queries) ([]db.Ty
 
 func CreateDefaultPrioritys(ctx context.Context, storage *db.Queries) ([]db.Priority, error) {
 	prioritys := []db.CreatePriorityParams{
-		{Weight: 1, Name: "Низкий", Slug: "low"},
-		{Weight: 2, Name: "Средний", Slug: "middle"},
-		{Weight: 3, Name: "Высокий", Slug: "high"},
-		{Weight: 4, Name: "Экстренный", Slug: "extra"},
-		{Weight: 5, Name: "Черезвычайный", Slug: "emergency"},
+		{Weight: 0, Name: "Низкий", Slug: "low"},
+		{Weight: 1, Name: "Средний", Slug: "middle"},
+		{Weight: 2, Name: "Высокий", Slug: "high"},
+		{Weight: 3, Name: "Экстренный", Slug: "extra"},
+		{Weight: 4, Name: "Черезвычайный", Slug: "emergency"},
 	}
 
 	var createdPrioritys []db.Priority

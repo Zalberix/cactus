@@ -56,7 +56,7 @@ CREATE TABLE public.kind_worker (
     id integer NOT NULL,
     name character varying(255) NOT NULL,
     slug character varying(255) NOT NULL,
-    config_schema jsonb,
+    config_schema jsonb NOT NULL,
     config jsonb
 );
 
@@ -406,6 +406,7 @@ ALTER SEQUENCE public.user_id_seq OWNED BY public."user".id;
 
 CREATE TABLE public.worker (
     id integer NOT NULL,
+    uuid uuid NOT NULL,
     is_active boolean DEFAULT false NOT NULL,
     id_type_worker integer NOT NULL,
     id_kind_worker integer NOT NULL
@@ -739,6 +740,14 @@ ALTER TABLE ONLY public."user"
 
 ALTER TABLE ONLY public.worker
     ADD CONSTRAINT worker_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: worker worker_uuid; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.worker
+    ADD CONSTRAINT worker_uuid UNIQUE (uuid);
 
 
 --

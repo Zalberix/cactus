@@ -1,6 +1,7 @@
 env: "local" #local, prod, dev
 http_server:
-  address: "0.0.0.0:8080"
+  host: "0.0.0.0"
+  port: "8080"
   timeout: 4s
   idle_timeout: 30s
 db:
@@ -9,3 +10,7 @@ db:
   name: "postgres"
   user: "root"
   pass: "root"
+redis:
+  address: "localhost:6379"
+  user: ""
+  password: "root"

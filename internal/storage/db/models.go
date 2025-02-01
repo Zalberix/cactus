@@ -27,7 +27,7 @@ type KindWorker struct {
 	ID           int32                 `json:"id"`
 	Name         string                `json:"name"`
 	Slug         string                `json:"slug"`
-	ConfigSchema pqtype.NullRawMessage `json:"config_schema"`
+	ConfigSchema json.RawMessage       `json:"config_schema"`
 	Config       pqtype.NullRawMessage `json:"config"`
 }
 
@@ -121,8 +121,9 @@ type User struct {
 }
 
 type Worker struct {
-	ID           int32 `json:"id"`
-	IsActive     bool  `json:"is_active"`
-	IDTypeWorker int32 `json:"id_type_worker"`
-	IDKindWorker int32 `json:"id_kind_worker"`
+	ID           int32     `json:"id"`
+	Uuid         uuid.UUID `json:"uuid"`
+	IsActive     bool      `json:"is_active"`
+	IDTypeWorker int32     `json:"id_type_worker"`
+	IDKindWorker int32     `json:"id_kind_worker"`
 }

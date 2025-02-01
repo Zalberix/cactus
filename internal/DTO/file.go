@@ -7,7 +7,9 @@ import (
 )
 
 type SetFile struct {
-	UUID uuid.UUID
+	UUID  uuid.UUID
+	Title string
+	Ext   string
 }
 
 type GetFile struct {

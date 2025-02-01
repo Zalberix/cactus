@@ -1,6 +1,7 @@
 package core
 
 import (
+	"cactus/internal/server/meta"
 	"cactus/internal/storage/db"
 	"cactus/internal/storage/file"
 	"cactus/internal/storage/plugin"
@@ -15,14 +16,16 @@ type Service struct {
 	storage     *db.Queries
 	fileStorage *file.FileStorage
 	plugins     *plugin.Storage
+	meta        *meta.ServerMeta
 }
 
-func New(db *sqlx.DB, storage *db.Queries, rdb *redis.Client, fileStorage *file.FileStorage, plugins *plugin.Storage) *Service {
+func New(db *sqlx.DB, storage *db.Queries, rdb *redis.Client, fileStorage *file.FileStorage, plugins *plugin.Storage, meta *meta.ServerMeta) *Service {
 	return &Service{
 		db:          db,
 		rdb:         rdb,
 		storage:     storage,
 		fileStorage: fileStorage,
 		plugins:     plugins,
+		meta:        meta,
 	}
 }

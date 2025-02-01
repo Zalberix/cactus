@@ -1,5 +1,5 @@
 package request
 
-type GetFilesRequest struct {
-	Hashes []string `json:"hashes" validate:"required,gt=0,dive,required"`
+type GetFileRequest struct {
+	Uuid string `json:"uuid" validate:"required,uuid"`
 }

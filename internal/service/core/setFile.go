@@ -46,6 +46,8 @@ func (s *Service) SetFileTX(ctx context.Context, tx *sql.Tx, params SetFileParam
 	}
 
 	return dto.SetFile{
-		UUID: file.Uuid,
+		UUID:  file.Uuid,
+		Title: file.Title,
+		Ext:   file.Ext,
 	}, nil
 }

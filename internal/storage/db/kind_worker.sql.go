@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/sqlc-dev/pqtype"
 )
@@ -24,7 +25,7 @@ RETURNING id, name, slug, config_schema, config
 type CreateKindWorkerParams struct {
 	Name         string                `json:"name"`
 	Slug         string                `json:"slug"`
-	ConfigSchema pqtype.NullRawMessage `json:"config_schema"`
+	ConfigSchema json.RawMessage       `json:"config_schema"`
 	Config       pqtype.NullRawMessage `json:"config"`
 }
 
@@ -55,6 +56,26 @@ LIMIT 1
 
 func (q *Queries) GetKindWokerById(ctx context.Context, id int32) (KindWorker, error) {
 	row := q.db.QueryRowContext(ctx, getKindWokerById, id)
+	var i KindWorker
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Slug,
+		&i.ConfigSchema,
+		&i.Config,
+	)
+	return i, err
+}
+
+const getKindWorkerBySlug = `-- name: GetKindWorkerBySlug :one
+SELECT id, name, slug, config_schema, config 
+FROM kind_worker kw
+WHERE kw.slug = $1
+LIMIT 1
+`
+
+func (q *Queries) GetKindWorkerBySlug(ctx context.Context, slug string) (KindWorker, error) {
+	row := q.db.QueryRowContext(ctx, getKindWorkerBySlug, slug)
 	var i KindWorker
 	err := row.Scan(
 		&i.ID,

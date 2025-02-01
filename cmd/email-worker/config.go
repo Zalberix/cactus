@@ -1,4 +1,4 @@
-package config
+package main
 
 import (
 	"log"
@@ -8,32 +8,18 @@ import (
 	"github.com/ilyakaznacheev/cleanenv"
 )
 
-var (
-	AppEnvLocal       = "local"
-	AppEnvDevelopment = "dev"
-	AppEnvProduction  = "prod"
-)
-
 type Config struct {
 	Env        string     `yaml:"env" env-default:"dev"`
+	WorkerUUID string     `yaml:"worker_uuid"`
 	HTTPServer HTTPServer `yaml:"http_server"`
-	Database   Database   `yaml:"db"`
 	Redis      Redis      `yaml:"redis"`
+	Token      string     `yaml:"token"`
 }
 
 type HTTPServer struct {
-	Host        string        `yaml:"host" env-default:"localhost"`
-	Port        string        `yaml:"port" env-default:"8080"`
+	Address     string        `yaml:"address" env-default:"localhost:8080"`
 	Timeout     time.Duration `yaml:"timeout" env-default:"4s"`
 	IdleTimeout time.Duration `yaml:"idle_timeout" env-default:"30s"`
-}
-
-type Database struct {
-	Host string `yaml:"host" env-default:"db"`
-	Port string `yaml:"port" env-default:"5432"`
-	Name string `yaml:"name" env-default:"cactus"`
-	User string `yaml:"user" env-default:"root"`
-	Pass string `yaml:"pass" env-default:"root"`
 }
 
 type Redis struct {
@@ -49,7 +35,7 @@ type Redis struct {
 func MustLoad() *Config {
 
 	// TODO переделать на переменную среды так как нужно будет менять его при переезде на продакшен
-	configPath := "./config/dev.yaml"
+	configPath := "./config/email.worker.yaml"
 
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		log.Fatalf("config file does not exist: %s", configPath)

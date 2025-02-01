@@ -50,3 +50,16 @@ func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (File, e
 	)
 	return i, err
 }
+
+const getFilePathByUUID = `-- name: GetFilePathByUUID :one
+SELECT "path" FROM file
+WHERE uuid = $1
+LIMIT 1
+`
+
+func (q *Queries) GetFilePathByUUID(ctx context.Context, argUuid uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getFilePathByUUID, argUuid)
+	var path string
+	err := row.Scan(&path)
+	return path, err
+}

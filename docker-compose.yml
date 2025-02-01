@@ -43,6 +43,16 @@ services:
     volumes:
       - ./assets/redis-cactus-volume:/data
 
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025" # UI
+    environment:
+      MH_STORAGE: "memory"
+    restart: unless-stopped
+
 # networks:
 #   pgsql-cactus-network:
 #     driver: bridge

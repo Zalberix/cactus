@@ -3,7 +3,7 @@ CREATE TABLE kind_worker (
     id SERIAL PRIMARY KEY,
     "name" VARCHAR(255) NOT NULL,
     slug VARCHAR(255) NOT NULL,
-    config_schema JSONB,
+    config_schema JSONB NOT NULL,
     config JSONB,
     CONSTRAINT kind_worker_slug_key UNIQUE (slug)
 );

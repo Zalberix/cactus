@@ -12,3 +12,9 @@ SELECT *
 FROM kind_worker kw
 WHERE kw.id = $1
 LIMIT 1;
+
+-- name: GetKindWorkerBySlug :one
+SELECT * 
+FROM kind_worker kw
+WHERE kw.slug = $1
+LIMIT 1;

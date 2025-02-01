@@ -34,6 +34,17 @@ func (q *Queries) CreatePriority(ctx context.Context, arg CreatePriorityParams) 
 	return i, err
 }
 
+const getMaxPriorityWeight = `-- name: GetMaxPriorityWeight :one
+SELECT MAX(weight) FROM priority LIMIT 1
+`
+
+func (q *Queries) GetMaxPriorityWeight(ctx context.Context) (int32, error) {
+	row := q.db.QueryRowContext(ctx, getMaxPriorityWeight)
+	var max int32
+	err := row.Scan(&max)
+	return max, err
+}
+
 const getPriorityBySlug = `-- name: GetPriorityBySlug :one
 SELECT id, name, weight, slug FROM priority p
 WHERE p.slug = $1

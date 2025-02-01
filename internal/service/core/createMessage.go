@@ -17,16 +17,14 @@ import (
 )
 
 type CreateMessageParams struct {
-	Plugin         plugin.Plugin
-	IDKindWorker   int32
-	IDSystem       int32
-	PrioritySlug   string
-	ChangelSlug    string
-	Schema         any
-	Title, Message string
-	Subject        string
-	SendLater      *time.Time
-	Files          []SetFileParams
+	Plugin       plugin.Plugin
+	IDKindWorker int32
+	IDSystem     int32
+	PrioritySlug string
+	ChanelSlug   string
+	Schema       any
+	SendLater    *time.Time
+	Files        []SetFileParams
 }
 
 func (s *Service) CreateMessage(
@@ -71,7 +69,7 @@ func (s *Service) CreateMessage(
 		return dto.CreateMessage{}, fmt.Errorf("ошибка получения приоритета по slug: %w", err)
 	}
 
-	TypeWorker, err := storage.GetTypeWorkerBySlug(ctx, arg.ChangelSlug)
+	TypeWorker, err := storage.GetTypeWorkerBySlug(ctx, arg.ChanelSlug)
 	if err != nil {
 		return dto.CreateMessage{}, fmt.Errorf("ошибка получения типа воркера по slug: %w", err)
 	}
@@ -142,10 +140,10 @@ func (s *Service) CreateMessage(
 	s.AddMessageToQueue(ctx, AddMessageToQueueParams{
 		SlugKindWorker:        kindWorker.Slug,
 		Message:               newMessage,
-		SlugTypeWorker:        arg.ChangelSlug,
+		Files:                 files,
+		SlugTypeWorker:        arg.ChanelSlug,
 		WeightPriorityMessage: systemPriority.Weight + messagePriority.Weight,
 	})
-	// s.pipeline[0]
 
 	err = tx.Commit()
 	return dtoMessage, err

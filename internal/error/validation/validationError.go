@@ -24,7 +24,7 @@ func ValidateStructure(structure any) (map[string]string, error) {
 	if err != nil {
 		errs, ok := err.(validator.ValidationErrors)
 		if !ok {
-			return nil, fmt.Errorf("Ошибка типа проверте работу передаваемую структуру")
+			return nil, fmt.Errorf("ошибка типа проверте работу передаваемую структуру")
 		}
 
 		validationErrors := make(map[string]string, len(errs))

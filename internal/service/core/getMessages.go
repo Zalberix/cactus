@@ -28,7 +28,7 @@ func (s *Service) GetMessages(ctx context.Context, slug string, systemID int) ([
 	var messages []dto.Message
 
 	for _, message := range messagesDB {
-
+		// TODO тут плагин возвращается а не schema
 		schema, exist := s.plugins.Get(slug)
 
 		if !exist {
