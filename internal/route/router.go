@@ -1,12 +1,12 @@
 package route
 
 import (
+	"github.com/go-chi/cors"
+
 	"cactus/internal/pkg/router"
 	"cactus/internal/service/core"
 	"cactus/internal/service/pipeline"
 	"cactus/internal/storage/plugin"
-
-	"github.com/go-chi/cors"
 )
 
 func New(
@@ -28,7 +28,7 @@ func New(
 		MaxAge:           300, // Maximum value not ignored by any of major browsers
 	}))
 
-	addRouteApi(r, coreService, pipelineService, plugins)
+	addRouteAPI(r, coreService, pipelineService, plugins)
 
 	return r
 }

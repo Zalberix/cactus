@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/jmoiron/sqlx"
+	// Подключаем драйвер PostgreSQL.
 	_ "github.com/lib/pq"
 )
 
@@ -46,7 +47,6 @@ func New(
 	name string,
 	user string,
 	pass string,
-
 ) (*sqlx.DB, error) {
 	return sqlx.ConnectContext(ctx, "postgres", dsn{
 		Host: host,

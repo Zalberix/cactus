@@ -1,12 +1,13 @@
 package core
 
 import (
-	"cactus/internal/error/validation"
-	"cactus/internal/http/request"
-	"cactus/internal/http/response"
 	"context"
 	"encoding/json"
 	"net/http"
+
+	"cactus/internal/error/validation"
+	"cactus/internal/http/request"
+	"cactus/internal/http/response"
 )
 
 type getStatusService interface {
@@ -20,21 +21,21 @@ func GetStatus(s getStatusService) http.HandlerFunc {
 		_ = json.NewDecoder(r.Body).Decode(&req)
 		errors, err := validation.ValidateStructure(&req)
 		if err != nil {
-			response.ResponseFailJSON(w, "Ошибка при проверке полей, проверьте структуру.")
+			response.FailJSON(w, "Ошибка при проверке полей, проверьте структуру.")
 			return
 		}
 		if errors != nil {
-			response.ResponseValidationJSON(w, "Ошибка валидации, проверьте отправляемые поля", errors)
+			response.ValidationJSON(w, "Ошибка валидации, проверьте отправляемые поля", errors)
 			return
 		}
 
 		status, err := s.GetStatus(r.Context(), req.UUID)
 		if err != nil {
 			// TODO: добавить trace для ошибок
-			response.ResponseFailJSON(w, "Внутренняя ошибка сервера. Пожалуйста, попробуйте позже.")
+			response.FailJSON(w, "Внутренняя ошибка сервера. Пожалуйста, попробуйте позже.")
 		}
 
-		response.ResponseOKJSON(w, response.GetStatusMessageResponse{
+		response.OKJSON(w, response.GetStatusMessageResponse{
 			Status: status,
 		})
 	}

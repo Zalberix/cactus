@@ -1,17 +1,16 @@
 package core
 
 import (
-	dto "cactus/internal/DTO"
 	"context"
 	"fmt"
 
 	u "github.com/google/uuid"
+
+	dto "cactus/internal/DTO"
 )
 
 func (s *Service) GetFile(ctx context.Context, uuid string) (dto.GetFile, error) {
-
 	UUID, err := u.Parse(uuid)
-
 	if err != nil {
 		return dto.GetFile{}, fmt.Errorf("uuid для файла не валидный: %v", err.Error())
 	}

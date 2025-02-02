@@ -19,7 +19,6 @@ type Service struct {
 }
 
 func NewService() *Service {
-
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
@@ -82,10 +81,8 @@ func (s *Service) sendAll(msg *Message) {
 }
 
 func (s *Service) Listen() {
-
 	for {
 		select {
-
 		case c := <-s.addCh:
 			s.clients[c.id] = c
 			s.sendPastMessages(c)

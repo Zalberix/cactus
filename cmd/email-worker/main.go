@@ -1,10 +1,6 @@
 package main
 
 import (
-	dto "cactus/internal/DTO"
-	"cactus/internal/logger"
-	configschema "cactus/internal/pkg/configSchema"
-	"cactus/internal/plugin/email"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -15,11 +11,15 @@ import (
 	"sync"
 	"time"
 
-	rdb "cactus/internal/storage/redis"
-
 	"github.com/go-playground/validator/v10"
 	"github.com/redis/go-redis/v9"
 	"gopkg.in/gomail.v2"
+
+	dto "cactus/internal/DTO"
+	"cactus/internal/logger"
+	configschema "cactus/internal/pkg/configSchema"
+	"cactus/internal/plugin/email"
+	rdb "cactus/internal/storage/redis"
 )
 
 type SMTPWorkerConfig struct {
@@ -75,12 +75,11 @@ func (conf *SMTPWorkerConfig) Update(values map[string]interface{}) {
 	}
 }
 
-func (conf *SMTPWorkerConfig) Send(message dto.MessageValueInMessageQueue, system dto.SystemValueInMessageQueue) {
+func (conf *SMTPWorkerConfig) Send(message dto.MessageValueInMessageQueue, _ dto.SystemValueInMessageQueue) {
 	conf.mutex.Lock()
 	defer conf.mutex.Unlock()
 	conf.sendChan <- func() {
-
-		var SMTPValue email.EmailSchema
+		var SMTPValue email.Schema
 		if err := json.Unmarshal(message.Value, &SMTPValue); err != nil {
 			conf.worker.Err() <- fmt.Errorf("данные в value сообщения неверного формата: %w", err)
 			return
@@ -97,9 +96,15 @@ func (conf *SMTPWorkerConfig) Send(message dto.MessageValueInMessageQueue, syste
 
 		for _, file := range message.Files {
 			m.Attach("./dummy.txt", gomail.SetCopyFunc(func(w io.Writer) error {
-				resp, err := http.Get(file.Url)
+				client := &http.Client{}
+				req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, file.URL, nil)
 				if err != nil {
-					return err
+					return fmt.Errorf("ошибка создания запроса: %w", err)
+				}
+
+				resp, err := client.Do(req)
+				if err != nil {
+					return fmt.Errorf("ошибка выполнения запроса: %w", err)
 				}
 				defer resp.Body.Close()
 
@@ -109,7 +114,11 @@ func (conf *SMTPWorkerConfig) Send(message dto.MessageValueInMessageQueue, syste
 				}
 
 				_, err = io.Copy(w, resp.Body)
-				return err
+				if err != nil {
+					return fmt.Errorf("ошибка копирования данных: %w", err)
+				}
+
+				return nil
 			}), gomail.Rename(file.Name))
 		}
 
@@ -143,7 +152,6 @@ func main() {
 		Password: conf.Redis.Password,
 		Username: conf.Redis.User,
 	})
-
 	if err != nil {
 		slog.Error("Ошибка создания соединения с redis: ", slog.Any("error", err.Error()))
 		return
@@ -192,14 +200,14 @@ func main() {
 
 		time.Sleep(1 * time.Second)
 
-		systemJsonInt, ok := m.Value["system"]
+		systemJSONInt, ok := m.Value["system"]
 		if !ok {
 			worker.Err() <- fmt.Errorf("отсутсвуют данные системы. Сообщение будет пропущено")
 			// TODO сделать вывод error в event:error чтобы основной сервис подхватывал
 			return
 		}
 
-		systemJson, ok := systemJsonInt.(string)
+		systemJSON, ok := systemJSONInt.(string)
 		if !ok {
 			worker.Err() <- fmt.Errorf("отсутсвуют данные системы. Сообщение будет пропущено")
 			// TODO сделать вывод error в event:error чтобы основной сервис подхватывал
@@ -207,20 +215,20 @@ func main() {
 		}
 
 		var system dto.SystemValueInMessageQueue
-		if err := json.Unmarshal([]byte(systemJson), &system); err != nil {
+		if err := json.Unmarshal([]byte(systemJSON), &system); err != nil {
 			worker.Err() <- fmt.Errorf("отсутсвует информация о системем которая отправила сообщение. Сообщение будет пропущено")
 			// TODO сделать вывод error в event:error чтобы основной сервис подхватывал
 			return
 		}
 
-		messageJsonInt, ok := m.Value["message"]
+		messageJSONInt, ok := m.Value["message"]
 		if !ok {
 			worker.Err() <- fmt.Errorf("отсутсвуют данные сообщения. Сообщение будет пропущено")
 			// TODO сделать вывод error в event:error чтобы основной сервис подхватывал
 			return
 		}
 
-		messageJson, ok := messageJsonInt.(string)
+		messageJSON, ok := messageJSONInt.(string)
 		if !ok {
 			worker.Err() <- fmt.Errorf("отсутсвуют данные сообщения. Сообщение будет пропущено")
 			// TODO сделать вывод error в event:error чтобы основной сервис подхватывал
@@ -228,11 +236,10 @@ func main() {
 		}
 
 		var message dto.MessageValueInMessageQueue
-		if err = json.Unmarshal([]byte(messageJson), &message); err != nil {
+		if err = json.Unmarshal([]byte(messageJSON), &message); err != nil {
 			worker.Err() <- fmt.Errorf("отсутсвуют данные о системем которая отправила сообщение. Сообщение будет пропущено")
 			// TODO сделать вывод error в event:error чтобы основной сервис подхватывал
 			return
-
 		}
 
 		fmt.Printf("Отправляю: %+v\n", message)

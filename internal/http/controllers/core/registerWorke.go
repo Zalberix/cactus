@@ -1,18 +1,18 @@
 package core
 
 import (
-	dto "cactus/internal/DTO"
-	"cactus/internal/error/validation"
-	"cactus/internal/http/request"
-	"cactus/internal/http/response"
-	"cactus/internal/service/core"
-
 	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 
 	"github.com/google/uuid"
+
+	dto "cactus/internal/DTO"
+	"cactus/internal/error/validation"
+	"cactus/internal/http/request"
+	"cactus/internal/http/response"
+	"cactus/internal/service/core"
 )
 
 type registerWorkerService interface {
@@ -25,7 +25,6 @@ type registerWorkerService interface {
 // Отмена рассылки писем по UUID что был передан для идентификации сообщения
 func RegisterWorker(s registerWorkerService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
 		ctx := r.Context()
 
 		var req request.RegisterWorkerRequest
@@ -33,15 +32,16 @@ func RegisterWorker(s registerWorkerService) http.HandlerFunc {
 
 		errors, err := validation.ValidateStructure(&req)
 		if err != nil {
-			response.ResponseFailJSON(w, "Ошибка при проверке полей, проверьте структуру.")
+			response.FailJSON(w, "Ошибка при проверке полей, проверьте структуру.")
 			return
 		}
 		if errors != nil {
-			response.ResponseValidationJSON(w, "Ошибка валидации, проверьте отправляемые поля", errors)
+			response.ValidationJSON(w, "Ошибка валидации, проверьте отправляемые поля", errors)
 			return
 		}
 
-		// TODO проверить токен и вынести в middleware (токен не систем, а токен ИС, он где-то отдельно должен лежать, возможно для каждого worker свой токен)
+		// TODO проверить токен и вынести в middleware (токен не систем, а токен ИС,
+		// он где-то отдельно должен лежать, возможно для каждого worker свой токен)
 		if req.Token != "decedb9c-3a96-4b0f-9638-f2276ec624dd" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(403)
@@ -50,7 +50,7 @@ func RegisterWorker(s registerWorkerService) http.HandlerFunc {
 
 		workerUUID, err := uuid.Parse(req.WorkerUUID)
 		if err != nil {
-			response.ResponseFailJSON(w, "ошибка обработки UUID воркера.")
+			response.FailJSON(w, "ошибка обработки UUID воркера.")
 			return
 		}
 
@@ -60,16 +60,20 @@ func RegisterWorker(s registerWorkerService) http.HandlerFunc {
 			Type:         req.Type,
 			ConfigSchema: req.ConfigSchema,
 		})
-
 		if err != nil {
-			slog.Info("Ошибка регистрации воркера:", slog.Any("err", err), slog.Any("type", req.Type), slog.Any("kind", req.Kind))
-			response.ResponseFailJSON(w, "Неудалось зарегистрировать воркер, проверьте запрос и попробуйте снова.")
+			slog.Info(
+				"Ошибка регистрации воркера:",
+				slog.Any("err", err),
+				slog.Any("type", req.Type),
+				slog.Any("kind", req.Kind),
+			)
+			response.FailJSON(w, "Неудалось зарегистрировать воркер, проверьте запрос и попробуйте снова.")
 			return
 		}
 
-		response.ResponseOKJSON(w, response.RegisterWorkerResponse{
+		response.OKJSON(w, response.RegisterWorkerResponse{
 			Created: created.Created,
-			Id:      created.Id,
+			ID:      created.ID,
 			Config:  created.Config,
 		})
 	}

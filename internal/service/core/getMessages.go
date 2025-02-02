@@ -1,16 +1,16 @@
 package core
 
 import (
-	dto "cactus/internal/DTO"
-	"cactus/internal/storage/db"
 	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
+
+	dto "cactus/internal/DTO"
+	"cactus/internal/storage/db"
 )
 
 func (s *Service) GetMessages(ctx context.Context, slug string, systemID int) ([]dto.Message, error) {
-
 	typeWorker, err := s.storage.GetTypeWorkerBySlug(ctx, slug)
 	if err != nil {
 		return []dto.Message{}, err
@@ -20,12 +20,11 @@ func (s *Service) GetMessages(ctx context.Context, slug string, systemID int) ([
 		IDTypeWorker: typeWorker.ID,
 		IDSystem:     int32(systemID),
 	})
-
 	if err != nil {
 		return []dto.Message{}, err
 	}
 
-	var messages []dto.Message
+	messages := make([]dto.Message, 0, len(messagesDB))
 
 	for _, message := range messagesDB {
 		// TODO тут плагин возвращается а не schema

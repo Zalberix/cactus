@@ -14,11 +14,11 @@ import (
 	"github.com/gabriel-vasile/mimetype"
 )
 
-type FileStorage struct {
+type Storage struct {
 	FilesPath string
 }
 
-func New(basePath string) (*FileStorage, error) {
+func New(basePath string) (*Storage, error) {
 	binaryDir, err := os.Executable()
 	if err != nil || strings.HasPrefix(filepath.Dir(binaryDir), os.TempDir()) {
 		binaryDir, err = os.Getwd()
@@ -52,13 +52,14 @@ func New(basePath string) (*FileStorage, error) {
 		return nil, fmt.Errorf("ошибка при проверке пути: %w", err)
 	}
 
-	return &FileStorage{
+	return &Storage{
 		FilesPath: fullPath,
 	}, nil
 }
 
 // TODO доделать сохранение
-func (s *FileStorage) Save(ctx context.Context, file multipart.File, ext mimetype.MIME) (path string, err error) {
+func (s *Storage) Save(ctx context.Context, file multipart.File, ext mimetype.MIME) (path string, err error) {
+	_ = ctx
 	defer file.Close()
 
 	bytes := make([]byte, 16) // TODO вынести в константы.
@@ -88,7 +89,9 @@ func (s *FileStorage) Save(ctx context.Context, file multipart.File, ext mimetyp
 	return fileName, nil
 }
 
-func (s *FileStorage) Get(ctx context.Context, path string) (*os.File, error) {
+func (s *Storage) Get(ctx context.Context, path string) (*os.File, error) {
+	_ = ctx // TODO сделать открытие файла с контекстом
+
 	fullPath := filepath.Join(s.FilesPath, path)
 
 	file, err := os.Open(fullPath)

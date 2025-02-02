@@ -1,14 +1,15 @@
 package core
 
 import (
-	dto "cactus/internal/DTO"
-	"cactus/internal/error/validation"
-	"cactus/internal/http/request"
-	"cactus/internal/http/response"
 	"context"
 	"io"
 	"log/slog"
 	"net/http"
+
+	dto "cactus/internal/DTO"
+	"cactus/internal/error/validation"
+	"cactus/internal/http/request"
+	"cactus/internal/http/response"
 )
 
 type getFilesService interface {
@@ -23,27 +24,26 @@ func GetFile(s getFilesService) http.HandlerFunc {
 		queryValues := r.URL.Query()
 		uuid := queryValues.Get("uuid")
 
-		var req = request.GetFileRequest{
-			Uuid: uuid,
+		req := request.GetFileRequest{
+			UUID: uuid,
 		}
 
 		// Переписать валидатор, так как сейчас мы пишем в структуре валидацию и приходится туда сюда прыгать.
 		validationError, err := validation.ValidateStructure(&req)
 		if err != nil {
 			slog.Error("Ошибка структуры", slog.Any("err", err))
-			response.ResponseFailJSON(w, "Ошибка при проверке полей, проверьте структуру.")
+			response.FailJSON(w, "Ошибка при проверке полей, проверьте структуру.")
 			return
 		}
 		if validationError != nil {
-			response.ResponseValidationJSON(w, "Ошибка валидации, проверьте отправляемые поля", validationError)
+			response.ValidationJSON(w, "Ошибка валидации, проверьте отправляемые поля", validationError)
 			return
 		}
 
-		file, err := s.GetFile(ctx, req.Uuid)
-
+		file, err := s.GetFile(ctx, req.UUID)
 		if err != nil {
 			slog.Error(err.Error())
-			response.ResponseFailJSON(w, "не возможно получить файл.")
+			response.FailJSON(w, "не возможно получить файл.")
 			return
 		}
 
@@ -53,7 +53,7 @@ func GetFile(s getFilesService) http.HandlerFunc {
 		bfile, err := io.ReadAll(file.File)
 		if err != nil {
 			slog.Error(err.Error())
-			response.ResponseFailJSON(w, "ошибка чтения файла.")
+			response.FailJSON(w, "ошибка чтения файла.")
 			return
 		}
 

@@ -1,13 +1,14 @@
 package core
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+
 	dto "cactus/internal/DTO"
 	"cactus/internal/error/validation"
 	"cactus/internal/http/request"
 	"cactus/internal/http/response"
-	"context"
-	"encoding/json"
-	"net/http"
 )
 
 type getMessagesService interface {
@@ -21,11 +22,11 @@ func GetMessages(s getMessagesService) http.HandlerFunc {
 		// Переписать валидатор, так как сейчас мы пишем в структуре валидацию и приходится туда сюда прыгать.
 		errors, err := validation.ValidateStructure(&req)
 		if err != nil {
-			response.ResponseFailJSON(w, "Ошибка при проверке полей, проверьте структуру.")
+			response.FailJSON(w, "Ошибка при проверке полей, проверьте структуру.")
 			return
 		}
 		if errors != nil {
-			response.ResponseValidationJSON(w, "Ошибка валидации, проверьте отправляемые поля", errors)
+			response.ValidationJSON(w, "Ошибка валидации, проверьте отправляемые поля", errors)
 			return
 		}
 
@@ -35,9 +36,9 @@ func GetMessages(s getMessagesService) http.HandlerFunc {
 		// TODO обработать ошибку
 		// TODO: контекст объеденить с контекстом приложения, мне важно чтобы при завершении приложения и ответы вернулись.
 
-		messages, _ := s.GetMessages(r.Context(), slug, req.ClientId)
+		messages, _ := s.GetMessages(r.Context(), slug, req.ClientID)
 
-		response.ResponseOKJSON(w, response.GetMessagesResponse{
+		response.OKJSON(w, response.GetMessagesResponse{
 			Messages: messages,
 		})
 	}

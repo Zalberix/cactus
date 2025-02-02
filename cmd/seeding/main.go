@@ -1,8 +1,6 @@
 package main
 
 import (
-	"cactus/internal/config"
-	"cactus/internal/logger"
 	"context"
 	"crypto/sha512"
 	"database/sql"
@@ -12,15 +10,16 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/sqlc-dev/pqtype"
+
+	"cactus/internal/config"
+	"cactus/internal/logger"
 	configschema "cactus/internal/pkg/configSchema"
 	sqlxconect "cactus/internal/pkg/db"
 	"cactus/internal/storage/db"
-
-	"github.com/sqlc-dev/pqtype"
 )
 
 func main() {
-
 	cfg := config.MustLoad()
 
 	// isDev := cfg.Env == config.AppEnvDevelopment || cfg.Env == config.AppEnvLocal
@@ -37,7 +36,6 @@ func main() {
 		cfg.Database.User,
 		cfg.Database.Pass,
 	)
-
 	if err != nil {
 		slog.Error("Ошибка запуска сервера")
 		return
@@ -127,7 +125,7 @@ func main() {
 		return
 	}
 
-	token, err := CreateToken(ctx, DBStorage, db.CreateTokenParams{
+	_, err = CreateToken(ctx, DBStorage, db.CreateTokenParams{
 		IDSystem:     kindWorkerSystem.IDSystem,
 		IDKindWorker: kindWorkerSystem.IDKindWorker,
 		IsActive:     true,
@@ -138,9 +136,6 @@ func main() {
 		slog.Info("не смогли создать токен для системы, дальнейшая работа невозможна:", slog.String("error", err.Error()))
 		return
 	}
-
-	_ = token
-
 }
 
 func CreateDefaultTypesWorker(ctx context.Context, storage *db.Queries) ([]db.TypeWorker, error) {
@@ -161,7 +156,7 @@ func CreateDefaultTypesWorker(ctx context.Context, storage *db.Queries) ([]db.Ty
 			Slug: typeWorker.Slug,
 		})
 		if err != nil {
-			return []db.TypeWorker{}, fmt.Errorf("ошибка при заполнении типов воркеров: %v", err)
+			return []db.TypeWorker{}, fmt.Errorf("ошибка при заполнении типов воркеров: %w", err)
 		}
 		createdTypesWorker = append(createdTypesWorker, createTypeWorker)
 	}
@@ -183,7 +178,7 @@ func CreateDefaultPrioritys(ctx context.Context, storage *db.Queries) ([]db.Prio
 	for _, priority := range prioritys {
 		createdPriority, err := storage.CreatePriority(ctx, priority)
 		if err != nil {
-			return []db.Priority{}, fmt.Errorf("ошибка при заполнении типов воркеров: %v", err)
+			return []db.Priority{}, fmt.Errorf("ошибка при заполнении типов воркеров: %w", err)
 		}
 		createdPrioritys = append(createdPrioritys, createdPriority)
 	}
@@ -192,37 +187,30 @@ func CreateDefaultPrioritys(ctx context.Context, storage *db.Queries) ([]db.Prio
 }
 
 func CreateKindWorker(ctx context.Context, storage *db.Queries, kind db.CreateKindWorkerParams) (db.KindWorker, error) {
-
 	createdKind, err := storage.CreateKindWorker(ctx, kind)
 	if err != nil {
-		return db.KindWorker{}, fmt.Errorf("ошибка при заполнении типов воркеров: %v", err)
+		return db.KindWorker{}, fmt.Errorf("ошибка при заполнении типов воркеров: %w", err)
 	}
 
 	return createdKind, nil
 }
 
 func CreateKindWorkerSystem(ctx context.Context, storage *db.Queries, kind db.AddKindWorkerForSystemParams) (db.KindWorkerSystem, error) {
-
 	err := storage.AddKindWorkerForSystem(ctx, kind)
 	if err != nil {
-		return db.KindWorkerSystem{}, fmt.Errorf("ошибка при добавлениии вида воркера для системы: %v", err)
+		return db.KindWorkerSystem{}, fmt.Errorf("ошибка при добавлениии вида воркера для системы: %w", err)
 	}
 
-	return db.KindWorkerSystem{
-		IDSystem:     kind.IDSystem,
-		IDKindWorker: kind.IDKindWorker,
-	}, nil
+	return db.KindWorkerSystem(kind), nil
 }
 
 func CreateSystem(ctx context.Context, storage *db.Queries, system db.CreateSystemParams) (db.System, error) {
-
 	createSystem, err := storage.CreateSystem(ctx, system)
 	if err != nil {
-		return db.System{}, fmt.Errorf("ошибка при создании систем: %v", err)
+		return db.System{}, fmt.Errorf("ошибка при создании систем: %w", err)
 	}
 
 	return createSystem, nil
-
 }
 
 func CreateUser(ctx context.Context, storage *db.Queries, user db.CreateUserParams) (db.User, error) {
@@ -231,9 +219,8 @@ func CreateUser(ctx context.Context, storage *db.Queries, user db.CreateUserPara
 	hashPassword := hasher.Sum(nil)
 	user.Password = hex.EncodeToString(hashPassword)
 	createUser, err := storage.CreateUser(ctx, user)
-
 	if err != nil {
-		return db.User{}, fmt.Errorf("ошибка при создании пользователя: %v", err)
+		return db.User{}, fmt.Errorf("ошибка при создании пользователя: %w", err)
 	}
 	return createUser, nil
 }
@@ -241,7 +228,7 @@ func CreateUser(ctx context.Context, storage *db.Queries, user db.CreateUserPara
 func CreateToken(ctx context.Context, storage *db.Queries, token db.CreateTokenParams) (db.Token, error) {
 	createToken, err := storage.CreateToken(ctx, token)
 	if err != nil {
-		return db.Token{}, fmt.Errorf("ошибка при создании токена: %v", err)
+		return db.Token{}, fmt.Errorf("ошибка при создании токена: %w", err)
 	}
 	return createToken, nil
 }

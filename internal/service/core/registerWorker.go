@@ -1,17 +1,19 @@
 package core
 
 import (
-	dto "cactus/internal/DTO"
-	configschema "cactus/internal/pkg/configSchema"
-	"cactus/internal/storage/db"
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
+
+	dto "cactus/internal/DTO"
+	configschema "cactus/internal/pkg/configSchema"
+	"cactus/internal/storage/db"
 )
 
 type RegisterWorkerParams struct {
@@ -25,7 +27,6 @@ func (s *Service) RegisterWorker(
 	ctx context.Context,
 	arg RegisterWorkerParams,
 ) (dto.RegisteWorker, error) {
-
 	if _, ok := s.plugins.Get(arg.Type); !ok {
 		return dto.RegisteWorker{}, fmt.Errorf("воркеры с таким типом не включены или не поддерживаются")
 	}
@@ -40,7 +41,7 @@ func (s *Service) RegisterWorker(
 	storage := s.storage.WithTx(tx)
 
 	kindWorker, err := storage.GetKindWorkerBySlug(ctx, arg.Kind)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		configSchemaByte, err := json.Marshal(arg.ConfigSchema)
 		if err != nil {
 			slog.Error("Ошибка создания json настроке воркера:", slog.String("error", err.Error()))
@@ -63,7 +64,7 @@ func (s *Service) RegisterWorker(
 		return dto.RegisteWorker{}, fmt.Errorf("ошибка при получении вида воркер: %w", err)
 	}
 
-	var config = map[string]interface{}{}
+	config := map[string]interface{}{}
 	if kindWorker.Config.Valid {
 		err := json.Unmarshal(kindWorker.Config.RawMessage, &config)
 		if err != nil {
@@ -73,7 +74,7 @@ func (s *Service) RegisterWorker(
 	}
 
 	typeWorker, err := storage.GetTypeWorkerBySlug(ctx, arg.Type)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		typeWorker, err = storage.CreateTypeWorker(ctx, db.CreateTypeWorkerParams{
 			Name: "",
 			Slug: arg.Kind,
@@ -89,7 +90,7 @@ func (s *Service) RegisterWorker(
 
 	created := false
 	worker, err := storage.GetWorkerByUUID(ctx, arg.WorkerUUID)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		created = true
 		worker, err = storage.CreateWorker(ctx, db.CreateWorkerParams{
 			Uuid:         arg.WorkerUUID,
@@ -116,7 +117,7 @@ func (s *Service) RegisterWorker(
 	err = tx.Commit()
 	return dto.RegisteWorker{
 		Created: created,
-		Id:      worker.ID,
+		ID:      worker.ID,
 		Config:  config,
 	}, err
 }

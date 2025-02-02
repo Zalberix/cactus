@@ -2,9 +2,6 @@ package main
 
 import (
 	"bytes"
-	"cactus/internal/http/request"
-	"cactus/internal/http/response"
-	configschema "cactus/internal/pkg/configSchema"
 	"context"
 	"encoding/json"
 	"errors"
@@ -18,15 +15,21 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+
+	"cactus/internal/http/request"
+	"cactus/internal/http/response"
+	configschema "cactus/internal/pkg/configSchema"
 )
 
 type Message struct {
-	Id    string
-	Value map[string]interface{} // TODO сделать generic тип для Value сообщения, реализовать можно через struct tags.
+	ID string
+	// TODO сделать generic тип для Value сообщения, реализовать можно через struct tags.
+	Value map[string]interface{}
 }
 
 type workerMeta struct {
-	MaxPriority      int    `slug:"max_priority"` // TODO сделать tag meta для того чтобы понимать какое поле надо искать в meta event.
+	// TODO сделать tag meta для того чтобы понимать какое поле надо искать в meta event.
+	MaxPriority      int    `slug:"max_priority"`
 	RegisterEndpoint string `slug:"register_endpoint"`
 }
 
@@ -36,7 +39,7 @@ type QueueMessage struct {
 }
 
 func (st *QueueMessage) Act() error {
-	err := st.stream.worker.rdb.XAck(st.stream.worker.ctx, st.stream.Name, st.stream.worker.groupName, st.Id).Err()
+	err := st.stream.worker.rdb.XAck(st.stream.worker.ctx, st.stream.Name, st.stream.worker.groupName, st.ID).Err()
 	if err != nil {
 		st.stream.worker.err <- err
 	}
@@ -49,7 +52,7 @@ func (st *QueueMessage) Act() error {
 
 type ArgStream struct {
 	Name  string
-	Id    string
+	ID    string
 	Block time.Duration
 	Count int64
 }
@@ -87,25 +90,28 @@ func NewWorker(
 	config WorkerConfig,
 ) *Worker {
 	return &Worker{
-		ctx:       ctx,
-		rdb:       rdb,
-		config:    config,
-		groupName: "reader", // TODO возможно нужно вынести, но как будто бы пользователь ни чего не должен знать о том откуда он получает сообщения, пока на этапе до MVP не понятно.
+		ctx:    ctx,
+		rdb:    rdb,
+		config: config,
+
+		// TODO возможно нужно вынести, но как будто бы пользователь ни чего не должен знать
+		// о том откуда он получает сообщения, пока на этапе до MVP не понятно.
+		groupName: "reader",
 		streamsEvent: map[string]ArgStream{
 			"config": {
 				Name:  "event:config:" + config.WorkerKind,
-				Id:    "$",
+				ID:    "$",
 				Block: 0,
 				Count: 1,
 			},
 			"meta": {
 				Name:  "event:meta",
-				Id:    "$",
+				ID:    "$",
 				Block: 0,
 				Count: 1,
 			},
 		},
-		configHandler: func(message Message) { slog.Info("configHandler по умолчанию") },
+		configHandler: func(_ Message) { slog.Info("configHandler по умолчанию") },
 		logger: func(err error) {
 			slog.Error("ошибка в работе воркера:", slog.String("error", err.Error()))
 		},
@@ -128,7 +134,8 @@ func (w *Worker) SetConfigStream(stream ArgStream) {
 	w.streamsEvent["config"] = stream
 }
 
-// Пока не понятно нужно ли давать возможность добавлять слушать дополнительные стримы, так как по сути стримы сейчас стандартизированные. И нет возможности указать другие.
+// Пока не понятно нужно ли давать возможность добавлять слушать дополнительные стримы,
+// так как по сути стримы сейчас стандартизированные. И нет возможности указать другие.
 // func (w *Worker) AddQueueStream(stream ArgStream) {
 // 	w.streamsTask = append(w.streamsTask, stream)
 // }
@@ -142,7 +149,6 @@ func (w *Worker) SetHandler(handler func(QueueMessage)) {
 }
 
 func (w *Worker) Run() {
-
 	// Запуск логера
 	go w.log()
 
@@ -214,7 +220,7 @@ func (w *Worker) Run() {
 				worker: w,
 				ArgStream: ArgStream{
 					Name:  streamName,
-					Id:    ">",
+					ID:    ">",
 					Block: 10 * time.Second,
 					Count: 5,
 				},
@@ -226,7 +232,6 @@ func (w *Worker) Run() {
 }
 
 func (w *Worker) readEventStream(ctx context.Context, stream StreamConfig, handler func(Message)) {
-
 	err := w.createStreamIfNotExist(stream.Name, "")
 	if err != nil {
 		w.err <- fmt.Errorf("ошибка создания стрима %v: %w", stream.Name, err)
@@ -240,13 +245,13 @@ func (w *Worker) readEventStream(ctx context.Context, stream StreamConfig, handl
 			return
 		default:
 			args := &redis.XReadArgs{
-				Streams: []string{stream.Name, stream.Id},
+				Streams: []string{stream.Name, stream.ID},
 				Block:   stream.Block,
 				Count:   stream.Count,
 			}
 
 			msgs, err := w.rdb.XRead(w.ctx, args).Result()
-			if err != nil && err != redis.Nil {
+			if err != nil && !errors.Is(err, redis.Nil) {
 				w.err <- fmt.Errorf("ошибка чтения стрима %v: %w", stream.Name, err)
 				continue
 			}
@@ -254,7 +259,7 @@ func (w *Worker) readEventStream(ctx context.Context, stream StreamConfig, handl
 			for _, msg := range msgs {
 				for _, m := range msg.Messages {
 					handler(Message{
-						Id:    m.ID,
+						ID:    m.ID,
 						Value: m.Values,
 					})
 				}
@@ -265,11 +270,16 @@ func (w *Worker) readEventStream(ctx context.Context, stream StreamConfig, handl
 
 // Чтение из стрима Redis и обработка через handler
 //
-// TODO сделать чтобы возвращался канал, а не принимался handler, так как при изменении количества приоритетов (meta MaxPriority) нужно чтобы была возможность дочитать сообщения и вернуть их в сервис, а еще как то надо обыграть block 0 либо сделать block 1 мин. Надо перфоманс посмотреть.
-// Тут сложнее чем кажется, завершение ctx не будет работать для XReadGroup если Block = 0 # https://github.com/redis/go-redis/issues/2556
-// Тоесть завершить горутину можно будет только если XReadGroup вычитали сообщение, в случае если стрим больше не нужен и туда не пишутся сообщения, он не сомжет завершиться, так как нет сообщений для чтения.
+// TODO сделать чтобы возвращался канал, а не принимался handler,
+// так как при изменении количества приоритетов (meta MaxPriority) нужно
+// чтобы была возможность дочитать сообщения и вернуть их в сервис,
+// a еще как то надо обыграть block 0 либо сделать block 1 мин. Надо перфоманс посмотреть.
+// Тут сложнее чем кажется, завершение ctx не будет работать для XReadGroup если Block = 0
+// # https://github.com/redis/go-redis/issues/2556
+// Тоесть завершить горутину можно будет только если XReadGroup вычитали сообщение,
+// В случае если стрим больше не нужен и туда не пишутся сообщения,
+// он не сомжет завершиться, так как нет сообщений для чтения.
 func (w *Worker) readQueueStream(ctx context.Context, stream StreamConfig, handler func(QueueMessage)) {
-
 	err := w.createStreamIfNotExist(stream.Name, stream.worker.groupName)
 	if err != nil {
 		w.err <- fmt.Errorf("ошибка создания стрима %v: %w", stream.Name, err)
@@ -285,7 +295,7 @@ func (w *Worker) readQueueStream(ctx context.Context, stream StreamConfig, handl
 			args := &redis.XReadGroupArgs{
 				Group:    stream.worker.groupName,
 				Consumer: stream.worker.config.WorkerUUID,
-				Streams:  []string{stream.Name, stream.Id},
+				Streams:  []string{stream.Name, stream.ID},
 				Block:    stream.Block,
 				Count:    stream.Count,
 			}
@@ -295,7 +305,7 @@ func (w *Worker) readQueueStream(ctx context.Context, stream StreamConfig, handl
 				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 					return
 				}
-				if err != redis.Nil {
+				if !errors.Is(err, redis.Nil) {
 					w.err <- fmt.Errorf("ошибка чтения стрима %v: %w (%+v)", stream.Name, err, args)
 				}
 				continue
@@ -306,7 +316,7 @@ func (w *Worker) readQueueStream(ctx context.Context, stream StreamConfig, handl
 					handler(QueueMessage{
 						stream: &stream,
 						Message: Message{
-							Id:    m.ID,
+							ID:    m.ID,
 							Value: m.Values,
 						},
 					})
@@ -316,14 +326,16 @@ func (w *Worker) readQueueStream(ctx context.Context, stream StreamConfig, handl
 	}
 }
 
-// TODO пересмотреть удаление стримов, так как один не правильно написанный worker может удалять стримы что не верно. Скорее лучше говорить что запустить не возможно так как ключи под стримы уже заняты
+// TODO пересмотреть удаление стримов, так как один не правильно написанный worker может удалять
+// стримы что не верно. Скорее лучше говорить что запустить не возможно так как ключи под стримы уже заняты
 func (w *Worker) createStreamIfNotExist(key string, group string) error {
 	typeRes, err := w.rdb.Type(w.ctx, key).Result()
 	if err != nil {
 		return fmt.Errorf("ошибка получения типа ключа %s: %w", key, err)
 	}
 
-	if typeRes == "none" {
+	switch typeRes {
+	case "none":
 		if group != "" {
 			err = w.rdb.XGroupCreateMkStream(w.ctx, key, group, "$").Err()
 			if err != nil {
@@ -338,18 +350,24 @@ func (w *Worker) createStreamIfNotExist(key string, group string) error {
 				return fmt.Errorf("ошибка создания стрима %s: %w", key, err)
 			}
 		}
-	} else if typeRes == "stream" {
+	case "stream":
 		info, err := w.rdb.XInfoStream(w.ctx, key).Result()
 		if err != nil {
 			return fmt.Errorf("ошибка получения информации о стриме %s: %w", key, err)
 		}
 
 		if group != "" && info.Groups == 0 {
-			return fmt.Errorf("запуск чтения стрима не возможен так как стрим с именем %v без группы, а для работы нужен стрим с группой", key)
+			return fmt.Errorf(
+				"запуск чтения стрима не возможен так как стрим с именем %v без группы, а для работы нужен стрим с группой",
+				key,
+			)
 		} else if group == "" && info.Groups > 0 {
-			return fmt.Errorf("запуск чтения стрима не возможен так как стрим с именем %v с группой, а для работы нужен стрим без группы", key)
+			return fmt.Errorf(
+				"запуск чтения стрима не возможен так как стрим с именем %v с группой, а для работы нужен стрим без группы",
+				key,
+			)
 		}
-	} else {
+	default:
 		err = w.rdb.Del(w.ctx, key).Err()
 		if err != nil {
 			return fmt.Errorf("ошибка удаления ключа %s: %w", key, err)
@@ -387,7 +405,12 @@ func (w *Worker) registerWorker() error {
 		return fmt.Errorf("ошибка сериализации JSON для запроса в endpoint для регистрации worker: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, w.meta.RegisterEndpoint, bytes.NewBuffer(requestRegisterEndpointJSON))
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		w.meta.RegisterEndpoint,
+		bytes.NewBuffer(requestRegisterEndpointJSON),
+	)
 	if err != nil {
 		return fmt.Errorf("ошибка создания HTTP-запроса: %w", err)
 	}
@@ -402,14 +425,18 @@ func (w *Worker) registerWorker() error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-
 		bodyBytes, readErr := io.ReadAll(resp.Body)
 		if readErr != nil {
 			return fmt.Errorf("ошибка чтения тела ответа: %w", readErr)
 		}
 		bodyString := string(bodyBytes)
 
-		return fmt.Errorf("ошибка ответа от сервера: статус %v (%v) answer: %v", resp.Status, string(requestRegisterEndpointJSON), bodyString)
+		return fmt.Errorf(
+			"ошибка ответа от сервера: статус %v (%v) answer: %v",
+			resp.Status,
+			string(requestRegisterEndpointJSON),
+			bodyString,
+		)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -435,7 +462,7 @@ func (w *Worker) registerWorker() error {
 
 	if len(dataResp.Data.Config) != 0 {
 		w.configHandler(Message{
-			Id:    "-",
+			ID:    "-",
 			Value: dataResp.Data.Config,
 		})
 		if !w.IsReady() {
@@ -493,7 +520,7 @@ func MapToStruct(data map[string]interface{}, result interface{}) error {
 
 		fieldValue := resultValue.FieldByName(field.Name)
 		if fieldValue.IsValid() && fieldValue.CanSet() {
-			switch fieldValue.Kind() {
+			switch fieldValue.Kind() { //nolint:exhaustive
 			case reflect.String:
 				strValue, ok := value.(string)
 				if !ok {
@@ -511,7 +538,8 @@ func MapToStruct(data map[string]interface{}, result interface{}) error {
 					return fmt.Errorf("поле '%s' должно быть числом (%w)", field.Name, err)
 				}
 				fieldValue.SetInt(intValue)
-			// TODO: Добавить обработку других типов
+				// TODO: Добавить обработку других типов
+				// линтер отключил так как default не считается за обработку всех типов
 			default:
 				return fmt.Errorf("неподдерживаемый тип для поля '%s'", field.Name)
 			}

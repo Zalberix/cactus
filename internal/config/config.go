@@ -47,8 +47,7 @@ type Redis struct {
 }
 
 func MustLoad() *Config {
-
-	// TODO переделать на переменную среды так как нужно будет менять его при переезде на продакшен
+	// TODO переделать на переменную среды так как нужно будет менять его при переезде на продакшен.
 	configPath := "./config/dev.yaml"
 
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {

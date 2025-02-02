@@ -1,9 +1,10 @@
 package core
 
 import (
-	dto "cactus/internal/DTO"
 	"context"
 	"fmt"
+
+	dto "cactus/internal/DTO"
 )
 
 func (s *Service) GetTypeWorkers(ctx context.Context) ([]dto.TypeWorker, error) {
@@ -12,7 +13,7 @@ func (s *Service) GetTypeWorkers(ctx context.Context) ([]dto.TypeWorker, error) 
 		return []dto.TypeWorker{}, fmt.Errorf("%v", err.Error())
 	}
 
-	var typeWorkers []dto.TypeWorker
+	typeWorkers := make([]dto.TypeWorker, 0, len(typeWorkersModel))
 
 	for _, typeWorker := range typeWorkersModel {
 		typeWorkers = append(typeWorkers, dto.TypeWorker{

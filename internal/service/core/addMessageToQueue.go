@@ -1,14 +1,15 @@
 package core
 
 import (
-	dto "cactus/internal/DTO"
-	"cactus/internal/storage/db"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 
 	"github.com/redis/go-redis/v9"
+
+	dto "cactus/internal/DTO"
+	"cactus/internal/storage/db"
 )
 
 type AddMessageToQueueParams struct {
@@ -22,10 +23,10 @@ type AddMessageToQueueParams struct {
 func (s *Service) AddMessageToQueue(ctx context.Context, arg AddMessageToQueueParams) error {
 	nameQueue := fmt.Sprintf("messages:%v:%v:w-%v", arg.SlugTypeWorker, arg.SlugKindWorker, arg.WeightPriorityMessage)
 
-	var files []dto.FileInMessageValueInMessageQueue
+	files := make([]dto.FileInMessageValueInMessageQueue, 0, len(arg.Files))
 	for _, file := range arg.Files {
 		f := dto.FileInMessageValueInMessageQueue{
-			Url:  fmt.Sprintf("http://%s:%s/api/file/get?uuid=%s", s.meta.HostName, s.meta.Port, file.UUID.String()),
+			URL:  fmt.Sprintf("http://%s:%s/api/file/get?uuid=%s", s.meta.HostName, s.meta.Port, file.UUID.String()),
 			Name: fmt.Sprintf("%v.%v", file.Title, file.Ext),
 		}
 		files = append(files, f)
@@ -33,7 +34,7 @@ func (s *Service) AddMessageToQueue(ctx context.Context, arg AddMessageToQueuePa
 
 	dtoMessage := dto.MessageValueInMessageQueue{
 		ID:       arg.ID,
-		Uuid:     arg.Uuid,
+		UUID:     arg.Uuid,
 		Value:    arg.Value,
 		CreateAt: arg.CreateAt,
 		Files:    files,
@@ -43,7 +44,7 @@ func (s *Service) AddMessageToQueue(ctx context.Context, arg AddMessageToQueuePa
 		dtoMessage.SendLater = &arg.SendLater.Time
 	}
 
-	messageJson, err := json.Marshal(dtoMessage)
+	messageJSON, err := json.Marshal(dtoMessage)
 	if err != nil {
 		slog.Error("Не удалось сформировать JSON из сообщения: ", slog.Any("err", err))
 		return fmt.Errorf("не удалось сформировать JSON из сообщения: %w", err)
@@ -54,10 +55,18 @@ func (s *Service) AddMessageToQueue(ctx context.Context, arg AddMessageToQueuePa
 		slog.Error("ну удалось получить тип записи по ключу "+nameQueue+": ", slog.Any("err", err))
 		return fmt.Errorf("не удалось сформировать JSON из сообщения: %w", err)
 	}
-	if keyType == "stream" {
+	switch keyType {
+	case "none":
+		err = s.rdb.XGroupCreateMkStream(ctx, nameQueue, "reader", "0").Err()
+		if err != nil {
+			slog.Error("Не удалось создать группу для сообщений: ", slog.Any("err", err))
+			return fmt.Errorf("не удалось создать группу для сообщений: %w", err)
+		}
+	case "stream":
 		info, err := s.rdb.XInfoStream(ctx, nameQueue).Result()
 		if err != nil {
-
+			slog.Error("не удалось посмотреть информацию стриме: ", slog.Any("err", err))
+			return fmt.Errorf("не удалось посмотреть информацию стриме: %w", err)
 		}
 		if info.Groups == 0 {
 			err = s.rdb.XGroupCreate(ctx, nameQueue, "reader", "0").Err()
@@ -66,12 +75,7 @@ func (s *Service) AddMessageToQueue(ctx context.Context, arg AddMessageToQueuePa
 				return fmt.Errorf("не удалось создать группу для сообщений: %w", err)
 			}
 		}
-	} else if keyType == "none" {
-		err = s.rdb.XGroupCreateMkStream(ctx, nameQueue, "reader", "0").Err()
-		if err != nil {
-			slog.Error("Не удалось создать группу для сообщений: ", slog.Any("err", err))
-			return fmt.Errorf("не удалось создать группу для сообщений: %w", err)
-		}
+	default:
 	}
 
 	system, err := s.storage.GetSystemById(ctx, arg.IDSystem)
@@ -80,7 +84,7 @@ func (s *Service) AddMessageToQueue(ctx context.Context, arg AddMessageToQueuePa
 		return fmt.Errorf("невозможно получить систему по ID: %w", err)
 	}
 
-	systemJson, err := json.Marshal(dto.SystemValueInMessageQueue{
+	systemJSON, err := json.Marshal(dto.SystemValueInMessageQueue{
 		Name: system.Name,
 	})
 	if err != nil {
@@ -91,8 +95,8 @@ func (s *Service) AddMessageToQueue(ctx context.Context, arg AddMessageToQueuePa
 	err = s.rdb.XAdd(ctx, &redis.XAddArgs{
 		Stream: nameQueue,
 		Values: map[string]interface{}{
-			"message": messageJson,
-			"system":  systemJson,
+			"message": messageJSON,
+			"system":  systemJSON,
 		},
 	}).Err()
 	if err != nil {

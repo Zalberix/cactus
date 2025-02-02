@@ -1,31 +1,31 @@
 package pipeline
 
-type PipelineStep struct {
+type Step struct {
 	Name string
 }
 
-type PipelineStatus string
+type Status string
 
 const (
-	Wait   PipelineStatus = "wait"
-	Done   PipelineStatus = "done"
-	Work   PipelineStatus = "work"
-	Cancel PipelineStatus = "cancel"
-	Error  PipelineStatus = "error"
+	Wait   Status = "wait"
+	Done   Status = "done"
+	Work   Status = "work"
+	Cancel Status = "cancel"
+	Error  Status = "error"
 )
 
-var PipelineStepWaitQueue = PipelineStep{
+var StepWaitQueue = Step{
 	Name: "В очереди",
 }
 
-var PipelineStepWaitSendQueue = PipelineStep{
+var StepWaitSendQueue = Step{
 	Name: "Ожидает отправки",
 }
 
-var PipelineStepWork = PipelineStep{
+var StepWork = Step{
 	Name: "В работе у воркера",
 }
 
-var PipelineStepDone = PipelineStep{
+var StepDone = Step{
 	Name: "Выполнено",
 }

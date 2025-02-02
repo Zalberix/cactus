@@ -2,6 +2,7 @@ package chatservice
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -11,7 +12,7 @@ import (
 
 const channelBufSize = 100
 
-var maxId int = 0
+var maxID int
 
 // Chat client.
 type Client struct {
@@ -24,7 +25,6 @@ type Client struct {
 
 // Create new chat client.
 func NewClient(ws *websocket.Conn, service *Service) *Client {
-
 	if ws == nil {
 		slog.Error("ws cannot be nil")
 	}
@@ -33,12 +33,12 @@ func NewClient(ws *websocket.Conn, service *Service) *Client {
 		slog.Error("server cannot be nil")
 	}
 
-	maxId++
+	maxID++
 	ch := make(chan *Message, channelBufSize)
 	doneCh := make(chan bool)
 
 	return &Client{
-		maxId,
+		maxID,
 		ws,
 		service,
 		ch,
@@ -72,7 +72,6 @@ func (c *Client) Listen() {
 func (c *Client) listenWrite() {
 	for {
 		select {
-
 		case msg := <-c.ch:
 			message, err := json.Marshal(msg)
 			if err != nil {
@@ -95,29 +94,26 @@ func (c *Client) listenWrite() {
 	}
 }
 
-// Listen read request via chanel
+// Listen read request via chanel.
 func (c *Client) listenRead() {
 	for {
 		select {
-
 		case <-c.doneCh:
 			c.service.Del(c)
 			c.doneCh <- true // for listenWrite method
 			return
-
 		default:
 			var msg Message
-			// messageType
 			_, message, err := c.Conn().ReadMessage()
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				c.doneCh <- true
+				continue
 			} else if err != nil {
 				c.service.Err(err)
 				return
-			} else {
-				json.Unmarshal(message, &msg)
-				c.service.SendAll(&msg)
 			}
+			json.Unmarshal(message, &msg)
+			c.service.SendAll(&msg)
 		}
 	}
 }

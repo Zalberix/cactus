@@ -1,8 +1,6 @@
 package core
 
 import (
-	dto "cactus/internal/DTO"
-	"cactus/internal/storage/db"
 	"context"
 	"database/sql"
 	"fmt"
@@ -10,6 +8,9 @@ import (
 
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/google/uuid"
+
+	dto "cactus/internal/DTO"
+	"cactus/internal/storage/db"
 )
 
 type SetFileParams struct {

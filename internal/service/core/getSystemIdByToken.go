@@ -1,8 +1,9 @@
 package core
 
 import (
-	"cactus/internal/storage/db"
 	"context"
+
+	"cactus/internal/storage/db"
 )
 
 func (s *Service) GetTokenByPublicToken(ctx context.Context, token string) (db.Token, error) {

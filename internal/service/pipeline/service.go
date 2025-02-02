@@ -1,11 +1,11 @@
 package pipeline
 
 import (
-	"cactus/internal/storage/db"
-	"cactus/internal/storage/plugin"
-
 	"github.com/jmoiron/sqlx"
 	"github.com/redis/go-redis/v9"
+
+	"cactus/internal/storage/db"
+	"cactus/internal/storage/plugin"
 )
 
 type Service struct {

@@ -1,10 +1,11 @@
 package middleware
 
 import (
-	"cactus/internal/pkg/contextkeys"
-	"cactus/internal/storage/db"
 	"context"
 	"net/http"
+
+	"cactus/internal/pkg/contextkeys"
+	"cactus/internal/storage/db"
 )
 
 type coreService interface {

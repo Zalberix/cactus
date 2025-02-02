@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -10,7 +11,7 @@ import (
 	ru_translations "github.com/go-playground/validator/v10/translations/ru"
 )
 
-// TODO оптимизировать, каждый раз создается переводчик для валидатора
+// TODO: оптимизировать, каждый раз создается переводчик для валидатора.
 func ValidateStructure(structure any) (map[string]string, error) {
 	ru := ru.New()
 	uni := ut.New(ru)
@@ -22,8 +23,8 @@ func ValidateStructure(structure any) (map[string]string, error) {
 
 	err := validate.Struct(structure)
 	if err != nil {
-		errs, ok := err.(validator.ValidationErrors)
-		if !ok {
+		var errs validator.ValidationErrors
+		if !errors.As(err, &errs) {
 			return nil, fmt.Errorf("ошибка типа проверте работу передаваемую структуру")
 		}
 
@@ -35,11 +36,10 @@ func ValidateStructure(structure any) (map[string]string, error) {
 		return validationErrors, nil
 	}
 	return nil, nil
-
 }
 
 func genNameFromNamespaceError(namespace string) string {
-	var newNamespace []string
+	newNamespace := make([]string, 0, 1)
 	for i, part := range strings.Split(namespace, ".") {
 		if i == 0 {
 			continue

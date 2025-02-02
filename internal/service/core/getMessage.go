@@ -1,10 +1,12 @@
 package core
 
 import (
-	"cactus/internal/storage/db"
 	"context"
+
+	"cactus/internal/storage/db"
 )
 
 func (s *Service) GetMessage(ctx context.Context) (db.Message, error) {
+	_ = ctx
 	return db.Message{}, nil
 }

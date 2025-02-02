@@ -33,7 +33,6 @@ type Redis struct {
 }
 
 func MustLoad() *Config {
-
 	// TODO переделать на переменную среды так как нужно будет менять его при переезде на продакшен
 	configPath := "./config/email.worker.yaml"
 

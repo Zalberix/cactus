@@ -1,11 +1,6 @@
 package core
 
 import (
-	dto "cactus/internal/DTO"
-	pl "cactus/internal/pkg/pipeline"
-	"cactus/internal/plugin"
-	"cactus/internal/service/pipeline"
-	"cactus/internal/storage/db"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -14,6 +9,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	dto "cactus/internal/DTO"
+	pl "cactus/internal/pkg/pipeline"
+	"cactus/internal/plugin"
+	"cactus/internal/service/pipeline"
+	"cactus/internal/storage/db"
 )
 
 type CreateMessageParams struct {
@@ -116,11 +117,11 @@ func (s *Service) CreateMessage(
 		},
 		Files: &files,
 	}
-	piplines := []pl.PipelineStep{
-		// pl.PipelineStepWaitSendQueue,  // TODO включать при send_later != nil
-		pl.PipelineStepWaitQueue,
-		pl.PipelineStepWork,
-		pl.PipelineStepDone,
+	piplines := []pl.Step{
+		// pl.StepWaitSendQueue,  // TODO включать при send_later != nil
+		pl.StepWaitQueue,
+		pl.StepWork,
+		pl.StepDone,
 	}
 
 	err = arg.Plugin.ExtendPipline(&piplines)

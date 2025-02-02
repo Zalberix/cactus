@@ -1,10 +1,11 @@
 package logger
 
 import (
-	"cactus/internal/config"
-	"cactus/internal/pkg/slogpretty"
 	"log/slog"
 	"os"
+
+	"cactus/internal/config"
+	"cactus/internal/pkg/slogpretty"
 )
 
 func SetupLogger(env string) *slog.Logger {

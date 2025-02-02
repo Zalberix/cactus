@@ -1,6 +1,14 @@
 package server
 
 import (
+	"context"
+	"fmt"
+	"net/http"
+	"os"
+
+	"github.com/jmoiron/sqlx"
+	"github.com/redis/go-redis/v9"
+
 	"cactus/internal/config"
 	sqlxconect "cactus/internal/pkg/db"
 	"cactus/internal/plugin/email"
@@ -12,13 +20,6 @@ import (
 	filestorage "cactus/internal/storage/file"
 	plugin_storage "cactus/internal/storage/plugin"
 	rdb "cactus/internal/storage/redis"
-	"context"
-	"fmt"
-	"net/http"
-	"os"
-
-	"github.com/jmoiron/sqlx"
-	"github.com/redis/go-redis/v9"
 )
 
 type Server struct {
@@ -50,7 +51,7 @@ func Create(conf config.Config) (Server, error) {
 		Username: conf.Redis.User,
 	})
 	if err != nil {
-		return Server{}, fmt.Errorf("create redis conection: %w", err)
+		return Server{}, fmt.Errorf("create redis connection: %w", err)
 	}
 
 	_ = RDBStorage // TODO передать в сервис
@@ -58,7 +59,8 @@ func Create(conf config.Config) (Server, error) {
 	fileStorage, _ := filestorage.New("app/files") // TODO path вынести в конфиг
 
 	pluginStorage := plugin_storage.New()
-	pluginStorage.Add("email", email.New()) // TODO сделать SMTP а не email так как под каждый вид воркера настраиваеится структура
+	// TODO сделать SMTP а не email так как под каждый вид воркера настраиваеится структура
+	pluginStorage.Add("email", email.New())
 	// pluginStorage.Add("telegram", telegram.New())
 	// pluginStorage.Add("push", push.New())
 

@@ -1,0 +1,80 @@
+run:
+  tests: true
+
+issues:
+  exclude-dirs:
+    - cmd/seeding
+
+linters-settings:
+  funlen:
+    lines: 150
+    statements: 80
+  tagliatelle:
+    case:
+      rules:
+        json: snake
+        yaml: snake
+  depguard:
+    rules:
+      main:
+       list-mode: lax
+       allow:
+        - $all
+  gci:
+    sections:
+      - standard
+      - default
+      - localmodule
+
+
+linters:
+  disable-all: true
+  enable:
+    - asciicheck
+    - bodyclose
+    - depguard
+    - dogsled
+    - dupl
+    - durationcheck
+    - errorlint
+    - exhaustive
+    - exportloopref
+    - funlen
+    - gci
+    - gocognit
+    - goconst
+    - gocritic
+    - gocyclo
+    - gofmt
+    - goheader
+    - gomoddirectives
+    - gomodguard
+    - goprintffuncname
+    - gosec
+    - gosimple
+    - govet
+    - importas
+    - ineffassign
+    - lll
+    - makezero
+    - misspell
+    - nestif
+    - nilerr
+    - noctx
+    - nolintlint
+    - prealloc
+    - predeclared
+    - revive
+    - rowserrcheck
+    - sqlclosecheck
+    - staticcheck
+    - stylecheck
+    - tagliatelle
+    - thelper
+    - tparallel
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - wastedassign
+    - whitespace

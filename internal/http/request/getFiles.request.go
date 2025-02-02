@@ -1,5 +1,5 @@
 package request
 
 type GetFileRequest struct {
-	Uuid string `json:"uuid" validate:"required,uuid"`
+	UUID string `json:"uuid" validate:"required,uuid"`
 }

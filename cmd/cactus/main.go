@@ -1,17 +1,17 @@
 package main
 
 import (
-	"cactus/internal/config"
-	"cactus/internal/logger"
-	"cactus/internal/server"
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"cactus/internal/config"
+	"cactus/internal/logger"
+	"cactus/internal/server"
 )
 
 func main() {
-
 	cfg := config.MustLoad()
 
 	// isDev := cfg.Env == config.AppEnvDevelopment || cfg.Env == config.AppEnvLocal

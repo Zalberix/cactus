@@ -1,7 +1,7 @@
 package dto
 
 type RegisteWorker struct {
+	ID      int32
 	Created bool
-	Id      int32
 	Config  map[string]interface{}
 }
