@@ -22,6 +22,7 @@ type testSetupGetStatus struct {
 }
 
 func prepareTestGetStatus(t *testing.T) *testSetupGetStatus {
+	t.Helper()
 	ctrl := gomock.NewController(t)
 	ctx := context.Background()
 	mockStorage := mocks.NewMockStorage(ctrl)

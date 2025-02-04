@@ -21,6 +21,7 @@ type testSetupGetToken struct {
 }
 
 func prepareTestGetToken(t *testing.T) *testSetupGetToken {
+	t.Helper()
 	ctrl := gomock.NewController(t)
 	ctx := context.Background()
 	mockStorage := mocks.NewMockStorage(ctrl)

@@ -21,6 +21,7 @@ type testSetupGetTypeWorkers struct {
 }
 
 func prepareTestGetTypeWorkers(t *testing.T) *testSetupGetTypeWorkers {
+	t.Helper()
 	ctrl := gomock.NewController(t)
 	ctx := context.Background()
 	mockStorage := mocks.NewMockStorage(ctrl)

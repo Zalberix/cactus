@@ -1,18 +1,18 @@
 package core_test
 
 import (
-	mocks_plugin "cactus/internal/plugin/mocks"
 	"context"
 	"database/sql"
 	"errors"
 	"testing"
 
-	configSchema "cactus/internal/pkg/configSchema"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
 	DTO "cactus/internal/DTO"
+	configSchema "cactus/internal/pkg/configSchema"
+	mocks_plugin "cactus/internal/plugin/mocks"
 	"cactus/internal/service/core"
 	"cactus/internal/service/core/mocks"
 	"cactus/internal/storage/db"
@@ -27,6 +27,7 @@ type testSetupRegisterWorker struct {
 }
 
 func prepareTestRegisterWorker(t *testing.T) *testSetupRegisterWorker {
+	t.Helper()
 	ctrl := gomock.NewController(t)
 	ctx := context.Background()
 	mockStorage := mocks.NewMockStorage(ctrl)
@@ -133,7 +134,9 @@ func TestRegisterWorker_Fail_GetKindWorkerError(t *testing.T) {
 
 	ts.mockPlugins.EXPECT().Get(testParams.Kind).Return(mockPlugin, true)
 	ts.mockStorage.EXPECT().SetContext(ts.ctx, gomock.Any()).Return(nil)
-	ts.mockStorage.EXPECT().GetKindWorkerBySlug(ts.ctx, testParams.Kind).Return(db.KindWorker{}, errors.New("ошибка при получении вида воркера"))
+	ts.mockStorage.EXPECT().
+		GetKindWorkerBySlug(ts.ctx, testParams.Kind).
+		Return(db.KindWorker{}, errors.New("ошибка при получении вида воркера"))
 
 	// Ожидаем вызов Rollback(), так как транзакция неудачна
 	ts.mockStorage.EXPECT().Rollback().Return(nil).Times(1)
@@ -161,8 +164,13 @@ func TestRegisterWorker_Fail_GetTypeWorkerError(t *testing.T) {
 
 	ts.mockPlugins.EXPECT().Get(testParams.Kind).Return(mockPlugin, true)
 	ts.mockStorage.EXPECT().SetContext(ts.ctx, gomock.Any()).Return(nil)
-	ts.mockStorage.EXPECT().GetKindWorkerBySlug(ts.ctx, testParams.Kind).Return(expectedKindWorker, nil)
-	ts.mockStorage.EXPECT().GetTypeWorkerBySlug(ts.ctx, testParams.Type).Return(db.TypeWorker{}, errors.New("ошибка при получении типа воркера"))
+	ts.mockStorage.EXPECT().
+		GetKindWorkerBySlug(ts.ctx, testParams.Kind).
+		Return(expectedKindWorker, nil)
+
+	ts.mockStorage.EXPECT().
+		GetTypeWorkerBySlug(ts.ctx, testParams.Type).
+		Return(db.TypeWorker{}, errors.New("ошибка при получении типа воркера"))
 
 	ts.mockStorage.EXPECT().Rollback().Return(nil).Times(1)
 
@@ -192,9 +200,12 @@ func TestRegisterWorker_Fail_CreateWorkerError(t *testing.T) {
 	ts.mockPlugins.EXPECT().Get(testParams.Kind).Return(mockPlugin, true)
 	ts.mockStorage.EXPECT().SetContext(ts.ctx, gomock.Any()).Return(nil)
 	ts.mockStorage.EXPECT().GetKindWorkerBySlug(ts.ctx, testParams.Kind).Return(expectedKindWorker, nil)
-	ts.mockStorage.EXPECT().GetTypeWorkerBySlug(ts.ctx, testParams.Type).Return(expectedTypeWorker, nil)
-	ts.mockStorage.EXPECT().GetWorkerByUUID(ts.ctx, testParams.WorkerUUID).Return(db.Worker{}, sql.ErrNoRows)
-	ts.mockStorage.EXPECT().CreateWorker(ts.ctx, gomock.Any()).Return(db.Worker{}, errors.New("ошибка при регистрации воркера"))
+	ts.mockStorage.EXPECT().
+		GetTypeWorkerBySlug(ts.ctx, testParams.Type).Return(expectedTypeWorker, nil)
+	ts.mockStorage.EXPECT().
+		GetWorkerByUUID(ts.ctx, testParams.WorkerUUID).Return(db.Worker{}, sql.ErrNoRows)
+	ts.mockStorage.EXPECT().
+		CreateWorker(ts.ctx, gomock.Any()).Return(db.Worker{}, errors.New("ошибка при регистрации воркера"))
 
 	ts.mockStorage.EXPECT().Rollback().Return(nil).Times(1)
 

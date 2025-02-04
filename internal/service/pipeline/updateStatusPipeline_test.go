@@ -1,7 +1,6 @@
 package pipeline_test
 
 import (
-	DTO "cactus/internal/DTO"
 	"context"
 	"database/sql"
 	"errors"
@@ -11,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	DTO "cactus/internal/DTO"
 	pipelinePkg "cactus/internal/pkg/pipeline"
 	"cactus/internal/service/pipeline"
 	"cactus/internal/service/pipeline/mocks"
@@ -25,6 +25,7 @@ type testSetupUpdateStatusPipeline struct {
 }
 
 func prepareTestUpdateStatusPipeline(t *testing.T) *testSetupUpdateStatusPipeline {
+	t.Helper()
 	ctrl := gomock.NewController(t)
 	ctx := context.Background()
 	mockStorage := mocks.NewMockStorage(ctrl)
@@ -43,8 +44,8 @@ func TestUpdateStatusPipeline_Success(t *testing.T) {
 	ts := prepareTestUpdateStatusPipeline(t)
 	defer ts.ctrl.Finish()
 
-	uuidMessage := "550e8400-e29b-41d4-a716-446655440000"
-	uuidWorker := "6f9619ff-8b86-d011-b42d-00c04fc964ff"
+	const uuidMessage = "550e8400-e29b-41d4-a716-446655440000"
+	const uuidWorker = "6f9619ff-8b86-d011-b42d-00c04fc964ff"
 	step := int32(1)
 	status := pipelinePkg.Work
 
@@ -94,7 +95,7 @@ func TestUpdateStatusPipeline_Fail_InvalidMessageUUID(t *testing.T) {
 	invalidUUID := "invalid-uuid"
 	step := int32(1)
 	status := pipelinePkg.Work
-	workerUUID := "6f9619ff-8b86-d011-b42d-00c04fc964ff"
+	const workerUUID = "6f9619ff-8b86-d011-b42d-00c04fc964ff"
 
 	result, err := ts.service.UpdateStatusPipeline(ts.ctx, invalidUUID, step, status, workerUUID)
 

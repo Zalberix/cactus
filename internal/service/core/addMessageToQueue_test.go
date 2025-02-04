@@ -1,7 +1,6 @@
 package core_test
 
 import (
-	"cactus/internal/server/meta"
 	"context"
 	"errors"
 	"testing"
@@ -11,6 +10,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	dto "cactus/internal/DTO"
+	"cactus/internal/server/meta"
 	"cactus/internal/service/core"
 	"cactus/internal/service/core/mocks"
 	"cactus/internal/storage/db"
@@ -27,6 +27,7 @@ type testSetup struct {
 }
 
 func prepareTest(t *testing.T) *testSetup {
+	t.Helper()
 	ctrl := gomock.NewController(t)
 
 	ctx := context.Background()
@@ -107,7 +108,9 @@ func TestAddMessageToQueue_Fail_GetSystemById(t *testing.T) {
 	defer ts.ctrl.Finish()
 
 	ts.mockBroker.EXPECT().EnsureStreamGroup(ts.ctx, ts.queueName, "reader").Return(nil)
-	ts.mockStorage.EXPECT().GetSystemById(ts.ctx, ts.testParams.IDSystem).Return(db.System{}, errors.New("система не найдена"))
+	ts.mockStorage.EXPECT().
+		GetSystemById(ts.ctx, ts.testParams.IDSystem).
+		Return(db.System{}, errors.New("система не найдена"))
 
 	err := ts.service.AddMessageToQueue(ts.ctx, ts.testParams)
 	assert.Error(t, err)
@@ -120,7 +123,9 @@ func TestAddMessageToQueue_Fail_AddMessageToQueue(t *testing.T) {
 
 	ts.mockBroker.EXPECT().EnsureStreamGroup(ts.ctx, ts.queueName, "reader").Return(nil)
 	ts.mockStorage.EXPECT().GetSystemById(ts.ctx, ts.testParams.IDSystem).Return(db.System{Name: "TestSystem"}, nil)
-	ts.mockBroker.EXPECT().AddMessageToQueue(ts.ctx, ts.queueName, gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("ошибка добавления в Redis"))
+	ts.mockBroker.EXPECT().
+		AddMessageToQueue(ts.ctx, ts.queueName, gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(errors.New("ошибка добавления в Redis"))
 
 	err := ts.service.AddMessageToQueue(ts.ctx, ts.testParams)
 	assert.Error(t, err)

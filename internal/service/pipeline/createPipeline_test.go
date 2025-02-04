@@ -1,7 +1,6 @@
 package pipeline_test
 
 import (
-	DTO "cactus/internal/DTO"
 	"context"
 	"errors"
 	"testing"
@@ -9,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	DTO "cactus/internal/DTO"
 	pipelinePkg "cactus/internal/pkg/pipeline"
 	"cactus/internal/service/pipeline"
 	"cactus/internal/service/pipeline/mocks"
@@ -24,6 +24,7 @@ type testSetupCreatePipeline struct {
 }
 
 func prepareTestCreatePipeline(t *testing.T) *testSetupCreatePipeline {
+	t.Helper()
 	ctrl := gomock.NewController(t)
 	ctx := context.Background()
 	mockStorage := mocks.NewMockStorage(ctrl)

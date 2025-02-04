@@ -1,8 +1,6 @@
 package core
 
 import (
-	"cactus/internal/service/core"
-	"cactus/internal/storage/plugin"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -14,7 +12,9 @@ import (
 	"cactus/internal/http/response"
 	"cactus/internal/pkg"
 	"cactus/internal/pkg/contextkeys"
+	"cactus/internal/service/core"
 	"cactus/internal/service/pipeline"
+	"cactus/internal/storage/plugin"
 )
 
 // Отправка сообщения

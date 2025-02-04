@@ -19,7 +19,11 @@ func (s *Service) CreatePipeline(ctx context.Context, arg CreatePipelineParams) 
 	return s.CreatePipelineTX(ctx, nil, arg)
 }
 
-func (s *Service) CreatePipelineTX(ctx context.Context, storageTx StorageTx, arg CreatePipelineParams) ([]dto.Pipeline, error) {
+func (s *Service) CreatePipelineTX(
+	ctx context.Context,
+	storageTx StorageTx,
+	arg CreatePipelineParams,
+) ([]dto.Pipeline, error) {
 	createPipeline := make([]dto.Pipeline, 0, len(arg.Pipeline))
 	if len(arg.Pipeline) == 0 {
 		return []dto.Pipeline{}, fmt.Errorf("количество шагов не может быть меньше 1")

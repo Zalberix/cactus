@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
-	"cactus/internal/DTO"
+	dto "cactus/internal/DTO"
 	"cactus/internal/service/core"
 	"cactus/internal/service/core/mocks"
 	"cactus/internal/storage/db"
@@ -26,6 +26,7 @@ type testSetupSetFile struct {
 }
 
 func prepareTestSetFile(t *testing.T) *testSetupSetFile {
+	t.Helper()
 	ctrl := gomock.NewController(t)
 	ctx := context.Background()
 	mockStorage := mocks.NewMockStorage(ctrl)
@@ -56,7 +57,7 @@ func TestSetFile_Success(t *testing.T) {
 		Ext:       *mimetype.Lookup("text/plain"),
 	}
 
-	expectedPath := "/path/to/file"
+	const expectedPath = "/path/to/file"
 	expectedFile := db.File{
 		Title:     "test_file",
 		Ext:       "txt",
@@ -67,7 +68,7 @@ func TestSetFile_Success(t *testing.T) {
 	ts.mockFile.EXPECT().Save(ts.ctx, gomock.Any(), gomock.AssignableToTypeOf(mimetype.MIME{})).Return(expectedPath, nil)
 
 	ts.mockStorage.EXPECT().CreateFile(ts.ctx, gomock.Any()).DoAndReturn(
-		func(ctx context.Context, params db.CreateFileParams) (db.File, error) {
+		func(_ context.Context, params db.CreateFileParams) (db.File, error) {
 			expectedFile.Uuid = params.Uuid
 			return expectedFile, nil
 		},
@@ -96,7 +97,7 @@ func TestSetFile_Fail_FileSaveError(t *testing.T) {
 
 	ts.mockFile.EXPECT().
 		Save(ts.ctx, gomock.Any(), gomock.AssignableToTypeOf(mimetype.MIME{})).
-		DoAndReturn(func(ctx context.Context, f multipart.File, ext mimetype.MIME) (string, error) {
+		DoAndReturn(func(_ context.Context, _ multipart.File, _ mimetype.MIME) (string, error) {
 			return "", errors.New("ошибка сохранения файла")
 		})
 
@@ -120,7 +121,7 @@ func TestSetFile_Fail_CreateFileError(t *testing.T) {
 		Ext:       *mimetype.Lookup("text/plain"),
 	}
 
-	expectedPath := "/path/to/file"
+	const expectedPath = "/path/to/file"
 
 	ts.mockFile.EXPECT().Save(ts.ctx, gomock.Any(), gomock.AssignableToTypeOf(mimetype.MIME{})).Return(expectedPath, nil)
 
@@ -158,7 +159,7 @@ func TestSetFileTX_Success(t *testing.T) {
 
 	// Перехватываем UUID, так как он создаётся внутри метода
 	ts.mockStorage.EXPECT().CreateFile(ts.ctx, gomock.Any()).DoAndReturn(
-		func(ctx context.Context, params db.CreateFileParams) (db.File, error) {
+		func(_ context.Context, params db.CreateFileParams) (db.File, error) {
 			expectedFile.Uuid = params.Uuid
 			return expectedFile, nil
 		},

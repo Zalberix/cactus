@@ -22,3 +22,11 @@ test:
 lint:
 	@echo "Run golangci-lint..."
 	golangci-lint run ./...
+
+gci:
+	@echo "Run format imports..."
+	gci write --skip-generated -s standard -s default -s localmodule .
+
+format:
+	@echo "Run format files..."
+	gofumpt -w .

@@ -1,7 +1,6 @@
 package core_test
 
 import (
-	mocks_plugin "cactus/internal/plugin/mocks"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	mocks_plugin "cactus/internal/plugin/mocks"
 	"cactus/internal/service/core"
 	"cactus/internal/service/core/mocks"
 	"cactus/internal/storage/db"
@@ -27,6 +27,7 @@ type testSetupGetMessages struct {
 }
 
 func prepareTestGetMessages(t *testing.T) *testSetupGetMessages {
+	t.Helper()
 	ctrl := gomock.NewController(t)
 	ctx := context.Background()
 	mockStorage := mocks.NewMockStorage(ctrl)
@@ -58,7 +59,12 @@ func TestGetMessages_Success(t *testing.T) {
 	expectedSchema := mockPlugin
 
 	ts.mockStorage.EXPECT().GetTypeWorkerBySlug(ts.ctx, ts.slug).Return(expectedTypeWorker, nil)
-	ts.mockStorage.EXPECT().GetMessagesBy(ts.ctx, db.GetMessagesByParams{IDTypeWorker: expectedTypeWorker.ID, IDSystem: int32(ts.systemID)}).Return(expectedMessagesDB, nil)
+	ts.mockStorage.EXPECT().
+		GetMessagesBy(ts.ctx, db.GetMessagesByParams{
+			IDTypeWorker: expectedTypeWorker.ID,
+			IDSystem:     int32(ts.systemID),
+		}).
+		Return(expectedMessagesDB, nil)
 	ts.mockPlugins.EXPECT().Get(ts.slug).Return(expectedSchema, true)
 
 	result, err := ts.service.GetMessages(ts.ctx, ts.slug, ts.systemID)
@@ -72,8 +78,16 @@ func TestGetMessages_Success_EmptyMessages(t *testing.T) {
 
 	expectedTypeWorker := db.TypeWorker{ID: 1}
 
-	ts.mockStorage.EXPECT().GetTypeWorkerBySlug(ts.ctx, ts.slug).Return(expectedTypeWorker, nil)
-	ts.mockStorage.EXPECT().GetMessagesBy(ts.ctx, db.GetMessagesByParams{IDTypeWorker: expectedTypeWorker.ID, IDSystem: int32(ts.systemID)}).Return([]db.Message{}, nil)
+	ts.mockStorage.EXPECT().
+		GetTypeWorkerBySlug(ts.ctx, ts.slug).
+		Return(expectedTypeWorker, nil)
+
+	ts.mockStorage.EXPECT().
+		GetMessagesBy(ts.ctx, db.GetMessagesByParams{
+			IDTypeWorker: expectedTypeWorker.ID,
+			IDSystem:     int32(ts.systemID),
+		}).
+		Return([]db.Message{}, nil)
 
 	result, err := ts.service.GetMessages(ts.ctx, ts.slug, ts.systemID)
 	assert.NoError(t, err)
@@ -84,7 +98,9 @@ func TestGetMessages_Fail_GetTypeWorkerBySlug(t *testing.T) {
 	ts := prepareTestGetMessages(t)
 	defer ts.ctrl.Finish()
 
-	ts.mockStorage.EXPECT().GetTypeWorkerBySlug(ts.ctx, ts.slug).Return(db.TypeWorker{}, errors.New("ошибка получения типа воркера"))
+	ts.mockStorage.EXPECT().
+		GetTypeWorkerBySlug(ts.ctx, ts.slug).
+		Return(db.TypeWorker{}, errors.New("ошибка получения типа воркера"))
 
 	result, err := ts.service.GetMessages(ts.ctx, ts.slug, ts.systemID)
 	assert.Error(t, err)
@@ -99,7 +115,12 @@ func TestGetMessages_Fail_GetMessagesBy(t *testing.T) {
 	expectedTypeWorker := db.TypeWorker{ID: 1}
 
 	ts.mockStorage.EXPECT().GetTypeWorkerBySlug(ts.ctx, ts.slug).Return(expectedTypeWorker, nil)
-	ts.mockStorage.EXPECT().GetMessagesBy(ts.ctx, db.GetMessagesByParams{IDTypeWorker: expectedTypeWorker.ID, IDSystem: int32(ts.systemID)}).Return(nil, errors.New("ошибка получения сообщений"))
+	ts.mockStorage.EXPECT().
+		GetMessagesBy(ts.ctx, db.GetMessagesByParams{
+			IDTypeWorker: expectedTypeWorker.ID,
+			IDSystem:     int32(ts.systemID),
+		}).
+		Return(nil, errors.New("ошибка получения сообщений"))
 
 	result, err := ts.service.GetMessages(ts.ctx, ts.slug, ts.systemID)
 	assert.Error(t, err)
@@ -117,7 +138,13 @@ func TestGetMessages_Fail_PluginNotFound(t *testing.T) {
 	}
 
 	ts.mockStorage.EXPECT().GetTypeWorkerBySlug(ts.ctx, ts.slug).Return(expectedTypeWorker, nil)
-	ts.mockStorage.EXPECT().GetMessagesBy(ts.ctx, db.GetMessagesByParams{IDTypeWorker: expectedTypeWorker.ID, IDSystem: int32(ts.systemID)}).Return(expectedMessagesDB, nil)
+	ts.mockStorage.EXPECT().
+		GetMessagesBy(ts.ctx, db.GetMessagesByParams{
+			IDTypeWorker: expectedTypeWorker.ID,
+			IDSystem:     int32(ts.systemID),
+		}).
+		Return(expectedMessagesDB, nil)
+
 	ts.mockPlugins.EXPECT().Get(ts.slug).Return(nil, false)
 
 	result, err := ts.service.GetMessages(ts.ctx, ts.slug, ts.systemID)

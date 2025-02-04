@@ -5,11 +5,11 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	dto "cactus/internal/DTO"
 	"cactus/internal/pkg/pipeline"
 	"cactus/internal/storage/db"
-
-	"github.com/google/uuid"
 )
 
 func (s *Service) UpdateStatusPipeline(

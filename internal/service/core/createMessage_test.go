@@ -20,18 +20,6 @@ import (
 	"cactus/internal/storage/db"
 )
 
-type MockService struct {
-	core.Service
-}
-
-func (m *MockService) AddMessageToQueue(ctx context.Context, params core.AddMessageToQueueParams) error {
-	return nil
-}
-
-func (m *MockService) SetFileTX(ctx context.Context, storage mocks.MockStorage, params core.SetFileParams) (dto.SetFile, error) {
-	return dto.SetFile{}, nil
-}
-
 func TestCreateMessage_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -65,9 +53,17 @@ func TestCreateMessage_Success(t *testing.T) {
 	}
 
 	mockStorage.EXPECT().SetContext(ctx, gomock.Any()).Return(nil)
-	mockStorage.EXPECT().GetPriorityBySystemId(ctx, testParams.IDSystem).Return(db.GetPriorityBySystemIdRow{Weight: 1}, nil)
-	mockStorage.EXPECT().GetPriorityBySlug(ctx, testParams.PrioritySlug).Return(db.Priority{ID: 1, Weight: 5}, nil)
-	mockStorage.EXPECT().GetTypeWorkerBySlug(ctx, testParams.ChanelSlug).Return(db.TypeWorker{ID: 1}, nil)
+	mockStorage.EXPECT().
+		GetPriorityBySystemId(ctx, testParams.IDSystem).
+		Return(db.GetPriorityBySystemIdRow{Weight: 1}, nil)
+
+	mockStorage.EXPECT().
+		GetPriorityBySlug(ctx, testParams.PrioritySlug).
+		Return(db.Priority{ID: 1, Weight: 5}, nil)
+
+	mockStorage.EXPECT().
+		GetTypeWorkerBySlug(ctx, testParams.ChanelSlug).
+		Return(db.TypeWorker{ID: 1}, nil)
 
 	mockStorage.EXPECT().CreateMessage(ctx, gomock.Any()).Return(db.Message{
 		ID:           1,
@@ -106,7 +102,13 @@ func TestCreateMessage_Success(t *testing.T) {
 	nameQueue := "messages:email:test_kind:w-6"
 	mockBroker.EXPECT().EnsureStreamGroup(ctx, nameQueue, "reader").Return(nil)
 	mockStorage.EXPECT().GetSystemById(ctx, gomock.Any()).Return(db.System{Name: "test"}, nil)
-	mockBroker.EXPECT().AddMessageToQueue(ctx, nameQueue, gomock.Any(), dto.SystemValueInMessageQueue{Name: "test"}, dto.PipelineValueInMessageQueue{Step: 1}).Return(nil)
+	mockBroker.EXPECT().
+		AddMessageToQueue(
+			ctx, nameQueue, gomock.Any(),
+			dto.SystemValueInMessageQueue{Name: "test"},
+			dto.PipelineValueInMessageQueue{Step: 1},
+		).
+		Return(nil)
 
 	mockStorage.EXPECT().Commit().Return(nil)
 	mockStorage.EXPECT().Rollback().Times(1)
@@ -153,7 +155,9 @@ func TestCreateMessage_Fail_GetPriorityBySystemId(t *testing.T) {
 	mockPipelineService := mocks.NewMockPipelineService(ctrl)
 
 	mockStorage.EXPECT().SetContext(ctx, gomock.Any()).Return(nil)
-	mockStorage.EXPECT().GetPriorityBySystemId(ctx, gomock.Any()).Return(db.GetPriorityBySystemIdRow{}, errors.New("ошибка получения приоритета системы"))
+	mockStorage.EXPECT().
+		GetPriorityBySystemId(ctx, gomock.Any()).
+		Return(db.GetPriorityBySystemIdRow{}, errors.New("ошибка получения приоритета системы"))
 
 	mockStorage.EXPECT().Rollback().Times(1)
 
@@ -174,8 +178,13 @@ func TestCreateMessage_Fail_GetPriorityBySlug(t *testing.T) {
 	mockPipelineService := mocks.NewMockPipelineService(ctrl)
 
 	mockStorage.EXPECT().SetContext(ctx, gomock.Any()).Return(nil)
-	mockStorage.EXPECT().GetPriorityBySystemId(ctx, gomock.Any()).Return(db.GetPriorityBySystemIdRow{Weight: 1}, nil)
-	mockStorage.EXPECT().GetPriorityBySlug(ctx, gomock.Any()).Return(db.Priority{}, errors.New("ошибка получения приоритета по slug"))
+	mockStorage.EXPECT().
+		GetPriorityBySystemId(ctx, gomock.Any()).
+		Return(db.GetPriorityBySystemIdRow{Weight: 1}, nil)
+
+	mockStorage.EXPECT().
+		GetPriorityBySlug(ctx, gomock.Any()).
+		Return(db.Priority{}, errors.New("ошибка получения приоритета по slug"))
 
 	mockStorage.EXPECT().Rollback().Times(1)
 
@@ -196,9 +205,17 @@ func TestCreateMessage_Fail_GetTypeWorkerBySlug(t *testing.T) {
 	mockPipelineService := mocks.NewMockPipelineService(ctrl)
 
 	mockStorage.EXPECT().SetContext(ctx, gomock.Any()).Return(nil)
-	mockStorage.EXPECT().GetPriorityBySystemId(ctx, gomock.Any()).Return(db.GetPriorityBySystemIdRow{Weight: 10}, nil)
-	mockStorage.EXPECT().GetPriorityBySlug(ctx, gomock.Any()).Return(db.Priority{ID: 1, Weight: 5}, nil)
-	mockStorage.EXPECT().GetTypeWorkerBySlug(ctx, gomock.Any()).Return(db.TypeWorker{}, errors.New("ошибка получения типа воркера по slug"))
+	mockStorage.EXPECT().
+		GetPriorityBySystemId(ctx, gomock.Any()).
+		Return(db.GetPriorityBySystemIdRow{Weight: 10}, nil)
+
+	mockStorage.EXPECT().
+		GetPriorityBySlug(ctx, gomock.Any()).
+		Return(db.Priority{ID: 1, Weight: 5}, nil)
+
+	mockStorage.EXPECT().
+		GetTypeWorkerBySlug(ctx, gomock.Any()).
+		Return(db.TypeWorker{}, errors.New("ошибка получения типа воркера по slug"))
 
 	mockStorage.EXPECT().Rollback().Times(1)
 
@@ -222,7 +239,7 @@ func TestCreateMessage_Fail_CreateMessageDB(t *testing.T) {
 	mockStorage.EXPECT().GetPriorityBySystemId(ctx, gomock.Any()).Return(db.GetPriorityBySystemIdRow{Weight: 10}, nil)
 	mockStorage.EXPECT().GetPriorityBySlug(ctx, gomock.Any()).Return(db.Priority{ID: 1, Weight: 5}, nil)
 	mockStorage.EXPECT().GetTypeWorkerBySlug(ctx, gomock.Any()).Return(db.TypeWorker{ID: 1}, nil)
-	mockStorage.EXPECT().CreateMessage(ctx, gomock.Any()).Return(db.Message{}, errors.New("ошибка создания сообщения:"))
+	mockStorage.EXPECT().CreateMessage(ctx, gomock.Any()).Return(db.Message{}, errors.New("ошибка создания сообщения"))
 
 	mockStorage.EXPECT().Rollback().Times(1)
 
@@ -231,5 +248,5 @@ func TestCreateMessage_Fail_CreateMessageDB(t *testing.T) {
 	_, err := service.CreateMessage(ctx, core.CreateMessageParams{}, mockPipelineService)
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "ошибка создания сообщения:")
+	assert.Contains(t, err.Error(), "ошибка создания сообщения")
 }
