@@ -33,14 +33,13 @@ func (s *Service) CreateMessage(
 	arg CreateMessageParams,
 	piplineService pipeline.Service, // TODO переписать на interface
 ) (dto.CreateMessage, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
+	storageTx := s.storage
+	err := s.storage.SetContext(ctx, &storageTx)
 	if err != nil {
 		slog.Error("Ошибка создания контекста:", slog.String("error", err.Error()))
 		return dto.CreateMessage{}, fmt.Errorf("невозможно создать транзакцию для сообщения")
 	}
-	defer tx.Rollback()
-
-	storage := s.storage.WithTx(tx)
+	defer storageTx.Rollback()
 
 	var sendLater sql.NullTime
 	if arg.SendLater == nil {
@@ -55,17 +54,17 @@ func (s *Service) CreateMessage(
 	}
 
 	// system, err := storage.GetSystemById(ctx, arg.IDSystem)
-	systemPriority, err := storage.GetPriorityBySystemId(ctx, arg.IDSystem)
+	systemPriority, err := storageTx.GetPriorityBySystemId(ctx, arg.IDSystem)
 	if err != nil {
 		return dto.CreateMessage{}, fmt.Errorf("ошибка получения приоритета системы: %w", err)
 	}
 
-	messagePriority, err := storage.GetPriorityBySlug(ctx, arg.PrioritySlug)
+	messagePriority, err := storageTx.GetPriorityBySlug(ctx, arg.PrioritySlug)
 	if err != nil {
 		return dto.CreateMessage{}, fmt.Errorf("ошибка получения приоритета по slug: %w", err)
 	}
 
-	TypeWorker, err := storage.GetTypeWorkerBySlug(ctx, arg.ChanelSlug)
+	TypeWorker, err := storageTx.GetTypeWorkerBySlug(ctx, arg.ChanelSlug)
 	if err != nil {
 		return dto.CreateMessage{}, fmt.Errorf("ошибка получения типа воркера по slug: %w", err)
 	}
@@ -75,7 +74,7 @@ func (s *Service) CreateMessage(
 		return dto.CreateMessage{}, fmt.Errorf("ошибка создания json из данных: %w", err)
 	}
 
-	newMessage, err := storage.CreateMessage(
+	newMessage, err := storageTx.CreateMessage(
 		ctx,
 		db.CreateMessageParams{
 			IDTypeWorker: TypeWorker.ID,
@@ -95,7 +94,7 @@ func (s *Service) CreateMessage(
 		// TODO запараллелить сохранение файлов
 		for _, file := range arg.Files {
 			file.IDMessage = newMessage.ID
-			ff, err := s.SetFileTX(ctx, tx, file)
+			ff, err := s.SetFileTX(ctx, storageTx, file)
 			if err != nil {
 				return dto.CreateMessage{}, fmt.Errorf("ошибка сохранения файла: %w", err)
 			}
@@ -114,7 +113,7 @@ func (s *Service) CreateMessage(
 	if err != nil {
 		return dto.CreateMessage{}, fmt.Errorf("ошибка при расширении pipepline: %w", err)
 	}
-	pipelines, err := piplineService.CreatePipelineTX(ctx, tx, pipeline.CreatePipelineParams{
+	pipelines, err := piplineService.CreatePipelineTX(ctx, storageTx, pipeline.CreatePipelineParams{
 		Pipeline: stepInit,
 		Message:  dtoMessage.Message,
 	})
@@ -131,6 +130,6 @@ func (s *Service) CreateMessage(
 		Step:                  pipelines[0].Step,
 	})
 
-	err = tx.Commit()
+	err = storageTx.Commit()
 	return dtoMessage, err
 }

@@ -31,23 +31,22 @@ func (s *Service) RegisterWorker(
 		return dto.RegisteWorker{}, fmt.Errorf("воркеры с таким типом не включены или не поддерживаются")
 	}
 
-	tx, err := s.db.BeginTx(ctx, nil)
+	storageTx := s.storage
+	err := s.storage.SetContext(ctx, &storageTx)
 	if err != nil {
 		slog.Error("Ошибка создания транзакции при регистрации воркера:", slog.String("error", err.Error()))
 		return dto.RegisteWorker{}, fmt.Errorf("невозможно зарегистрировать воркер: %w", err)
 	}
-	defer tx.Rollback()
+	defer storageTx.Rollback()
 
-	storage := s.storage.WithTx(tx)
-
-	kindWorker, err := storage.GetKindWorkerBySlug(ctx, arg.Kind)
+	kindWorker, err := storageTx.GetKindWorkerBySlug(ctx, arg.Kind)
 	if errors.Is(err, sql.ErrNoRows) {
 		configSchemaByte, err := json.Marshal(arg.ConfigSchema)
 		if err != nil {
 			slog.Error("Ошибка создания json настроке воркера:", slog.String("error", err.Error()))
 			return dto.RegisteWorker{}, fmt.Errorf("ошибка создания json настроек: %w", err)
 		}
-		kindWorker, err = storage.CreateKindWorker(ctx, db.CreateKindWorkerParams{
+		kindWorker, err = storageTx.CreateKindWorker(ctx, db.CreateKindWorkerParams{
 			Name:         "",
 			Slug:         arg.Kind,
 			ConfigSchema: json.RawMessage(configSchemaByte),
@@ -73,9 +72,9 @@ func (s *Service) RegisterWorker(
 		}
 	}
 
-	typeWorker, err := storage.GetTypeWorkerBySlug(ctx, arg.Type)
+	typeWorker, err := storageTx.GetTypeWorkerBySlug(ctx, arg.Type)
 	if errors.Is(err, sql.ErrNoRows) {
-		typeWorker, err = storage.CreateTypeWorker(ctx, db.CreateTypeWorkerParams{
+		typeWorker, err = storageTx.CreateTypeWorker(ctx, db.CreateTypeWorkerParams{
 			Name: "",
 			Slug: arg.Kind,
 		})
@@ -89,10 +88,10 @@ func (s *Service) RegisterWorker(
 	}
 
 	created := false
-	worker, err := storage.GetWorkerByUUID(ctx, arg.WorkerUUID)
+	worker, err := storageTx.GetWorkerByUUID(ctx, arg.WorkerUUID)
 	if errors.Is(err, sql.ErrNoRows) {
 		created = true
-		worker, err = storage.CreateWorker(ctx, db.CreateWorkerParams{
+		worker, err = storageTx.CreateWorker(ctx, db.CreateWorkerParams{
 			Uuid:         arg.WorkerUUID,
 			IsActive:     false,
 			IDTypeWorker: typeWorker.ID,
@@ -114,7 +113,7 @@ func (s *Service) RegisterWorker(
 		return dto.RegisteWorker{}, fmt.Errorf("ошибка целостности воркера: %w", err)
 	}
 
-	err = tx.Commit()
+	err = storageTx.Commit()
 	return dto.RegisteWorker{
 		Created: created,
 		ID:      worker.ID,

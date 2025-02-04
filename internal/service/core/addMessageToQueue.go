@@ -2,11 +2,8 @@ package core
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
-
-	"github.com/redis/go-redis/v9"
 
 	dto "cactus/internal/DTO"
 	"cactus/internal/storage/db"
@@ -26,11 +23,10 @@ func (s *Service) AddMessageToQueue(ctx context.Context, arg AddMessageToQueuePa
 
 	files := make([]dto.FileInMessageValueInMessageQueue, 0, len(arg.Files))
 	for _, file := range arg.Files {
-		f := dto.FileInMessageValueInMessageQueue{
+		files = append(files, dto.FileInMessageValueInMessageQueue{
 			URL:  fmt.Sprintf("http://%s:%s/api/file/get?uuid=%s", s.meta.HostName, s.meta.Port, file.UUID.String()),
 			Name: fmt.Sprintf("%v.%v", file.Title, file.Ext),
-		}
-		files = append(files, f)
+		})
 	}
 
 	dtoMessage := dto.MessageValueInMessageQueue{
@@ -45,38 +41,10 @@ func (s *Service) AddMessageToQueue(ctx context.Context, arg AddMessageToQueuePa
 		dtoMessage.SendLater = &arg.SendLater.Time
 	}
 
-	messageJSON, err := json.Marshal(dtoMessage)
+	err := s.broker.EnsureStreamGroup(ctx, nameQueue, "reader")
 	if err != nil {
-		slog.Error("Не удалось сформировать JSON из сообщения: ", slog.Any("err", err))
-		return fmt.Errorf("не удалось сформировать JSON из сообщения: %w", err)
-	}
-
-	keyType, err := s.rdb.Type(ctx, nameQueue).Result()
-	if err != nil {
-		slog.Error("ну удалось получить тип записи по ключу "+nameQueue+": ", slog.Any("err", err))
-		return fmt.Errorf("не удалось сформировать JSON из сообщения: %w", err)
-	}
-	switch keyType {
-	case "none":
-		err = s.rdb.XGroupCreateMkStream(ctx, nameQueue, "reader", "0").Err()
-		if err != nil {
-			slog.Error("Не удалось создать группу для сообщений: ", slog.Any("err", err))
-			return fmt.Errorf("не удалось создать группу для сообщений: %w", err)
-		}
-	case "stream":
-		info, err := s.rdb.XInfoStream(ctx, nameQueue).Result()
-		if err != nil {
-			slog.Error("не удалось посмотреть информацию стриме: ", slog.Any("err", err))
-			return fmt.Errorf("не удалось посмотреть информацию стриме: %w", err)
-		}
-		if info.Groups == 0 {
-			err = s.rdb.XGroupCreate(ctx, nameQueue, "reader", "0").Err()
-			if err != nil {
-				slog.Error("Не удалось создать группу для сообщений: ", slog.Any("err", err))
-				return fmt.Errorf("не удалось создать группу для сообщений: %w", err)
-			}
-		}
-	default:
+		slog.Error("Ошибка при создании стрима и группы в Redis: ", slog.Any("err", err))
+		return err
 	}
 
 	system, err := s.storage.GetSystemById(ctx, arg.IDSystem)
@@ -85,33 +53,13 @@ func (s *Service) AddMessageToQueue(ctx context.Context, arg AddMessageToQueuePa
 		return fmt.Errorf("невозможно получить систему по ID: %w", err)
 	}
 
-	systemJSON, err := json.Marshal(dto.SystemValueInMessageQueue{
-		Name: system.Name,
-	})
-	if err != nil {
-		slog.Error("Не удалось сформировать JSON для системы: ", slog.Any("err", err))
-		return fmt.Errorf("не удалось сформировать JSON для системы: %w", err)
-	}
+	systemDTO := dto.SystemValueInMessageQueue{Name: system.Name}
+	pipelineDTO := dto.PipelineValueInMessageQueue{Step: arg.Step}
 
-	pipelineJSON, err := json.Marshal(dto.PipelineValueInMessageQueue{
-		Step: arg.Step,
-	})
+	err = s.broker.AddMessageToQueue(ctx, nameQueue, dtoMessage, systemDTO, pipelineDTO)
 	if err != nil {
-		slog.Error("Не удалось сформировать JSON для системы: ", slog.Any("err", err))
-		return fmt.Errorf("не удалось сформировать JSON для системы: %w", err)
-	}
-
-	err = s.rdb.XAdd(ctx, &redis.XAddArgs{
-		Stream: nameQueue,
-		Values: map[string]interface{}{
-			"message":  messageJSON,
-			"system":   systemJSON,
-			"pipeline": pipelineJSON,
-		},
-	}).Err()
-	if err != nil {
-		slog.Error("Не удалось добавить сообщение в стрим redis: ", slog.Any("err", err))
-		return fmt.Errorf("не удалось добавить сообщение в стрим redis: %w", err)
+		slog.Error("Ошибка при добавлении сообщения в очередь Redis: ", slog.Any("err", err))
+		return err
 	}
 
 	return nil

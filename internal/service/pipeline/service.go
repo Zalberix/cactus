@@ -3,8 +3,7 @@ package pipeline
 import (
 	"context"
 
-	"github.com/jmoiron/sqlx"
-	"github.com/redis/go-redis/v9"
+	"github.com/google/uuid"
 
 	"cactus/internal/pkg/wshub"
 	"cactus/internal/storage/db"
@@ -12,31 +11,32 @@ import (
 )
 
 type Service struct {
-	db      *sqlx.DB
-	rdb     *redis.Client
-	storage *db.Queries
+	storage Storage
 	plugins *plugin.Storage
 	wshub   *wshub.PipelineHub
 }
 
+type Storage interface {
+	UpdatePipelineStatusAndWorkerByID(
+		ctx context.Context,
+		arg db.UpdatePipelineStatusAndWorkerByIDParams,
+	) (db.Pipeline, error)
+	GetWorkerByUUID(ctx context.Context, argUUID uuid.UUID) (db.Worker, error)
+	GetIdPipelineByUUIDMessageAndStep(ctx context.Context, arg db.GetIdPipelineByUUIDMessageAndStepParams) (int32, error)
+}
+
 func New(
-	db *sqlx.DB,
-	storage *db.Queries,
-	rdb *redis.Client,
+	storage Storage,
 	plugins *plugin.Storage,
 ) *Service {
 	return &Service{
-		db:      db,
-		rdb:     rdb,
 		storage: storage,
 		plugins: plugins,
 	}
 }
 
-func (s *Service) RunWS(ctx context.Context) {
-	pipelineHub := wshub.NewPipelineHub(ctx, s.rdb, s)
-	s.wshub = pipelineHub
-	go pipelineHub.Run()
+func (s *Service) SetHub(hub *wshub.PipelineHub) {
+	s.wshub = hub
 }
 
 func (s *Service) Hub() *wshub.PipelineHub {

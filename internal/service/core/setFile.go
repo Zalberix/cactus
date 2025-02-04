@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"mime/multipart"
 
@@ -21,15 +20,17 @@ type SetFileParams struct {
 }
 
 func (s *Service) SetFile(ctx context.Context, params SetFileParams) (dto.SetFile, error) {
-	return s.SetFileTX(ctx, nil, params)
+	return s.setFile(ctx, params, s.storage)
 }
 
-func (s *Service) SetFileTX(ctx context.Context, tx *sql.Tx, params SetFileParams) (dto.SetFile, error) {
-	storage := s.storage
-	if tx != nil {
-		storage = storage.WithTx(tx)
-	}
+func (s *Service) SetFileTX(ctx context.Context, storage Storage, params SetFileParams) (dto.SetFile, error) {
+	return s.setFile(ctx, params, storage)
+}
 
+func (s *Service) setFile(ctx context.Context, params SetFileParams, storage interface {
+	CreateFile(ctx context.Context, arg db.CreateFileParams) (db.File, error)
+},
+) (dto.SetFile, error) {
 	path, err := s.fileStorage.Save(ctx, params.File, params.Ext)
 	if err != nil {
 		return dto.SetFile{}, fmt.Errorf("ошибка сохранения файла %v", err.Error())

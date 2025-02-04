@@ -315,43 +315,50 @@ func (w *Worker) readQueueStream(ctx context.Context, stream StreamConfig, handl
 
 			for _, msg := range msgs {
 				for _, m := range msg.Messages {
-					var pipeline dto.PipelineValueInMessageQueue
-					err := w.GetFromValue(m.Values, "pipeline", &pipeline)
+					queueMessage, err := w.ParseValueMessage(m, stream)
 					if err != nil {
 						w.Err() <- err
 						continue
 					}
 
-					var system dto.SystemValueInMessageQueue
-					err = w.GetFromValue(m.Values, "system", &system)
-					if err != nil {
-						w.Err() <- err
-						continue
-					}
-
-					var message dto.MessageValueInMessageQueue
-					err = w.GetFromValue(m.Values, "message", &message)
-					if err != nil {
-						w.Err() <- err
-						continue
-					}
-
-					queueMessage := QueueMessage{
-						stream:   &stream,
-						ID:       m.ID,
-						Pipeline: pipeline,
-						System:   system,
-						Message:  message,
-					}
 					// TODO для теста можно time.Sleep установить в 10 sec
 					w.sendStatusWorkFor(queueMessage)
 					handler(queueMessage)
 					w.sendStatusDoneFor(queueMessage)
-
 				}
 			}
 		}
 	}
+}
+
+func (w *Worker) ParseValueMessage(m redis.XMessage, stream StreamConfig) (QueueMessage, error) {
+	var pipeline dto.PipelineValueInMessageQueue
+	err := w.GetFromValue(m.Values, "pipeline", &pipeline)
+	if err != nil {
+		return QueueMessage{}, err
+	}
+
+	var system dto.SystemValueInMessageQueue
+	err = w.GetFromValue(m.Values, "system", &system)
+	if err != nil {
+		return QueueMessage{}, err
+	}
+
+	var message dto.MessageValueInMessageQueue
+	err = w.GetFromValue(m.Values, "message", &message)
+	if err != nil {
+		return QueueMessage{}, err
+	}
+
+	queueMessage := QueueMessage{
+		stream:   &stream,
+		ID:       m.ID,
+		Pipeline: pipeline,
+		System:   system,
+		Message:  message,
+	}
+
+	return queueMessage, nil
 }
 
 // TODO пересмотреть удаление стримов, так как один не правильно написанный worker может удалять

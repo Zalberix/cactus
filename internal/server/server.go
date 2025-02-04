@@ -11,15 +11,18 @@ import (
 
 	"cactus/internal/config"
 	sqlxconect "cactus/internal/pkg/db"
+	wshub "cactus/internal/pkg/wshub"
 	"cactus/internal/plugin/smtp"
 	"cactus/internal/route"
 	"cactus/internal/server/meta"
 	"cactus/internal/service/core"
 	"cactus/internal/service/pipeline"
+	"cactus/internal/storage/broker"
 	"cactus/internal/storage/db"
 	filestorage "cactus/internal/storage/file"
 	plugin_storage "cactus/internal/storage/plugin"
 	rdb "cactus/internal/storage/redis"
+	"cactus/internal/storage/store"
 )
 
 type Server struct {
@@ -45,6 +48,15 @@ func Create(conf config.Config) (Server, error) {
 	}
 
 	DBStorage := db.New(databaseConect)
+	brokerApp, err := broker.New(ctx, &redis.Options{
+		Addr:     conf.Redis.Address,
+		Password: conf.Redis.Password,
+		Username: conf.Redis.User,
+	})
+	if err != nil {
+		return Server{}, fmt.Errorf("create broker connection: %w", err)
+	}
+
 	RDBStorage, err := rdb.New(ctx, &redis.Options{
 		Addr:     conf.Redis.Address,
 		Password: conf.Redis.Password,
@@ -83,10 +95,14 @@ func Create(conf config.Config) (Server, error) {
 	var pipelineService *pipeline.Service
 	// TODO сомнительное решение, тип подождать пока загрузится
 
-	coreService := core.New(databaseConect, DBStorage, RDBStorage, fileStorage, pluginStorage, metaServer)
-	pipelineService = pipeline.New(databaseConect, DBStorage, RDBStorage, pluginStorage)
+	storeApp := store.New(databaseConect, DBStorage)
 
-	pipelineService.RunWS(ctx)
+	coreService := core.New(storeApp, brokerApp, fileStorage, pluginStorage, metaServer)
+	pipelineService = pipeline.New(storeApp, pluginStorage)
+
+	pipelineHub := wshub.NewPipelineHub(ctx, RDBStorage, pipelineService)
+	pipelineService.SetHub(pipelineHub)
+	go pipelineHub.Run()
 
 	// TODO сделать WS сервис для отслеживания pipeline сообщений в реальном времени
 	// chatServer := chat_service.NewService()
@@ -98,13 +114,7 @@ func Create(conf config.Config) (Server, error) {
 		pluginStorage,
 	)
 
-	err = RDBStorage.XAdd(ctx, &redis.XAddArgs{
-		Stream: "event:meta",
-		Values: map[string]interface{}{
-			"max_priority":      maxPriority,
-			"register_endpoint": endpoint,
-		},
-	}).Err()
+	err = brokerApp.SendMetaEvent(ctx, maxPriority, endpoint)
 	if err != nil {
 		return Server{}, fmt.Errorf("неудалось записать hostname в redis: %w", err)
 	}
