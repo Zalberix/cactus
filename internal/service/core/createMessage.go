@@ -31,7 +31,7 @@ type CreateMessageParams struct {
 func (s *Service) CreateMessage(
 	ctx context.Context,
 	arg CreateMessageParams,
-	piplineService pipeline.Service, // TODO переписать на interface
+	piplineService PipelineService,
 ) (dto.CreateMessage, error) {
 	storageTx := s.storage
 	err := s.storage.SetContext(ctx, &storageTx)

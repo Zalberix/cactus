@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
+	dto "cactus/internal/DTO"
 	"cactus/internal/pkg/wshub"
 	"cactus/internal/storage/db"
 	"cactus/internal/storage/plugin"
@@ -16,11 +17,19 @@ type Service struct {
 	wshub   *wshub.PipelineHub
 }
 
+type StorageTx interface {
+	CreatePipelineStep(ctx context.Context, arg db.CreatePipelineStepParams) (db.Pipeline, error)
+}
+
+//go:generate mockgen -package=mocks -destination=mocks/mock_storage.go cactus/internal/service/pipeline Storage
+
 type Storage interface {
 	UpdatePipelineStatusAndWorkerByID(
 		ctx context.Context,
 		arg db.UpdatePipelineStatusAndWorkerByIDParams,
 	) (db.Pipeline, error)
+	CreatePipelineTX(ctx context.Context, storageTx StorageTx, arg CreatePipelineParams,
+	) ([]dto.Pipeline, error)
 	GetWorkerByUUID(ctx context.Context, argUUID uuid.UUID) (db.Worker, error)
 	GetIdPipelineByUUIDMessageAndStep(ctx context.Context, arg db.GetIdPipelineByUUIDMessageAndStepParams) (int32, error)
 }

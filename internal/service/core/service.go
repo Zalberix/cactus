@@ -11,8 +11,15 @@ import (
 	dto "cactus/internal/DTO"
 	"cactus/internal/plugin"
 	"cactus/internal/server/meta"
+	"cactus/internal/service/pipeline"
 	"cactus/internal/storage/db"
 )
+
+//go:generate mockgen -package=mocks -destination=mocks/mock_storage.go cactus/internal/service/core Storage
+//go:generate mockgen -package=mocks -destination=mocks/mock_broker.go cactus/internal/service/core Broker
+//go:generate mockgen -package=mocks -destination=mocks/mock_file_storage.go cactus/internal/service/core FileStorage
+//go:generate mockgen -package=mocks -destination=mocks/mock_plugins.go cactus/internal/service/core Plugins
+//go:generate mockgen -package=mocks -destination=mocks/mock_pipeline_service.go cactus/internal/service/core PipelineService
 
 type Storage interface {
 	GetSystemById(ctx context.Context, id int32) (db.System, error)
@@ -59,6 +66,14 @@ type Plugins interface {
 	Add(slug string, plugin plugin.Plugin)
 	Delete(slug string)
 	Get(slug string) (p plugin.Plugin, ok bool)
+}
+
+type PipelineService interface {
+	CreatePipelineTX(
+		ctx context.Context,
+		storageTx Storage,
+		arg pipeline.CreatePipelineParams,
+	) ([]dto.Pipeline, error)
 }
 
 type Service struct {

@@ -17,7 +17,7 @@ func (s *Service) GetFile(ctx context.Context, uuid string) (dto.GetFile, error)
 
 	path, err := s.storage.GetFilePathByUUID(ctx, UUID)
 	if err != nil {
-		return dto.GetFile{}, fmt.Errorf("файл по uuid не найде: %v", err.Error())
+		return dto.GetFile{}, fmt.Errorf("файл по uuid не найден: %v", err.Error())
 	}
 
 	file, err := s.fileStorage.Get(ctx, path)

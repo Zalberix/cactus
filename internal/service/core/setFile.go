@@ -27,9 +27,10 @@ func (s *Service) SetFileTX(ctx context.Context, storage Storage, params SetFile
 	return s.setFile(ctx, params, storage)
 }
 
-func (s *Service) setFile(ctx context.Context, params SetFileParams, storage interface {
-	CreateFile(ctx context.Context, arg db.CreateFileParams) (db.File, error)
-},
+func (s *Service) setFile(
+	ctx context.Context,
+	params SetFileParams,
+	storage Storage,
 ) (dto.SetFile, error) {
 	path, err := s.fileStorage.Save(ctx, params.File, params.Ext)
 	if err != nil {
