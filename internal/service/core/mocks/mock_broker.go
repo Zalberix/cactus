@@ -21,7 +21,6 @@ import (
 type MockBroker struct {
 	ctrl     *gomock.Controller
 	recorder *MockBrokerMockRecorder
-	isgomock struct{}
 }
 
 // MockBrokerMockRecorder is the mock recorder for MockBroker.
@@ -42,29 +41,29 @@ func (m *MockBroker) EXPECT() *MockBrokerMockRecorder {
 }
 
 // AddMessageToQueue mocks base method.
-func (m *MockBroker) AddMessageToQueue(ctx context.Context, streamName string, messageDTO dto.MessageValueInMessageQueue, systemDTO dto.SystemValueInMessageQueue, pipelineDTO dto.PipelineValueInMessageQueue) error {
+func (m *MockBroker) AddMessageToQueue(arg0 context.Context, arg1 string, arg2 dto.MessageValueInMessageQueue, arg3 dto.SystemValueInMessageQueue, arg4 dto.PipelineValueInMessageQueue) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddMessageToQueue", ctx, streamName, messageDTO, systemDTO, pipelineDTO)
+	ret := m.ctrl.Call(m, "AddMessageToQueue", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // AddMessageToQueue indicates an expected call of AddMessageToQueue.
-func (mr *MockBrokerMockRecorder) AddMessageToQueue(ctx, streamName, messageDTO, systemDTO, pipelineDTO any) *gomock.Call {
+func (mr *MockBrokerMockRecorder) AddMessageToQueue(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddMessageToQueue", reflect.TypeOf((*MockBroker)(nil).AddMessageToQueue), ctx, streamName, messageDTO, systemDTO, pipelineDTO)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddMessageToQueue", reflect.TypeOf((*MockBroker)(nil).AddMessageToQueue), arg0, arg1, arg2, arg3, arg4)
 }
 
 // EnsureStreamGroup mocks base method.
-func (m *MockBroker) EnsureStreamGroup(ctx context.Context, streamName, groupName string) error {
+func (m *MockBroker) EnsureStreamGroup(arg0 context.Context, arg1, arg2 string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "EnsureStreamGroup", ctx, streamName, groupName)
+	ret := m.ctrl.Call(m, "EnsureStreamGroup", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // EnsureStreamGroup indicates an expected call of EnsureStreamGroup.
-func (mr *MockBrokerMockRecorder) EnsureStreamGroup(ctx, streamName, groupName any) *gomock.Call {
+func (mr *MockBrokerMockRecorder) EnsureStreamGroup(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnsureStreamGroup", reflect.TypeOf((*MockBroker)(nil).EnsureStreamGroup), ctx, streamName, groupName)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnsureStreamGroup", reflect.TypeOf((*MockBroker)(nil).EnsureStreamGroup), arg0, arg1, arg2)
 }

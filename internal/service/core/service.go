@@ -16,11 +16,6 @@ import (
 )
 
 //go:generate mockgen -package=mocks -destination=mocks/mock_storage.go cactus/internal/service/core Storage
-//go:generate mockgen -package=mocks -destination=mocks/mock_broker.go cactus/internal/service/core Broker
-//go:generate mockgen -package=mocks -destination=mocks/mock_file_storage.go cactus/internal/service/core FileStorage
-//go:generate mockgen -package=mocks -destination=mocks/mock_plugins.go cactus/internal/service/core Plugins
-//go:generate mockgen -package=mocks -destination=mocks/mock_pipeline_service.go cactus/internal/service/core PipelineService
-
 type Storage interface {
 	GetSystemById(ctx context.Context, id int32) (db.System, error)
 	GetPriorityBySystemId(ctx context.Context, id int32) (db.GetPriorityBySystemIdRow, error)
@@ -46,6 +41,7 @@ type Storage interface {
 	Commit() error
 }
 
+//go:generate mockgen -package=mocks -destination=mocks/mock_broker.go cactus/internal/service/core Broker
 type Broker interface {
 	EnsureStreamGroup(ctx context.Context, streamName, groupName string) error
 	AddMessageToQueue(
@@ -57,21 +53,24 @@ type Broker interface {
 	) error
 }
 
+//go:generate mockgen -package=mocks -destination=mocks/mock_file_storage.go cactus/internal/service/core FileStorage
 type FileStorage interface {
 	Save(ctx context.Context, file multipart.File, ext mimetype.MIME) (path string, err error)
 	Get(ctx context.Context, path string) (*os.File, error)
 }
 
+//go:generate mockgen -package=mocks -destination=mocks/mock_plugins.go cactus/internal/service/core Plugins
 type Plugins interface {
 	Add(slug string, plugin plugin.Plugin)
 	Delete(slug string)
 	Get(slug string) (p plugin.Plugin, ok bool)
 }
 
+//go:generate mockgen -package=mocks -destination=mocks/mock_pipeline_service.go cactus/internal/service/core PipelineService
 type PipelineService interface {
 	CreatePipelineTX(
 		ctx context.Context,
-		storageTx Storage,
+		storageTx pipeline.StorageTx,
 		arg pipeline.CreatePipelineParams,
 	) ([]dto.Pipeline, error)
 }

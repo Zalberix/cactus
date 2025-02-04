@@ -1,14 +1,12 @@
 package core
 
 import (
-	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 
 	"github.com/go-playground/form"
 
-	dto "cactus/internal/DTO"
 	"cactus/internal/error/validation"
 	"cactus/internal/http/request"
 	"cactus/internal/http/response"
@@ -19,17 +17,8 @@ import (
 	"cactus/internal/storage/plugin"
 )
 
-type sendService interface {
-	CreateMessage(
-		ctx context.Context,
-		arg core.CreateMessageParams,
-		pipelineService pipeline.Service,
-	) (dto.CreateMessage, error)
-	GetKindWokerByID(ctx context.Context, id int32) (dto.KindWorker, error)
-}
-
 // Отправка сообщения
-func Send(service sendService, piplineService *pipeline.Service, plugins *plugin.Storage) http.HandlerFunc {
+func Send(service *core.Service, piplineService *pipeline.Service, plugins *plugin.Storage) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
@@ -162,7 +151,7 @@ func Send(service sendService, piplineService *pipeline.Service, plugins *plugin
 				SendLater:      req.SendLater,
 				Files:          files,
 			},
-			*piplineService,
+			piplineService,
 		)
 		if err != nil {
 			slog.Error("ошибка создания сообщения", slog.String("error-message", err.Error()), slog.String("slug", pluginSlug))
