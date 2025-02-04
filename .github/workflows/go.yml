@@ -22,12 +22,12 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.23'
+          go-version: '1.22'
 
       - name: Linters
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.62.2
+          version: v1.59.1
   tests:
     runs-on: ubuntu-latest
     steps:
@@ -37,7 +37,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.23'
+          go-version: '1.22'
 
       - name: Unit tests
         run: go test -v -race -count=100 -timeout=1m ./...    
