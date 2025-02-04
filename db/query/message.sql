@@ -1,6 +1,5 @@
 -- name: CreateMessage :one
 INSERT INTO message (
-    id_worker,
     id_type_worker,
     id_system,
     "uuid",
@@ -8,7 +7,7 @@ INSERT INTO message (
     id_priority,
     send_later
 ) 
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: GetStatusMessageByUUID :one

@@ -11,7 +11,7 @@ import (
 
 	"cactus/internal/config"
 	sqlxconect "cactus/internal/pkg/db"
-	"cactus/internal/plugin/email"
+	"cactus/internal/plugin/smtp"
 	"cactus/internal/route"
 	"cactus/internal/server/meta"
 	"cactus/internal/service/core"
@@ -54,13 +54,11 @@ func Create(conf config.Config) (Server, error) {
 		return Server{}, fmt.Errorf("create redis connection: %w", err)
 	}
 
-	_ = RDBStorage // TODO передать в сервис
-
 	fileStorage, _ := filestorage.New("app/files") // TODO path вынести в конфиг
 
 	pluginStorage := plugin_storage.New()
 	// TODO сделать SMTP а не email так как под каждый вид воркера настраиваеится структура
-	pluginStorage.Add("email", email.New())
+	pluginStorage.Add("smtp", smtp.New())
 	// pluginStorage.Add("telegram", telegram.New())
 	// pluginStorage.Add("push", push.New())
 
@@ -82,8 +80,13 @@ func Create(conf config.Config) (Server, error) {
 		Port:     conf.HTTPServer.Port,
 	}
 
+	var pipelineService *pipeline.Service
+	// TODO сомнительное решение, тип подождать пока загрузится
+
 	coreService := core.New(databaseConect, DBStorage, RDBStorage, fileStorage, pluginStorage, metaServer)
-	pipelineService := pipeline.New(databaseConect, DBStorage, RDBStorage, pluginStorage)
+	pipelineService = pipeline.New(databaseConect, DBStorage, RDBStorage, pluginStorage)
+
+	pipelineService.RunWS(ctx)
 
 	// TODO сделать WS сервис для отслеживания pipeline сообщений в реальном времени
 	// chatServer := chat_service.NewService()

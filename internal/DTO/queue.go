@@ -22,3 +22,7 @@ type MessageValueInMessageQueue struct {
 	CreateAt  time.Time                          `json:"create_at"`
 	Files     []FileInMessageValueInMessageQueue `json:"files"`
 }
+
+type PipelineValueInMessageQueue struct {
+	Step int32 `json:"step"`
+}

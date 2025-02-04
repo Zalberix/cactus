@@ -7,7 +7,7 @@ INSERT INTO kind_worker (
 ) VALUES ($1, $2, $3, $4)
 RETURNING *;
 
--- name: GetKindWokerById :one 
+-- name: GetKindWokerByID :one 
 SELECT * 
 FROM kind_worker kw
 WHERE kw.id = $1

@@ -30,5 +30,7 @@ func New(
 
 	addRouteAPI(r, coreService, pipelineService, plugins)
 
+	addRoutePipeline(r, pipelineService)
+
 	return r
 }

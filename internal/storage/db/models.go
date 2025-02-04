@@ -38,7 +38,6 @@ type KindWorkerSystem struct {
 
 type Message struct {
 	ID           int32           `json:"id"`
-	IDWorker     sql.NullInt32   `json:"id_worker"`
 	IDTypeWorker int32           `json:"id_type_worker"`
 	IDSystem     int32           `json:"id_system"`
 	IDPriority   int32           `json:"id_priority"`
@@ -60,13 +59,14 @@ type PermissionRole struct {
 }
 
 type Pipeline struct {
-	ID        int32        `json:"id"`
-	IDMessage int32        `json:"id_message"`
-	Status    string       `json:"status"`
-	Step      int32        `json:"step"`
-	Name      string       `json:"name"`
-	TimeStart sql.NullTime `json:"time_start"`
-	TimeEnd   sql.NullTime `json:"time_end"`
+	ID        int32         `json:"id"`
+	IDMessage int32         `json:"id_message"`
+	Status    string        `json:"status"`
+	Step      int32         `json:"step"`
+	IDWorker  sql.NullInt32 `json:"id_worker"`
+	Name      string        `json:"name"`
+	TimeStart sql.NullTime  `json:"time_start"`
+	TimeEnd   sql.NullTime  `json:"time_end"`
 }
 
 type Priority struct {

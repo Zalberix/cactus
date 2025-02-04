@@ -97,7 +97,6 @@ CREATE TABLE public.kind_worker_system (
 
 CREATE TABLE public.message (
     id integer NOT NULL,
-    id_worker integer,
     id_type_worker integer NOT NULL,
     id_system integer NOT NULL,
     id_priority integer NOT NULL,
@@ -178,6 +177,7 @@ CREATE TABLE public.pipeline (
     id_message integer NOT NULL,
     status character varying(255) NOT NULL,
     step integer NOT NULL,
+    id_worker integer,
     name character varying(255) NOT NULL,
     time_start timestamp without time zone,
     time_end timestamp without time zone
@@ -799,14 +799,6 @@ ALTER TABLE ONLY public.message
 
 
 --
--- Name: message message_id_worker_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.message
-    ADD CONSTRAINT message_id_worker_fkey FOREIGN KEY (id_worker) REFERENCES public.worker(id) ON DELETE SET NULL;
-
-
---
 -- Name: permission_role permission_role_id_permission_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -828,6 +820,14 @@ ALTER TABLE ONLY public.permission_role
 
 ALTER TABLE ONLY public.pipeline
     ADD CONSTRAINT pipline_id_message_fkey FOREIGN KEY (id_message) REFERENCES public.message(id) ON DELETE CASCADE;
+
+
+--
+-- Name: pipeline pipline_id_worker_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pipeline
+    ADD CONSTRAINT pipline_id_worker_fkey FOREIGN KEY (id_worker) REFERENCES public.worker(id) ON DELETE CASCADE;
 
 
 --

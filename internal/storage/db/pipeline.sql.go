@@ -8,6 +8,8 @@ package db
 import (
 	"context"
 	"database/sql"
+
+	"github.com/google/uuid"
 )
 
 const createPipelineStep = `-- name: CreatePipelineStep :one
@@ -15,11 +17,11 @@ INSERT INTO pipeline (
     id_message, 
     status,
     step, 
-    "name", 
+    "name",
     time_start, 
     time_end
 ) VALUES ($1, $2, $3, $4, $5, $6) 
-RETURNING id, id_message, status, step, name, time_start, time_end
+RETURNING id, id_message, status, step, id_worker, name, time_start, time_end
 `
 
 type CreatePipelineStepParams struct {
@@ -46,6 +48,93 @@ func (q *Queries) CreatePipelineStep(ctx context.Context, arg CreatePipelineStep
 		&i.IDMessage,
 		&i.Status,
 		&i.Step,
+		&i.IDWorker,
+		&i.Name,
+		&i.TimeStart,
+		&i.TimeEnd,
+	)
+	return i, err
+}
+
+const getAllPipelineByMessageUUID = `-- name: GetAllPipelineByMessageUUID :many
+SELECT p.id, p.id_message, p.status, p.step, p.id_worker, p.name, p.time_start, p.time_end 
+FROM pipeline p 
+JOIN message m ON m.id = p.id_message
+WHERE m."uuid" = $1
+`
+
+func (q *Queries) GetAllPipelineByMessageUUID(ctx context.Context, argUuid uuid.UUID) ([]Pipeline, error) {
+	rows, err := q.db.QueryContext(ctx, getAllPipelineByMessageUUID, argUuid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Pipeline
+	for rows.Next() {
+		var i Pipeline
+		if err := rows.Scan(
+			&i.ID,
+			&i.IDMessage,
+			&i.Status,
+			&i.Step,
+			&i.IDWorker,
+			&i.Name,
+			&i.TimeStart,
+			&i.TimeEnd,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getIdPipelineByUUIDMessageAndStep = `-- name: GetIdPipelineByUUIDMessageAndStep :one
+SELECT p.id FROM pipeline p
+JOIN message m ON m.id = p.id_message
+WHERE m."uuid" = $1 AND step = $2
+`
+
+type GetIdPipelineByUUIDMessageAndStepParams struct {
+	Uuid uuid.UUID `json:"uuid"`
+	Step int32     `json:"step"`
+}
+
+func (q *Queries) GetIdPipelineByUUIDMessageAndStep(ctx context.Context, arg GetIdPipelineByUUIDMessageAndStepParams) (int32, error) {
+	row := q.db.QueryRowContext(ctx, getIdPipelineByUUIDMessageAndStep, arg.Uuid, arg.Step)
+	var id int32
+	err := row.Scan(&id)
+	return id, err
+}
+
+const updatePipelineStatusAndWorkerByID = `-- name: UpdatePipelineStatusAndWorkerByID :one
+UPDATE pipeline 
+SET status = $2, id_worker = $3
+WHERE id = $1
+RETURNING id, id_message, status, step, id_worker, name, time_start, time_end
+`
+
+type UpdatePipelineStatusAndWorkerByIDParams struct {
+	ID       int32         `json:"id"`
+	Status   string        `json:"status"`
+	IDWorker sql.NullInt32 `json:"id_worker"`
+}
+
+func (q *Queries) UpdatePipelineStatusAndWorkerByID(ctx context.Context, arg UpdatePipelineStatusAndWorkerByIDParams) (Pipeline, error) {
+	row := q.db.QueryRowContext(ctx, updatePipelineStatusAndWorkerByID, arg.ID, arg.Status, arg.IDWorker)
+	var i Pipeline
+	err := row.Scan(
+		&i.ID,
+		&i.IDMessage,
+		&i.Status,
+		&i.Step,
+		&i.IDWorker,
 		&i.Name,
 		&i.TimeStart,
 		&i.TimeEnd,

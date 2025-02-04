@@ -1,4 +1,4 @@
-package email
+package smtp
 
 // TODO ДОБАВИТЬ валидационные теги!
 type Schema struct {

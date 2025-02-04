@@ -4,6 +4,6 @@ import "cactus/internal/pkg/pipeline"
 
 type CorePlugin struct{}
 
-func (c *CorePlugin) ExtendPipline(_ *[]pipeline.Step) error {
-	return nil
+func (c *CorePlugin) ExtendPipeline(p []pipeline.Step) ([]pipeline.Step, error) {
+	return p, nil
 }

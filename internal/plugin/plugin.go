@@ -7,5 +7,5 @@ type Plugin interface {
 	// REQEST'ы не могу друг от друга, нужен REQUEST ID.
 	New() Plugin
 	GetSchema() any
-	ExtendPipline(*[]pipeline.Step) error
+	ExtendPipeline([]pipeline.Step) ([]pipeline.Step, error)
 }

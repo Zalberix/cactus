@@ -1,7 +1,8 @@
 package pipeline
 
 type Step struct {
-	Name string
+	Step int32  `json:"step"`
+	Name string `json:"name"`
 }
 
 type Status string
@@ -13,19 +14,3 @@ const (
 	Cancel Status = "cancel"
 	Error  Status = "error"
 )
-
-var StepWaitQueue = Step{
-	Name: "В очереди",
-}
-
-var StepWaitSendQueue = Step{
-	Name: "Ожидает отправки",
-}
-
-var StepWork = Step{
-	Name: "В работе у воркера",
-}
-
-var StepDone = Step{
-	Name: "Выполнено",
-}

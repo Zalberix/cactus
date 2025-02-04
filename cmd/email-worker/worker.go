@@ -16,9 +16,12 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	dto "cactus/internal/DTO"
 	"cactus/internal/http/request"
 	"cactus/internal/http/response"
 	configschema "cactus/internal/pkg/configSchema"
+	"cactus/internal/pkg/pipeline"
+	"cactus/internal/pkg/wshub"
 )
 
 type Message struct {
@@ -34,21 +37,20 @@ type workerMeta struct {
 }
 
 type QueueMessage struct {
-	stream *StreamConfig
-	Message
+	stream   *StreamConfig
+	ID       string
+	Pipeline dto.PipelineValueInMessageQueue `json:"pipeline"`
+	Message  dto.MessageValueInMessageQueue  `json:"message"`
+	System   dto.SystemValueInMessageQueue   `json:"system"`
 }
 
-func (st *QueueMessage) Act() error {
-	err := st.stream.worker.rdb.XAck(st.stream.worker.ctx, st.stream.Name, st.stream.worker.groupName, st.ID).Err()
+func (m *QueueMessage) Act() error {
+	err := m.stream.worker.rdb.XAck(m.stream.worker.ctx, m.stream.Name, m.stream.worker.groupName, m.ID).Err()
 	if err != nil {
-		st.stream.worker.err <- err
+		m.stream.worker.err <- err
 	}
 	return err
 }
-
-// StreamConfig
-
-// TODO для таска добавить XACT для таска, чтобы он не висел в не прочитанных.
 
 type ArgStream struct {
 	Name  string
@@ -313,13 +315,39 @@ func (w *Worker) readQueueStream(ctx context.Context, stream StreamConfig, handl
 
 			for _, msg := range msgs {
 				for _, m := range msg.Messages {
-					handler(QueueMessage{
-						stream: &stream,
-						Message: Message{
-							ID:    m.ID,
-							Value: m.Values,
-						},
-					})
+					var pipeline dto.PipelineValueInMessageQueue
+					err := w.GetFromValue(m.Values, "pipeline", &pipeline)
+					if err != nil {
+						w.Err() <- err
+						continue
+					}
+
+					var system dto.SystemValueInMessageQueue
+					err = w.GetFromValue(m.Values, "system", &system)
+					if err != nil {
+						w.Err() <- err
+						continue
+					}
+
+					var message dto.MessageValueInMessageQueue
+					err = w.GetFromValue(m.Values, "message", &message)
+					if err != nil {
+						w.Err() <- err
+						continue
+					}
+
+					queueMessage := QueueMessage{
+						stream:   &stream,
+						ID:       m.ID,
+						Pipeline: pipeline,
+						System:   system,
+						Message:  message,
+					}
+					// TODO для теста можно time.Sleep установить в 10 sec
+					w.sendStatusWorkFor(queueMessage)
+					handler(queueMessage)
+					w.sendStatusDoneFor(queueMessage)
+
 				}
 			}
 		}
@@ -499,6 +527,73 @@ func (w *Worker) IsReady() bool {
 	default:
 	}
 	return false
+}
+
+func (w *Worker) GetFromValue(values map[string]interface{}, key string, target any) error {
+	JSONInt, ok := values[key]
+	if !ok {
+		return fmt.Errorf("в сообщении отсутсвуют данные по ключу %v", key)
+	}
+
+	JSON, ok := JSONInt.(string)
+	if !ok {
+		return fmt.Errorf("сообщение не строка по ключу %v", key)
+	}
+
+	if err := json.Unmarshal([]byte(JSON), &target); err != nil {
+		return fmt.Errorf("сообщение по ключу %v не валидный JSON", key)
+	}
+	return nil
+}
+
+func (w *Worker) sendStatusWorkFor(m QueueMessage) {
+	JSONm, err := json.Marshal(wshub.PipelineMessage{
+		Status:    pipeline.Work,
+		Step:      m.Pipeline.Step,
+		WorkeUUID: w.config.WorkerUUID,
+		UUID:      m.Message.UUID.String(),
+	})
+	if err != nil {
+		w.err <- err
+		return
+	}
+
+	err = w.rdb.XAdd(w.ctx, &redis.XAddArgs{
+		Stream: "event:pipeline",
+		ID:     "*",
+		Values: map[string]interface{}{
+			"message": JSONm,
+		},
+	}).Err()
+	if err != nil {
+		w.err <- err
+		return
+	}
+}
+
+func (w *Worker) sendStatusDoneFor(m QueueMessage) {
+	JSONm, err := json.Marshal(wshub.PipelineMessage{
+		Status:    pipeline.Done,
+		Step:      m.Pipeline.Step,
+		WorkeUUID: w.config.WorkerUUID,
+		UUID:      m.Message.UUID.String(),
+	})
+	if err != nil {
+		w.err <- err
+		return
+	}
+
+	err = w.rdb.XAdd(w.ctx, &redis.XAddArgs{
+		Stream: "event:pipeline",
+		ID:     "*",
+		Values: map[string]interface{}{
+			"message": JSONm,
+		},
+	}).Err()
+	if err != nil {
+		w.err <- err
+		return
+	}
 }
 
 func MapToStruct(data map[string]interface{}, result interface{}) error {

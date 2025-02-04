@@ -25,6 +25,7 @@ type sendService interface {
 		arg core.CreateMessageParams,
 		pipelineService pipeline.Service,
 	) (dto.CreateMessage, error)
+	GetKindWokerByID(ctx context.Context, id int32) (dto.KindWorker, error)
 }
 
 // Отправка сообщения
@@ -54,14 +55,23 @@ func Send(service sendService, piplineService *pipeline.Service, plugins *plugin
 			return
 		}
 
-		pluginSlug := r.PathValue("slug")
-		plugin, exist := plugins.Get(pluginSlug)
+		kindWorker, err := service.GetKindWokerByID(ctx, IDKindWorker)
+		if err != nil {
+			slog.Error("Доступ запрещен")
+
+			response.ValidationJSON(w, "Доступ запрещен", map[string]string{
+				"Token": "Доступ запрещен",
+			})
+			return
+		}
+
+		plugin, exist := plugins.Get(kindWorker.Slug)
 		if !exist {
 			response.FailJSON(w, "Неизвестное название канала рассылки")
 			return
 		}
 
-		err := r.ParseMultipartForm(32 << 20) // 32 МБ
+		err = r.ParseMultipartForm(32 << 20) // 32 МБ
 		if err != nil {
 			slog.Error(err.Error())
 			response.FailJSON(w, "Превышен размер файлов или формат запроса неверный в запроса.")
@@ -117,11 +127,11 @@ func Send(service sendService, piplineService *pipeline.Service, plugins *plugin
 		// TODO вынести в plugin или в базу данных (или в базу а брать через плагин,
 		// так через настройки плагина можно будет настраивать это поведение)
 		allowedExtensions := []string{
-			".pdf",
-			".jpg", ".jpeg", ".png",
-			".doc", ".docx",
-			".xls", ".xlsx",
-			".zip",
+			"pdf",
+			"jpg", "jpeg", "png",
+			"doc", "docx",
+			"xls", "xlsx",
+			"zip",
 		}
 		// TODO вынести бы в функцию, но только если будет гдето еще использоваться, а так пусть тут.
 		var files []core.SetFileParams
@@ -134,20 +144,23 @@ func Send(service sendService, piplineService *pipeline.Service, plugins *plugin
 				response.ValidationJSON(w, message, map[string]string{
 					key: message,
 				})
+				return
 			}
 		}
+
+		pluginSlug := r.PathValue("slug")
 
 		message, err := service.CreateMessage(
 			ctx,
 			core.CreateMessageParams{
-				Plugin:       plugin,
-				IDKindWorker: IDKindWorker,
-				IDSystem:     IDSystem,
-				PrioritySlug: req.PrioritySlug,
-				ChanelSlug:   pluginSlug,
-				Schema:       schema, // TODO удалить или перенести внутрь Value
-				SendLater:    req.SendLater,
-				Files:        files,
+				Plugin:         plugin,
+				KindWorkerSlug: kindWorker.Slug,
+				IDSystem:       IDSystem,
+				PrioritySlug:   req.PrioritySlug,
+				ChanelSlug:     pluginSlug,
+				Schema:         schema, // TODO удалить или перенести внутрь Value
+				SendLater:      req.SendLater,
+				Files:          files,
 			},
 			*piplineService,
 		)

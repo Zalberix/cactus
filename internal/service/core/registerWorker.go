@@ -27,7 +27,7 @@ func (s *Service) RegisterWorker(
 	ctx context.Context,
 	arg RegisterWorkerParams,
 ) (dto.RegisteWorker, error) {
-	if _, ok := s.plugins.Get(arg.Type); !ok {
+	if _, ok := s.plugins.Get(arg.Kind); !ok {
 		return dto.RegisteWorker{}, fmt.Errorf("воркеры с таким типом не включены или не поддерживаются")
 	}
 

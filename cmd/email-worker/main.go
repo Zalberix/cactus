@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/redis/go-redis/v9"
@@ -18,7 +17,7 @@ import (
 	dto "cactus/internal/DTO"
 	"cactus/internal/logger"
 	configschema "cactus/internal/pkg/configSchema"
-	"cactus/internal/plugin/email"
+	"cactus/internal/plugin/smtp"
 	rdb "cactus/internal/storage/redis"
 )
 
@@ -79,7 +78,7 @@ func (conf *SMTPWorkerConfig) Send(message dto.MessageValueInMessageQueue, _ dto
 	conf.mutex.Lock()
 	defer conf.mutex.Unlock()
 	conf.sendChan <- func() {
-		var SMTPValue email.Schema
+		var SMTPValue smtp.Schema
 		if err := json.Unmarshal(message.Value, &SMTPValue); err != nil {
 			conf.worker.Err() <- fmt.Errorf("данные в value сообщения неверного формата: %w", err)
 			return
@@ -198,52 +197,10 @@ func main() {
 	worker.SetHandler(func(m QueueMessage) {
 		defer m.Act()
 
-		time.Sleep(1 * time.Second)
+		// TODO вынести эту логику парсинга в worker этим не должен пользователь заниматься
 
-		systemJSONInt, ok := m.Value["system"]
-		if !ok {
-			worker.Err() <- fmt.Errorf("отсутсвуют данные системы. Сообщение будет пропущено")
-			// TODO сделать вывод error в event:error чтобы основной сервис подхватывал
-			return
-		}
-
-		systemJSON, ok := systemJSONInt.(string)
-		if !ok {
-			worker.Err() <- fmt.Errorf("отсутсвуют данные системы. Сообщение будет пропущено")
-			// TODO сделать вывод error в event:error чтобы основной сервис подхватывал
-			return
-		}
-
-		var system dto.SystemValueInMessageQueue
-		if err := json.Unmarshal([]byte(systemJSON), &system); err != nil {
-			worker.Err() <- fmt.Errorf("отсутсвует информация о системем которая отправила сообщение. Сообщение будет пропущено")
-			// TODO сделать вывод error в event:error чтобы основной сервис подхватывал
-			return
-		}
-
-		messageJSONInt, ok := m.Value["message"]
-		if !ok {
-			worker.Err() <- fmt.Errorf("отсутсвуют данные сообщения. Сообщение будет пропущено")
-			// TODO сделать вывод error в event:error чтобы основной сервис подхватывал
-			return
-		}
-
-		messageJSON, ok := messageJSONInt.(string)
-		if !ok {
-			worker.Err() <- fmt.Errorf("отсутсвуют данные сообщения. Сообщение будет пропущено")
-			// TODO сделать вывод error в event:error чтобы основной сервис подхватывал
-			return
-		}
-
-		var message dto.MessageValueInMessageQueue
-		if err = json.Unmarshal([]byte(messageJSON), &message); err != nil {
-			worker.Err() <- fmt.Errorf("отсутсвуют данные о системем которая отправила сообщение. Сообщение будет пропущено")
-			// TODO сделать вывод error в event:error чтобы основной сервис подхватывал
-			return
-		}
-
-		fmt.Printf("Отправляю: %+v\n", message)
-		SMTPWorker.Send(message, system)
+		fmt.Printf("Отправляю: %+v\n", m.Message.UUID)
+		SMTPWorker.Send(m.Message, m.System)
 	})
 
 	fmt.Println("Воркер запущен")

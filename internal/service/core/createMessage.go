@@ -18,14 +18,14 @@ import (
 )
 
 type CreateMessageParams struct {
-	Plugin       plugin.Plugin
-	IDKindWorker int32
-	IDSystem     int32
-	PrioritySlug string
-	ChanelSlug   string
-	Schema       any
-	SendLater    *time.Time
-	Files        []SetFileParams
+	Plugin         plugin.Plugin
+	KindWorkerSlug string
+	IDSystem       int32
+	PrioritySlug   string
+	ChanelSlug     string
+	Schema         any
+	SendLater      *time.Time
+	Files          []SetFileParams
 }
 
 func (s *Service) CreateMessage(
@@ -60,11 +60,6 @@ func (s *Service) CreateMessage(
 		return dto.CreateMessage{}, fmt.Errorf("ошибка получения приоритета системы: %w", err)
 	}
 
-	kindWorker, err := storage.GetKindWokerById(ctx, arg.IDKindWorker)
-	if err != nil {
-		return dto.CreateMessage{}, fmt.Errorf("ошибка получения вида воркера: %w", err)
-	}
-
 	messagePriority, err := storage.GetPriorityBySlug(ctx, arg.PrioritySlug)
 	if err != nil {
 		return dto.CreateMessage{}, fmt.Errorf("ошибка получения приоритета по slug: %w", err)
@@ -83,9 +78,6 @@ func (s *Service) CreateMessage(
 	newMessage, err := storage.CreateMessage(
 		ctx,
 		db.CreateMessageParams{
-			IDWorker: sql.NullInt32{
-				Valid: false, // TODO: Пока NULL но надо определять по sendLater текущий Worker
-			},
 			IDTypeWorker: TypeWorker.ID,
 			IDSystem:     arg.IDSystem,
 			Uuid:         uuid.New(),
@@ -117,33 +109,26 @@ func (s *Service) CreateMessage(
 		},
 		Files: &files,
 	}
-	piplines := []pl.Step{
-		// pl.StepWaitSendQueue,  // TODO включать при send_later != nil
-		pl.StepWaitQueue,
-		pl.StepWork,
-		pl.StepDone,
-	}
 
-	err = arg.Plugin.ExtendPipline(&piplines)
+	stepInit, err := arg.Plugin.ExtendPipeline([]pl.Step{})
 	if err != nil {
 		return dto.CreateMessage{}, fmt.Errorf("ошибка при расширении pipepline: %w", err)
 	}
-	pipeline, err := piplineService.CreatePipelineTX(ctx, tx, pipeline.CreatePipelineParams{
-		Pipeline: piplines,
+	pipelines, err := piplineService.CreatePipelineTX(ctx, tx, pipeline.CreatePipelineParams{
+		Pipeline: stepInit,
 		Message:  dtoMessage.Message,
 	})
 	if err != nil {
 		return dto.CreateMessage{}, fmt.Errorf("ошибка при создании pipepline: %w", err)
 	}
 
-	_ = pipeline
-
 	s.AddMessageToQueue(ctx, AddMessageToQueueParams{
-		SlugKindWorker:        kindWorker.Slug,
+		SlugKindWorker:        arg.KindWorkerSlug,
 		Message:               newMessage,
 		Files:                 files,
 		SlugTypeWorker:        arg.ChanelSlug,
 		WeightPriorityMessage: systemPriority.Weight + messagePriority.Weight,
+		Step:                  pipelines[0].Step,
 	})
 
 	err = tx.Commit()

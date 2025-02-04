@@ -18,6 +18,7 @@ type AddMessageToQueueParams struct {
 	SlugKindWorker        string
 	SlugTypeWorker        string
 	WeightPriorityMessage int32
+	Step                  int32
 }
 
 func (s *Service) AddMessageToQueue(ctx context.Context, arg AddMessageToQueueParams) error {
@@ -92,11 +93,20 @@ func (s *Service) AddMessageToQueue(ctx context.Context, arg AddMessageToQueuePa
 		return fmt.Errorf("не удалось сформировать JSON для системы: %w", err)
 	}
 
+	pipelineJSON, err := json.Marshal(dto.PipelineValueInMessageQueue{
+		Step: arg.Step,
+	})
+	if err != nil {
+		slog.Error("Не удалось сформировать JSON для системы: ", slog.Any("err", err))
+		return fmt.Errorf("не удалось сформировать JSON для системы: %w", err)
+	}
+
 	err = s.rdb.XAdd(ctx, &redis.XAddArgs{
 		Stream: nameQueue,
 		Values: map[string]interface{}{
-			"message": messageJSON,
-			"system":  systemJSON,
+			"message":  messageJSON,
+			"system":   systemJSON,
+			"pipeline": pipelineJSON,
 		},
 	}).Err()
 	if err != nil {
