@@ -22,7 +22,6 @@ import (
 type MockStorage struct {
 	ctrl     *gomock.Controller
 	recorder *MockStorageMockRecorder
-	isgomock struct{}
 }
 
 // MockStorageMockRecorder is the mock recorder for MockStorage.
@@ -57,273 +56,273 @@ func (mr *MockStorageMockRecorder) Commit() *gomock.Call {
 }
 
 // CreateFile mocks base method.
-func (m *MockStorage) CreateFile(ctx context.Context, arg db.CreateFileParams) (db.File, error) {
+func (m *MockStorage) CreateFile(arg0 context.Context, arg1 db.CreateFileParams) (db.File, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateFile", ctx, arg)
+	ret := m.ctrl.Call(m, "CreateFile", arg0, arg1)
 	ret0, _ := ret[0].(db.File)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateFile indicates an expected call of CreateFile.
-func (mr *MockStorageMockRecorder) CreateFile(ctx, arg any) *gomock.Call {
+func (mr *MockStorageMockRecorder) CreateFile(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateFile", reflect.TypeOf((*MockStorage)(nil).CreateFile), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateFile", reflect.TypeOf((*MockStorage)(nil).CreateFile), arg0, arg1)
 }
 
 // CreateKindWorker mocks base method.
-func (m *MockStorage) CreateKindWorker(ctx context.Context, arg db.CreateKindWorkerParams) (db.KindWorker, error) {
+func (m *MockStorage) CreateKindWorker(arg0 context.Context, arg1 db.CreateKindWorkerParams) (db.KindWorker, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateKindWorker", ctx, arg)
+	ret := m.ctrl.Call(m, "CreateKindWorker", arg0, arg1)
 	ret0, _ := ret[0].(db.KindWorker)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateKindWorker indicates an expected call of CreateKindWorker.
-func (mr *MockStorageMockRecorder) CreateKindWorker(ctx, arg any) *gomock.Call {
+func (mr *MockStorageMockRecorder) CreateKindWorker(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateKindWorker", reflect.TypeOf((*MockStorage)(nil).CreateKindWorker), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateKindWorker", reflect.TypeOf((*MockStorage)(nil).CreateKindWorker), arg0, arg1)
 }
 
 // CreateMessage mocks base method.
-func (m *MockStorage) CreateMessage(ctx context.Context, arg db.CreateMessageParams) (db.Message, error) {
+func (m *MockStorage) CreateMessage(arg0 context.Context, arg1 db.CreateMessageParams) (db.Message, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateMessage", ctx, arg)
+	ret := m.ctrl.Call(m, "CreateMessage", arg0, arg1)
 	ret0, _ := ret[0].(db.Message)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateMessage indicates an expected call of CreateMessage.
-func (mr *MockStorageMockRecorder) CreateMessage(ctx, arg any) *gomock.Call {
+func (mr *MockStorageMockRecorder) CreateMessage(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateMessage", reflect.TypeOf((*MockStorage)(nil).CreateMessage), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateMessage", reflect.TypeOf((*MockStorage)(nil).CreateMessage), arg0, arg1)
 }
 
 // CreatePipelineStep mocks base method.
-func (m *MockStorage) CreatePipelineStep(ctx context.Context, arg db.CreatePipelineStepParams) (db.Pipeline, error) {
+func (m *MockStorage) CreatePipelineStep(arg0 context.Context, arg1 db.CreatePipelineStepParams) (db.Pipeline, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreatePipelineStep", ctx, arg)
+	ret := m.ctrl.Call(m, "CreatePipelineStep", arg0, arg1)
 	ret0, _ := ret[0].(db.Pipeline)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreatePipelineStep indicates an expected call of CreatePipelineStep.
-func (mr *MockStorageMockRecorder) CreatePipelineStep(ctx, arg any) *gomock.Call {
+func (mr *MockStorageMockRecorder) CreatePipelineStep(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreatePipelineStep", reflect.TypeOf((*MockStorage)(nil).CreatePipelineStep), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreatePipelineStep", reflect.TypeOf((*MockStorage)(nil).CreatePipelineStep), arg0, arg1)
 }
 
 // CreateTypeWorker mocks base method.
-func (m *MockStorage) CreateTypeWorker(ctx context.Context, arg db.CreateTypeWorkerParams) (db.TypeWorker, error) {
+func (m *MockStorage) CreateTypeWorker(arg0 context.Context, arg1 db.CreateTypeWorkerParams) (db.TypeWorker, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateTypeWorker", ctx, arg)
+	ret := m.ctrl.Call(m, "CreateTypeWorker", arg0, arg1)
 	ret0, _ := ret[0].(db.TypeWorker)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateTypeWorker indicates an expected call of CreateTypeWorker.
-func (mr *MockStorageMockRecorder) CreateTypeWorker(ctx, arg any) *gomock.Call {
+func (mr *MockStorageMockRecorder) CreateTypeWorker(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateTypeWorker", reflect.TypeOf((*MockStorage)(nil).CreateTypeWorker), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateTypeWorker", reflect.TypeOf((*MockStorage)(nil).CreateTypeWorker), arg0, arg1)
 }
 
 // CreateWorker mocks base method.
-func (m *MockStorage) CreateWorker(ctx context.Context, arg db.CreateWorkerParams) (db.Worker, error) {
+func (m *MockStorage) CreateWorker(arg0 context.Context, arg1 db.CreateWorkerParams) (db.Worker, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateWorker", ctx, arg)
+	ret := m.ctrl.Call(m, "CreateWorker", arg0, arg1)
 	ret0, _ := ret[0].(db.Worker)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateWorker indicates an expected call of CreateWorker.
-func (mr *MockStorageMockRecorder) CreateWorker(ctx, arg any) *gomock.Call {
+func (mr *MockStorageMockRecorder) CreateWorker(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateWorker", reflect.TypeOf((*MockStorage)(nil).CreateWorker), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateWorker", reflect.TypeOf((*MockStorage)(nil).CreateWorker), arg0, arg1)
 }
 
 // GetFilePathByUUID mocks base method.
-func (m *MockStorage) GetFilePathByUUID(ctx context.Context, argUUID uuid.UUID) (string, error) {
+func (m *MockStorage) GetFilePathByUUID(arg0 context.Context, arg1 uuid.UUID) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetFilePathByUUID", ctx, argUUID)
+	ret := m.ctrl.Call(m, "GetFilePathByUUID", arg0, arg1)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetFilePathByUUID indicates an expected call of GetFilePathByUUID.
-func (mr *MockStorageMockRecorder) GetFilePathByUUID(ctx, argUUID any) *gomock.Call {
+func (mr *MockStorageMockRecorder) GetFilePathByUUID(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFilePathByUUID", reflect.TypeOf((*MockStorage)(nil).GetFilePathByUUID), ctx, argUUID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFilePathByUUID", reflect.TypeOf((*MockStorage)(nil).GetFilePathByUUID), arg0, arg1)
 }
 
 // GetKindWokerByID mocks base method.
-func (m *MockStorage) GetKindWokerByID(ctx context.Context, id int32) (db.KindWorker, error) {
+func (m *MockStorage) GetKindWokerByID(arg0 context.Context, arg1 int32) (db.KindWorker, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetKindWokerByID", ctx, id)
+	ret := m.ctrl.Call(m, "GetKindWokerByID", arg0, arg1)
 	ret0, _ := ret[0].(db.KindWorker)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetKindWokerByID indicates an expected call of GetKindWokerByID.
-func (mr *MockStorageMockRecorder) GetKindWokerByID(ctx, id any) *gomock.Call {
+func (mr *MockStorageMockRecorder) GetKindWokerByID(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKindWokerByID", reflect.TypeOf((*MockStorage)(nil).GetKindWokerByID), ctx, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKindWokerByID", reflect.TypeOf((*MockStorage)(nil).GetKindWokerByID), arg0, arg1)
 }
 
 // GetKindWorkerBySlug mocks base method.
-func (m *MockStorage) GetKindWorkerBySlug(ctx context.Context, slug string) (db.KindWorker, error) {
+func (m *MockStorage) GetKindWorkerBySlug(arg0 context.Context, arg1 string) (db.KindWorker, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetKindWorkerBySlug", ctx, slug)
+	ret := m.ctrl.Call(m, "GetKindWorkerBySlug", arg0, arg1)
 	ret0, _ := ret[0].(db.KindWorker)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetKindWorkerBySlug indicates an expected call of GetKindWorkerBySlug.
-func (mr *MockStorageMockRecorder) GetKindWorkerBySlug(ctx, slug any) *gomock.Call {
+func (mr *MockStorageMockRecorder) GetKindWorkerBySlug(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKindWorkerBySlug", reflect.TypeOf((*MockStorage)(nil).GetKindWorkerBySlug), ctx, slug)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetKindWorkerBySlug", reflect.TypeOf((*MockStorage)(nil).GetKindWorkerBySlug), arg0, arg1)
 }
 
 // GetMessagesBy mocks base method.
-func (m *MockStorage) GetMessagesBy(ctx context.Context, arg db.GetMessagesByParams) ([]db.Message, error) {
+func (m *MockStorage) GetMessagesBy(arg0 context.Context, arg1 db.GetMessagesByParams) ([]db.Message, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMessagesBy", ctx, arg)
+	ret := m.ctrl.Call(m, "GetMessagesBy", arg0, arg1)
 	ret0, _ := ret[0].([]db.Message)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetMessagesBy indicates an expected call of GetMessagesBy.
-func (mr *MockStorageMockRecorder) GetMessagesBy(ctx, arg any) *gomock.Call {
+func (mr *MockStorageMockRecorder) GetMessagesBy(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMessagesBy", reflect.TypeOf((*MockStorage)(nil).GetMessagesBy), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMessagesBy", reflect.TypeOf((*MockStorage)(nil).GetMessagesBy), arg0, arg1)
 }
 
 // GetPriorityBySlug mocks base method.
-func (m *MockStorage) GetPriorityBySlug(ctx context.Context, slug string) (db.Priority, error) {
+func (m *MockStorage) GetPriorityBySlug(arg0 context.Context, arg1 string) (db.Priority, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetPriorityBySlug", ctx, slug)
+	ret := m.ctrl.Call(m, "GetPriorityBySlug", arg0, arg1)
 	ret0, _ := ret[0].(db.Priority)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetPriorityBySlug indicates an expected call of GetPriorityBySlug.
-func (mr *MockStorageMockRecorder) GetPriorityBySlug(ctx, slug any) *gomock.Call {
+func (mr *MockStorageMockRecorder) GetPriorityBySlug(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPriorityBySlug", reflect.TypeOf((*MockStorage)(nil).GetPriorityBySlug), ctx, slug)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPriorityBySlug", reflect.TypeOf((*MockStorage)(nil).GetPriorityBySlug), arg0, arg1)
 }
 
 // GetPriorityBySystemId mocks base method.
-func (m *MockStorage) GetPriorityBySystemId(ctx context.Context, id int32) (db.GetPriorityBySystemIdRow, error) {
+func (m *MockStorage) GetPriorityBySystemId(arg0 context.Context, arg1 int32) (db.GetPriorityBySystemIdRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetPriorityBySystemId", ctx, id)
+	ret := m.ctrl.Call(m, "GetPriorityBySystemId", arg0, arg1)
 	ret0, _ := ret[0].(db.GetPriorityBySystemIdRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetPriorityBySystemId indicates an expected call of GetPriorityBySystemId.
-func (mr *MockStorageMockRecorder) GetPriorityBySystemId(ctx, id any) *gomock.Call {
+func (mr *MockStorageMockRecorder) GetPriorityBySystemId(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPriorityBySystemId", reflect.TypeOf((*MockStorage)(nil).GetPriorityBySystemId), ctx, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPriorityBySystemId", reflect.TypeOf((*MockStorage)(nil).GetPriorityBySystemId), arg0, arg1)
 }
 
 // GetStatusMessageByUUID mocks base method.
-func (m *MockStorage) GetStatusMessageByUUID(ctx context.Context, argUUID uuid.UUID) (string, error) {
+func (m *MockStorage) GetStatusMessageByUUID(arg0 context.Context, arg1 uuid.UUID) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetStatusMessageByUUID", ctx, argUUID)
+	ret := m.ctrl.Call(m, "GetStatusMessageByUUID", arg0, arg1)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetStatusMessageByUUID indicates an expected call of GetStatusMessageByUUID.
-func (mr *MockStorageMockRecorder) GetStatusMessageByUUID(ctx, argUUID any) *gomock.Call {
+func (mr *MockStorageMockRecorder) GetStatusMessageByUUID(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStatusMessageByUUID", reflect.TypeOf((*MockStorage)(nil).GetStatusMessageByUUID), ctx, argUUID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStatusMessageByUUID", reflect.TypeOf((*MockStorage)(nil).GetStatusMessageByUUID), arg0, arg1)
 }
 
 // GetSystemById mocks base method.
-func (m *MockStorage) GetSystemById(ctx context.Context, id int32) (db.System, error) {
+func (m *MockStorage) GetSystemById(arg0 context.Context, arg1 int32) (db.System, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetSystemById", ctx, id)
+	ret := m.ctrl.Call(m, "GetSystemById", arg0, arg1)
 	ret0, _ := ret[0].(db.System)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetSystemById indicates an expected call of GetSystemById.
-func (mr *MockStorageMockRecorder) GetSystemById(ctx, id any) *gomock.Call {
+func (mr *MockStorageMockRecorder) GetSystemById(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSystemById", reflect.TypeOf((*MockStorage)(nil).GetSystemById), ctx, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSystemById", reflect.TypeOf((*MockStorage)(nil).GetSystemById), arg0, arg1)
 }
 
 // GetTokenByPublicToken mocks base method.
-func (m *MockStorage) GetTokenByPublicToken(ctx context.Context, publicToken string) (db.Token, error) {
+func (m *MockStorage) GetTokenByPublicToken(arg0 context.Context, arg1 string) (db.Token, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTokenByPublicToken", ctx, publicToken)
+	ret := m.ctrl.Call(m, "GetTokenByPublicToken", arg0, arg1)
 	ret0, _ := ret[0].(db.Token)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetTokenByPublicToken indicates an expected call of GetTokenByPublicToken.
-func (mr *MockStorageMockRecorder) GetTokenByPublicToken(ctx, publicToken any) *gomock.Call {
+func (mr *MockStorageMockRecorder) GetTokenByPublicToken(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTokenByPublicToken", reflect.TypeOf((*MockStorage)(nil).GetTokenByPublicToken), ctx, publicToken)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTokenByPublicToken", reflect.TypeOf((*MockStorage)(nil).GetTokenByPublicToken), arg0, arg1)
 }
 
 // GetTypeWorkerBySlug mocks base method.
-func (m *MockStorage) GetTypeWorkerBySlug(ctx context.Context, slug string) (db.TypeWorker, error) {
+func (m *MockStorage) GetTypeWorkerBySlug(arg0 context.Context, arg1 string) (db.TypeWorker, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTypeWorkerBySlug", ctx, slug)
+	ret := m.ctrl.Call(m, "GetTypeWorkerBySlug", arg0, arg1)
 	ret0, _ := ret[0].(db.TypeWorker)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetTypeWorkerBySlug indicates an expected call of GetTypeWorkerBySlug.
-func (mr *MockStorageMockRecorder) GetTypeWorkerBySlug(ctx, slug any) *gomock.Call {
+func (mr *MockStorageMockRecorder) GetTypeWorkerBySlug(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTypeWorkerBySlug", reflect.TypeOf((*MockStorage)(nil).GetTypeWorkerBySlug), ctx, slug)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTypeWorkerBySlug", reflect.TypeOf((*MockStorage)(nil).GetTypeWorkerBySlug), arg0, arg1)
 }
 
 // GetTypeWorkers mocks base method.
-func (m *MockStorage) GetTypeWorkers(ctx context.Context) ([]db.TypeWorker, error) {
+func (m *MockStorage) GetTypeWorkers(arg0 context.Context) ([]db.TypeWorker, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTypeWorkers", ctx)
+	ret := m.ctrl.Call(m, "GetTypeWorkers", arg0)
 	ret0, _ := ret[0].([]db.TypeWorker)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetTypeWorkers indicates an expected call of GetTypeWorkers.
-func (mr *MockStorageMockRecorder) GetTypeWorkers(ctx any) *gomock.Call {
+func (mr *MockStorageMockRecorder) GetTypeWorkers(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTypeWorkers", reflect.TypeOf((*MockStorage)(nil).GetTypeWorkers), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTypeWorkers", reflect.TypeOf((*MockStorage)(nil).GetTypeWorkers), arg0)
 }
 
 // GetWorkerByUUID mocks base method.
-func (m *MockStorage) GetWorkerByUUID(ctx context.Context, argUUID uuid.UUID) (db.Worker, error) {
+func (m *MockStorage) GetWorkerByUUID(arg0 context.Context, arg1 uuid.UUID) (db.Worker, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkerByUUID", ctx, argUUID)
+	ret := m.ctrl.Call(m, "GetWorkerByUUID", arg0, arg1)
 	ret0, _ := ret[0].(db.Worker)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetWorkerByUUID indicates an expected call of GetWorkerByUUID.
-func (mr *MockStorageMockRecorder) GetWorkerByUUID(ctx, argUUID any) *gomock.Call {
+func (mr *MockStorageMockRecorder) GetWorkerByUUID(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkerByUUID", reflect.TypeOf((*MockStorage)(nil).GetWorkerByUUID), ctx, argUUID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkerByUUID", reflect.TypeOf((*MockStorage)(nil).GetWorkerByUUID), arg0, arg1)
 }
 
 // Rollback mocks base method.
@@ -341,15 +340,15 @@ func (mr *MockStorageMockRecorder) Rollback() *gomock.Call {
 }
 
 // SetContext mocks base method.
-func (m *MockStorage) SetContext(ctx context.Context, db any) error {
+func (m *MockStorage) SetContext(arg0 context.Context, arg1 any) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetContext", ctx, db)
+	ret := m.ctrl.Call(m, "SetContext", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SetContext indicates an expected call of SetContext.
-func (mr *MockStorageMockRecorder) SetContext(ctx, db any) *gomock.Call {
+func (mr *MockStorageMockRecorder) SetContext(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetContext", reflect.TypeOf((*MockStorage)(nil).SetContext), ctx, db)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetContext", reflect.TypeOf((*MockStorage)(nil).SetContext), arg0, arg1)
 }
