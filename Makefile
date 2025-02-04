@@ -1,19 +1,27 @@
-.PHONY: all run test lint
+.PHONY: all run test docker lint migration seed gci format
 
 # По умолчанию запускается команда run
-all: run
+all: docker migration seed start
 
-run:
+run: docker start
+
+start:
+	@echo "Run cactus..."
+	go run ./cmd/cactus/main.go &
+	@echo "Run email-worker..."
+	go run ./cmd/email-worker/ &
+
+docker:
 	@echo "Run docker-compose..."
 	docker-compose up -d --build
-	@echo "Run migration..."
-	dbmate --env-file ".env.dbmate.local" up
+
+seed:
 	@echo "Run seeding..."
 	go run ./cmd/seeding/main.go
-	@echo "Run cactus..."
-	go run ./cmd/cactus/main.go
-	@echo "Run email-worker..."
-	go run ./cmd/emai-worker/
+
+migration:
+	@echo "Run migration..."
+	dbmate --env-file ".env.dbmate.local" up
 
 test:
 	@echo "Run test..."
