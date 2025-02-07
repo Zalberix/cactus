@@ -105,11 +105,23 @@ func main() {
 		slog.Info("ошибка сериализации JSON для запроса в endpoint для регистрации worker")
 		return
 	}
+	config, err := json.Marshal(map[string]string{
+		"host": "127.0.0.1",
+		"port": "1025",
+		"from": "cactus@gmail.com",
+	})
+	if err != nil {
+		slog.Info("ошибка сериализации JSON для запроса в endpoint для регистрации worker")
+		return
+	}
 	SMTPKindWorker, err := CreateKindWorker(ctx, DBStorage, db.CreateKindWorkerParams{
 		Name:         "smtp сервер",
 		Slug:         "smtp",
 		ConfigSchema: configSchema,
-		Config:       pqtype.NullRawMessage{Valid: false}, // Значит что еще не настроен
+		Config: pqtype.NullRawMessage{
+			RawMessage: config,
+			Valid:      true,
+		},
 	})
 	if err != nil {
 		slog.Info("не смогли создать тестовую систему, дальнейшая работа невозможна:", slog.String("error", err.Error()))

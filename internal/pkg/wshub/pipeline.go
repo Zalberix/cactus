@@ -127,12 +127,6 @@ func (hub *PipelineHub) Send(pm PipelineMessage) {
 		pm.Status,
 		pm.WorkeUUID,
 	)
-
-	slog.Error(
-		"Сообщение перед отправкой всем",
-		slog.Any("message", pm),
-	)
-
 	if err != nil {
 		slog.Error(
 			"Переход к шагу не возможен",

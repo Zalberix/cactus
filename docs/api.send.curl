@@ -1,0 +1,7 @@
+curl --location 'http://localhost:8080/api/email/send' \
+--header 'X-Token-Domain: 12345678910' \
+--form 'priority_slug="low"' \
+--form 'value="{\"title\":\"заголовок\", \"message\":\"<html>\\n  <body>\\n    <h2>Здравствуйте\!</h2>\\n    <p>Это тестовое письмо для проверки верстки.</p>\\n    <br>\\n    <p>С уважением,<br>Команда поддержки.</p>\\n  </body>\\n</html>\", \"subject\":\"zalberix@gmail.com\"}"' \
+--form 'files[0].title="Файл для теста"' \
+--form 'files[0].form="file1"' \
+--form 'file1=@"/path/to/file/Cactus концепт.png"'
