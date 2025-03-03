@@ -21,6 +21,7 @@ import (
 type MockStorageTx struct {
 	ctrl     *gomock.Controller
 	recorder *MockStorageTxMockRecorder
+	isgomock struct{}
 }
 
 // MockStorageTxMockRecorder is the mock recorder for MockStorageTx.
@@ -41,16 +42,16 @@ func (m *MockStorageTx) EXPECT() *MockStorageTxMockRecorder {
 }
 
 // CreatePipelineStep mocks base method.
-func (m *MockStorageTx) CreatePipelineStep(arg0 context.Context, arg1 db.CreatePipelineStepParams) (db.Pipeline, error) {
+func (m *MockStorageTx) CreatePipelineStep(ctx context.Context, arg db.CreatePipelineStepParams) (db.Pipeline, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreatePipelineStep", arg0, arg1)
+	ret := m.ctrl.Call(m, "CreatePipelineStep", ctx, arg)
 	ret0, _ := ret[0].(db.Pipeline)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreatePipelineStep indicates an expected call of CreatePipelineStep.
-func (mr *MockStorageTxMockRecorder) CreatePipelineStep(arg0, arg1 any) *gomock.Call {
+func (mr *MockStorageTxMockRecorder) CreatePipelineStep(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreatePipelineStep", reflect.TypeOf((*MockStorageTx)(nil).CreatePipelineStep), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreatePipelineStep", reflect.TypeOf((*MockStorageTx)(nil).CreatePipelineStep), ctx, arg)
 }

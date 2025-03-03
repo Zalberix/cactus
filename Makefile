@@ -8,8 +8,15 @@ run: docker start
 start:
 	@echo "Run cactus..."
 	go run ./cmd/cactus/main.go &
-	@echo "Run email-worker..."
-	go run ./cmd/email-worker/ &
+
+	@echo "Waiting for cactus API..."
+	while ! curl -s http://localhost:8080/healthz > /dev/null; do sleep 1; done
+	@echo "Cactus API is ready"
+
+	@echo "Run smtp-worker..."
+	go run ./cmd/smtp-worker/ &
+	@echo "Run telegram-worker..."
+	go run ./cmd/telegram-worker/ &
 
 docker:
 	@echo "Run docker-compose..."

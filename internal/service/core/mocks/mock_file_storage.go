@@ -23,6 +23,7 @@ import (
 type MockFileStorage struct {
 	ctrl     *gomock.Controller
 	recorder *MockFileStorageMockRecorder
+	isgomock struct{}
 }
 
 // MockFileStorageMockRecorder is the mock recorder for MockFileStorage.
@@ -43,31 +44,31 @@ func (m *MockFileStorage) EXPECT() *MockFileStorageMockRecorder {
 }
 
 // Get mocks base method.
-func (m *MockFileStorage) Get(arg0 context.Context, arg1 string) (*os.File, error) {
+func (m *MockFileStorage) Get(ctx context.Context, path string) (*os.File, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Get", arg0, arg1)
+	ret := m.ctrl.Call(m, "Get", ctx, path)
 	ret0, _ := ret[0].(*os.File)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Get indicates an expected call of Get.
-func (mr *MockFileStorageMockRecorder) Get(arg0, arg1 any) *gomock.Call {
+func (mr *MockFileStorageMockRecorder) Get(ctx, path any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockFileStorage)(nil).Get), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockFileStorage)(nil).Get), ctx, path)
 }
 
 // Save mocks base method.
-func (m *MockFileStorage) Save(arg0 context.Context, arg1 multipart.File, arg2 mimetype.MIME) (string, error) {
+func (m *MockFileStorage) Save(ctx context.Context, file multipart.File, ext mimetype.MIME) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Save", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "Save", ctx, file, ext)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Save indicates an expected call of Save.
-func (mr *MockFileStorageMockRecorder) Save(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockFileStorageMockRecorder) Save(ctx, file, ext any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Save", reflect.TypeOf((*MockFileStorage)(nil).Save), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Save", reflect.TypeOf((*MockFileStorage)(nil).Save), ctx, file, ext)
 }

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"cactus/internal/plugin/telegram"
 	"context"
 	"fmt"
 	"net/http"
@@ -69,9 +70,9 @@ func Create(conf config.Config) (Server, error) {
 	fileStorage, _ := filestorage.New("app/files") // TODO path вынести в конфиг
 
 	pluginStorage := plugin_storage.New()
-	// TODO сделать SMTP а не email так как под каждый вид воркера настраиваеится структура
+
 	pluginStorage.Add("smtp", smtp.New())
-	// pluginStorage.Add("telegram", telegram.New())
+	pluginStorage.Add("telegram", telegram.New())
 	// pluginStorage.Add("push", push.New())
 
 	host, err := os.Hostname()
@@ -113,6 +114,10 @@ func Create(conf config.Config) (Server, error) {
 		pipelineService,
 		pluginStorage,
 	)
+	r.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, "OK")
+	})
 
 	err = brokerApp.SendMetaEvent(ctx, maxPriority, endpoint)
 	if err != nil {

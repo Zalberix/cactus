@@ -46,7 +46,7 @@ func TestCreateMessage_Success(t *testing.T) {
 		KindWorkerSlug: "test_kind",
 		IDSystem:       1,
 		PrioritySlug:   "low",
-		ChanelSlug:     "email",
+		TypeWorkerSlug: "email",
 		Schema:         testSchema,
 		SendLater:      &testTime,
 		Files:          []core.SetFileParams{},
@@ -62,7 +62,7 @@ func TestCreateMessage_Success(t *testing.T) {
 		Return(db.Priority{ID: 1, Weight: 5}, nil)
 
 	mockStorage.EXPECT().
-		GetTypeWorkerBySlug(ctx, testParams.ChanelSlug).
+		GetTypeWorkerBySlug(ctx, testParams.TypeWorkerSlug).
 		Return(db.TypeWorker{ID: 1}, nil)
 
 	mockStorage.EXPECT().CreateMessage(ctx, gomock.Any()).Return(db.Message{

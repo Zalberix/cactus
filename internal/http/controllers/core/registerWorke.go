@@ -57,17 +57,19 @@ func RegisterWorker(s registerWorkerService) http.HandlerFunc {
 		created, err := s.RegisterWorker(ctx, core.RegisterWorkerParams{
 			WorkerUUID:   workerUUID,
 			Kind:         req.Kind,
+			NameKind:     req.NameKind,
 			Type:         req.Type,
+			NameType:     req.NameType,
 			ConfigSchema: req.ConfigSchema,
 		})
 		if err != nil {
 			slog.Info(
 				"Ошибка регистрации воркера:",
-				slog.Any("err", err),
+				slog.Any("err", err.Error()),
 				slog.Any("type", req.Type),
 				slog.Any("kind", req.Kind),
 			)
-			response.FailJSON(w, "Неудалось зарегистрировать воркер, проверьте запрос и попробуйте снова.")
+			response.FailJSON(w, "Не удалось зарегистрировать воркер, проверьте запрос и попробуйте снова.")
 			return
 		}
 
