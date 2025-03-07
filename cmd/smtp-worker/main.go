@@ -167,10 +167,12 @@ func main() {
 	broker := worker.NewBrokerRedis(RDBStorage)
 
 	workerCore := worker.NewWorker(ctx, broker, worker.WorkerConfig{
-		Token:      conf.Token,
-		WorkerKind: Kind,
-		WorkerType: Type,
-		WorkerUUID: conf.WorkerUUID,
+		Token:          conf.Token,
+		WorkerKind:     Kind,
+		WorkerNameKind: "SMTP рассылка",
+		WorkerType:     Type,
+		WorkerNameType: "Email рассылка",
+		WorkerUUID:     conf.WorkerUUID,
 		ConfigSchema: []configschema.ConfigField{
 			{
 				Type: "host",
