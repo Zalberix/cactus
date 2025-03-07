@@ -19,19 +19,20 @@ import (
 	configschema "cactus/internal/pkg/configSchema"
 	"cactus/internal/plugin/smtp"
 	rdb "cactus/internal/storage/redis"
+	"cactus/lib/worker"
 )
 
 type SMTPWorkerConfig struct {
 	Host       string `validate:"required,ip" slug:"host"`
 	Port       int    `validate:"required,numeric" slug:"port"`
 	From       string `validate:"required,email" slug:"from"`
-	worker     *Worker
+	worker     *worker.Worker
 	mutex      *sync.Mutex
 	sendChan   chan func()
 	stopWorker chan struct{}
 }
 
-func NewSMTPWorkerConfig(worker *Worker) *SMTPWorkerConfig {
+func NewSMTPWorkerConfig(worker *worker.Worker) *SMTPWorkerConfig {
 	smtpWorker := &SMTPWorkerConfig{
 		worker:     worker,
 		mutex:      &sync.Mutex{},
@@ -65,7 +66,7 @@ func (conf *SMTPWorkerConfig) Update(values map[string]interface{}) {
 
 	backup := *conf
 
-	MapToStruct(values, conf)
+	worker.MapToStruct(values, conf)
 
 	validate := validator.New()
 	if err := validate.Struct(conf); err != nil {
@@ -135,7 +136,7 @@ func main() {
 	Type := "email"
 	Kind := "smtp"
 
-	conf := MustLoad()
+	conf := MustLoad("./config/email.worker.yaml")
 
 	if conf.WorkerUUID == "" {
 		slog.Error("worker обязан иметь ID (UUID)")
@@ -163,11 +164,15 @@ func main() {
 		}
 	}()
 
-	worker := NewWorker(ctx, RDBStorage, WorkerConfig{
-		Token:      conf.Token,
-		WorkerKind: Kind,
-		WorkerType: Type,
-		WorkerUUID: conf.WorkerUUID,
+	broker := worker.NewBrokerRedis(RDBStorage)
+
+	workerCore := worker.NewWorker(ctx, broker, worker.WorkerConfig{
+		Token:          conf.Token,
+		WorkerKind:     Kind,
+		WorkerNameKind: "SMTP рассылка",
+		WorkerType:     Type,
+		WorkerNameType: "Email рассылка",
+		WorkerUUID:     conf.WorkerUUID,
 		ConfigSchema: []configschema.ConfigField{
 			{
 				Type: "host",
@@ -187,26 +192,25 @@ func main() {
 		},
 	})
 
-	SMTPWorker := NewSMTPWorkerConfig(worker)
+	SMTPWorker := NewSMTPWorkerConfig(workerCore)
 
-	worker.SetConfigHandler(func(message Message) {
+	workerCore.SetConfigHandler(func(message worker.Message) {
 		SMTPWorker.Update(message.Value)
 		fmt.Printf("Обновляем: %+v\n", SMTPWorker)
 	})
 
-	worker.SetHandler(func(m QueueMessage) {
-		defer m.Act()
+	workerCore.SetHandler(func(m worker.QueueMessage) {
+		defer m.Ack()
 
 		// TODO вынести эту логику парсинга в worker этим не должен пользователь заниматься
 
 		fmt.Printf("Отправляю: %+v\n", m.Message.UUID)
 		SMTPWorker.Send(m.Message, m.System)
 	})
-
-	fmt.Println("Воркер запущен")
+	slog.Info("Воркер smtp запущен")
 
 	// TODO добавить CTRL+C сигнал и graceful-shutdown
-	worker.Run()
+	workerCore.Run()
 
-	fmt.Println("Воркер остановлен")
+	slog.Info("Воркер smtp запущен")
 }

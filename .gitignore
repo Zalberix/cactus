@@ -32,3 +32,4 @@ go.work
 /assets/*
 /tmp/
 /app/*
+.env

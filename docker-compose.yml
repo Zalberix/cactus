@@ -1,19 +1,20 @@
 version: "3.7"
 
 services:
-#  go-cactus:
-#    build:
-#      context: .
-#      dockerfile: ./docker/go-daemon-debian.Dockerfile
-##    restart: unless-stopped
-#    volumes:
-#      - ./:/src
-#    ports:
-#      - "8080:8080"
-#    networks:
-#      - pgsql-cactus-network
-#    depends_on:
-#      - pgsql
+  telegram-bot:
+    build:
+      context: .
+      dockerfile: ./docker/telegram-bot.Dockerfile
+  #    restart: unless-stopped
+    restart: always
+    ports:
+      - "8008:80"
+    environment:
+      - SERVICE_PORT=80
+    volumes:
+      - ./cmd/redis-cactus-volume:/data
+    env_file:
+      - ./cmd/telegram-bot/.env
 
   pgsql:
     image: postgres:15.1

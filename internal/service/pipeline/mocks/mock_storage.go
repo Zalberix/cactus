@@ -22,6 +22,7 @@ import (
 type MockStorage struct {
 	ctrl     *gomock.Controller
 	recorder *MockStorageMockRecorder
+	isgomock struct{}
 }
 
 // MockStorageMockRecorder is the mock recorder for MockStorage.
@@ -42,46 +43,46 @@ func (m *MockStorage) EXPECT() *MockStorageMockRecorder {
 }
 
 // GetIdPipelineByUUIDMessageAndStep mocks base method.
-func (m *MockStorage) GetIdPipelineByUUIDMessageAndStep(arg0 context.Context, arg1 db.GetIdPipelineByUUIDMessageAndStepParams) (int32, error) {
+func (m *MockStorage) GetIdPipelineByUUIDMessageAndStep(ctx context.Context, arg db.GetIdPipelineByUUIDMessageAndStepParams) (int32, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetIdPipelineByUUIDMessageAndStep", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetIdPipelineByUUIDMessageAndStep", ctx, arg)
 	ret0, _ := ret[0].(int32)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetIdPipelineByUUIDMessageAndStep indicates an expected call of GetIdPipelineByUUIDMessageAndStep.
-func (mr *MockStorageMockRecorder) GetIdPipelineByUUIDMessageAndStep(arg0, arg1 any) *gomock.Call {
+func (mr *MockStorageMockRecorder) GetIdPipelineByUUIDMessageAndStep(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIdPipelineByUUIDMessageAndStep", reflect.TypeOf((*MockStorage)(nil).GetIdPipelineByUUIDMessageAndStep), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIdPipelineByUUIDMessageAndStep", reflect.TypeOf((*MockStorage)(nil).GetIdPipelineByUUIDMessageAndStep), ctx, arg)
 }
 
 // GetWorkerByUUID mocks base method.
-func (m *MockStorage) GetWorkerByUUID(arg0 context.Context, arg1 uuid.UUID) (db.Worker, error) {
+func (m *MockStorage) GetWorkerByUUID(ctx context.Context, argUUID uuid.UUID) (db.Worker, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkerByUUID", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetWorkerByUUID", ctx, argUUID)
 	ret0, _ := ret[0].(db.Worker)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetWorkerByUUID indicates an expected call of GetWorkerByUUID.
-func (mr *MockStorageMockRecorder) GetWorkerByUUID(arg0, arg1 any) *gomock.Call {
+func (mr *MockStorageMockRecorder) GetWorkerByUUID(ctx, argUUID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkerByUUID", reflect.TypeOf((*MockStorage)(nil).GetWorkerByUUID), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkerByUUID", reflect.TypeOf((*MockStorage)(nil).GetWorkerByUUID), ctx, argUUID)
 }
 
 // UpdatePipelineStatusAndWorkerByID mocks base method.
-func (m *MockStorage) UpdatePipelineStatusAndWorkerByID(arg0 context.Context, arg1 db.UpdatePipelineStatusAndWorkerByIDParams) (db.Pipeline, error) {
+func (m *MockStorage) UpdatePipelineStatusAndWorkerByID(ctx context.Context, arg db.UpdatePipelineStatusAndWorkerByIDParams) (db.Pipeline, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdatePipelineStatusAndWorkerByID", arg0, arg1)
+	ret := m.ctrl.Call(m, "UpdatePipelineStatusAndWorkerByID", ctx, arg)
 	ret0, _ := ret[0].(db.Pipeline)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdatePipelineStatusAndWorkerByID indicates an expected call of UpdatePipelineStatusAndWorkerByID.
-func (mr *MockStorageMockRecorder) UpdatePipelineStatusAndWorkerByID(arg0, arg1 any) *gomock.Call {
+func (mr *MockStorageMockRecorder) UpdatePipelineStatusAndWorkerByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePipelineStatusAndWorkerByID", reflect.TypeOf((*MockStorage)(nil).UpdatePipelineStatusAndWorkerByID), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePipelineStatusAndWorkerByID", reflect.TypeOf((*MockStorage)(nil).UpdatePipelineStatusAndWorkerByID), ctx, arg)
 }

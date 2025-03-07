@@ -35,6 +35,7 @@ type Storage interface {
 	CreateFile(ctx context.Context, arg db.CreateFileParams) (db.File, error)
 	CreatePipelineStep(ctx context.Context, arg db.CreatePipelineStepParams) (db.Pipeline, error)
 	GetKindWokerByID(ctx context.Context, id int32) (db.KindWorker, error)
+	GetTypeSlugWorkerByKindSlugWorker(ctx context.Context, slug string) (string, error)
 
 	SetContext(ctx context.Context, db interface{}) error
 	Rollback() error

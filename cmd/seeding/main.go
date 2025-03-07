@@ -163,7 +163,6 @@ func CreateDefaultTypesWorker(ctx context.Context, storage *db.Queries) ([]db.Ty
 
 	for _, typeWorker := range typesWorker {
 		createTypeWorker, err := storage.CreateTypeWorker(ctx, db.CreateTypeWorkerParams{
-			ID:   typeWorker.ID,
 			Name: typeWorker.Name,
 			Slug: typeWorker.Slug,
 		})

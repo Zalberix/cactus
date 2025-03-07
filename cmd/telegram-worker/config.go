@@ -9,17 +9,10 @@ import (
 )
 
 type Config struct {
-	Env        string     `yaml:"env" env-default:"dev"`
-	WorkerUUID string     `yaml:"worker_uuid"`
-	HTTPServer HTTPServer `yaml:"http_server"`
-	Redis      Redis      `yaml:"redis"`
-	Token      string     `yaml:"token"`
-}
-
-type HTTPServer struct {
-	Address     string        `yaml:"address" env-default:"localhost:8080"`
-	Timeout     time.Duration `yaml:"timeout" env-default:"4s"`
-	IdleTimeout time.Duration `yaml:"idle_timeout" env-default:"30s"`
+	Env        string `yaml:"env" env-default:"dev"`
+	WorkerUUID string `yaml:"worker_uuid"`
+	Redis      Redis  `yaml:"redis"`
+	Token      string `yaml:"token"`
 }
 
 type Redis struct {
@@ -34,7 +27,7 @@ type Redis struct {
 
 func MustLoad() *Config {
 	// TODO переделать на переменную среды так как нужно будет менять его при переезде на продакшен
-	configPath := "./config/email.worker.yaml"
+	configPath := "./config/telegram.worker.yaml"
 
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		log.Fatalf("config file does not exist: %s", configPath)

@@ -33,31 +33,17 @@ func Send(service *core.Service, piplineService *pipeline.Service, plugins *plug
 			return
 		}
 
-		IDKindWorkerValue := ctx.Value(contextkeys.KindIDKey)
-		IDKindWorker, ok := IDKindWorkerValue.(int32)
-		if !ok {
-			slog.Error("Доступ запрещен")
+		pluginSlug := r.PathValue("slug")
 
-			response.ValidationJSON(w, "Доступ запрещен", map[string]string{
-				"Token": "Доступ запрещен",
-			})
-			return
-		}
-
-		kindWorker, err := service.GetKindWokerByID(ctx, IDKindWorker)
-		if err != nil {
-			slog.Error("Доступ запрещен")
-
-			response.ValidationJSON(w, "Доступ запрещен", map[string]string{
-				"Token": "Доступ запрещен",
-			})
-			return
-		}
-
-		plugin, exist := plugins.Get(kindWorker.Slug)
+		plugin, exist := plugins.Get(pluginSlug)
 		if !exist {
 			response.FailJSON(w, "Неизвестное название канала рассылки")
 			return
+		}
+
+		TypeWorkerSlug, err := service.GetTypeSlugWorkerByKindSlugWorker(ctx, pluginSlug)
+		if err != nil {
+
 		}
 
 		err = r.ParseMultipartForm(32 << 20) // 32 МБ
@@ -89,7 +75,6 @@ func Send(service *core.Service, piplineService *pipeline.Service, plugins *plug
 			response.ValidationJSON(w, "Ошибка валидации, проверьте отправляемые поля", errors)
 			return
 		}
-
 		// Валидация схемы для канала связи (плагина)
 		schema := plugin.GetSchema()
 		err = json.Unmarshal([]byte(req.Value), schema)
@@ -137,16 +122,14 @@ func Send(service *core.Service, piplineService *pipeline.Service, plugins *plug
 			}
 		}
 
-		pluginSlug := r.PathValue("slug")
-
 		message, err := service.CreateMessage(
 			ctx,
 			core.CreateMessageParams{
 				Plugin:         plugin,
-				KindWorkerSlug: kindWorker.Slug,
+				KindWorkerSlug: pluginSlug,
+				TypeWorkerSlug: TypeWorkerSlug,
 				IDSystem:       IDSystem,
 				PrioritySlug:   req.PrioritySlug,
-				ChanelSlug:     pluginSlug,
 				Schema:         schema, // TODO удалить или перенести внутрь Value
 				SendLater:      req.SendLater,
 				Files:          files,

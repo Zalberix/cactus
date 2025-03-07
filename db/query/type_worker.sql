@@ -7,6 +7,6 @@ LIMIT 1;
 SELECT * FROM type_worker;
 
 -- name: CreateTypeWorker :one
-INSERT INTO type_worker (id, slug, "name") 
-VALUES($1, $2, $3)
+INSERT INTO type_worker (slug, "name")
+VALUES($1, $2)
 RETURNING *;

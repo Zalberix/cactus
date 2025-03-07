@@ -1,4 +1,4 @@
-package main
+package worker
 
 import (
 	"bytes"
@@ -44,8 +44,8 @@ type QueueMessage struct {
 	System   dto.SystemValueInMessageQueue   `json:"system"`
 }
 
-func (m *QueueMessage) Act() error {
-	err := m.stream.worker.rdb.XAck(m.stream.worker.ctx, m.stream.Name, m.stream.worker.groupName, m.ID).Err()
+func (m *QueueMessage) Ack() error {
+	err := m.stream.worker.broker.Ack(m.stream.worker.ctx, m.stream.Name, m.stream.worker.groupName, m.ID)
 	if err != nil {
 		m.stream.worker.err <- err
 	}
@@ -66,7 +66,7 @@ type StreamConfig struct {
 
 type Worker struct {
 	ctx           context.Context
-	rdb           *redis.Client
+	broker        Broker
 	config        WorkerConfig
 	groupName     string
 	streamsEvent  map[string]ArgStream
@@ -79,21 +79,35 @@ type Worker struct {
 }
 
 type WorkerConfig struct {
-	Token        string
-	WorkerKind   string
-	WorkerType   string
-	WorkerUUID   string
-	ConfigSchema []configschema.ConfigField
+	Token          string
+	WorkerKind     string
+	WorkerNameKind string
+	WorkerType     string
+	WorkerNameType string
+	WorkerUUID     string
+	ConfigSchema   []configschema.ConfigField
+}
+
+type Broker interface {
+	Ack(ctx context.Context, name string, groupName string, id string) error
+	Read(ctx context.Context, streams []string, block time.Duration, count int64) (BrokerMessages, error)
+	ReadGroup(
+		ctx context.Context, group string, consumer string,
+		streams []string, block time.Duration, count int64,
+	) (BrokerMessages, error)
+	Add(ctx context.Context, stream string, id string, values map[string]interface{}) error
+	ReadLatestMessages(ctx context.Context, stream string, count int64) ([]BrokerMessage, error)
+	CreateStreamIfNotExist(ctx context.Context, key string, group string) error
 }
 
 func NewWorker(
 	ctx context.Context,
-	rdb *redis.Client,
+	broker Broker,
 	config WorkerConfig,
 ) *Worker {
 	return &Worker{
 		ctx:    ctx,
-		rdb:    rdb,
+		broker: broker,
 		config: config,
 
 		// TODO возможно нужно вынести, но как будто бы пользователь ни чего не должен знать
@@ -163,6 +177,7 @@ func (w *Worker) Run() {
 	if err != nil {
 		w.err <- err
 	}
+	// slog.Info("w.meta", "w.meta", w.meta)
 
 	err = w.registerWorker()
 	if err != nil {
@@ -246,20 +261,14 @@ func (w *Worker) readEventStream(ctx context.Context, stream StreamConfig, handl
 			slog.Info("ctx выполнен")
 			return
 		default:
-			args := &redis.XReadArgs{
-				Streams: []string{stream.Name, stream.ID},
-				Block:   stream.Block,
-				Count:   stream.Count,
-			}
-
-			msgs, err := w.rdb.XRead(w.ctx, args).Result()
+			msgs, err := w.broker.Read(w.ctx, []string{stream.Name, stream.ID}, stream.Block, stream.Count)
 			if err != nil && !errors.Is(err, redis.Nil) {
 				w.err <- fmt.Errorf("ошибка чтения стрима %v: %w", stream.Name, err)
 				continue
 			}
 
 			for _, msg := range msgs {
-				for _, m := range msg.Messages {
+				for _, m := range msg {
 					handler(Message{
 						ID:    m.ID,
 						Value: m.Values,
@@ -294,34 +303,32 @@ func (w *Worker) readQueueStream(ctx context.Context, stream StreamConfig, handl
 			slog.Info("ctx выполнен")
 			return
 		default:
-			args := &redis.XReadGroupArgs{
-				Group:    stream.worker.groupName,
-				Consumer: stream.worker.config.WorkerUUID,
-				Streams:  []string{stream.Name, stream.ID},
-				Block:    stream.Block,
-				Count:    stream.Count,
-			}
-
-			msgs, err := w.rdb.XReadGroup(ctx, args).Result()
+			msgs, err := w.broker.ReadGroup(
+				ctx,
+				stream.worker.groupName,
+				stream.worker.config.WorkerUUID,
+				[]string{stream.Name, stream.ID},
+				stream.Block,
+				stream.Count,
+			)
 			if err != nil {
 				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 					return
 				}
 				if !errors.Is(err, redis.Nil) {
-					w.err <- fmt.Errorf("ошибка чтения стрима %v: %w (%+v)", stream.Name, err, args)
+					w.err <- fmt.Errorf("ошибка чтения стрима %v: %w", stream.Name, err)
 				}
 				continue
 			}
 
 			for _, msg := range msgs {
-				for _, m := range msg.Messages {
-					queueMessage, err := w.ParseValueMessage(m, stream)
+				for _, m := range msg {
+					queueMessage, err := w.ParseValueMessage(m.ID, m.Values, stream)
 					if err != nil {
 						w.Err() <- err
 						continue
 					}
 
-					// TODO для теста можно time.Sleep установить в 10 sec
 					w.sendStatusWorkFor(queueMessage)
 					handler(queueMessage)
 					w.sendStatusDoneFor(queueMessage)
@@ -331,28 +338,28 @@ func (w *Worker) readQueueStream(ctx context.Context, stream StreamConfig, handl
 	}
 }
 
-func (w *Worker) ParseValueMessage(m redis.XMessage, stream StreamConfig) (QueueMessage, error) {
+func (w *Worker) ParseValueMessage(id string, values map[string]interface{}, stream StreamConfig) (QueueMessage, error) {
 	var pipeline dto.PipelineValueInMessageQueue
-	err := w.GetFromValue(m.Values, "pipeline", &pipeline)
+	err := w.GetFromValue(values, "pipeline", &pipeline)
 	if err != nil {
 		return QueueMessage{}, err
 	}
 
 	var system dto.SystemValueInMessageQueue
-	err = w.GetFromValue(m.Values, "system", &system)
+	err = w.GetFromValue(values, "system", &system)
 	if err != nil {
 		return QueueMessage{}, err
 	}
 
 	var message dto.MessageValueInMessageQueue
-	err = w.GetFromValue(m.Values, "message", &message)
+	err = w.GetFromValue(values, "message", &message)
 	if err != nil {
 		return QueueMessage{}, err
 	}
 
 	queueMessage := QueueMessage{
 		stream:   &stream,
-		ID:       m.ID,
+		ID:       id,
 		Pipeline: pipeline,
 		System:   system,
 		Message:  message,
@@ -361,56 +368,8 @@ func (w *Worker) ParseValueMessage(m redis.XMessage, stream StreamConfig) (Queue
 	return queueMessage, nil
 }
 
-// TODO пересмотреть удаление стримов, так как один не правильно написанный worker может удалять
-// стримы что не верно. Скорее лучше говорить что запустить не возможно так как ключи под стримы уже заняты
 func (w *Worker) createStreamIfNotExist(key string, group string) error {
-	typeRes, err := w.rdb.Type(w.ctx, key).Result()
-	if err != nil {
-		return fmt.Errorf("ошибка получения типа ключа %s: %w", key, err)
-	}
-
-	switch typeRes {
-	case "none":
-		if group != "" {
-			err = w.rdb.XGroupCreateMkStream(w.ctx, key, group, "$").Err()
-			if err != nil {
-				return fmt.Errorf("ошибка создания группы %s в стриме %s: %w", group, key, err)
-			}
-		} else {
-			_, err = w.rdb.XAdd(w.ctx, &redis.XAddArgs{
-				Stream: key,
-				Values: map[string]interface{}{"init": "stream"},
-			}).Result()
-			if err != nil {
-				return fmt.Errorf("ошибка создания стрима %s: %w", key, err)
-			}
-		}
-	case "stream":
-		info, err := w.rdb.XInfoStream(w.ctx, key).Result()
-		if err != nil {
-			return fmt.Errorf("ошибка получения информации о стриме %s: %w", key, err)
-		}
-
-		if group != "" && info.Groups == 0 {
-			return fmt.Errorf(
-				"запуск чтения стрима не возможен так как стрим с именем %v без группы, а для работы нужен стрим с группой",
-				key,
-			)
-		} else if group == "" && info.Groups > 0 {
-			return fmt.Errorf(
-				"запуск чтения стрима не возможен так как стрим с именем %v с группой, а для работы нужен стрим без группы",
-				key,
-			)
-		}
-	default:
-		err = w.rdb.Del(w.ctx, key).Err()
-		if err != nil {
-			return fmt.Errorf("ошибка удаления ключа %s: %w", key, err)
-		}
-		return w.createStreamIfNotExist(key, group)
-	}
-
-	return nil
+	return w.broker.CreateStreamIfNotExist(w.ctx, key, group)
 }
 
 type responseSuccess struct {
@@ -431,7 +390,9 @@ func (w *Worker) registerWorker() error {
 		Token:        w.config.Token,
 		WorkerUUID:   w.config.WorkerUUID,
 		Kind:         w.config.WorkerKind,
+		NameKind:     w.config.WorkerNameKind,
 		Type:         w.config.WorkerType,
+		NameType:     w.config.WorkerNameType,
 		ConfigSchema: w.config.ConfigSchema,
 	}
 
@@ -509,9 +470,9 @@ func (w *Worker) registerWorker() error {
 }
 
 func (w *Worker) readInitMetaStream(stream string) error {
-	messages, err := w.rdb.XRevRangeN(w.ctx, stream, "+", "-", 1).Result()
+	messages, err := w.broker.ReadLatestMessages(w.ctx, stream, 1)
 	if err != nil {
-		return fmt.Errorf("ошибка чтения из стрима: %w", err)
+		return err
 	}
 
 	if len(messages) == 0 {
@@ -565,13 +526,11 @@ func (w *Worker) sendStatusWorkFor(m QueueMessage) {
 		return
 	}
 
-	err = w.rdb.XAdd(w.ctx, &redis.XAddArgs{
-		Stream: "event:pipeline",
-		ID:     "*",
-		Values: map[string]interface{}{
+	err = w.broker.Add(w.ctx, "event:pipeline", "*",
+		map[string]interface{}{
 			"message": JSONm,
 		},
-	}).Err()
+	)
 	if err != nil {
 		w.err <- err
 		return
@@ -590,13 +549,11 @@ func (w *Worker) sendStatusDoneFor(m QueueMessage) {
 		return
 	}
 
-	err = w.rdb.XAdd(w.ctx, &redis.XAddArgs{
-		Stream: "event:pipeline",
-		ID:     "*",
-		Values: map[string]interface{}{
+	err = w.broker.Add(w.ctx, "event:pipeline", "*",
+		map[string]interface{}{
 			"message": JSONm,
 		},
-	}).Err()
+	)
 	if err != nil {
 		w.err <- err
 		return

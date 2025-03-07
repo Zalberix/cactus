@@ -19,7 +19,9 @@ import (
 type RegisterWorkerParams struct {
 	WorkerUUID   uuid.UUID
 	Kind         string
+	NameKind     string
 	Type         string
+	NameType     string
 	ConfigSchema []configschema.ConfigField
 }
 
@@ -47,7 +49,7 @@ func (s *Service) RegisterWorker(
 			return dto.RegisteWorker{}, fmt.Errorf("ошибка создания json настроек: %w", err)
 		}
 		kindWorker, err = storageTx.CreateKindWorker(ctx, db.CreateKindWorkerParams{
-			Name:         "",
+			Name:         arg.NameKind,
 			Slug:         arg.Kind,
 			ConfigSchema: json.RawMessage(configSchemaByte),
 			Config: pqtype.NullRawMessage{
@@ -75,8 +77,8 @@ func (s *Service) RegisterWorker(
 	typeWorker, err := storageTx.GetTypeWorkerBySlug(ctx, arg.Type)
 	if errors.Is(err, sql.ErrNoRows) {
 		typeWorker, err = storageTx.CreateTypeWorker(ctx, db.CreateTypeWorkerParams{
-			Name: "",
-			Slug: arg.Kind,
+			Name: arg.NameType,
+			Slug: arg.Type,
 		})
 		if err != nil {
 			slog.Error("Ошибка при создании типа воркера:", slog.String("error", err.Error()))
