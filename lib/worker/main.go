@@ -67,7 +67,7 @@ type StreamConfig struct {
 type Worker struct {
 	ctx           context.Context
 	broker        Broker
-	config        WorkerConfig
+	config        Config
 	groupName     string
 	streamsEvent  map[string]ArgStream
 	configHandler func(Message)
@@ -78,7 +78,7 @@ type Worker struct {
 	ready         chan struct{}
 }
 
-type WorkerConfig struct {
+type Config struct {
 	Token          string
 	WorkerKind     string
 	WorkerNameKind string
@@ -103,7 +103,7 @@ type Broker interface {
 func NewWorker(
 	ctx context.Context,
 	broker Broker,
-	config WorkerConfig,
+	config Config,
 ) *Worker {
 	return &Worker{
 		ctx:    ctx,
@@ -338,7 +338,11 @@ func (w *Worker) readQueueStream(ctx context.Context, stream StreamConfig, handl
 	}
 }
 
-func (w *Worker) ParseValueMessage(id string, values map[string]interface{}, stream StreamConfig) (QueueMessage, error) {
+func (w *Worker) ParseValueMessage(
+	id string,
+	values map[string]interface{},
+	stream StreamConfig,
+) (QueueMessage, error) {
 	var pipeline dto.PipelineValueInMessageQueue
 	err := w.GetFromValue(values, "pipeline", &pipeline)
 	if err != nil {

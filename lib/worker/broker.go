@@ -31,7 +31,12 @@ func (broker *BrokerRedis) Ack(ctx context.Context, name string, groupName strin
 	return err
 }
 
-func (broker *BrokerRedis) Read(ctx context.Context, streams []string, block time.Duration, count int64) (BrokerMessages, error) {
+func (broker *BrokerRedis) Read(
+	ctx context.Context,
+	streams []string,
+	block time.Duration,
+	count int64,
+) (BrokerMessages, error) {
 	args := &redis.XReadArgs{
 		Streams: streams,
 		Block:   block,
@@ -57,7 +62,13 @@ func (broker *BrokerRedis) Read(ctx context.Context, streams []string, block tim
 	return messages, nil
 }
 
-func (broker *BrokerRedis) ReadGroup(ctx context.Context, group string, consumer string, streams []string, block time.Duration, count int64) (BrokerMessages, error) {
+func (broker *BrokerRedis) ReadGroup(
+	ctx context.Context,
+	group string, consumer string,
+	streams []string,
+	block time.Duration,
+	count int64,
+) (BrokerMessages, error) {
 	args := &redis.XReadGroupArgs{
 		Group:    group,
 		Consumer: consumer,
@@ -85,7 +96,10 @@ func (broker *BrokerRedis) ReadGroup(ctx context.Context, group string, consumer
 	return messages, nil
 }
 
-func (broker *BrokerRedis) Add(ctx context.Context, stream string, id string, values map[string]interface{}) error {
+func (broker *BrokerRedis) Add(
+	ctx context.Context,
+	stream string, id string, values map[string]interface{}) error {
+	_, _ = stream, id
 	return broker.rdb.XAdd(ctx, &redis.XAddArgs{
 		Stream: "event:pipeline",
 		ID:     "*",
@@ -93,7 +107,11 @@ func (broker *BrokerRedis) Add(ctx context.Context, stream string, id string, va
 	}).Err()
 }
 
-func (broker *BrokerRedis) ReadLatestMessages(ctx context.Context, stream string, count int64) ([]BrokerMessage, error) {
+func (broker *BrokerRedis) ReadLatestMessages(
+	ctx context.Context,
+	stream string,
+	count int64,
+) ([]BrokerMessage, error) {
 	msgs, err := broker.rdb.XRevRangeN(ctx, stream, "+", "-", count).Result()
 	if err != nil {
 		return []BrokerMessage{}, fmt.Errorf("ошибка чтения из стрима: %w", err)

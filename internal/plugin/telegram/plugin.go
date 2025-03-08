@@ -26,7 +26,8 @@ func (ep *Plugin) GetSchema() any {
 	return &Schema{}
 }
 
-func (p *Plugin) ExtendPipeline(steps []pipeline.Step) ([]pipeline.Step, error) {
+func (ep *Plugin) ExtendPipeline(steps []pipeline.Step) ([]pipeline.Step, error) {
+	_ = ep
 	steps = append(steps, pipeline.Step{
 		Step: 1,
 		Name: "Телеграм воркер",

@@ -1,7 +1,6 @@
 package server
 
 import (
-	"cactus/internal/plugin/telegram"
 	"context"
 	"fmt"
 	"net/http"
@@ -14,6 +13,7 @@ import (
 	sqlxconect "cactus/internal/pkg/db"
 	wshub "cactus/internal/pkg/wshub"
 	"cactus/internal/plugin/smtp"
+	"cactus/internal/plugin/telegram"
 	"cactus/internal/route"
 	"cactus/internal/server/meta"
 	"cactus/internal/service/core"
@@ -114,7 +114,7 @@ func Create(conf config.Config) (Server, error) {
 		pipelineService,
 		pluginStorage,
 	)
-	r.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, "OK")
 	})

@@ -43,7 +43,8 @@ func Send(service *core.Service, piplineService *pipeline.Service, plugins *plug
 
 		TypeWorkerSlug, err := service.GetTypeSlugWorkerByKindSlugWorker(ctx, pluginSlug)
 		if err != nil {
-
+			response.FailJSON(w, "Неизвестное название канала рассылки")
+			return
 		}
 
 		err = r.ParseMultipartForm(32 << 20) // 32 МБ
