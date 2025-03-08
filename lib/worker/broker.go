@@ -98,7 +98,8 @@ func (broker *BrokerRedis) ReadGroup(
 
 func (broker *BrokerRedis) Add(
 	ctx context.Context,
-	stream string, id string, values map[string]interface{}) error {
+	stream string, id string, values map[string]interface{},
+) error {
 	_, _ = stream, id
 	return broker.rdb.XAdd(ctx, &redis.XAddArgs{
 		Stream: "event:pipeline",

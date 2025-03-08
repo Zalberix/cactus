@@ -78,7 +78,7 @@ func (conf *TelegramWorkerConfig) Send(message dto.MessageValueInMessageQueue, _
 	conf.sendChan <- func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-    
+
 		var msgContent struct {
 			Text string `json:"message"`
 		}
