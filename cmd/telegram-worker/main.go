@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/redis/go-redis/v9"
@@ -75,6 +76,9 @@ func (conf *TelegramWorkerConfig) Send(message dto.MessageValueInMessageQueue, _
 	defer conf.mutex.Unlock()
 
 	conf.sendChan <- func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
 		var msgContent struct {
 			Text string `json:"message"`
 		}
@@ -92,7 +96,8 @@ func (conf *TelegramWorkerConfig) Send(message dto.MessageValueInMessageQueue, _
 			return
 		}
 
-		req, err := http.NewRequest(http.MethodPost, conf.ServerURL, bytes.NewReader(requestBody))
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, conf.ServerURL, bytes.NewReader(requestBody))
+
 		if err != nil {
 			conf.worker.Err() <- fmt.Errorf("ошибка создания запроса: %w", err)
 			return
@@ -149,7 +154,7 @@ func main() {
 
 	broker := worker.NewBrokerRedis(RDBStorage)
 
-	workerCore := worker.NewWorker(ctx, broker, worker.WorkerConfig{
+	workerCore := worker.NewWorker(ctx, broker, worker.Config{
 		Token:          conf.Token,
 		WorkerKind:     Kind,
 		WorkerNameKind: NameKind,

@@ -166,7 +166,7 @@ func main() {
 
 	broker := worker.NewBrokerRedis(RDBStorage)
 
-	workerCore := worker.NewWorker(ctx, broker, worker.WorkerConfig{
+	workerCore := worker.NewWorker(ctx, broker, worker.Config{
 		Token:          conf.Token,
 		WorkerKind:     Kind,
 		WorkerNameKind: "SMTP рассылка",

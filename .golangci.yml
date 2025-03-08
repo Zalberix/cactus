@@ -24,6 +24,7 @@ linters-settings:
     sections:
       - standard
       - default
+      - localmodule
 
 linters:
   disable-all: true
