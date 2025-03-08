@@ -1,6 +1,7 @@
 package server
 
 import (
+	"cactus/internal/plugin/telegram"
 	"context"
 	"fmt"
 	"net/http"
