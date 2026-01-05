@@ -181,7 +181,7 @@ func CreateDefaultPrioritys(ctx context.Context, storage *db.Queries) ([]db.Prio
 		{Weight: 1, Name: "Средний", Slug: "middle"},
 		{Weight: 2, Name: "Высокий", Slug: "high"},
 		{Weight: 3, Name: "Экстренный", Slug: "extra"},
-		{Weight: 4, Name: "Черезвычайный", Slug: "emergency"},
+		{Weight: 4, Name: "Чрезвычайный", Slug: "emergency"},
 	}
 
 	var createdPrioritys []db.Priority

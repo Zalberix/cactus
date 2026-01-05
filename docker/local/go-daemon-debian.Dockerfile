@@ -4,7 +4,7 @@ WORKDIR /src
 
 RUN go install github.com/cosmtrek/air@latest
 
-COPY ./cmd/cactus /src/cmd/cactus
+COPY ..cmd/cactus /src/cmd/cactus
 COPY ./go.mod /src/go.mod
 COPY ./config/dev.yaml /src/config/dev.yaml
 
