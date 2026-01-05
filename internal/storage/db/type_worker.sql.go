@@ -10,19 +10,18 @@ import (
 )
 
 const createTypeWorker = `-- name: CreateTypeWorker :one
-INSERT INTO type_worker (id, slug, "name") 
-VALUES($1, $2, $3)
+INSERT INTO type_worker (slug, "name")
+VALUES($1, $2)
 RETURNING id, name, slug
 `
 
 type CreateTypeWorkerParams struct {
-	ID   int32  `json:"id"`
 	Slug string `json:"slug"`
 	Name string `json:"name"`
 }
 
 func (q *Queries) CreateTypeWorker(ctx context.Context, arg CreateTypeWorkerParams) (TypeWorker, error) {
-	row := q.db.QueryRowContext(ctx, createTypeWorker, arg.ID, arg.Slug, arg.Name)
+	row := q.db.QueryRowContext(ctx, createTypeWorker, arg.Slug, arg.Name)
 	var i TypeWorker
 	err := row.Scan(&i.ID, &i.Name, &i.Slug)
 	return i, err

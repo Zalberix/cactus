@@ -42,6 +42,20 @@ func (q *Queries) CreateWorker(ctx context.Context, arg CreateWorkerParams) (Wor
 	return i, err
 }
 
+const getTypeSlugWorkerByKindSlugWorker = `-- name: GetTypeSlugWorkerByKindSlugWorker :one
+SELECT tw.slug
+FROM worker w
+JOIN kind_worker kw on w.id_kind_worker = kw.id
+JOIN type_worker tw on tw.id = w.id_type_worker
+WHERE kw.slug = $1
+`
+
+func (q *Queries) GetTypeSlugWorkerByKindSlugWorker(ctx context.Context, slug string) (string, error) {
+	row := q.db.QueryRowContext(ctx, getTypeSlugWorkerByKindSlugWorker, slug)
+	err := row.Scan(&slug)
+	return slug, err
+}
+
 const getWorkerByUUID = `-- name: GetWorkerByUUID :one
 SELECT id, uuid, is_active, id_type_worker, id_kind_worker 
 FROM worker w

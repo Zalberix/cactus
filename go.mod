@@ -15,11 +15,13 @@ require (
 	github.com/ilyakaznacheev/cleanenv v1.5.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/lib/pq v1.10.9
+	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/redis/go-redis/v9 v9.7.0
 	github.com/sqlc-dev/pqtype v0.3.0
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/mock v0.5.0
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
+	gopkg.in/telebot.v4 v4.0.0-beta.4
 )
 
 require (

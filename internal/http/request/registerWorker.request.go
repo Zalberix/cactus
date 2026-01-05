@@ -5,7 +5,9 @@ import configschema "cactus/internal/pkg/configSchema"
 type RegisterWorkerRequest struct {
 	Token        string                     `json:"token" validate:"required"`
 	WorkerUUID   string                     `json:"worker_uuid" validate:"required,uuid4"`
-	Kind         string                     `json:"kind" validate:"required,alpha"`
-	Type         string                     `json:"type" validate:"required,alpha"`
+	Kind         string                     `json:"kind" validate:"required"`
+	NameKind     string                     `json:"name_kind" validate:"required"`
+	Type         string                     `json:"type" validate:"required"`
+	NameType     string                     `json:"name_type" validate:"required"`
 	ConfigSchema []configschema.ConfigField `json:"config_schema" validate:"required,omitnil"`
 }

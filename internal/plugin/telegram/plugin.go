@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"cactus/internal/pkg/pipeline"
 	"cactus/internal/plugin"
 )
 
@@ -23,4 +24,14 @@ func (ep *Plugin) New() plugin.Plugin {
 
 func (ep *Plugin) GetSchema() any {
 	return &Schema{}
+}
+
+func (ep *Plugin) ExtendPipeline(steps []pipeline.Step) ([]pipeline.Step, error) {
+	_ = ep
+	steps = append(steps, pipeline.Step{
+		Step: 1,
+		Name: "Телеграм воркер",
+	})
+
+	return steps, nil
 }

@@ -13,6 +13,7 @@ import (
 	sqlxconect "cactus/internal/pkg/db"
 	wshub "cactus/internal/pkg/wshub"
 	"cactus/internal/plugin/smtp"
+	"cactus/internal/plugin/telegram"
 	"cactus/internal/route"
 	"cactus/internal/server/meta"
 	"cactus/internal/service/core"
@@ -69,9 +70,9 @@ func Create(conf config.Config) (Server, error) {
 	fileStorage, _ := filestorage.New("app/files") // TODO path вынести в конфиг
 
 	pluginStorage := plugin_storage.New()
-	// TODO сделать SMTP а не email так как под каждый вид воркера настраиваеится структура
+
 	pluginStorage.Add("smtp", smtp.New())
-	// pluginStorage.Add("telegram", telegram.New())
+	pluginStorage.Add("telegram", telegram.New())
 	// pluginStorage.Add("push", push.New())
 
 	host, err := os.Hostname()
@@ -113,6 +114,10 @@ func Create(conf config.Config) (Server, error) {
 		pipelineService,
 		pluginStorage,
 	)
+	r.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, "OK")
+	})
 
 	err = brokerApp.SendMetaEvent(ctx, maxPriority, endpoint)
 	if err != nil {

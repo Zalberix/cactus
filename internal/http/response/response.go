@@ -19,6 +19,12 @@ type responseFailAnswer struct {
 	Message string `json:"message"`
 }
 
+type responseAuthorizationErrorAnswer struct {
+	Success Status `json:"success"`
+	Type    string `json:"type"`
+	Message string `json:"message"`
+}
+
 type responseValidationAnswer struct {
 	Success Status            `json:"success"`
 	Type    string            `json:"type"`
@@ -38,9 +44,21 @@ func OKJSON[T any](w http.ResponseWriter, data T) {
 	w.Write(jsonOK)
 }
 
+func UnauthorizedErrorJSON(w http.ResponseWriter, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusUnauthorized)
+
+	jsonAuthorizationError, _ := json.Marshal(responseAuthorizationErrorAnswer{
+		Success: false,
+		Type:    "unauthorized",
+		Message: message,
+	})
+	w.Write(jsonAuthorizationError)
+}
+
 func FailJSON(w http.ResponseWriter, message string) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusInternalServerError)
+	w.WriteHeader(http.StatusBadRequest)
 
 	jsonFail, _ := json.Marshal(responseFailAnswer{
 		Success: false,

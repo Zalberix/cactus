@@ -20,9 +20,9 @@ import (
 type CreateMessageParams struct {
 	Plugin         plugin.Plugin
 	KindWorkerSlug string
+	TypeWorkerSlug string
 	IDSystem       int32
 	PrioritySlug   string
-	ChanelSlug     string
 	Schema         any
 	SendLater      *time.Time
 	Files          []SetFileParams
@@ -64,7 +64,7 @@ func (s *Service) CreateMessage(
 		return dto.CreateMessage{}, fmt.Errorf("ошибка получения приоритета по slug: %w", err)
 	}
 
-	TypeWorker, err := storageTx.GetTypeWorkerBySlug(ctx, arg.ChanelSlug)
+	TypeWorker, err := storageTx.GetTypeWorkerBySlug(ctx, arg.TypeWorkerSlug)
 	if err != nil {
 		return dto.CreateMessage{}, fmt.Errorf("ошибка получения типа воркера по slug: %w", err)
 	}
@@ -121,11 +121,20 @@ func (s *Service) CreateMessage(
 		return dto.CreateMessage{}, fmt.Errorf("ошибка при создании pipepline: %w", err)
 	}
 
+	slog.Info("AddMessageToQueueParams", slog.Any("AddMessageToQueueParams", AddMessageToQueueParams{
+		SlugKindWorker:        arg.KindWorkerSlug,
+		Message:               newMessage,
+		Files:                 files,
+		SlugTypeWorker:        arg.TypeWorkerSlug,
+		WeightPriorityMessage: systemPriority.Weight + messagePriority.Weight,
+		Step:                  pipelines[0].Step,
+	}))
+
 	s.AddMessageToQueue(ctx, AddMessageToQueueParams{
 		SlugKindWorker:        arg.KindWorkerSlug,
 		Message:               newMessage,
 		Files:                 files,
-		SlugTypeWorker:        arg.ChanelSlug,
+		SlugTypeWorker:        arg.TypeWorkerSlug,
 		WeightPriorityMessage: systemPriority.Weight + messagePriority.Weight,
 		Step:                  pipelines[0].Step,
 	})

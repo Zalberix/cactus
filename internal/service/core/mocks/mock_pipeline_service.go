@@ -42,16 +42,16 @@ func (m *MockPipelineService) EXPECT() *MockPipelineServiceMockRecorder {
 }
 
 // CreatePipelineTX mocks base method.
-func (m *MockPipelineService) CreatePipelineTX(arg0 context.Context, arg1 pipeline.StorageTx, arg2 pipeline.CreatePipelineParams) ([]dto.Pipeline, error) {
+func (m *MockPipelineService) CreatePipelineTX(ctx context.Context, storageTx pipeline.StorageTx, arg pipeline.CreatePipelineParams) ([]dto.Pipeline, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreatePipelineTX", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "CreatePipelineTX", ctx, storageTx, arg)
 	ret0, _ := ret[0].([]dto.Pipeline)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreatePipelineTX indicates an expected call of CreatePipelineTX.
-func (mr *MockPipelineServiceMockRecorder) CreatePipelineTX(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockPipelineServiceMockRecorder) CreatePipelineTX(ctx, storageTx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreatePipelineTX", reflect.TypeOf((*MockPipelineService)(nil).CreatePipelineTX), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreatePipelineTX", reflect.TypeOf((*MockPipelineService)(nil).CreatePipelineTX), ctx, storageTx, arg)
 }
