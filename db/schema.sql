@@ -14,25 +14,21 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
--- Name: file; Type: TABLE; Schema: public; Owner: -
+-- Name: channel; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.file (
-    id_file integer NOT NULL,
-    id_message integer NOT NULL,
-    title character varying(255) NOT NULL,
-    path character varying(255) NOT NULL,
-    ext character varying(50) NOT NULL,
-    uuid uuid NOT NULL,
-    create_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+CREATE TABLE public.channel (
+    id integer NOT NULL,
+    name character varying(255) NOT NULL,
+    slug character varying(255) NOT NULL
 );
 
 
 --
--- Name: file_id_file_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: channel_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.file_id_file_seq
+CREATE SEQUENCE public.channel_id_seq
     AS integer
     START WITH 1
     INCREMENT BY 1
@@ -42,30 +38,39 @@ CREATE SEQUENCE public.file_id_file_seq
 
 
 --
--- Name: file_id_file_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: channel_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
-ALTER SEQUENCE public.file_id_file_seq OWNED BY public.file.id_file;
+ALTER SEQUENCE public.channel_id_seq OWNED BY public.channel.id;
 
 
 --
--- Name: kind_worker; Type: TABLE; Schema: public; Owner: -
+-- Name: channel_system; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.kind_worker (
+CREATE TABLE public.channel_system (
+    system_id integer NOT NULL,
+    channel_id integer NOT NULL
+);
+
+
+--
+-- Name: config; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.config (
     id integer NOT NULL,
     name character varying(255) NOT NULL,
-    slug character varying(255) NOT NULL,
     config_schema jsonb NOT NULL,
     config jsonb
 );
 
 
 --
--- Name: kind_worker_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: config_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.kind_worker_id_seq
+CREATE SEQUENCE public.config_id_seq
     AS integer
     START WITH 1
     INCREMENT BY 1
@@ -75,20 +80,74 @@ CREATE SEQUENCE public.kind_worker_id_seq
 
 
 --
--- Name: kind_worker_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: config_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
-ALTER SEQUENCE public.kind_worker_id_seq OWNED BY public.kind_worker.id;
+ALTER SEQUENCE public.config_id_seq OWNED BY public.config.id;
 
 
 --
--- Name: kind_worker_system; Type: TABLE; Schema: public; Owner: -
+-- Name: file; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.kind_worker_system (
-    id_system integer NOT NULL,
-    id_kind_worker integer NOT NULL
+CREATE TABLE public.file (
+    id integer NOT NULL,
+    message_id integer NOT NULL,
+    title character varying(255) NOT NULL,
+    name character varying(255) NOT NULL,
+    ext character varying(50) NOT NULL,
+    url character varying(255) NOT NULL
 );
+
+
+--
+-- Name: file_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.file_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: file_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.file_id_seq OWNED BY public.file.id;
+
+
+--
+-- Name: manifest; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.manifest (
+    id integer NOT NULL,
+    value jsonb NOT NULL
+);
+
+
+--
+-- Name: manifest_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.manifest_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: manifest_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.manifest_id_seq OWNED BY public.manifest.id;
 
 
 --
@@ -97,13 +156,15 @@ CREATE TABLE public.kind_worker_system (
 
 CREATE TABLE public.message (
     id integer NOT NULL,
-    id_type_worker integer NOT NULL,
-    id_system integer NOT NULL,
-    id_priority integer NOT NULL,
+    system_id integer NOT NULL,
+    manifest_id integer NOT NULL,
     uuid uuid NOT NULL,
+    priority integer DEFAULT 0 NOT NULL,
     value jsonb DEFAULT '{}'::jsonb NOT NULL,
-    send_later timestamp without time zone,
-    create_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    send_at timestamp without time zone,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    deleted_at timestamp without time zone
 );
 
 
@@ -133,7 +194,6 @@ ALTER SEQUENCE public.message_id_seq OWNED BY public.message.id;
 
 CREATE TABLE public.permission (
     id integer NOT NULL,
-    description text,
     slug character varying(255) NOT NULL
 );
 
@@ -163,8 +223,8 @@ ALTER SEQUENCE public.permission_id_seq OWNED BY public.permission.id;
 --
 
 CREATE TABLE public.permission_role (
-    id_permission integer NOT NULL,
-    id_role integer NOT NULL
+    permission_id integer NOT NULL,
+    role_id integer NOT NULL
 );
 
 
@@ -174,13 +234,11 @@ CREATE TABLE public.permission_role (
 
 CREATE TABLE public.pipeline (
     id integer NOT NULL,
-    id_message integer NOT NULL,
-    status character varying(255) NOT NULL,
-    step integer NOT NULL,
-    id_worker integer,
-    name character varying(255) NOT NULL,
-    time_start timestamp without time zone,
-    time_end timestamp without time zone
+    message_id integer NOT NULL,
+    parent_pipeline_id integer,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    deleted_at timestamp without time zone
 );
 
 
@@ -205,23 +263,29 @@ ALTER SEQUENCE public.pipeline_id_seq OWNED BY public.pipeline.id;
 
 
 --
--- Name: priority; Type: TABLE; Schema: public; Owner: -
+-- Name: pipeline_step; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.priority (
+CREATE TABLE public.pipeline_step (
     id integer NOT NULL,
-    name character varying(255) NOT NULL,
-    weight integer NOT NULL,
-    slug character varying(255) NOT NULL,
-    CONSTRAINT priority_weight_check CHECK ((weight >= 0))
+    pipeline_id integer NOT NULL,
+    worker_id integer,
+    channel_id integer NOT NULL,
+    step integer NOT NULL,
+    time_start timestamp without time zone,
+    time_end timestamp without time zone,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    deleted_at timestamp without time zone,
+    pipeline_step_status_id integer NOT NULL
 );
 
 
 --
--- Name: priority_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: pipeline_step_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.priority_id_seq
+CREATE SEQUENCE public.pipeline_step_id_seq
     AS integer
     START WITH 1
     INCREMENT BY 1
@@ -231,10 +295,41 @@ CREATE SEQUENCE public.priority_id_seq
 
 
 --
--- Name: priority_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: pipeline_step_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
-ALTER SEQUENCE public.priority_id_seq OWNED BY public.priority.id;
+ALTER SEQUENCE public.pipeline_step_id_seq OWNED BY public.pipeline_step.id;
+
+
+--
+-- Name: pipeline_step_status; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.pipeline_step_status (
+    id integer NOT NULL,
+    name character varying(255) NOT NULL,
+    slug character varying(255) NOT NULL
+);
+
+
+--
+-- Name: pipeline_step_status_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.pipeline_step_status_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: pipeline_step_status_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.pipeline_step_status_id_seq OWNED BY public.pipeline_step_status.id;
 
 
 --
@@ -244,7 +339,7 @@ ALTER SEQUENCE public.priority_id_seq OWNED BY public.priority.id;
 CREATE TABLE public.role (
     id integer NOT NULL,
     name character varying(255) NOT NULL,
-    slug character varying(255) NOT NULL
+    description text
 );
 
 
@@ -273,8 +368,8 @@ ALTER SEQUENCE public.role_id_seq OWNED BY public.role.id;
 --
 
 CREATE TABLE public.role_user (
-    id_role integer NOT NULL,
-    id_user integer NOT NULL
+    role_id integer NOT NULL,
+    user_id integer NOT NULL
 );
 
 
@@ -293,11 +388,16 @@ CREATE TABLE public.schema_migrations (
 
 CREATE TABLE public.system (
     id integer NOT NULL,
-    create_user integer,
-    id_priority integer NOT NULL,
+    user_creator_id integer,
     name character varying(255) NOT NULL,
     description text,
-    is_active boolean DEFAULT true NOT NULL
+    is_active boolean DEFAULT true NOT NULL,
+    priority integer DEFAULT 0 NOT NULL,
+    public_token character varying(255),
+    private_token character varying(255),
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    deleted_at timestamp without time zone
 );
 
 
@@ -322,61 +422,20 @@ ALTER SEQUENCE public.system_id_seq OWNED BY public.system.id;
 
 
 --
--- Name: token; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.token (
-    id_system integer NOT NULL,
-    id_kind_worker integer NOT NULL,
-    is_active boolean DEFAULT true NOT NULL,
-    public_token character varying(255) NOT NULL,
-    secret_token character varying(255) NOT NULL
-);
-
-
---
--- Name: type_worker; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.type_worker (
-    id integer NOT NULL,
-    name character varying(255) NOT NULL,
-    slug character varying(255) NOT NULL
-);
-
-
---
--- Name: type_worker_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.type_worker_id_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: type_worker_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.type_worker_id_seq OWNED BY public.type_worker.id;
-
-
---
 -- Name: user; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public."user" (
     id integer NOT NULL,
-    fio character varying(255) NOT NULL,
-    login character varying(255) NOT NULL,
+    last_name character varying(255) NOT NULL,
+    first_name character varying(255) NOT NULL,
+    patronymic character varying(255),
     email character varying(255) NOT NULL,
     password character varying(255) NOT NULL,
-    reset_password_after_login boolean DEFAULT false,
-    create_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+    reset_password_after_login boolean DEFAULT true,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    deleted_at timestamp without time zone
 );
 
 
@@ -406,10 +465,9 @@ ALTER SEQUENCE public.user_id_seq OWNED BY public."user".id;
 
 CREATE TABLE public.worker (
     id integer NOT NULL,
-    uuid uuid NOT NULL,
-    is_active boolean DEFAULT false NOT NULL,
-    id_type_worker integer NOT NULL,
-    id_kind_worker integer NOT NULL
+    channel_id integer NOT NULL,
+    config_id integer NOT NULL,
+    is_active boolean DEFAULT false NOT NULL
 );
 
 
@@ -434,17 +492,31 @@ ALTER SEQUENCE public.worker_id_seq OWNED BY public.worker.id;
 
 
 --
--- Name: file id_file; Type: DEFAULT; Schema: public; Owner: -
+-- Name: channel id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.file ALTER COLUMN id_file SET DEFAULT nextval('public.file_id_file_seq'::regclass);
+ALTER TABLE ONLY public.channel ALTER COLUMN id SET DEFAULT nextval('public.channel_id_seq'::regclass);
 
 
 --
--- Name: kind_worker id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: config id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.kind_worker ALTER COLUMN id SET DEFAULT nextval('public.kind_worker_id_seq'::regclass);
+ALTER TABLE ONLY public.config ALTER COLUMN id SET DEFAULT nextval('public.config_id_seq'::regclass);
+
+
+--
+-- Name: file id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.file ALTER COLUMN id SET DEFAULT nextval('public.file_id_seq'::regclass);
+
+
+--
+-- Name: manifest id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.manifest ALTER COLUMN id SET DEFAULT nextval('public.manifest_id_seq'::regclass);
 
 
 --
@@ -469,10 +541,17 @@ ALTER TABLE ONLY public.pipeline ALTER COLUMN id SET DEFAULT nextval('public.pip
 
 
 --
--- Name: priority id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: pipeline_step id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.priority ALTER COLUMN id SET DEFAULT nextval('public.priority_id_seq'::regclass);
+ALTER TABLE ONLY public.pipeline_step ALTER COLUMN id SET DEFAULT nextval('public.pipeline_step_id_seq'::regclass);
+
+
+--
+-- Name: pipeline_step_status id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pipeline_step_status ALTER COLUMN id SET DEFAULT nextval('public.pipeline_step_status_id_seq'::regclass);
 
 
 --
@@ -490,13 +569,6 @@ ALTER TABLE ONLY public.system ALTER COLUMN id SET DEFAULT nextval('public.syste
 
 
 --
--- Name: type_worker id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.type_worker ALTER COLUMN id SET DEFAULT nextval('public.type_worker_id_seq'::regclass);
-
-
---
 -- Name: user id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -511,43 +583,51 @@ ALTER TABLE ONLY public.worker ALTER COLUMN id SET DEFAULT nextval('public.worke
 
 
 --
+-- Name: channel channel_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.channel
+    ADD CONSTRAINT channel_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: channel channel_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.channel
+    ADD CONSTRAINT channel_slug_key UNIQUE (slug);
+
+
+--
+-- Name: channel_system channel_system_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.channel_system
+    ADD CONSTRAINT channel_system_pkey PRIMARY KEY (system_id, channel_id);
+
+
+--
+-- Name: config config_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.config
+    ADD CONSTRAINT config_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: file file_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.file
-    ADD CONSTRAINT file_pkey PRIMARY KEY (id_file);
+    ADD CONSTRAINT file_pkey PRIMARY KEY (id);
 
 
 --
--- Name: file file_uuid_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: manifest manifest_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.file
-    ADD CONSTRAINT file_uuid_key UNIQUE (uuid);
-
-
---
--- Name: kind_worker kind_worker_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.kind_worker
-    ADD CONSTRAINT kind_worker_pkey PRIMARY KEY (id);
-
-
---
--- Name: kind_worker kind_worker_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.kind_worker
-    ADD CONSTRAINT kind_worker_slug_key UNIQUE (slug);
-
-
---
--- Name: kind_worker_system kind_worker_system_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.kind_worker_system
-    ADD CONSTRAINT kind_worker_system_pkey PRIMARY KEY (id_system, id_kind_worker);
+ALTER TABLE ONLY public.manifest
+    ADD CONSTRAINT manifest_pkey PRIMARY KEY (id);
 
 
 --
@@ -579,7 +659,7 @@ ALTER TABLE ONLY public.permission
 --
 
 ALTER TABLE ONLY public.permission_role
-    ADD CONSTRAINT permission_role_pkey PRIMARY KEY (id_permission, id_role);
+    ADD CONSTRAINT permission_role_pkey PRIMARY KEY (permission_id, role_id);
 
 
 --
@@ -599,43 +679,35 @@ ALTER TABLE ONLY public.pipeline
 
 
 --
--- Name: pipeline pipline_unique; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: pipeline_step pipeline_step_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.pipeline
-    ADD CONSTRAINT pipline_unique UNIQUE (step, id_message);
-
-
---
--- Name: priority priority_name_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.priority
-    ADD CONSTRAINT priority_name_key UNIQUE (name);
+ALTER TABLE ONLY public.pipeline_step
+    ADD CONSTRAINT pipeline_step_pkey PRIMARY KEY (id);
 
 
 --
--- Name: priority priority_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: pipeline_step_status pipeline_step_status_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.priority
-    ADD CONSTRAINT priority_pkey PRIMARY KEY (id);
-
-
---
--- Name: priority priority_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.priority
-    ADD CONSTRAINT priority_slug_key UNIQUE (slug);
+ALTER TABLE ONLY public.pipeline_step_status
+    ADD CONSTRAINT pipeline_step_status_pkey PRIMARY KEY (id);
 
 
 --
--- Name: priority priority_weight_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: pipeline_step_status pipeline_step_status_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.priority
-    ADD CONSTRAINT priority_weight_key UNIQUE (weight);
+ALTER TABLE ONLY public.pipeline_step_status
+    ADD CONSTRAINT pipeline_step_status_slug_key UNIQUE (slug);
+
+
+--
+-- Name: pipeline_step pipeline_step_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pipeline_step
+    ADD CONSTRAINT pipeline_step_unique UNIQUE (step, pipeline_id);
 
 
 --
@@ -647,19 +719,11 @@ ALTER TABLE ONLY public.role
 
 
 --
--- Name: role role_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.role
-    ADD CONSTRAINT role_slug_key UNIQUE (slug);
-
-
---
 -- Name: role_user role_user_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.role_user
-    ADD CONSTRAINT role_user_pkey PRIMARY KEY (id_role, id_user);
+    ADD CONSTRAINT role_user_pkey PRIMARY KEY (role_id, user_id);
 
 
 --
@@ -679,51 +743,11 @@ ALTER TABLE ONLY public.system
 
 
 --
--- Name: token token_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.token
-    ADD CONSTRAINT token_pkey PRIMARY KEY (id_system, id_kind_worker);
-
-
---
--- Name: token token_public_token_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.token
-    ADD CONSTRAINT token_public_token_key UNIQUE (public_token);
-
-
---
--- Name: type_worker type_worker_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.type_worker
-    ADD CONSTRAINT type_worker_pkey PRIMARY KEY (id);
-
-
---
--- Name: type_worker type_worker_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.type_worker
-    ADD CONSTRAINT type_worker_slug_key UNIQUE (slug);
-
-
---
 -- Name: user user_email_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public."user"
     ADD CONSTRAINT user_email_key UNIQUE (email);
-
-
---
--- Name: user user_login_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public."user"
-    ADD CONSTRAINT user_login_key UNIQUE (login);
 
 
 --
@@ -743,147 +767,147 @@ ALTER TABLE ONLY public.worker
 
 
 --
--- Name: worker worker_uuid; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: channel_system channel_system_channel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.worker
-    ADD CONSTRAINT worker_uuid UNIQUE (uuid);
+ALTER TABLE ONLY public.channel_system
+    ADD CONSTRAINT channel_system_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channel(id) ON DELETE CASCADE;
 
 
 --
--- Name: file file_id_message_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: channel_system channel_system_system_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.channel_system
+    ADD CONSTRAINT channel_system_system_id_fkey FOREIGN KEY (system_id) REFERENCES public.system(id) ON DELETE CASCADE;
+
+
+--
+-- Name: file file_message_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.file
-    ADD CONSTRAINT file_id_message_fkey FOREIGN KEY (id_message) REFERENCES public.message(id) ON DELETE SET NULL;
+    ADD CONSTRAINT file_message_id_fkey FOREIGN KEY (message_id) REFERENCES public.message(id) ON DELETE CASCADE;
 
 
 --
--- Name: kind_worker_system kind_worker_system_id_kind_worker_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.kind_worker_system
-    ADD CONSTRAINT kind_worker_system_id_kind_worker_fkey FOREIGN KEY (id_kind_worker) REFERENCES public.kind_worker(id) ON DELETE CASCADE;
-
-
---
--- Name: kind_worker_system kind_worker_system_id_system_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.kind_worker_system
-    ADD CONSTRAINT kind_worker_system_id_system_fkey FOREIGN KEY (id_system) REFERENCES public.system(id) ON DELETE CASCADE;
-
-
---
--- Name: message message_id_priority_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: message message_manifest_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.message
-    ADD CONSTRAINT message_id_priority_fkey FOREIGN KEY (id_priority) REFERENCES public.priority(id) ON DELETE CASCADE;
+    ADD CONSTRAINT message_manifest_id_fkey FOREIGN KEY (manifest_id) REFERENCES public.manifest(id) ON DELETE CASCADE;
 
 
 --
--- Name: message message_id_system_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.message
-    ADD CONSTRAINT message_id_system_fkey FOREIGN KEY (id_system) REFERENCES public.system(id) ON DELETE CASCADE;
-
-
---
--- Name: message message_id_type_worker_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: message message_system_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.message
-    ADD CONSTRAINT message_id_type_worker_fkey FOREIGN KEY (id_type_worker) REFERENCES public.type_worker(id) ON DELETE CASCADE;
+    ADD CONSTRAINT message_system_id_fkey FOREIGN KEY (system_id) REFERENCES public.system(id) ON DELETE CASCADE;
 
 
 --
--- Name: permission_role permission_role_id_permission_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: permission_role permission_role_permission_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.permission_role
-    ADD CONSTRAINT permission_role_id_permission_fkey FOREIGN KEY (id_permission) REFERENCES public.permission(id) ON DELETE CASCADE;
+    ADD CONSTRAINT permission_role_permission_id_fkey FOREIGN KEY (permission_id) REFERENCES public.permission(id) ON DELETE CASCADE;
 
 
 --
--- Name: permission_role permission_role_id_role_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: permission_role permission_role_role_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.permission_role
-    ADD CONSTRAINT permission_role_id_role_fkey FOREIGN KEY (id_role) REFERENCES public.role(id) ON DELETE CASCADE;
+    ADD CONSTRAINT permission_role_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.role(id) ON DELETE CASCADE;
 
 
 --
--- Name: pipeline pipline_id_message_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.pipeline
-    ADD CONSTRAINT pipline_id_message_fkey FOREIGN KEY (id_message) REFERENCES public.message(id) ON DELETE CASCADE;
-
-
---
--- Name: pipeline pipline_id_worker_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: pipeline pipeline_message_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.pipeline
-    ADD CONSTRAINT pipline_id_worker_fkey FOREIGN KEY (id_worker) REFERENCES public.worker(id) ON DELETE CASCADE;
+    ADD CONSTRAINT pipeline_message_id_fkey FOREIGN KEY (message_id) REFERENCES public.message(id) ON DELETE CASCADE;
 
 
 --
--- Name: role_user role_user_id_role_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: pipeline pipeline_parent_pipeline_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pipeline
+    ADD CONSTRAINT pipeline_parent_pipeline_id_fkey FOREIGN KEY (parent_pipeline_id) REFERENCES public.pipeline(id) ON DELETE CASCADE;
+
+
+--
+-- Name: pipeline_step pipeline_step_channel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pipeline_step
+    ADD CONSTRAINT pipeline_step_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channel(id) ON DELETE CASCADE;
+
+
+--
+-- Name: pipeline_step pipeline_step_pipeline_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pipeline_step
+    ADD CONSTRAINT pipeline_step_pipeline_id_fkey FOREIGN KEY (pipeline_id) REFERENCES public.pipeline(id) ON DELETE CASCADE;
+
+
+--
+-- Name: pipeline_step pipeline_step_pipeline_step_status_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pipeline_step
+    ADD CONSTRAINT pipeline_step_pipeline_step_status_id_fkey FOREIGN KEY (pipeline_step_status_id) REFERENCES public.pipeline_step_status(id) ON DELETE CASCADE;
+
+
+--
+-- Name: pipeline_step pipeline_step_worker_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pipeline_step
+    ADD CONSTRAINT pipeline_step_worker_id_fkey FOREIGN KEY (worker_id) REFERENCES public.worker(id) ON DELETE SET NULL;
+
+
+--
+-- Name: role_user role_user_role_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.role_user
-    ADD CONSTRAINT role_user_id_role_fkey FOREIGN KEY (id_role) REFERENCES public.role(id) ON DELETE CASCADE;
+    ADD CONSTRAINT role_user_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.role(id) ON DELETE CASCADE;
 
 
 --
--- Name: role_user role_user_id_user_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: role_user role_user_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.role_user
-    ADD CONSTRAINT role_user_id_user_fkey FOREIGN KEY (id_user) REFERENCES public."user"(id) ON DELETE CASCADE;
+    ADD CONSTRAINT role_user_user_id_fkey FOREIGN KEY (user_id) REFERENCES public."user"(id) ON DELETE CASCADE;
 
 
 --
--- Name: system system_create_user_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.system
-    ADD CONSTRAINT system_create_user_fkey FOREIGN KEY (create_user) REFERENCES public."user"(id) ON DELETE SET NULL;
-
-
---
--- Name: system system_id_priority_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: system system_user_creator_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.system
-    ADD CONSTRAINT system_id_priority_fkey FOREIGN KEY (id_priority) REFERENCES public.priority(id) ON DELETE SET NULL;
+    ADD CONSTRAINT system_user_creator_id_fkey FOREIGN KEY (user_creator_id) REFERENCES public."user"(id) ON DELETE SET NULL;
 
 
 --
--- Name: token token_id_system_id_kind_worker_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.token
-    ADD CONSTRAINT token_id_system_id_kind_worker_fkey FOREIGN KEY (id_system, id_kind_worker) REFERENCES public.kind_worker_system(id_system, id_kind_worker) ON DELETE CASCADE;
-
-
---
--- Name: worker worker_id_kind_worker_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: worker worker_channel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.worker
-    ADD CONSTRAINT worker_id_kind_worker_fkey FOREIGN KEY (id_kind_worker) REFERENCES public.kind_worker(id) ON DELETE SET NULL;
+    ADD CONSTRAINT worker_channel_id_fkey FOREIGN KEY (channel_id) REFERENCES public.channel(id) ON DELETE CASCADE;
 
 
 --
--- Name: worker worker_id_type_worker_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: worker worker_config_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.worker
-    ADD CONSTRAINT worker_id_type_worker_fkey FOREIGN KEY (id_type_worker) REFERENCES public.type_worker(id) ON DELETE SET NULL;
+    ADD CONSTRAINT worker_config_id_fkey FOREIGN KEY (config_id) REFERENCES public.config(id) ON DELETE CASCADE;
 
 
 --
@@ -896,18 +920,4 @@ ALTER TABLE ONLY public.worker
 --
 
 INSERT INTO public.schema_migrations (version) VALUES
-    ('20241124130311'),
-    ('20241124130842'),
-    ('20241124130953'),
-    ('20241124131041'),
-    ('20241124131213'),
-    ('20241124131214'),
-    ('20241124131315'),
-    ('20241124131400'),
-    ('20241124131404'),
-    ('20241124131514'),
-    ('20241124131553'),
-    ('20241124131555'),
-    ('20241124132131'),
-    ('20241124133111'),
-    ('20241215200944');
+    ('20241124130311');

@@ -14,3 +14,10 @@ const (
 	Cancel Status = "cancel"
 	Error  Status = "error"
 )
+
+type PipelineMessage struct {
+	Status    Status `json:"status"`
+	Step      int32  `json:"step"`
+	WorkeUUID string `json:"worker_uuid"`
+	UUID      string `json:"uuid"`
+}

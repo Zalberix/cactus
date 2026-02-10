@@ -1,17 +1,15 @@
 -- name: CreateWorker :one
-INSERT INTO worker ("uuid", is_active, id_type_worker, id_kind_worker) 
-VALUES($1, $2, $3, $4)
+INSERT INTO worker (channel_id, config_id, is_active)
+VALUES ($1, $2, $3)
 RETURNING *;
 
--- name: GetWorkerByUUID :one
-SELECT * 
-FROM worker w
-WHERE w.uuid = $1
+-- name: GetWorkerByID :one
+SELECT * FROM worker
+WHERE id = $1
 LIMIT 1;
 
--- name: GetTypeSlugWorkerByKindSlugWorker :one
-SELECT tw.slug
+-- name: GetChannelSlugByWorkerID :one
+SELECT c.slug
 FROM worker w
-JOIN kind_worker kw on w.id_kind_worker = kw.id
-JOIN type_worker tw on tw.id = w.id_type_worker
-WHERE kw.slug = $1;
+JOIN channel c ON c.id = w.channel_id
+WHERE w.id = $1;

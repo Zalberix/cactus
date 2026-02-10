@@ -7,71 +7,60 @@ package db
 
 import (
 	"context"
-
-	"github.com/google/uuid"
 )
 
 const createWorker = `-- name: CreateWorker :one
-INSERT INTO worker ("uuid", is_active, id_type_worker, id_kind_worker) 
-VALUES($1, $2, $3, $4)
-RETURNING id, uuid, is_active, id_type_worker, id_kind_worker
+INSERT INTO worker (channel_id, config_id, is_active)
+VALUES ($1, $2, $3)
+RETURNING id, channel_id, config_id, is_active
 `
 
 type CreateWorkerParams struct {
-	Uuid         uuid.UUID `json:"uuid"`
-	IsActive     bool      `json:"is_active"`
-	IDTypeWorker int32     `json:"id_type_worker"`
-	IDKindWorker int32     `json:"id_kind_worker"`
+	ChannelID int32 `json:"channel_id"`
+	ConfigID  int32 `json:"config_id"`
+	IsActive  bool  `json:"is_active"`
 }
 
 func (q *Queries) CreateWorker(ctx context.Context, arg CreateWorkerParams) (Worker, error) {
-	row := q.db.QueryRowContext(ctx, createWorker,
-		arg.Uuid,
-		arg.IsActive,
-		arg.IDTypeWorker,
-		arg.IDKindWorker,
-	)
+	row := q.db.QueryRowContext(ctx, createWorker, arg.ChannelID, arg.ConfigID, arg.IsActive)
 	var i Worker
 	err := row.Scan(
 		&i.ID,
-		&i.Uuid,
+		&i.ChannelID,
+		&i.ConfigID,
 		&i.IsActive,
-		&i.IDTypeWorker,
-		&i.IDKindWorker,
 	)
 	return i, err
 }
 
-const getTypeSlugWorkerByKindSlugWorker = `-- name: GetTypeSlugWorkerByKindSlugWorker :one
-SELECT tw.slug
+const getChannelSlugByWorkerID = `-- name: GetChannelSlugByWorkerID :one
+SELECT c.slug
 FROM worker w
-JOIN kind_worker kw on w.id_kind_worker = kw.id
-JOIN type_worker tw on tw.id = w.id_type_worker
-WHERE kw.slug = $1
+JOIN channel c ON c.id = w.channel_id
+WHERE w.id = $1
 `
 
-func (q *Queries) GetTypeSlugWorkerByKindSlugWorker(ctx context.Context, slug string) (string, error) {
-	row := q.db.QueryRowContext(ctx, getTypeSlugWorkerByKindSlugWorker, slug)
+func (q *Queries) GetChannelSlugByWorkerID(ctx context.Context, id int32) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChannelSlugByWorkerID, id)
+	var slug string
 	err := row.Scan(&slug)
 	return slug, err
 }
 
-const getWorkerByUUID = `-- name: GetWorkerByUUID :one
-SELECT id, uuid, is_active, id_type_worker, id_kind_worker 
-FROM worker w
-WHERE w.uuid = $1
+const getWorkerByID = `-- name: GetWorkerByID :one
+SELECT id, channel_id, config_id, is_active FROM worker
+WHERE id = $1
 LIMIT 1
 `
 
-func (q *Queries) GetWorkerByUUID(ctx context.Context, argUuid uuid.UUID) (Worker, error) {
-	row := q.db.QueryRowContext(ctx, getWorkerByUUID, argUuid)
+func (q *Queries) GetWorkerByID(ctx context.Context, id int32) (Worker, error) {
+	row := q.db.QueryRowContext(ctx, getWorkerByID, id)
 	var i Worker
 	err := row.Scan(
 		&i.ID,
-		&i.Uuid,
+		&i.ChannelID,
+		&i.ConfigID,
 		&i.IsActive,
-		&i.IDTypeWorker,
-		&i.IDKindWorker,
 	)
 	return i, err
 }

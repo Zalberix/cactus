@@ -15,61 +15,82 @@ import (
 
 const createMessage = `-- name: CreateMessage :one
 INSERT INTO message (
-    id_type_worker,
-    id_system,
+    system_id,
+    manifest_id,
     "uuid",
+    priority,
     value,
-    id_priority,
-    send_later
-) 
+    send_at
+)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, id_type_worker, id_system, id_priority, uuid, value, send_later, create_at
+RETURNING id, system_id, manifest_id, uuid, priority, value, send_at, created_at, updated_at, deleted_at
 `
 
 type CreateMessageParams struct {
-	IDTypeWorker int32           `json:"id_type_worker"`
-	IDSystem     int32           `json:"id_system"`
-	Uuid         uuid.UUID       `json:"uuid"`
-	Value        json.RawMessage `json:"value"`
-	IDPriority   int32           `json:"id_priority"`
-	SendLater    sql.NullTime    `json:"send_later"`
+	SystemID   int32           `json:"system_id"`
+	ManifestID int32           `json:"manifest_id"`
+	Uuid       uuid.UUID       `json:"uuid"`
+	Priority   int32           `json:"priority"`
+	Value      json.RawMessage `json:"value"`
+	SendAt     sql.NullTime    `json:"send_at"`
 }
 
 func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (Message, error) {
 	row := q.db.QueryRowContext(ctx, createMessage,
-		arg.IDTypeWorker,
-		arg.IDSystem,
+		arg.SystemID,
+		arg.ManifestID,
 		arg.Uuid,
+		arg.Priority,
 		arg.Value,
-		arg.IDPriority,
-		arg.SendLater,
+		arg.SendAt,
 	)
 	var i Message
 	err := row.Scan(
 		&i.ID,
-		&i.IDTypeWorker,
-		&i.IDSystem,
-		&i.IDPriority,
+		&i.SystemID,
+		&i.ManifestID,
 		&i.Uuid,
+		&i.Priority,
 		&i.Value,
-		&i.SendLater,
-		&i.CreateAt,
+		&i.SendAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
-const getMessagesBy = `-- name: GetMessagesBy :many
-SELECT id, id_type_worker, id_system, id_priority, uuid, value, send_later, create_at FROM message m 
-WHERE m.id_type_worker = $1 AND m.id_system = $2
+const getMessageByUUID = `-- name: GetMessageByUUID :one
+SELECT id, system_id, manifest_id, uuid, priority, value, send_at, created_at, updated_at, deleted_at FROM message
+WHERE "uuid" = $1 AND deleted_at IS NULL
+LIMIT 1
 `
 
-type GetMessagesByParams struct {
-	IDTypeWorker int32 `json:"id_type_worker"`
-	IDSystem     int32 `json:"id_system"`
+func (q *Queries) GetMessageByUUID(ctx context.Context, argUuid uuid.UUID) (Message, error) {
+	row := q.db.QueryRowContext(ctx, getMessageByUUID, argUuid)
+	var i Message
+	err := row.Scan(
+		&i.ID,
+		&i.SystemID,
+		&i.ManifestID,
+		&i.Uuid,
+		&i.Priority,
+		&i.Value,
+		&i.SendAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
 }
 
-func (q *Queries) GetMessagesBy(ctx context.Context, arg GetMessagesByParams) ([]Message, error) {
-	rows, err := q.db.QueryContext(ctx, getMessagesBy, arg.IDTypeWorker, arg.IDSystem)
+const getMessagesBySystemID = `-- name: GetMessagesBySystemID :many
+SELECT id, system_id, manifest_id, uuid, priority, value, send_at, created_at, updated_at, deleted_at FROM message
+WHERE system_id = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) GetMessagesBySystemID(ctx context.Context, systemID int32) ([]Message, error) {
+	rows, err := q.db.QueryContext(ctx, getMessagesBySystemID, systemID)
 	if err != nil {
 		return nil, err
 	}
@@ -79,13 +100,15 @@ func (q *Queries) GetMessagesBy(ctx context.Context, arg GetMessagesByParams) ([
 		var i Message
 		if err := rows.Scan(
 			&i.ID,
-			&i.IDTypeWorker,
-			&i.IDSystem,
-			&i.IDPriority,
+			&i.SystemID,
+			&i.ManifestID,
 			&i.Uuid,
+			&i.Priority,
 			&i.Value,
-			&i.SendLater,
-			&i.CreateAt,
+			&i.SendAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -98,23 +121,4 @@ func (q *Queries) GetMessagesBy(ctx context.Context, arg GetMessagesByParams) ([
 		return nil, err
 	}
 	return items, nil
-}
-
-const getStatusMessageByUUID = `-- name: GetStatusMessageByUUID :one
-WITH min_step AS (
-    SELECT MIN(step) AS min_step
-    FROM pipeline
-    WHERE time_end IS NULL
-)
-SELECT p.status FROM pipeline p
-JOIN message m on m.id = p.id_message
-JOIN min_step ms ON p.step = ms.min_step
-WHERE m."uuid" = $1
-`
-
-func (q *Queries) GetStatusMessageByUUID(ctx context.Context, argUuid uuid.UUID) (string, error) {
-	row := q.db.QueryRowContext(ctx, getStatusMessageByUUID, argUuid)
-	var status string
-	err := row.Scan(&status)
-	return status, err
 }

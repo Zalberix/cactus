@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	dto "cactus/internal/DTO"
-	pl "cactus/internal/pkg/pipeline"
+	pl "cactus/pkg/pipeline"
 	"cactus/internal/plugin"
 	"cactus/internal/service/pipeline"
 	"cactus/internal/storage/db"

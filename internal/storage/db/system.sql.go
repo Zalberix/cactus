@@ -10,80 +10,119 @@ import (
 	"database/sql"
 )
 
-const addKindWorkerForSystem = `-- name: AddKindWorkerForSystem :exec
-INSERT INTO kind_worker_system (
-    id_system, 
-    id_kind_worker
-) VALUES($1, $2)
-RETURNING id_system, id_kind_worker
+const addChannelForSystem = `-- name: AddChannelForSystem :exec
+INSERT INTO channel_system (
+    system_id,
+    channel_id
+) VALUES ($1, $2)
 `
 
-type AddKindWorkerForSystemParams struct {
-	IDSystem     int32 `json:"id_system"`
-	IDKindWorker int32 `json:"id_kind_worker"`
+type AddChannelForSystemParams struct {
+	SystemID  int32 `json:"system_id"`
+	ChannelID int32 `json:"channel_id"`
 }
 
-func (q *Queries) AddKindWorkerForSystem(ctx context.Context, arg AddKindWorkerForSystemParams) error {
-	_, err := q.db.ExecContext(ctx, addKindWorkerForSystem, arg.IDSystem, arg.IDKindWorker)
+func (q *Queries) AddChannelForSystem(ctx context.Context, arg AddChannelForSystemParams) error {
+	_, err := q.db.ExecContext(ctx, addChannelForSystem, arg.SystemID, arg.ChannelID)
 	return err
 }
 
 const createSystem = `-- name: CreateSystem :one
 INSERT INTO "system" (
-    create_user, 
-    id_priority, 
-    "name", 
-    description, 
-    is_active
-) 
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, create_user, id_priority, name, description, is_active
+    user_creator_id,
+    "name",
+    description,
+    is_active,
+    priority,
+    public_token,
+    private_token
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, user_creator_id, name, description, is_active, priority, public_token, private_token, created_at, updated_at, deleted_at
 `
 
 type CreateSystemParams struct {
-	CreateUser  sql.NullInt32  `json:"create_user"`
-	IDPriority  int32          `json:"id_priority"`
-	Name        string         `json:"name"`
-	Description sql.NullString `json:"description"`
-	IsActive    bool           `json:"is_active"`
+	UserCreatorID sql.NullInt32  `json:"user_creator_id"`
+	Name          string         `json:"name"`
+	Description   sql.NullString `json:"description"`
+	IsActive      bool           `json:"is_active"`
+	Priority      int32          `json:"priority"`
+	PublicToken   sql.NullString `json:"public_token"`
+	PrivateToken  sql.NullString `json:"private_token"`
 }
 
 func (q *Queries) CreateSystem(ctx context.Context, arg CreateSystemParams) (System, error) {
 	row := q.db.QueryRowContext(ctx, createSystem,
-		arg.CreateUser,
-		arg.IDPriority,
+		arg.UserCreatorID,
 		arg.Name,
 		arg.Description,
 		arg.IsActive,
+		arg.Priority,
+		arg.PublicToken,
+		arg.PrivateToken,
 	)
 	var i System
 	err := row.Scan(
 		&i.ID,
-		&i.CreateUser,
-		&i.IDPriority,
+		&i.UserCreatorID,
 		&i.Name,
 		&i.Description,
 		&i.IsActive,
+		&i.Priority,
+		&i.PublicToken,
+		&i.PrivateToken,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
-const getSystemById = `-- name: GetSystemById :one
-SELECT id, create_user, id_priority, name, description, is_active 
-FROM system s
-WHERE s.id = $1
+const getSystemByID = `-- name: GetSystemByID :one
+SELECT id, user_creator_id, name, description, is_active, priority, public_token, private_token, created_at, updated_at, deleted_at FROM "system"
+WHERE id = $1 AND deleted_at IS NULL
 `
 
-func (q *Queries) GetSystemById(ctx context.Context, id int32) (System, error) {
-	row := q.db.QueryRowContext(ctx, getSystemById, id)
+func (q *Queries) GetSystemByID(ctx context.Context, id int32) (System, error) {
+	row := q.db.QueryRowContext(ctx, getSystemByID, id)
 	var i System
 	err := row.Scan(
 		&i.ID,
-		&i.CreateUser,
-		&i.IDPriority,
+		&i.UserCreatorID,
 		&i.Name,
 		&i.Description,
 		&i.IsActive,
+		&i.Priority,
+		&i.PublicToken,
+		&i.PrivateToken,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const getSystemByPublicToken = `-- name: GetSystemByPublicToken :one
+SELECT id, user_creator_id, name, description, is_active, priority, public_token, private_token, created_at, updated_at, deleted_at FROM "system"
+WHERE public_token = $1 AND deleted_at IS NULL
+LIMIT 1
+`
+
+func (q *Queries) GetSystemByPublicToken(ctx context.Context, publicToken sql.NullString) (System, error) {
+	row := q.db.QueryRowContext(ctx, getSystemByPublicToken, publicToken)
+	var i System
+	err := row.Scan(
+		&i.ID,
+		&i.UserCreatorID,
+		&i.Name,
+		&i.Description,
+		&i.IsActive,
+		&i.Priority,
+		&i.PublicToken,
+		&i.PrivateToken,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }

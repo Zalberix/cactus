@@ -7,59 +7,78 @@ package db
 
 import (
 	"context"
-
-	"github.com/google/uuid"
 )
 
 const createFile = `-- name: CreateFile :one
 INSERT INTO file (
-    id_message, 
-    title, 
-    "path", 
-    ext, 
-    "uuid"
-) VALUES ($1, $2, $3, $4, $5) 
-RETURNING id_file, id_message, title, path, ext, uuid, create_at
+    message_id,
+    title,
+    "name",
+    ext,
+    url
+) VALUES ($1, $2, $3, $4, $5)
+RETURNING id, message_id, title, name, ext, url
 `
 
 type CreateFileParams struct {
-	IDMessage int32     `json:"id_message"`
-	Title     string    `json:"title"`
-	Path      string    `json:"path"`
-	Ext       string    `json:"ext"`
-	Uuid      uuid.UUID `json:"uuid"`
+	MessageID int32  `json:"message_id"`
+	Title     string `json:"title"`
+	Name      string `json:"name"`
+	Ext       string `json:"ext"`
+	Url       string `json:"url"`
 }
 
 func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (File, error) {
 	row := q.db.QueryRowContext(ctx, createFile,
-		arg.IDMessage,
+		arg.MessageID,
 		arg.Title,
-		arg.Path,
+		arg.Name,
 		arg.Ext,
-		arg.Uuid,
+		arg.Url,
 	)
 	var i File
 	err := row.Scan(
-		&i.IDFile,
-		&i.IDMessage,
+		&i.ID,
+		&i.MessageID,
 		&i.Title,
-		&i.Path,
+		&i.Name,
 		&i.Ext,
-		&i.Uuid,
-		&i.CreateAt,
+		&i.Url,
 	)
 	return i, err
 }
 
-const getFilePathByUUID = `-- name: GetFilePathByUUID :one
-SELECT "path" FROM file
-WHERE uuid = $1
-LIMIT 1
+const getFilesByMessageID = `-- name: GetFilesByMessageID :many
+SELECT id, message_id, title, name, ext, url FROM file
+WHERE message_id = $1
 `
 
-func (q *Queries) GetFilePathByUUID(ctx context.Context, argUuid uuid.UUID) (string, error) {
-	row := q.db.QueryRowContext(ctx, getFilePathByUUID, argUuid)
-	var path string
-	err := row.Scan(&path)
-	return path, err
+func (q *Queries) GetFilesByMessageID(ctx context.Context, messageID int32) ([]File, error) {
+	rows, err := q.db.QueryContext(ctx, getFilesByMessageID, messageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []File
+	for rows.Next() {
+		var i File
+		if err := rows.Scan(
+			&i.ID,
+			&i.MessageID,
+			&i.Title,
+			&i.Name,
+			&i.Ext,
+			&i.Url,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

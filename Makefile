@@ -24,7 +24,10 @@ docker:
 
 seed:
 	@echo "Run seeding..."
-	go run ./cmd/seeding/main.go
+	go run ./cmd/seeding/ $(filter-out $@,$(MAKECMDGOALS))
+
+%:
+	@:
 
 migration:
 	@echo "Run migration..."

@@ -14,15 +14,8 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	dto "cactus/internal/DTO"
-	"cactus/internal/pkg/pipeline"
+	"cactus/pkg/pipeline"
 )
-
-type PipelineMessage struct {
-	Status    pipeline.Status `json:"status"`
-	Step      int32           `json:"step"`
-	WorkeUUID string          `json:"worker_uuid"`
-	UUID      string          `json:"uuid"`
-}
 
 type PipelineClient struct {
 	Hub     *PipelineHub
@@ -117,7 +110,7 @@ func (hub *PipelineHub) Upgrader() *websocket.Upgrader {
 	return hub.upgrader
 }
 
-func (hub *PipelineHub) Send(pm PipelineMessage) {
+func (hub *PipelineHub) Send(pm pipeline.PipelineMessage) {
 	hub.mu.Lock()
 
 	newPipeline, err := hub.Service.UpdateStatusPipeline(
@@ -192,7 +185,7 @@ func (hub *PipelineHub) Run() {
 
 type Message struct {
 	UUID    string
-	Message PipelineMessage
+	Message pipeline.PipelineMessage
 }
 
 func (hub *PipelineHub) ReadStream(ctx context.Context) error {
@@ -236,7 +229,7 @@ func (hub *PipelineHub) ReadStream(ctx context.Context) error {
 					continue
 				}
 
-				var pipelineMessage PipelineMessage
+				var pipelineMessage pipeline.PipelineMessage
 
 				if err = json.Unmarshal([]byte(messageJSON), &pipelineMessage); err != nil {
 					slog.Error(

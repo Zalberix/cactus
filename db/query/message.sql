@@ -1,26 +1,20 @@
 -- name: CreateMessage :one
 INSERT INTO message (
-    id_type_worker,
-    id_system,
+    system_id,
+    manifest_id,
     "uuid",
+    priority,
     value,
-    id_priority,
-    send_later
-) 
+    send_at
+)
 VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
--- name: GetStatusMessageByUUID :one
-WITH min_step AS (
-    SELECT MIN(step) AS min_step
-    FROM pipeline
-    WHERE time_end IS NULL
-)
-SELECT p.status FROM pipeline p
-JOIN message m on m.id = p.id_message
-JOIN min_step ms ON p.step = ms.min_step
-WHERE m."uuid" = $1;
+-- name: GetMessageByUUID :one
+SELECT * FROM message
+WHERE "uuid" = $1 AND deleted_at IS NULL
+LIMIT 1;
 
--- name: GetMessagesBy :many
-SELECT * FROM message m 
-WHERE m.id_type_worker = $1 AND m.id_system = $2;
+-- name: GetMessagesBySystemID :many
+SELECT * FROM message
+WHERE system_id = $1 AND deleted_at IS NULL;

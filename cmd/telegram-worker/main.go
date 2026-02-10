@@ -13,9 +13,9 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/redis/go-redis/v9"
 
-	dto "cactus/internal/DTO"
 	"cactus/internal/logger"
-	configschema "cactus/internal/pkg/configSchema"
+	"cactus/pkg/configschema"
+	"cactus/pkg/contracts"
 	rdb "cactus/internal/storage/redis"
 	"cactus/lib/worker"
 )
@@ -71,7 +71,7 @@ func (conf *TelegramWorkerConfig) Update(values map[string]interface{}) {
 	}
 }
 
-func (conf *TelegramWorkerConfig) Send(message dto.MessageValueInMessageQueue, _ dto.SystemValueInMessageQueue) {
+func (conf *TelegramWorkerConfig) Send(message contracts.MessageValueInMessageQueue, _ contracts.SystemValueInMessageQueue) {
 	conf.mutex.Lock()
 	defer conf.mutex.Unlock()
 

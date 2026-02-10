@@ -13,117 +13,131 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
-type File struct {
-	IDFile    int32     `json:"id_file"`
-	IDMessage int32     `json:"id_message"`
-	Title     string    `json:"title"`
-	Path      string    `json:"path"`
-	Ext       string    `json:"ext"`
-	Uuid      uuid.UUID `json:"uuid"`
-	CreateAt  time.Time `json:"create_at"`
+type Channel struct {
+	ID   int32  `json:"id"`
+	Name string `json:"name"`
+	Slug string `json:"slug"`
 }
 
-type KindWorker struct {
+type ChannelSystem struct {
+	SystemID  int32 `json:"system_id"`
+	ChannelID int32 `json:"channel_id"`
+}
+
+type Config struct {
 	ID           int32                 `json:"id"`
 	Name         string                `json:"name"`
-	Slug         string                `json:"slug"`
 	ConfigSchema json.RawMessage       `json:"config_schema"`
 	Config       pqtype.NullRawMessage `json:"config"`
 }
 
-type KindWorkerSystem struct {
-	IDSystem     int32 `json:"id_system"`
-	IDKindWorker int32 `json:"id_kind_worker"`
+type File struct {
+	ID        int32  `json:"id"`
+	MessageID int32  `json:"message_id"`
+	Title     string `json:"title"`
+	Name      string `json:"name"`
+	Ext       string `json:"ext"`
+	Url       string `json:"url"`
+}
+
+type Manifest struct {
+	ID    int32           `json:"id"`
+	Value json.RawMessage `json:"value"`
 }
 
 type Message struct {
-	ID           int32           `json:"id"`
-	IDTypeWorker int32           `json:"id_type_worker"`
-	IDSystem     int32           `json:"id_system"`
-	IDPriority   int32           `json:"id_priority"`
-	Uuid         uuid.UUID       `json:"uuid"`
-	Value        json.RawMessage `json:"value"`
-	SendLater    sql.NullTime    `json:"send_later"`
-	CreateAt     time.Time       `json:"create_at"`
+	ID         int32           `json:"id"`
+	SystemID   int32           `json:"system_id"`
+	ManifestID int32           `json:"manifest_id"`
+	Uuid       uuid.UUID       `json:"uuid"`
+	Priority   int32           `json:"priority"`
+	Value      json.RawMessage `json:"value"`
+	SendAt     sql.NullTime    `json:"send_at"`
+	CreatedAt  time.Time       `json:"created_at"`
+	UpdatedAt  sql.NullTime    `json:"updated_at"`
+	DeletedAt  sql.NullTime    `json:"deleted_at"`
 }
 
 type Permission struct {
-	ID          int32          `json:"id"`
-	Description sql.NullString `json:"description"`
-	Slug        string         `json:"slug"`
+	ID   int32  `json:"id"`
+	Slug string `json:"slug"`
 }
 
 type PermissionRole struct {
-	IDPermission int32 `json:"id_permission"`
-	IDRole       int32 `json:"id_role"`
+	PermissionID int32 `json:"permission_id"`
+	RoleID       int32 `json:"role_id"`
 }
 
 type Pipeline struct {
-	ID        int32         `json:"id"`
-	IDMessage int32         `json:"id_message"`
-	Status    string        `json:"status"`
-	Step      int32         `json:"step"`
-	IDWorker  sql.NullInt32 `json:"id_worker"`
-	Name      string        `json:"name"`
-	TimeStart sql.NullTime  `json:"time_start"`
-	TimeEnd   sql.NullTime  `json:"time_end"`
+	ID               int32         `json:"id"`
+	MessageID        int32         `json:"message_id"`
+	ParentPipelineID sql.NullInt32 `json:"parent_pipeline_id"`
+	CreatedAt        sql.NullTime  `json:"created_at"`
+	UpdatedAt        sql.NullTime  `json:"updated_at"`
+	DeletedAt        sql.NullTime  `json:"deleted_at"`
 }
 
-type Priority struct {
-	ID     int32  `json:"id"`
-	Name   string `json:"name"`
-	Weight int32  `json:"weight"`
-	Slug   string `json:"slug"`
+type PipelineStep struct {
+	ID                   int32         `json:"id"`
+	PipelineID           int32         `json:"pipeline_id"`
+	WorkerID             sql.NullInt32 `json:"worker_id"`
+	ChannelID            int32         `json:"channel_id"`
+	Step                 int32         `json:"step"`
+	TimeStart            sql.NullTime  `json:"time_start"`
+	TimeEnd              sql.NullTime  `json:"time_end"`
+	CreatedAt            sql.NullTime  `json:"created_at"`
+	UpdatedAt            sql.NullTime  `json:"updated_at"`
+	DeletedAt            sql.NullTime  `json:"deleted_at"`
+	PipelineStepStatusID int32         `json:"pipeline_step_status_id"`
+}
+
+type PipelineStepStatus struct {
+	ID   int32  `json:"id"`
+	Name string `json:"name"`
+	Slug string `json:"slug"`
 }
 
 type Role struct {
-	ID   int32  `json:"id"`
-	Name string `json:"name"`
-	Slug string `json:"slug"`
+	ID          int32          `json:"id"`
+	Name        string         `json:"name"`
+	Description sql.NullString `json:"description"`
 }
 
 type RoleUser struct {
-	IDRole int32 `json:"id_role"`
-	IDUser int32 `json:"id_user"`
+	RoleID int32 `json:"role_id"`
+	UserID int32 `json:"user_id"`
 }
 
 type System struct {
-	ID          int32          `json:"id"`
-	CreateUser  sql.NullInt32  `json:"create_user"`
-	IDPriority  int32          `json:"id_priority"`
-	Name        string         `json:"name"`
-	Description sql.NullString `json:"description"`
-	IsActive    bool           `json:"is_active"`
-}
-
-type Token struct {
-	IDSystem     int32  `json:"id_system"`
-	IDKindWorker int32  `json:"id_kind_worker"`
-	IsActive     bool   `json:"is_active"`
-	PublicToken  string `json:"public_token"`
-	SecretToken  string `json:"secret_token"`
-}
-
-type TypeWorker struct {
-	ID   int32  `json:"id"`
-	Name string `json:"name"`
-	Slug string `json:"slug"`
+	ID            int32          `json:"id"`
+	UserCreatorID sql.NullInt32  `json:"user_creator_id"`
+	Name          string         `json:"name"`
+	Description   sql.NullString `json:"description"`
+	IsActive      bool           `json:"is_active"`
+	Priority      int32          `json:"priority"`
+	PublicToken   sql.NullString `json:"public_token"`
+	PrivateToken  sql.NullString `json:"private_token"`
+	CreatedAt     sql.NullTime   `json:"created_at"`
+	UpdatedAt     sql.NullTime   `json:"updated_at"`
+	DeletedAt     sql.NullTime   `json:"deleted_at"`
 }
 
 type User struct {
-	ID                      int32        `json:"id"`
-	Fio                     string       `json:"fio"`
-	Login                   string       `json:"login"`
-	Email                   string       `json:"email"`
-	Password                string       `json:"password"`
-	ResetPasswordAfterLogin sql.NullBool `json:"reset_password_after_login"`
-	CreateAt                sql.NullTime `json:"create_at"`
+	ID                      int32          `json:"id"`
+	LastName                string         `json:"last_name"`
+	FirstName               string         `json:"first_name"`
+	Patronymic              sql.NullString `json:"patronymic"`
+	Email                   string         `json:"email"`
+	Password                string         `json:"password"`
+	ResetPasswordAfterLogin sql.NullBool   `json:"reset_password_after_login"`
+	CreatedAt               sql.NullTime   `json:"created_at"`
+	UpdatedAt               sql.NullTime   `json:"updated_at"`
+	DeletedAt               sql.NullTime   `json:"deleted_at"`
 }
 
 type Worker struct {
-	ID           int32     `json:"id"`
-	Uuid         uuid.UUID `json:"uuid"`
-	IsActive     bool      `json:"is_active"`
-	IDTypeWorker int32     `json:"id_type_worker"`
-	IDKindWorker int32     `json:"id_kind_worker"`
+	ID        int32 `json:"id"`
+	ChannelID int32 `json:"channel_id"`
+	ConfigID  int32 `json:"config_id"`
+	IsActive  bool  `json:"is_active"`
 }

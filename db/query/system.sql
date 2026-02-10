@@ -1,22 +1,27 @@
--- name: GetSystemById :one 
-SELECT * 
-FROM system s
-WHERE s.id = $1;
+-- name: GetSystemByID :one
+SELECT * FROM "system"
+WHERE id = $1 AND deleted_at IS NULL;
 
 -- name: CreateSystem :one
 INSERT INTO "system" (
-    create_user, 
-    id_priority, 
-    "name", 
-    description, 
-    is_active
-) 
-VALUES ($1, $2, $3, $4, $5)
+    user_creator_id,
+    "name",
+    description,
+    is_active,
+    priority,
+    public_token,
+    private_token
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
--- name: AddKindWorkerForSystem :exec
-INSERT INTO kind_worker_system (
-    id_system, 
-    id_kind_worker
-) VALUES($1, $2)
-RETURNING *;
+-- name: AddChannelForSystem :exec
+INSERT INTO channel_system (
+    system_id,
+    channel_id
+) VALUES ($1, $2);
+
+-- name: GetSystemByPublicToken :one
+SELECT * FROM "system"
+WHERE public_token = $1 AND deleted_at IS NULL
+LIMIT 1;

@@ -1,6 +1,6 @@
-package request
+package contracts
 
-import configschema "cactus/internal/pkg/configSchema"
+import configschema "cactus/pkg/configschema"
 
 type RegisterWorkerRequest struct {
 	Token        string                     `json:"token" validate:"required"`
@@ -10,4 +10,10 @@ type RegisterWorkerRequest struct {
 	Type         string                     `json:"type" validate:"required"`
 	NameType     string                     `json:"name_type" validate:"required"`
 	ConfigSchema []configschema.ConfigField `json:"config_schema" validate:"required,omitnil"`
+}
+
+type RegisterWorkerResponse struct {
+	Created bool                   `json:"created"`
+	Config  map[string]interface{} `json:"config"`
+	ID      int32                  `json:"id"`
 }

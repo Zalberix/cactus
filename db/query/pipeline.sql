@@ -1,27 +1,14 @@
--- name: CreatePipelineStep :one
+-- name: CreatePipeline :one
 INSERT INTO pipeline (
-    id_message, 
-    status,
-    step, 
-    "name",
-    time_start, 
-    time_end
-) VALUES ($1, $2, $3, $4, $5, $6) 
+    message_id,
+    parent_pipeline_id
+) VALUES ($1, $2)
 RETURNING *;
 
--- name: GetAllPipelineByMessageUUID :many
-SELECT p.* 
-FROM pipeline p 
-JOIN message m ON m.id = p.id_message
-WHERE m."uuid" = $1;
+-- name: GetPipelinesByMessageID :many
+SELECT * FROM pipeline
+WHERE message_id = $1 AND deleted_at IS NULL;
 
--- name: UpdatePipelineStatusAndWorkerByID :one
-UPDATE pipeline 
-SET status = $2, id_worker = $3
-WHERE id = $1
-RETURNING *;
-
--- name: GetIdPipelineByUUIDMessageAndStep :one
-SELECT p.id FROM pipeline p
-JOIN message m ON m.id = p.id_message
-WHERE m."uuid" = $1 AND step = $2;
+-- name: GetPipelineByID :one
+SELECT * FROM pipeline
+WHERE id = $1 AND deleted_at IS NULL;

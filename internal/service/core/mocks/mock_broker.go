@@ -10,7 +10,7 @@
 package mocks
 
 import (
-	dto "cactus/internal/DTO"
+	"cactus/pkg/contracts"
 	context "context"
 	reflect "reflect"
 
@@ -41,7 +41,7 @@ func (m *MockBroker) EXPECT() *MockBrokerMockRecorder {
 }
 
 // AddMessageToQueue mocks base method.
-func (m *MockBroker) AddMessageToQueue(arg0 context.Context, arg1 string, arg2 dto.MessageValueInMessageQueue, arg3 dto.SystemValueInMessageQueue, arg4 dto.PipelineValueInMessageQueue) error {
+func (m *MockBroker) AddMessageToQueue(arg0 context.Context, arg1 string, arg2 contracts.MessageValueInMessageQueue, arg3 contracts.SystemValueInMessageQueue, arg4 contracts.PipelineValueInMessageQueue) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddMessageToQueue", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(error)
