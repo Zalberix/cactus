@@ -8,63 +8,61 @@ package db
 import (
 	"context"
 	"database/sql"
-
-	"github.com/google/uuid"
 )
 
-const createPipelineStep = `-- name: CreatePipelineStep :one
+const createPipeline = `-- name: CreatePipeline :one
 INSERT INTO pipeline (
-    id_message, 
-    status,
-    step, 
-    "name",
-    time_start, 
-    time_end
-) VALUES ($1, $2, $3, $4, $5, $6) 
-RETURNING id, id_message, status, step, id_worker, name, time_start, time_end
+    message_id,
+    parent_pipeline_id
+) VALUES ($1, $2)
+RETURNING id, message_id, parent_pipeline_id, created_at, updated_at, deleted_at
 `
 
-type CreatePipelineStepParams struct {
-	IDMessage int32        `json:"id_message"`
-	Status    string       `json:"status"`
-	Step      int32        `json:"step"`
-	Name      string       `json:"name"`
-	TimeStart sql.NullTime `json:"time_start"`
-	TimeEnd   sql.NullTime `json:"time_end"`
+type CreatePipelineParams struct {
+	MessageID        int32         `json:"message_id"`
+	ParentPipelineID sql.NullInt32 `json:"parent_pipeline_id"`
 }
 
-func (q *Queries) CreatePipelineStep(ctx context.Context, arg CreatePipelineStepParams) (Pipeline, error) {
-	row := q.db.QueryRowContext(ctx, createPipelineStep,
-		arg.IDMessage,
-		arg.Status,
-		arg.Step,
-		arg.Name,
-		arg.TimeStart,
-		arg.TimeEnd,
-	)
+func (q *Queries) CreatePipeline(ctx context.Context, arg CreatePipelineParams) (Pipeline, error) {
+	row := q.db.QueryRowContext(ctx, createPipeline, arg.MessageID, arg.ParentPipelineID)
 	var i Pipeline
 	err := row.Scan(
 		&i.ID,
-		&i.IDMessage,
-		&i.Status,
-		&i.Step,
-		&i.IDWorker,
-		&i.Name,
-		&i.TimeStart,
-		&i.TimeEnd,
+		&i.MessageID,
+		&i.ParentPipelineID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
-const getAllPipelineByMessageUUID = `-- name: GetAllPipelineByMessageUUID :many
-SELECT p.id, p.id_message, p.status, p.step, p.id_worker, p.name, p.time_start, p.time_end 
-FROM pipeline p 
-JOIN message m ON m.id = p.id_message
-WHERE m."uuid" = $1
+const getPipelineByID = `-- name: GetPipelineByID :one
+SELECT id, message_id, parent_pipeline_id, created_at, updated_at, deleted_at FROM pipeline
+WHERE id = $1 AND deleted_at IS NULL
 `
 
-func (q *Queries) GetAllPipelineByMessageUUID(ctx context.Context, argUuid uuid.UUID) ([]Pipeline, error) {
-	rows, err := q.db.QueryContext(ctx, getAllPipelineByMessageUUID, argUuid)
+func (q *Queries) GetPipelineByID(ctx context.Context, id int32) (Pipeline, error) {
+	row := q.db.QueryRowContext(ctx, getPipelineByID, id)
+	var i Pipeline
+	err := row.Scan(
+		&i.ID,
+		&i.MessageID,
+		&i.ParentPipelineID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const getPipelinesByMessageID = `-- name: GetPipelinesByMessageID :many
+SELECT id, message_id, parent_pipeline_id, created_at, updated_at, deleted_at FROM pipeline
+WHERE message_id = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) GetPipelinesByMessageID(ctx context.Context, messageID int32) ([]Pipeline, error) {
+	rows, err := q.db.QueryContext(ctx, getPipelinesByMessageID, messageID)
 	if err != nil {
 		return nil, err
 	}
@@ -74,13 +72,11 @@ func (q *Queries) GetAllPipelineByMessageUUID(ctx context.Context, argUuid uuid.
 		var i Pipeline
 		if err := rows.Scan(
 			&i.ID,
-			&i.IDMessage,
-			&i.Status,
-			&i.Step,
-			&i.IDWorker,
-			&i.Name,
-			&i.TimeStart,
-			&i.TimeEnd,
+			&i.MessageID,
+			&i.ParentPipelineID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -93,51 +89,4 @@ func (q *Queries) GetAllPipelineByMessageUUID(ctx context.Context, argUuid uuid.
 		return nil, err
 	}
 	return items, nil
-}
-
-const getIdPipelineByUUIDMessageAndStep = `-- name: GetIdPipelineByUUIDMessageAndStep :one
-SELECT p.id FROM pipeline p
-JOIN message m ON m.id = p.id_message
-WHERE m."uuid" = $1 AND step = $2
-`
-
-type GetIdPipelineByUUIDMessageAndStepParams struct {
-	Uuid uuid.UUID `json:"uuid"`
-	Step int32     `json:"step"`
-}
-
-func (q *Queries) GetIdPipelineByUUIDMessageAndStep(ctx context.Context, arg GetIdPipelineByUUIDMessageAndStepParams) (int32, error) {
-	row := q.db.QueryRowContext(ctx, getIdPipelineByUUIDMessageAndStep, arg.Uuid, arg.Step)
-	var id int32
-	err := row.Scan(&id)
-	return id, err
-}
-
-const updatePipelineStatusAndWorkerByID = `-- name: UpdatePipelineStatusAndWorkerByID :one
-UPDATE pipeline 
-SET status = $2, id_worker = $3
-WHERE id = $1
-RETURNING id, id_message, status, step, id_worker, name, time_start, time_end
-`
-
-type UpdatePipelineStatusAndWorkerByIDParams struct {
-	ID       int32         `json:"id"`
-	Status   string        `json:"status"`
-	IDWorker sql.NullInt32 `json:"id_worker"`
-}
-
-func (q *Queries) UpdatePipelineStatusAndWorkerByID(ctx context.Context, arg UpdatePipelineStatusAndWorkerByIDParams) (Pipeline, error) {
-	row := q.db.QueryRowContext(ctx, updatePipelineStatusAndWorkerByID, arg.ID, arg.Status, arg.IDWorker)
-	var i Pipeline
-	err := row.Scan(
-		&i.ID,
-		&i.IDMessage,
-		&i.Status,
-		&i.Step,
-		&i.IDWorker,
-		&i.Name,
-		&i.TimeStart,
-		&i.TimeEnd,
-	)
-	return i, err
 }

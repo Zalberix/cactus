@@ -12,7 +12,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 
 	dto "cactus/internal/DTO"
-	configschema "cactus/internal/pkg/configSchema"
+	configschema "cactus/pkg/configschema"
 	"cactus/internal/storage/db"
 )
 

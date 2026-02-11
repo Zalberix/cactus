@@ -12,43 +12,94 @@ import (
 
 const createUser = `-- name: CreateUser :one
 INSERT INTO "user" (
-    fio, 
-    login, 
-    email, 
-    "password", 
-    reset_password_after_login, 
-    create_at
+    last_name,
+    first_name,
+    patronymic,
+    email,
+    "password",
+    reset_password_after_login
 ) VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, fio, login, email, password, reset_password_after_login, create_at
+RETURNING id, last_name, first_name, patronymic, email, password, reset_password_after_login, created_at, updated_at, deleted_at
 `
 
 type CreateUserParams struct {
-	Fio                     string       `json:"fio"`
-	Login                   string       `json:"login"`
-	Email                   string       `json:"email"`
-	Password                string       `json:"password"`
-	ResetPasswordAfterLogin sql.NullBool `json:"reset_password_after_login"`
-	CreateAt                sql.NullTime `json:"create_at"`
+	LastName                string         `json:"last_name"`
+	FirstName               string         `json:"first_name"`
+	Patronymic              sql.NullString `json:"patronymic"`
+	Email                   string         `json:"email"`
+	Password                string         `json:"password"`
+	ResetPasswordAfterLogin sql.NullBool   `json:"reset_password_after_login"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
 	row := q.db.QueryRowContext(ctx, createUser,
-		arg.Fio,
-		arg.Login,
+		arg.LastName,
+		arg.FirstName,
+		arg.Patronymic,
 		arg.Email,
 		arg.Password,
 		arg.ResetPasswordAfterLogin,
-		arg.CreateAt,
 	)
 	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.Fio,
-		&i.Login,
+		&i.LastName,
+		&i.FirstName,
+		&i.Patronymic,
 		&i.Email,
 		&i.Password,
 		&i.ResetPasswordAfterLogin,
-		&i.CreateAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const getUserByEmail = `-- name: GetUserByEmail :one
+SELECT id, last_name, first_name, patronymic, email, password, reset_password_after_login, created_at, updated_at, deleted_at FROM "user"
+WHERE email = $1 AND deleted_at IS NULL
+LIMIT 1
+`
+
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByEmail, email)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.LastName,
+		&i.FirstName,
+		&i.Patronymic,
+		&i.Email,
+		&i.Password,
+		&i.ResetPasswordAfterLogin,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const getUserByID = `-- name: GetUserByID :one
+SELECT id, last_name, first_name, patronymic, email, password, reset_password_after_login, created_at, updated_at, deleted_at FROM "user"
+WHERE id = $1 AND deleted_at IS NULL
+LIMIT 1
+`
+
+func (q *Queries) GetUserByID(ctx context.Context, id int32) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByID, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.LastName,
+		&i.FirstName,
+		&i.Patronymic,
+		&i.Email,
+		&i.Password,
+		&i.ResetPasswordAfterLogin,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }

@@ -10,7 +10,7 @@
 package mocks
 
 import (
-	pipeline "cactus/internal/pkg/pipeline"
+	pipeline "cactus/pkg/pipeline"
 	plugin "cactus/internal/plugin"
 	reflect "reflect"
 

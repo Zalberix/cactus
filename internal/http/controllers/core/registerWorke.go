@@ -10,9 +10,9 @@ import (
 
 	dto "cactus/internal/DTO"
 	"cactus/internal/error/validation"
-	"cactus/internal/http/request"
 	"cactus/internal/http/response"
 	"cactus/internal/service/core"
+	"cactus/pkg/contracts"
 )
 
 type registerWorkerService interface {
@@ -27,7 +27,7 @@ func RegisterWorker(s registerWorkerService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		var req request.RegisterWorkerRequest
+		var req contracts.RegisterWorkerRequest
 		_ = json.NewDecoder(r.Body).Decode(&req)
 
 		errors, err := validation.ValidateStructure(&req)
@@ -73,7 +73,7 @@ func RegisterWorker(s registerWorkerService) http.HandlerFunc {
 			return
 		}
 
-		response.OKJSON(w, response.RegisterWorkerResponse{
+		response.OKJSON(w, contracts.RegisterWorkerResponse{
 			Created: created.Created,
 			ID:      created.ID,
 			Config:  created.Config,

@@ -16,12 +16,9 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	dto "cactus/internal/DTO"
-	"cactus/internal/http/request"
-	"cactus/internal/http/response"
-	configschema "cactus/internal/pkg/configSchema"
-	"cactus/internal/pkg/pipeline"
-	"cactus/internal/pkg/wshub"
+	"cactus/pkg/configschema"
+	"cactus/pkg/contracts"
+	"cactus/pkg/pipeline"
 )
 
 type Message struct {
@@ -39,9 +36,9 @@ type workerMeta struct {
 type QueueMessage struct {
 	stream   *StreamConfig
 	ID       string
-	Pipeline dto.PipelineValueInMessageQueue `json:"pipeline"`
-	Message  dto.MessageValueInMessageQueue  `json:"message"`
-	System   dto.SystemValueInMessageQueue   `json:"system"`
+	Pipeline contracts.PipelineValueInMessageQueue `json:"pipeline"`
+	Message  contracts.MessageValueInMessageQueue  `json:"message"`
+	System   contracts.SystemValueInMessageQueue   `json:"system"`
 }
 
 func (m *QueueMessage) Ack() error {
@@ -85,7 +82,7 @@ type Config struct {
 	WorkerType     string
 	WorkerNameType string
 	WorkerUUID     string
-	ConfigSchema   []configschema.ConfigField
+	ConfigSchema []configschema.ConfigField
 }
 
 type Broker interface {
@@ -343,19 +340,19 @@ func (w *Worker) ParseValueMessage(
 	values map[string]interface{},
 	stream StreamConfig,
 ) (QueueMessage, error) {
-	var pipeline dto.PipelineValueInMessageQueue
-	err := w.GetFromValue(values, "pipeline", &pipeline)
+	var pipelineVal contracts.PipelineValueInMessageQueue
+	err := w.GetFromValue(values, "pipeline", &pipelineVal)
 	if err != nil {
 		return QueueMessage{}, err
 	}
 
-	var system dto.SystemValueInMessageQueue
+	var system contracts.SystemValueInMessageQueue
 	err = w.GetFromValue(values, "system", &system)
 	if err != nil {
 		return QueueMessage{}, err
 	}
 
-	var message dto.MessageValueInMessageQueue
+	var message contracts.MessageValueInMessageQueue
 	err = w.GetFromValue(values, "message", &message)
 	if err != nil {
 		return QueueMessage{}, err
@@ -364,7 +361,7 @@ func (w *Worker) ParseValueMessage(
 	queueMessage := QueueMessage{
 		stream:   &stream,
 		ID:       id,
-		Pipeline: pipeline,
+		Pipeline: pipelineVal,
 		System:   system,
 		Message:  message,
 	}
@@ -390,7 +387,7 @@ func (w *Worker) registerWorker() error {
 	}
 	ctx := w.ctx
 
-	requestRegisterEndpoint := request.RegisterWorkerRequest{
+	requestRegisterEndpoint := contracts.RegisterWorkerRequest{
 		Token:        w.config.Token,
 		WorkerUUID:   w.config.WorkerUUID,
 		Kind:         w.config.WorkerKind,
@@ -454,7 +451,7 @@ func (w *Worker) registerWorker() error {
 		return fmt.Errorf("регистрация невозможна: %+v", string(body))
 	}
 
-	var dataResp responseData[response.RegisterWorkerResponse]
+	var dataResp responseData[contracts.RegisterWorkerResponse]
 
 	if err := json.Unmarshal(body, &dataResp); err != nil {
 		return fmt.Errorf("ошибка десериализации JSON-ответа: %w", err)
@@ -519,7 +516,7 @@ func (w *Worker) GetFromValue(values map[string]interface{}, key string, target 
 }
 
 func (w *Worker) sendStatusWorkFor(m QueueMessage) {
-	JSONm, err := json.Marshal(wshub.PipelineMessage{
+	JSONm, err := json.Marshal(pipeline.PipelineMessage{
 		Status:    pipeline.Work,
 		Step:      m.Pipeline.Step,
 		WorkeUUID: w.config.WorkerUUID,
@@ -542,7 +539,7 @@ func (w *Worker) sendStatusWorkFor(m QueueMessage) {
 }
 
 func (w *Worker) sendStatusDoneFor(m QueueMessage) {
-	JSONm, err := json.Marshal(wshub.PipelineMessage{
+	JSONm, err := json.Marshal(pipeline.PipelineMessage{
 		Status:    pipeline.Done,
 		Step:      m.Pipeline.Step,
 		WorkeUUID: w.config.WorkerUUID,

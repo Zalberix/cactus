@@ -1,6 +1,6 @@
 package plugin
 
-import "cactus/internal/pkg/pipeline"
+import "cactus/pkg/pipeline"
 
 type CorePlugin struct{}
 

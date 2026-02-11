@@ -9,7 +9,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	DTO "cactus/internal/DTO"
-	pipelinePkg "cactus/internal/pkg/pipeline"
+	pipelinePkg "cactus/pkg/pipeline"
 	"cactus/internal/service/pipeline"
 	"cactus/internal/service/pipeline/mocks"
 	"cactus/internal/storage/db"

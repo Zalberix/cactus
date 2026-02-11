@@ -48,7 +48,7 @@ type Redis struct {
 
 func MustLoad() *Config {
 	// TODO переделать на переменную среды так как нужно будет менять его при переезде на продакшен.
-	configPath := "./config/dev.yaml"
+	configPath := "./config/local/cactus.yaml"
 
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		log.Fatalf("config file does not exist: %s", configPath)

@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	dto "cactus/internal/DTO"
-	"cactus/internal/pkg/pipeline"
+	"cactus/pkg/pipeline"
 	"cactus/internal/storage/db"
 )
 

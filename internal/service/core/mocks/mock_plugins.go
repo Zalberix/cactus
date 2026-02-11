@@ -20,7 +20,6 @@ import (
 type MockPlugins struct {
 	ctrl     *gomock.Controller
 	recorder *MockPluginsMockRecorder
-	isgomock struct{}
 }
 
 // MockPluginsMockRecorder is the mock recorder for MockPlugins.
@@ -41,40 +40,40 @@ func (m *MockPlugins) EXPECT() *MockPluginsMockRecorder {
 }
 
 // Add mocks base method.
-func (m *MockPlugins) Add(slug string, plugin plugin.Plugin) {
+func (m *MockPlugins) Add(arg0 string, arg1 plugin.Plugin) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Add", slug, plugin)
+	m.ctrl.Call(m, "Add", arg0, arg1)
 }
 
 // Add indicates an expected call of Add.
-func (mr *MockPluginsMockRecorder) Add(slug, plugin any) *gomock.Call {
+func (mr *MockPluginsMockRecorder) Add(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Add", reflect.TypeOf((*MockPlugins)(nil).Add), slug, plugin)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Add", reflect.TypeOf((*MockPlugins)(nil).Add), arg0, arg1)
 }
 
 // Delete mocks base method.
-func (m *MockPlugins) Delete(slug string) {
+func (m *MockPlugins) Delete(arg0 string) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Delete", slug)
+	m.ctrl.Call(m, "Delete", arg0)
 }
 
 // Delete indicates an expected call of Delete.
-func (mr *MockPluginsMockRecorder) Delete(slug any) *gomock.Call {
+func (mr *MockPluginsMockRecorder) Delete(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockPlugins)(nil).Delete), slug)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockPlugins)(nil).Delete), arg0)
 }
 
 // Get mocks base method.
-func (m *MockPlugins) Get(slug string) (plugin.Plugin, bool) {
+func (m *MockPlugins) Get(arg0 string) (plugin.Plugin, bool) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Get", slug)
+	ret := m.ctrl.Call(m, "Get", arg0)
 	ret0, _ := ret[0].(plugin.Plugin)
 	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
 
 // Get indicates an expected call of Get.
-func (mr *MockPluginsMockRecorder) Get(slug any) *gomock.Call {
+func (mr *MockPluginsMockRecorder) Get(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockPlugins)(nil).Get), slug)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockPlugins)(nil).Get), arg0)
 }

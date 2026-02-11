@@ -20,11 +20,14 @@ start:
 
 docker:
 	@echo "Run docker-compose..."
-	docker-compose up -d --build
+	docker-compose -f ./docker-compose.dev.yml up -d --build
 
 seed:
 	@echo "Run seeding..."
-	go run ./cmd/seeding/main.go
+	go run ./cmd/seeding/ $(filter-out $@,$(MAKECMDGOALS))
+
+%:
+	@:
 
 migration:
 	@echo "Run migration..."
@@ -41,6 +44,17 @@ lint:
 gci:
 	@echo "Run format imports..."
 	gci write --skip-generated -s standard -s default -s localmodule .
+
+watch:
+	@powershell -ExecutionPolicy Bypass -Command "if (Get-Command air -ErrorAction SilentlyContinue) { \
+		air; \
+		Write-Output 'Watching...'; \
+	} else { \
+		Write-Output 'Installing air...'; \
+		go install github.com/air-verse/air@latest; \
+		air; \
+		Write-Output 'Watching...'; \
+	}"
 
 format:
 	@echo "Run format files..."

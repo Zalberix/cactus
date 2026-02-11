@@ -7,6 +7,7 @@ import (
 
 	dto "cactus/internal/DTO"
 	"cactus/internal/storage/db"
+	"cactus/pkg/contracts"
 )
 
 type AddMessageToQueueParams struct {
@@ -21,15 +22,15 @@ type AddMessageToQueueParams struct {
 func (s *Service) AddMessageToQueue(ctx context.Context, arg AddMessageToQueueParams) error {
 	nameQueue := fmt.Sprintf("messages:%v:%v:w-%v", arg.SlugTypeWorker, arg.SlugKindWorker, arg.WeightPriorityMessage)
 
-	files := make([]dto.FileInMessageValueInMessageQueue, 0, len(arg.Files))
+	files := make([]contracts.FileInMessageValueInMessageQueue, 0, len(arg.Files))
 	for _, file := range arg.Files {
-		files = append(files, dto.FileInMessageValueInMessageQueue{
+		files = append(files, contracts.FileInMessageValueInMessageQueue{
 			URL:  fmt.Sprintf("http://%s:%s/api/file/get?uuid=%s", s.meta.HostName, s.meta.Port, file.UUID.String()),
 			Name: fmt.Sprintf("%v.%v", file.Title, file.Ext),
 		})
 	}
 
-	dtoMessage := dto.MessageValueInMessageQueue{
+	dtoMessage := contracts.MessageValueInMessageQueue{
 		ID:       arg.ID,
 		UUID:     arg.Uuid,
 		Value:    arg.Value,
@@ -53,8 +54,8 @@ func (s *Service) AddMessageToQueue(ctx context.Context, arg AddMessageToQueuePa
 		return fmt.Errorf("невозможно получить систему по ID: %w", err)
 	}
 
-	systemDTO := dto.SystemValueInMessageQueue{Name: system.Name}
-	pipelineDTO := dto.PipelineValueInMessageQueue{Step: arg.Step}
+	systemDTO := contracts.SystemValueInMessageQueue{Name: system.Name}
+	pipelineDTO := contracts.PipelineValueInMessageQueue{Step: arg.Step}
 
 	err = s.broker.AddMessageToQueue(ctx, nameQueue, dtoMessage, systemDTO, pipelineDTO)
 	if err != nil {

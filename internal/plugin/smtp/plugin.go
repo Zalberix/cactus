@@ -1,7 +1,7 @@
 package smtp
 
 import (
-	"cactus/internal/pkg/pipeline"
+	"cactus/pkg/pipeline"
 	"cactus/internal/plugin"
 )
 

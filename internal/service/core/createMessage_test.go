@@ -13,7 +13,8 @@ import (
 	"go.uber.org/mock/gomock"
 
 	dto "cactus/internal/DTO"
-	pkgpipe "cactus/internal/pkg/pipeline"
+	"cactus/pkg/contracts"
+	pkgpipe "cactus/pkg/pipeline"
 	mocks_plugin "cactus/internal/plugin/mocks"
 	"cactus/internal/service/core"
 	"cactus/internal/service/core/mocks"
@@ -105,8 +106,8 @@ func TestCreateMessage_Success(t *testing.T) {
 	mockBroker.EXPECT().
 		AddMessageToQueue(
 			ctx, nameQueue, gomock.Any(),
-			dto.SystemValueInMessageQueue{Name: "test"},
-			dto.PipelineValueInMessageQueue{Step: 1},
+			contracts.SystemValueInMessageQueue{Name: "test"},
+			contracts.PipelineValueInMessageQueue{Step: 1},
 		).
 		Return(nil)
 

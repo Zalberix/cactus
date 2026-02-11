@@ -11,7 +11,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	DTO "cactus/internal/DTO"
-	configSchema "cactus/internal/pkg/configSchema"
+	configSchema "cactus/pkg/configschema"
 	mocks_plugin "cactus/internal/plugin/mocks"
 	"cactus/internal/service/core"
 	"cactus/internal/service/core/mocks"

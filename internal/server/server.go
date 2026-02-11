@@ -21,7 +21,7 @@ import (
 	"cactus/internal/storage/broker"
 	"cactus/internal/storage/db"
 	filestorage "cactus/internal/storage/file"
-	plugin_storage "cactus/internal/storage/plugin"
+	pluginstorage "cactus/internal/storage/plugin"
 	rdb "cactus/internal/storage/redis"
 	"cactus/internal/storage/store"
 )
@@ -36,7 +36,7 @@ type Server struct {
 func Create(conf config.Config) (Server, error) {
 	ctx := context.Background()
 
-	databaseConect, err := sqlxconect.New(
+	databaseConnect, err := sqlxconect.New(
 		ctx,
 		conf.Database.Host,
 		conf.Database.Port,
@@ -48,7 +48,7 @@ func Create(conf config.Config) (Server, error) {
 		return Server{}, fmt.Errorf("create database: %w", err)
 	}
 
-	DBStorage := db.New(databaseConect)
+	DBStorage := db.New(databaseConnect)
 	brokerApp, err := broker.New(ctx, &redis.Options{
 		Addr:     conf.Redis.Address,
 		Password: conf.Redis.Password,
@@ -69,7 +69,7 @@ func Create(conf config.Config) (Server, error) {
 
 	fileStorage, _ := filestorage.New("app/files") // TODO path вынести в конфиг
 
-	pluginStorage := plugin_storage.New()
+	pluginStorage := pluginstorage.New()
 
 	pluginStorage.Add("smtp", smtp.New())
 	pluginStorage.Add("telegram", telegram.New())
@@ -96,7 +96,7 @@ func Create(conf config.Config) (Server, error) {
 	var pipelineService *pipeline.Service
 	// TODO сомнительное решение, тип подождать пока загрузится
 
-	storeApp := store.New(databaseConect, DBStorage)
+	storeApp := store.New(databaseConnect, DBStorage)
 
 	coreService := core.New(storeApp, brokerApp, fileStorage, pluginStorage, metaServer)
 	pipelineService = pipeline.New(storeApp, pluginStorage)
@@ -133,7 +133,7 @@ func Create(conf config.Config) (Server, error) {
 	}
 
 	return Server{
-		db:  databaseConect,
+		db:  databaseConnect,
 		rdb: RDBStorage,
 		app: app,
 	}, nil

@@ -7,7 +7,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	dto "cactus/internal/DTO"
+	"cactus/pkg/contracts"
 )
 
 type Broker struct {
@@ -59,9 +59,9 @@ func (b *Broker) EnsureStreamGroup(ctx context.Context, streamName, groupName st
 func (b *Broker) AddMessageToQueue(
 	ctx context.Context,
 	streamName string,
-	messageDTO dto.MessageValueInMessageQueue,
-	systemDTO dto.SystemValueInMessageQueue,
-	pipelineDTO dto.PipelineValueInMessageQueue,
+	messageDTO contracts.MessageValueInMessageQueue,
+	systemDTO contracts.SystemValueInMessageQueue,
+	pipelineDTO contracts.PipelineValueInMessageQueue,
 ) error {
 	messageJSON, err := json.Marshal(messageDTO)
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 
 	dto "cactus/internal/DTO"
 	"cactus/internal/plugin"
+	"cactus/pkg/contracts"
 	"cactus/internal/server/meta"
 	"cactus/internal/service/pipeline"
 	"cactus/internal/storage/db"
@@ -48,9 +49,9 @@ type Broker interface {
 	AddMessageToQueue(
 		ctx context.Context,
 		streamName string,
-		messageDTO dto.MessageValueInMessageQueue,
-		systemDTO dto.SystemValueInMessageQueue,
-		pipelineDTO dto.PipelineValueInMessageQueue,
+		messageDTO contracts.MessageValueInMessageQueue,
+		systemDTO contracts.SystemValueInMessageQueue,
+		pipelineDTO contracts.PipelineValueInMessageQueue,
 	) error
 }
 
