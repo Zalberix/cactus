@@ -1,9 +1,37 @@
-.PHONY: all run test docker lint migration seed gci format
+.PHONY: all dev dev-down dev-logs run test docker docker-workers docker-down lint migration seed gci format watch
 
-# По умолчанию запускается команда run
-all: docker migration seed start
+# Локальная разработка в Docker
+dev: docker-infra docker-workers
+	@echo ""
+	@echo "Stack running:"
+	@echo "  API      -> http://localhost:8080"
+	@echo "  Web      -> http://localhost:3000"
+	@echo "  MailHog  -> http://localhost:8025"
+	@echo "  RustFS   -> http://localhost:9001  (minioadmin / minioadmin)"
+	@echo "  PgSQL    -> localhost:5432"
+	@echo "  Redis    -> localhost:6379"
 
-run: docker start
+dev-down:
+	@echo "Stopping workers..."
+	docker compose -f ./docker-compose-workers.yml down
+	@echo "Stopping infra..."
+	docker compose -f ./docker-compose.yml down
+
+# Внутренние цели
+docker-infra:
+	@echo "Starting infrastructure (db, redis, mailhog, rustfs, api, web)..."
+	docker compose -f ./docker-compose.yml up -d --build
+
+docker-workers:
+	@echo "Starting workers (smtp, telegram, telegram-bot)..."
+	docker compose -f ./docker-compose-workers.yml up -d --build
+
+docker-down:
+	docker compose -f ./docker-compose.yml down
+	docker compose -f ./docker-compose-workers.yml down
+
+# Устаревший запуск (вне Docker)
+run: docker-infra start
 
 start:
 	@echo "Run cactus..."
@@ -18,9 +46,9 @@ start:
 	@echo "Run telegram-worker..."
 	go run ./cmd/telegram-worker/ &
 
-docker:
-	@echo "Run docker-compose..."
-	docker-compose -f ./docker-compose.dev.yml up -d --build
+migration:
+	@echo "Run migration..."
+	dbmate --env-file ".env.dbmate.local" up
 
 seed:
 	@echo "Run seeding..."
@@ -28,10 +56,6 @@ seed:
 
 %:
 	@:
-
-migration:
-	@echo "Run migration..."
-	dbmate --env-file ".env.dbmate.local" up
 
 test:
 	@echo "Run test..."

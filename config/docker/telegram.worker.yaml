@@ -1,0 +1,7 @@
+env: "local"
+worker_uuid: "fc563960-a790-4fc4-b1da-24ca41163a6e"
+token: "decedb9c-3a96-4b0f-9638-f2276ec624dd"
+redis:
+  address: "redis:6379"
+  user: ""
+  password: "root"

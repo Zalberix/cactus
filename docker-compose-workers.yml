@@ -1,0 +1,60 @@
+name: cactus-workers
+services:
+  smtp-worker:
+    build:
+      context: .
+      dockerfile: docker/local/worker.Dockerfile
+    restart: unless-stopped
+    command: go run ./cmd/smtp-worker/
+    volumes:
+      - .:/app
+      # smtp-worker загружает ./config/email.worker.yaml
+      - ./config/docker/email.worker.yaml:/app/config/email.worker.yaml
+      - go-mod-cache:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
+    networks:
+      - cactus-net
+
+  telegram-worker:
+    build:
+      context: .
+      dockerfile: docker/local/worker.Dockerfile
+    restart: unless-stopped
+    command: go run ./cmd/telegram-worker/
+    volumes:
+      - .:/app
+      # telegram-worker загружает ./config/telegram.worker.yaml
+      - ./config/docker/telegram.worker.yaml:/app/config/telegram.worker.yaml
+      - go-mod-cache:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
+    networks:
+      - cactus-net
+
+  telegram-bot:
+    build:
+      context: .
+      dockerfile: docker/telegram-bot.Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8008:80"
+    environment:
+      - SERVICE_PORT=80
+    volumes:
+      - ./cmd/telegram-bot/subscriptions.db:/src/cmd/telegram-bot/subscriptions.db
+    env_file:
+      - ./cmd/telegram-bot/.env
+    networks:
+      - cactus-net
+
+volumes:
+  go-mod-cache:
+    external: true
+    name: cactus_go-mod-cache
+  go-build-cache:
+    external: true
+    name: cactus_go-build-cache
+
+networks:
+  cactus-net:
+    external: true
+    name: cactus-net
