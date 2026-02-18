@@ -7,7 +7,7 @@ dev: docker-infra docker-workers
 	@echo "  API      -> http://localhost:8080"
 	@echo "  Web      -> http://localhost:3000"
 	@echo "  MailHog  -> http://localhost:8025"
-	@echo "  RustFS   -> http://localhost:9001  (minioadmin / minioadmin)"
+	@echo "  RustFS   -> http://localhost:9001  (s3admin / s3admin)"
 	@echo "  PgSQL    -> localhost:5432"
 	@echo "  Redis    -> localhost:6379"
 

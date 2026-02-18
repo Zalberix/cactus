@@ -81,15 +81,12 @@ services:
     restart: unless-stopped
     ports:
       - "1025:1025"
-      - "8025:8025" # Web UI: http://localhost:8025
+      - "8025:8025"
     environment:
       MH_STORAGE: "memory"
     networks:
       - cactus-net
 
-  # RustFS — S3-совместимое хранилище (замена MinIO)
-  # Web консоль: http://localhost:9001  login: minioadmin / minioadmin
-  # S3 endpoint: http://localhost:9000
   rustfs:
     image: rustfs/rustfs:latest
     restart: unless-stopped
@@ -97,8 +94,8 @@ services:
       - "9000:9000"
       - "9001:9001"
     environment:
-      RUSTFS_ACCESS_KEY: minioadmin
-      RUSTFS_SECRET_KEY: minioadmin
+      RUSTFS_ACCESS_KEY: s3admin
+      RUSTFS_SECRET_KEY: s3admin
     volumes:
       - ./assets/rustfs-data:/data
     networks:
