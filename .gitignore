@@ -33,3 +33,4 @@ go.work
 /tmp/
 /app/*
 .env
+/docker/assets/

@@ -1,47 +1,46 @@
 name: cactus
 
 services:
-  api:
-    build:
-      context: .
-      dockerfile: docker/local/air.Dockerfile
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    volumes:
-      - .:/app
-      # Override config with docker-specific values (service names instead of localhost)
-      - ./config/docker/cactus.yaml:/app/config/local/cactus.yaml
-      - go-mod-cache:/go/pkg/mod
-      - go-build-cache:/root/.cache/go-build
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - cactus-net
+#  api:
+#    build:
+#      context: .
+#      dockerfile: docker/local/air.Dockerfile
+#    restart: unless-stopped
+#    ports:
+#      - "8080:8080"
+#    volumes:
+#      - .:/app
+#      # Override config with docker-specific values (service names instead of localhost)
+#      - ./configs/docker/cactus.yaml:/app/config/local/cactus.yaml
+#      - go-mod-cache:/go/pkg/mod
+#      - go-build-cache:/root/.cache/go-build
+#    depends_on:
+#      db:
+#        condition: service_healthy
+#      nats:
+#        condition: service_healthy
+#    networks:
+#      - cactus-net
 
   web:
     build:
-      context: ./web/cactus
-      dockerfile: ../../docker/local/web.Dockerfile
+      context: ./web
+      dockerfile: ../docker/local/web.Dockerfile
     restart: unless-stopped
     ports:
       - "3000:3000"
     volumes:
-      - ./web/cactus:/app
-      # Named volume keeps node_modules from being overwritten by host mount
+      - ./web:/app
       - web-node-modules:/app/node_modules
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8080
-    depends_on:
-      - api
+#    depends_on:
+#      - api
     networks:
       - cactus-net
 
   db:
-    image: postgres:15.1
+    image: postgres:17.1
     restart: unless-stopped
     ports:
       - "5432:5432"
@@ -50,29 +49,20 @@ services:
       POSTGRES_USER: "root"
       POSTGRES_PASSWORD: "root"
     volumes:
-      - ./assets/pgsql-cactus-volume:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U root -d postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+      - ./docker/assets/postgres:/var/lib/postgresql/data
     networks:
       - cactus-net
 
-  redis:
-    image: redis:8.0.3-alpine
-    hostname: redis
+  nats:
+    image: nats:2.10.11-scratch
+    command: -js -m 8222 --config /etc/nats/nats.conf
     restart: unless-stopped
-    ports:
-      - "6379:6379"
-    command: redis-server --requirepass root
     volumes:
-      - ./assets/redis-cactus-volume:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "-a", "root", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+      - ./configs/nats.conf:/etc/nats/nats.conf:ro
+      - ./docker/assets/nats:/data
+    ports:
+      - "4222:4222"
+      - "8222:8222"
     networks:
       - cactus-net
 
@@ -97,7 +87,7 @@ services:
       RUSTFS_ACCESS_KEY: s3admin
       RUSTFS_SECRET_KEY: s3admin
     volumes:
-      - ./assets/rustfs-data:/data
+      - ./docker/assets/rustfs:/data
     networks:
       - cactus-net
 

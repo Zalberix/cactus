@@ -1,4 +1,4 @@
-.PHONY: all dev dev-down dev-logs run test docker docker-workers docker-down lint migration seed gci format watch
+.PHONY: all dev dev-down dev-logs run test docker docker-workers docker-down lint migration migrate-down migrate-status migrate-create gci format watch
 
 # Локальная разработка в Docker
 dev: docker-infra docker-workers
@@ -35,7 +35,7 @@ run: docker-infra start
 
 start:
 	@echo "Run cactus..."
-	go run ./cmd/cactus/main.go &
+	go run ./apps/core/cmd/cactus/main.go &
 
 	@echo "Waiting for cactus API..."
 	while ! curl -s http://localhost:8080/healthz > /dev/null; do sleep 1; done
@@ -47,19 +47,24 @@ start:
 	go run ./cmd/telegram-worker/ &
 
 migration:
-	@echo "Run migration..."
-	dbmate --env-file ".env.dbmate.local" up
+	@echo "Applying migrations..."
+	go run ./cli/main.go migration up
 
-seed:
-	@echo "Run seeding..."
-	go run ./cmd/seeding/ $(filter-out $@,$(MAKECMDGOALS))
+migration-down:
+	@echo "Rolling back last migration..."
+	go run ./cli/main.go migration down
 
-%:
-	@:
+migration-status:
+	@echo "Migration status..."
+	go run ./cli/main.go migration status
+
+migration-create:
+	@echo "Creating migration: $(name)"
+	go run ./cli/main.go migration create $(name)
 
 test:
 	@echo "Run test..."
-	CGO_ENABLED=1 go test -race -count 100 ./internal/...
+	CGO_ENABLED=1 go test -race -count 100 ./apps/core/...
 
 lint:
 	@echo "Run golangci-lint..."

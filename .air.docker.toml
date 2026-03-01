@@ -4,7 +4,7 @@ tmp_dir = "tmp"
 
 [build]
   bin = "./bin/dev"
-  cmd = "go build -o ./bin/dev ./cmd/cactus/main.go"
+  cmd = "go build -o ./bin/dev ./apps/core/cmd/cactus/main.go"
   delay = 1000
   exclude_dir = ["assets", "bin", "vendor", "testdata", "web", "node_modules"]
   exclude_file = []

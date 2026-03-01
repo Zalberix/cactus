@@ -5,11 +5,11 @@ services:
       context: .
       dockerfile: docker/local/worker.Dockerfile
     restart: unless-stopped
-    command: go run ./cmd/smtp-worker/
+    command: go run ./apps/smtp-worker/cmd/smtp-worker/
     volumes:
       - .:/app
       # smtp-worker загружает ./config/email.worker.yaml
-      - ./config/docker/email.worker.yaml:/app/config/email.worker.yaml
+      - ./configs/docker/email.worker.yaml:/app/config/email.worker.yaml
       - go-mod-cache:/go/pkg/mod
       - go-build-cache:/root/.cache/go-build
     networks:
@@ -20,11 +20,11 @@ services:
       context: .
       dockerfile: docker/local/worker.Dockerfile
     restart: unless-stopped
-    command: go run ./cmd/telegram-worker/
+    command: go run ./apps/telegram-worker/cmd/telegram-worker/
     volumes:
       - .:/app
       # telegram-worker загружает ./config/telegram.worker.yaml
-      - ./config/docker/telegram.worker.yaml:/app/config/telegram.worker.yaml
+      - ./configs/docker/telegram.worker.yaml:/app/config/telegram.worker.yaml
       - go-mod-cache:/go/pkg/mod
       - go-build-cache:/root/.cache/go-build
     networks:
@@ -40,9 +40,9 @@ services:
     environment:
       - SERVICE_PORT=80
     volumes:
-      - ./cmd/telegram-bot/subscriptions.db:/src/cmd/telegram-bot/subscriptions.db
+      - ./apps/telegram-bot/cmd/telegram-bot/subscriptions.db:/src/apps/telegram-bot/cmd/telegram-bot/subscriptions.db
     env_file:
-      - ./cmd/telegram-bot/.env
+      - ./apps/telegram-bot/cmd/telegram-bot/.env
     networks:
       - cactus-net
 
