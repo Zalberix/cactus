@@ -1,44 +1,6 @@
 name: cactus
 
 services:
-#  api:
-#    build:
-#      context: .
-#      dockerfile: docker/local/air.Dockerfile
-#    restart: unless-stopped
-#    ports:
-#      - "8080:8080"
-#    volumes:
-#      - .:/app
-#      # Override config with docker-specific values (service names instead of localhost)
-#      - ./configs/docker/cactus.yaml:/app/config/local/cactus.yaml
-#      - go-mod-cache:/go/pkg/mod
-#      - go-build-cache:/root/.cache/go-build
-#    depends_on:
-#      db:
-#        condition: service_healthy
-#      nats:
-#        condition: service_healthy
-#    networks:
-#      - cactus-net
-
-  web:
-    build:
-      context: ./web
-      dockerfile: ../docker/local/web.Dockerfile
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./web:/app
-      - web-node-modules:/app/node_modules
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8080
-#    depends_on:
-#      - api
-    networks:
-      - cactus-net
-
   db:
     image: postgres:17.1
     restart: unless-stopped

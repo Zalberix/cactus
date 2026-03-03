@@ -4,13 +4,14 @@ import (
 	"cactus/apps/core/config"
 	"cactus/apps/core/pkg/db"
 	"context"
+	"os"
+
+	_ "cactus/libs/migrations/postgres"
+
 	"github.com/jmoiron/sqlx"
 	"github.com/pressly/goose/v3"
 	"github.com/pterm/pterm"
 	"github.com/urfave/cli/v2"
-	"os"
-
-	_ "cactus/libs/migrations/postgres"
 )
 
 //const migrationsDir = "./libs/migrations/postgres"

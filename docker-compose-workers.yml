@@ -5,10 +5,10 @@ services:
       context: .
       dockerfile: docker/local/worker.Dockerfile
     restart: unless-stopped
-    command: go run ./apps/smtp-worker/cmd/smtp-worker/
+    command: go run ./apps/smtp/cmd/smtp/
     volumes:
       - .:/app
-      # smtp-worker загружает ./config/email.worker.yaml
+      # smtp загружает ./config/email.worker.yaml
       - ./configs/docker/email.worker.yaml:/app/config/email.worker.yaml
       - go-mod-cache:/go/pkg/mod
       - go-build-cache:/root/.cache/go-build

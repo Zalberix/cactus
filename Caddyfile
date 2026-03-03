@@ -1,0 +1,19 @@
+{
+	email zalberix@gmail.com
+	on_demand_tls {
+		ask http://localhost:3009/v1/short-links/custom-domain/allow
+	}
+}
+
+{$SITE_BASE_URL} dev.cactus.app http://localhost:3005 {
+    reverse_proxy http://127.0.0.1:3010
+    tls internal
+
+    handle_path /api/* {
+        reverse_proxy 127.0.0.1:3009
+    }
+
+#    handle_path /socket/* {
+#        reverse_proxy http://127.0.0.1:3004
+#    }
+}

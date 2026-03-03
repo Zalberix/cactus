@@ -34,3 +34,4 @@ go.work
 /app/*
 .env
 /docker/assets/
+/node_modules/

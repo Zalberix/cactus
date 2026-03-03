@@ -1,0 +1,16 @@
+{
+  "name": "cactus",
+  "type": "module",
+  "private": true,
+  "author": "Zalberix <zalberix@gmail.com>",
+  "scripts": {
+    "dev": "npm run cli dev",
+    "build": "npm run cli build",
+    "cli": "go run ./cli/main.go"
+  },
+  "workspaces": {
+    "packages": [
+      "web"
+    ]
+  }
+}

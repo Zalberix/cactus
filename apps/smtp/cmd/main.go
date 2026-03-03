@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cactus/apps/smtp/config"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -14,9 +15,9 @@ import (
 	"github.com/redis/go-redis/v9"
 	"gopkg.in/gomail.v2"
 
-	"cactus/libs/shared/logger"
 	"cactus/libs/shared/configschema"
 	"cactus/libs/shared/contracts"
+	"cactus/libs/shared/logger"
 	rdb "cactus/libs/shared/redis"
 	"cactus/libs/worker"
 )
@@ -144,7 +145,7 @@ func main() {
 	Type := "email"
 	Kind := "smtp"
 
-	conf := MustLoad("./config/email.worker.yaml")
+	conf := config.MustLoad("./config/email.worker.yaml")
 
 	if conf.WorkerUUID == "" {
 		slog.Error("worker обязан иметь ID (UUID)")
