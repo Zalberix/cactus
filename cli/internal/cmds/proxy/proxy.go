@@ -13,8 +13,6 @@ import (
 	"github.com/pterm/pterm"
 )
 
-var proxyCmd *exec.Cmd
-
 // StartProxy launches Caddy via `go tool caddy` using the project Caddyfile.
 // It blocks until port 80 is reachable or times out.
 // Pass debug=true to enable Caddy's --watch flag.

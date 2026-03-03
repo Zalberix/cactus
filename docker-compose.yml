@@ -1,6 +1,56 @@
 name: cactus
 
 services:
+  temporal:
+    image: temporalio/auto-setup:1.22.2
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      # this is db addr
+      - POSTGRES_SEEDS=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=cactus
+      - POSTGRES_PWD=cactus
+      - POSTGRES_DB=temporal
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+    volumes:
+      - ./configs/temporal:/etc/temporal/config/dynamicconfig
+    networks:
+      - cactus-net
+    ports:
+      - "7233:7233"
+    labels:
+      kompose.volume.type: configMap
+
+  temporal-admin-tools:
+    image: temporalio/admin-tools:1.3.2
+    restart: unless-stopped
+    depends_on:
+      - temporal
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CLI_ADDRESS=temporal:7233
+    networks:
+      - cactus-net
+    stdin_open: true
+    tty: true
+
+  temporal-ui:
+    image: temporalio/ui:2.45.4
+    restart: unless-stopped
+    depends_on:
+      - temporal
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+    networks:
+      - cactus-net
+    ports:
+      - "7234:8080"
+
   db:
     image: postgres:17.1
     restart: unless-stopped
@@ -16,7 +66,7 @@ services:
       - cactus-net
 
   nats:
-    image: nats:2.10.11-scratch
+    image: nats:2.12.4-scratch
     command: -js -m 8222 --config /etc/nats/nats.conf
     restart: unless-stopped
     volumes:

@@ -1,23 +1,11 @@
 package dependencies
 
 import (
-	"cactus/cli/internal/shell"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/pterm/pterm"
 )
-
-// Install runs `npm install` at the monorepo root.
-func Install(rootDir string) error {
-	pterm.Info.Println("Installing dependencies...")
-	return shell.ExecCommand(
-		shell.ExecCommandOpts{
-			Command: "npm install",
-			Pwd:     rootDir,
-		},
-	)
-}
 
 var Cmd = &cli.Command{
 	Name:    "dependencies",
