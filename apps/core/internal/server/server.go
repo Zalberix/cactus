@@ -10,7 +10,6 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"cactus/apps/core/config"
-	sqlxconect "cactus/apps/core/pkg/db"
 	wshub "cactus/apps/core/internal/pkg/wshub"
 	"cactus/apps/core/internal/plugin/smtp"
 	"cactus/apps/core/internal/plugin/telegram"
@@ -19,11 +18,12 @@ import (
 	"cactus/apps/core/internal/service/core"
 	"cactus/apps/core/internal/service/pipeline"
 	"cactus/apps/core/internal/storage/broker"
-	"cactus/apps/core/storage/db"
 	filestorage "cactus/apps/core/internal/storage/file"
 	pluginstorage "cactus/apps/core/internal/storage/plugin"
-	rdb "cactus/libs/shared/redis"
 	"cactus/apps/core/internal/storage/store"
+	sqlxconect "cactus/apps/core/pkg/db"
+	"cactus/apps/core/storage/db"
+	rdb "cactus/libs/shared/redis"
 )
 
 type Server struct {
@@ -67,7 +67,7 @@ func Create(conf config.Config) (Server, error) {
 		return Server{}, fmt.Errorf("create redis connection: %w", err)
 	}
 
-	fileStorage, _ := filestorage.New("app/files") // TODO path вынести в конфиг
+	fileStorage, _ := filestorage.New("storages/local") // TODO path вынести в конфиг
 
 	pluginStorage := pluginstorage.New()
 

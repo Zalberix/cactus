@@ -29,9 +29,9 @@ go.work
 /dataSources.local.xml
 /.idea/
 /.vscode/
-/assets/*
 /tmp/
 /app/*
 .env
 /docker/assets/
 /node_modules/
+/storages/local/
