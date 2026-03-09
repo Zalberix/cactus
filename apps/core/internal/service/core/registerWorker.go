@@ -11,9 +11,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 
-	dto "cactus/apps/core/internal/DTO"
-	configschema "cactus/libs/shared/configschema"
-	"cactus/apps/core/storage/db"
+	dto "github.com/zalberix/cactus/apps/core/internal/DTO"
+	"github.com/zalberix/cactus/libs/pipeline"
+	"github.com/zalberix/cactus/apps/core/storage/db"
 )
 
 type RegisterWorkerParams struct {
@@ -22,7 +22,7 @@ type RegisterWorkerParams struct {
 	NameKind     string
 	Type         string
 	NameType     string
-	ConfigSchema []configschema.ConfigField
+	ConfigSchema []pipeline.ConfigField
 }
 
 func (s *Service) RegisterWorker(

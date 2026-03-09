@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	chat_service "cactus/apps/core/internal/service/chat"
+	chat_service "github.com/zalberix/cactus/apps/core/internal/service/chat"
 )
 
 // Подключение к сокету.

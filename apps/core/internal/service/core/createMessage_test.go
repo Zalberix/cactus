@@ -12,13 +12,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
-	dto "cactus/apps/core/internal/DTO"
-	"cactus/libs/shared/contracts"
-	pkgpipe "cactus/libs/shared/pipeline"
-	mocks_plugin "cactus/apps/core/internal/plugin/mocks"
-	"cactus/apps/core/internal/service/core"
-	"cactus/apps/core/internal/service/core/mocks"
-	"cactus/apps/core/storage/db"
+	dto "github.com/zalberix/cactus/apps/core/internal/DTO"
+	"github.com/zalberix/cactus/libs/pipeline"
+	pkgpipe "github.com/zalberix/cactus/libs/pipeline"
+	mocks_plugin "github.com/zalberix/cactus/apps/core/internal/plugin/mocks"
+	"github.com/zalberix/cactus/apps/core/internal/service/core"
+	"github.com/zalberix/cactus/apps/core/internal/service/core/mocks"
+	"github.com/zalberix/cactus/apps/core/storage/db"
 )
 
 func TestCreateMessage_Success(t *testing.T) {
@@ -107,8 +107,8 @@ func TestCreateMessage_Success(t *testing.T) {
 	mockBroker.EXPECT().
 		AddMessageToQueue(
 			ctx, nameQueue, gomock.Any(),
-			contracts.SystemValueInMessageQueue{Name: "test"},
-			contracts.PipelineValueInMessageQueue{Step: 1},
+			pipeline.SystemInQueue{Name: "test"},
+			pipeline.PipelineInQueue{Step: 1},
 		).
 		Return(nil)
 

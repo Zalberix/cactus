@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	dto "cactus/apps/core/internal/DTO"
+	dto "github.com/zalberix/cactus/apps/core/internal/DTO"
 )
 
 func (s *Service) GetTypeWorkers(ctx context.Context) ([]dto.TypeWorker, error) {

@@ -1,5 +1,5 @@
 package dto
 
-import "cactus/apps/core/storage/db"
+import "github.com/zalberix/cactus/apps/core/storage/db"
 
 type KindWorker db.KindWorker

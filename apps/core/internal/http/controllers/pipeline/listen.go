@@ -6,8 +6,8 @@ import (
 
 	"github.com/go-playground/validator/v10"
 
-	"cactus/apps/core/internal/http/response"
-	"cactus/apps/core/internal/service/pipeline"
+	"github.com/zalberix/cactus/apps/core/internal/http/response"
+	"github.com/zalberix/cactus/apps/core/internal/service/pipeline"
 )
 
 // Подключение к сокету.

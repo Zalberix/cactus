@@ -1,13 +1,10 @@
 package proxy
 
 import (
-	"cactus/cli/internal/shell"
 	"fmt"
+	"github.com/zalberix/cactus/cli/internal/shell"
 	"net"
 	"os"
-	"os/exec"
-	"runtime"
-	"strings"
 	"time"
 
 	"github.com/pterm/pterm"
@@ -25,50 +22,6 @@ func StartProxy(debug bool) (<-chan struct{}, error) {
 		return startChannel, err
 	}
 
-	caddyFindCmd := exec.Command(
-		"go",
-		"tool",
-		"-n", // -n prints the command without running it, giving us the path
-		"github.com/caddyserver/caddy/v2/cmd/caddy",
-	)
-	caddyFindCmd.Dir = wd
-	caddyPathBytes, err := caddyFindCmd.Output()
-	if err != nil {
-		return startChannel, fmt.Errorf("failed to find Caddy path: %v", err)
-	}
-	caddyPath := strings.TrimSpace(string(caddyPathBytes))
-
-	if runtime.GOOS == "linux" {
-		// Check if the capability is already set
-		getcapCmd := exec.Command("getcap", caddyPath)
-		getcapCmd.Dir = wd
-		getcapOutput, err := getcapCmd.Output()
-		if err != nil {
-			// If getcap fails (e.g., command not found), proceed cautiously
-			pterm.Warning.Println("Could not check capabilities; assuming they need to be set")
-		}
-
-		// Check if cap_net_bind_service is present
-		if !strings.Contains(string(getcapOutput), "cap_net_bind_service") {
-			pterm.Warning.Println("!!! ATTENTION !!!")
-			pterm.Warning.Println("We need your sudo password to bind web server to port 443 (this is a one-time setup)")
-
-			// Set the capability if missing
-			setcapCmd := fmt.Sprintf("sudo setcap 'cap_net_bind_service=+ep' %s", caddyPath)
-			if err := shell.ExecCommand(
-				shell.ExecCommandOpts{
-					Command: setcapCmd,
-					Stdout:  os.Stdout,
-					Stderr:  os.Stderr,
-					Pwd:     wd,
-				},
-			); err != nil {
-				return startChannel, fmt.Errorf("failed to set capability: %v", err)
-			}
-			pterm.Success.Println("Capability set successfully; no further sudo prompts needed unless Caddy binary changes")
-		}
-	}
-
 	go func() {
 		for !checkIsProxyStarted(80) {
 			pterm.Info.Println("Waiting for proxy to start")
@@ -81,7 +34,7 @@ func StartProxy(debug bool) (<-chan struct{}, error) {
 	}()
 
 	commandOpts := shell.ExecCommandOpts{
-		Command: "go tool github.com/caddyserver/caddy/v2/cmd/caddy run --watch --config Caddyfile",
+		Command: "go run github.com/caddyserver/caddy/v2/cmd/caddy@latest run --watch --config Caddyfile",
 		Stdout:  os.Stdout,
 		Stderr:  os.Stderr,
 		Pwd:     wd,

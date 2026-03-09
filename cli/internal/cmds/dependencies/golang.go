@@ -1,7 +1,7 @@
 package dependencies
 
 import (
-	"cactus/cli/internal/shell"
+	"github.com/zalberix/cactus/cli/internal/shell"
 	"os"
 )
 

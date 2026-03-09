@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
-	dto "cactus/apps/core/internal/DTO"
-	"cactus/apps/core/internal/service/core"
-	"cactus/apps/core/internal/service/core/mocks"
-	"cactus/apps/core/storage/db"
+	dto "github.com/zalberix/cactus/apps/core/internal/DTO"
+	"github.com/zalberix/cactus/apps/core/internal/service/core"
+	"github.com/zalberix/cactus/apps/core/internal/service/core/mocks"
+	"github.com/zalberix/cactus/apps/core/storage/db"
 )
 
 type testSetupGetKindWorker struct {

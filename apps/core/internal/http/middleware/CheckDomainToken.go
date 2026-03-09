@@ -4,10 +4,10 @@ import (
 	"context"
 	"net/http"
 
-	dto "cactus/apps/core/internal/DTO"
-	"cactus/apps/core/internal/http/response"
-	"cactus/apps/core/internal/pkg/contextkeys"
-	"cactus/apps/core/storage/db"
+	dto "github.com/zalberix/cactus/apps/core/internal/DTO"
+	"github.com/zalberix/cactus/apps/core/internal/http/response"
+	"github.com/zalberix/cactus/apps/core/internal/pkg/contextkeys"
+	"github.com/zalberix/cactus/apps/core/storage/db"
 )
 
 type coreService interface {

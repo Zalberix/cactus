@@ -1,4 +1,4 @@
-module cactus/cli
+module github.com/zalberix/cactus/cli
 
 go 1.25.5
 

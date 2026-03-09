@@ -7,16 +7,16 @@ import (
 
 	"github.com/google/uuid"
 
-	dto "cactus/apps/core/internal/DTO"
-	"cactus/libs/shared/pipeline"
-	"cactus/apps/core/storage/db"
+	dto "github.com/zalberix/cactus/apps/core/internal/DTO"
+	"github.com/zalberix/cactus/apps/core/storage/db"
+	lp "github.com/zalberix/cactus/libs/pipeline"
 )
 
 func (s *Service) UpdateStatusPipeline(
 	ctx context.Context,
 	uuidMessage string,
 	step int32,
-	status pipeline.Status,
+	status lp.Status,
 	workerUUID string,
 ) (dto.Pipeline, error) {
 	UUIDm, err := uuid.Parse(uuidMessage)

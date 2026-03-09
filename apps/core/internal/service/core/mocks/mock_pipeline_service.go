@@ -10,8 +10,8 @@
 package mocks
 
 import (
-	dto "cactus/apps/core/internal/DTO"
-	pipeline "cactus/apps/core/internal/service/pipeline"
+	dto "github.com/zalberix/cactus/apps/core/internal/DTO"
+	pipeline "github.com/zalberix/cactus/apps/core/internal/service/pipeline"
 	context "context"
 	reflect "reflect"
 

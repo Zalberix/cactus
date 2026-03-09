@@ -3,7 +3,7 @@ package core
 import (
 	"context"
 
-	dto "cactus/apps/core/internal/DTO"
+	dto "github.com/zalberix/cactus/apps/core/internal/DTO"
 )
 
 func (s *Service) GetKindWokerByID(ctx context.Context, id int32) (dto.KindWorker, error) {

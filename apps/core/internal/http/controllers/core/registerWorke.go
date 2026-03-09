@@ -8,11 +8,11 @@ import (
 
 	"github.com/google/uuid"
 
-	dto "cactus/apps/core/internal/DTO"
-	"cactus/apps/core/internal/error/validation"
-	"cactus/apps/core/internal/http/response"
-	"cactus/apps/core/internal/service/core"
-	"cactus/libs/shared/contracts"
+	dto "github.com/zalberix/cactus/apps/core/internal/DTO"
+	"github.com/zalberix/cactus/apps/core/internal/error/validation"
+	"github.com/zalberix/cactus/apps/core/internal/http/response"
+	"github.com/zalberix/cactus/apps/core/internal/service/core"
+	"github.com/zalberix/cactus/libs/pipeline"
 )
 
 type registerWorkerService interface {
@@ -27,7 +27,7 @@ func RegisterWorker(s registerWorkerService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		var req contracts.RegisterWorkerRequest
+		var req pipeline.RegisterWorkerRequest
 		_ = json.NewDecoder(r.Body).Decode(&req)
 
 		errors, err := validation.ValidateStructure(&req)
@@ -73,7 +73,7 @@ func RegisterWorker(s registerWorkerService) http.HandlerFunc {
 			return
 		}
 
-		response.OKJSON(w, contracts.RegisterWorkerResponse{
+		response.OKJSON(w, pipeline.RegisterWorkerResponse{
 			Created: created.Created,
 			ID:      created.ID,
 			Config:  created.Config,

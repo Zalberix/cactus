@@ -10,8 +10,8 @@
 package mocks
 
 import (
-	pipeline "cactus/libs/shared/pipeline"
-	plugin "cactus/apps/core/internal/plugin"
+	pipeline "github.com/zalberix/cactus/libs/pipeline"
+	plugin "github.com/zalberix/cactus/apps/core/internal/plugin"
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"

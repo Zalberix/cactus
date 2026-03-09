@@ -18,7 +18,8 @@ type Config struct {
 	Env        string     `yaml:"env" env-default:"dev"`
 	HTTPServer HTTPServer `yaml:"http_server"`
 	Database   Database   `yaml:"db"`
-	Redis      Redis      `yaml:"redis"`
+	Nats       Nats       `yaml:"nats"`
+	Temporal   Temporal   `yaml:"temporal"`
 }
 
 type HTTPServer struct {
@@ -36,18 +37,16 @@ type Database struct {
 	Pass string `yaml:"pass" env-default:"root"`
 }
 
-type Redis struct {
-	Address     string        `yaml:"address" env-default:"localhost:6379"`
-	Password    string        `yaml:"password" env-default:""`
-	User        string        `yaml:"user" env-default:""`
-	DB          int           `yaml:"db" env-default:"0"`
-	MaxRetries  int           `yaml:"max_retries" env-default:"1"`
-	DialTimeout time.Duration `yaml:"dial_timeout" env-default:"10s"`
-	Timeout     time.Duration `yaml:"timeout" env-default:"10s"`
+type Nats struct {
+	URL string `yaml:"url" env-default:"nats://localhost:4222"`
+}
+
+type Temporal struct {
+	HostPort  string `yaml:"host_port" env-default:"localhost:7233"`
+	Namespace string `yaml:"namespace" env-default:"default"`
 }
 
 func MustLoad(cnfPath *string) *Config {
-	// TODO переделать на переменную среды так как нужно будет менять его при переезде на продакшен.
 	configPath := "./configs/apps/core.yaml"
 	if cnfPath != nil {
 		configPath = *cnfPath

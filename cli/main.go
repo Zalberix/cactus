@@ -6,9 +6,9 @@ import (
 	"github.com/pterm/pterm"
 	"github.com/urfave/cli/v2"
 
-	"cactus/cli/internal/cmds/dev"
-	"cactus/cli/internal/cmds/kill"
-	"cactus/cli/internal/cmds/migrations"
+	"github.com/zalberix/cactus/cli/internal/cmds/dev"
+	"github.com/zalberix/cactus/cli/internal/cmds/kill"
+	"github.com/zalberix/cactus/cli/internal/cmds/migrations"
 )
 
 func main() {

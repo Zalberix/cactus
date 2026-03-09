@@ -10,11 +10,11 @@ import (
 
 	"github.com/google/uuid"
 
-	dto "cactus/apps/core/internal/DTO"
-	pl "cactus/libs/shared/pipeline"
-	"cactus/apps/core/internal/plugin"
-	"cactus/apps/core/internal/service/pipeline"
-	"cactus/apps/core/storage/db"
+	dto "github.com/zalberix/cactus/apps/core/internal/DTO"
+	"github.com/zalberix/cactus/apps/core/internal/plugin"
+	"github.com/zalberix/cactus/apps/core/internal/service/pipeline"
+	"github.com/zalberix/cactus/apps/core/storage/db"
+	pl "github.com/zalberix/cactus/libs/pipeline"
 )
 
 type CreateMessageParams struct {

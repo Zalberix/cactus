@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 
-	dto "cactus/apps/core/internal/DTO"
-	"cactus/apps/core/internal/error/validation"
-	"cactus/apps/core/internal/http/request"
-	"cactus/apps/core/internal/http/response"
+	dto "github.com/zalberix/cactus/apps/core/internal/DTO"
+	"github.com/zalberix/cactus/apps/core/internal/error/validation"
+	"github.com/zalberix/cactus/apps/core/internal/http/request"
+	"github.com/zalberix/cactus/apps/core/internal/http/response"
 )
 
 type getMessagesService interface {

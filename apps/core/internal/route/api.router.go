@@ -1,12 +1,12 @@
 package route
 
 import (
-	core_controller "cactus/apps/core/internal/http/controllers/core"
-	"cactus/apps/core/internal/http/middleware"
-	"cactus/apps/core/internal/pkg/router"
-	"cactus/apps/core/internal/service/core"
-	"cactus/apps/core/internal/service/pipeline"
-	"cactus/apps/core/internal/storage/plugin"
+	core_controller "github.com/zalberix/cactus/apps/core/internal/http/controllers/core"
+	"github.com/zalberix/cactus/apps/core/internal/http/middleware"
+	"github.com/zalberix/cactus/apps/core/internal/pkg/router"
+	"github.com/zalberix/cactus/apps/core/internal/service/core"
+	"github.com/zalberix/cactus/apps/core/internal/service/pipeline"
+	"github.com/zalberix/cactus/apps/core/internal/storage/plugin"
 )
 
 func addRouteAPI(

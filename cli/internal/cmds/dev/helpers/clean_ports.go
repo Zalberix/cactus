@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"strings"
 
-	"cactus/cli/internal/goapp"
+	"github.com/zalberix/cactus/cli/internal/goapp"
 
 	"github.com/pterm/pterm"
 	"github.com/urfave/cli/v2"

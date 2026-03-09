@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"cactus/apps/core/internal/error/validation"
-	"cactus/apps/core/internal/http/request"
-	"cactus/apps/core/internal/http/response"
+	"github.com/zalberix/cactus/apps/core/internal/error/validation"
+	"github.com/zalberix/cactus/apps/core/internal/http/request"
+	"github.com/zalberix/cactus/apps/core/internal/http/response"
 )
 
 type abortEmailService interface {

@@ -1,8 +1,8 @@
 package smtp
 
 import (
-	"cactus/libs/shared/pipeline"
-	"cactus/apps/core/internal/plugin"
+	"github.com/zalberix/cactus/libs/pipeline"
+	"github.com/zalberix/cactus/apps/core/internal/plugin"
 )
 
 type Plugin struct {

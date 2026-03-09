@@ -9,8 +9,8 @@ import (
 
 	"github.com/gabriel-vasile/mimetype"
 
-	"cactus/apps/core/internal/http/request"
-	"cactus/apps/core/internal/service/core"
+	"github.com/zalberix/cactus/apps/core/internal/http/request"
+	"github.com/zalberix/cactus/apps/core/internal/service/core"
 )
 
 func ParseFileInMultipartForm(

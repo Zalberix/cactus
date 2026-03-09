@@ -10,7 +10,7 @@
 package mocks
 
 import (
-	plugin "cactus/apps/core/internal/plugin"
+	plugin "github.com/zalberix/cactus/apps/core/internal/plugin"
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"

@@ -10,11 +10,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
-	DTO "cactus/apps/core/internal/DTO"
-	pipelinePkg "cactus/libs/shared/pipeline"
-	"cactus/apps/core/internal/service/pipeline"
-	"cactus/apps/core/internal/service/pipeline/mocks"
-	"cactus/apps/core/storage/db"
+	DTO "github.com/zalberix/cactus/apps/core/internal/DTO"
+	pipelinePkg "github.com/zalberix/cactus/libs/pipeline"
+	"github.com/zalberix/cactus/apps/core/internal/service/pipeline"
+	"github.com/zalberix/cactus/apps/core/internal/service/pipeline/mocks"
+	"github.com/zalberix/cactus/apps/core/storage/db"
 )
 
 type testSetupUpdateStatusPipeline struct {

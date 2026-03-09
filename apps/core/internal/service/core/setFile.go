@@ -8,8 +8,8 @@ import (
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/google/uuid"
 
-	dto "cactus/apps/core/internal/DTO"
-	"cactus/apps/core/storage/db"
+	dto "github.com/zalberix/cactus/apps/core/internal/DTO"
+	"github.com/zalberix/cactus/apps/core/storage/db"
 )
 
 type SetFileParams struct {

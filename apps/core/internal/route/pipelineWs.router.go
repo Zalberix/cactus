@@ -1,9 +1,9 @@
 package route
 
 import (
-	pipeline_controller "cactus/apps/core/internal/http/controllers/pipeline"
-	"cactus/apps/core/internal/pkg/router"
-	"cactus/apps/core/internal/service/pipeline"
+	pipeline_controller "github.com/zalberix/cactus/apps/core/internal/http/controllers/pipeline"
+	"github.com/zalberix/cactus/apps/core/internal/pkg/router"
+	"github.com/zalberix/cactus/apps/core/internal/service/pipeline"
 )
 
 func addRoutePipeline(

@@ -34,4 +34,4 @@ go.work
 .env
 /docker/assets/
 /node_modules/
-/storages/local/
+/storages/

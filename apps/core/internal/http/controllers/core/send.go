@@ -7,14 +7,14 @@ import (
 
 	"github.com/go-playground/form"
 
-	"cactus/apps/core/internal/error/validation"
-	"cactus/apps/core/internal/http/request"
-	"cactus/apps/core/internal/http/response"
-	"cactus/apps/core/internal/pkg"
-	"cactus/apps/core/internal/pkg/contextkeys"
-	"cactus/apps/core/internal/service/core"
-	"cactus/apps/core/internal/service/pipeline"
-	"cactus/apps/core/internal/storage/plugin"
+	"github.com/zalberix/cactus/apps/core/internal/error/validation"
+	"github.com/zalberix/cactus/apps/core/internal/http/request"
+	"github.com/zalberix/cactus/apps/core/internal/http/response"
+	"github.com/zalberix/cactus/apps/core/internal/pkg"
+	"github.com/zalberix/cactus/apps/core/internal/pkg/contextkeys"
+	"github.com/zalberix/cactus/apps/core/internal/service/core"
+	"github.com/zalberix/cactus/apps/core/internal/service/pipeline"
+	"github.com/zalberix/cactus/apps/core/internal/storage/plugin"
 )
 
 // Отправка сообщения

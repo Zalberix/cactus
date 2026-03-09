@@ -3,10 +3,10 @@ package route
 import (
 	"github.com/go-chi/cors"
 
-	"cactus/apps/core/internal/pkg/router"
-	"cactus/apps/core/internal/service/core"
-	"cactus/apps/core/internal/service/pipeline"
-	"cactus/apps/core/internal/storage/plugin"
+	"github.com/zalberix/cactus/apps/core/internal/pkg/router"
+	"github.com/zalberix/cactus/apps/core/internal/service/core"
+	"github.com/zalberix/cactus/apps/core/internal/service/pipeline"
+	"github.com/zalberix/cactus/apps/core/internal/storage/plugin"
 )
 
 func New(

@@ -1,7 +1,7 @@
 package dto
 
 import (
-	"cactus/apps/core/storage/db"
+	"github.com/zalberix/cactus/apps/core/storage/db"
 )
 
 type Message struct {

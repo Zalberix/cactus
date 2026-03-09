@@ -1,7 +1,7 @@
 package push
 
 import (
-	"cactus/apps/core/internal/plugin"
+	"github.com/zalberix/cactus/apps/core/internal/plugin"
 )
 
 type Plugin struct {

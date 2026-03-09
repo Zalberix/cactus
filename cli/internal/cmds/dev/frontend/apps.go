@@ -1,7 +1,7 @@
 package frontend
 
 import (
-	"cactus/cli/internal/shell"
+	"github.com/zalberix/cactus/cli/internal/shell"
 	"os"
 	"os/exec"
 	"syscall"

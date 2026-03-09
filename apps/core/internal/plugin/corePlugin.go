@@ -1,6 +1,6 @@
 package plugin
 
-import "cactus/libs/shared/pipeline"
+import "github.com/zalberix/cactus/libs/pipeline"
 
 type CorePlugin struct{}
 

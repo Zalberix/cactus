@@ -1,7 +1,7 @@
 package response
 
 import (
-	dto "cactus/apps/core/internal/DTO"
+	dto "github.com/zalberix/cactus/apps/core/internal/DTO"
 )
 
 type GetTypesWorkerResponse struct {

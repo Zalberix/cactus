@@ -9,15 +9,15 @@ import (
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/google/uuid"
 
-	dto "cactus/apps/core/internal/DTO"
-	"cactus/apps/core/internal/plugin"
-	"cactus/libs/shared/contracts"
-	"cactus/apps/core/internal/server/meta"
-	"cactus/apps/core/internal/service/pipeline"
-	"cactus/apps/core/storage/db"
+	dto "github.com/zalberix/cactus/apps/core/internal/DTO"
+	"github.com/zalberix/cactus/apps/core/internal/plugin"
+	servermeta "github.com/zalberix/cactus/apps/core/internal/server/meta"
+	"github.com/zalberix/cactus/apps/core/internal/service/pipeline"
+	"github.com/zalberix/cactus/apps/core/storage/db"
+	lp "github.com/zalberix/cactus/libs/pipeline"
 )
 
-//go:generate mockgen -package=mocks -destination=mocks/mock_storage.go cactus/internal/service/core Storage
+//go:generate mockgen -package=mocks -destination=mocks/mock_storage.go github.com/zalberix/cactus/apps/core/internal/service/core Storage
 type Storage interface {
 	GetSystemById(ctx context.Context, id int32) (db.System, error)
 	GetPriorityBySystemId(ctx context.Context, id int32) (db.GetPriorityBySystemIdRow, error)
@@ -46,32 +46,32 @@ type Storage interface {
 	Commit() error
 }
 
-//go:generate mockgen -package=mocks -destination=mocks/mock_broker.go cactus/internal/service/core Broker
+//go:generate mockgen -package=mocks -destination=mocks/mock_broker.go github.com/zalberix/cactus/apps/core/internal/service/core Broker
 type Broker interface {
 	EnsureStreamGroup(ctx context.Context, streamName, groupName string) error
 	AddMessageToQueue(
 		ctx context.Context,
-		streamName string,
-		messageDTO contracts.MessageValueInMessageQueue,
-		systemDTO contracts.SystemValueInMessageQueue,
-		pipelineDTO contracts.PipelineValueInMessageQueue,
+		subject string,
+		messageDTO lp.MessageInQueue,
+		systemDTO lp.SystemInQueue,
+		pipelineDTO lp.PipelineInQueue,
 	) error
 }
 
-//go:generate mockgen -package=mocks -destination=mocks/mock_file_storage.go cactus/internal/service/core FileStorage
+//go:generate mockgen -package=mocks -destination=mocks/mock_file_storage.go github.com/zalberix/cactus/apps/core/internal/service/core FileStorage
 type FileStorage interface {
 	Save(ctx context.Context, file multipart.File, ext mimetype.MIME) (path string, err error)
 	Get(ctx context.Context, path string) (*os.File, error)
 }
 
-//go:generate mockgen -package=mocks -destination=mocks/mock_plugins.go cactus/internal/service/core Plugins
+//go:generate mockgen -package=mocks -destination=mocks/mock_plugins.go github.com/zalberix/cactus/apps/core/internal/service/core Plugins
 type Plugins interface {
 	Add(slug string, plugin plugin.Plugin)
 	Delete(slug string)
 	Get(slug string) (p plugin.Plugin, ok bool)
 }
 
-//go:generate mockgen -package=mocks -destination=mocks/mock_pipeline_service.go cactus/internal/service/core PipelineService
+//go:generate mockgen -package=mocks -destination=mocks/mock_pipeline_service.go github.com/zalberix/cactus/apps/core/internal/service/core PipelineService
 type PipelineService interface {
 	CreatePipelineTX(
 		ctx context.Context,
@@ -85,7 +85,7 @@ type Service struct {
 	storage     Storage
 	fileStorage FileStorage
 	plugins     Plugins
-	meta        *meta.ServerMeta
+	meta        *servermeta.ServerMeta
 }
 
 func New(
@@ -93,7 +93,7 @@ func New(
 	broker Broker,
 	fileStorage FileStorage,
 	plugins Plugins,
-	meta *meta.ServerMeta,
+	meta *servermeta.ServerMeta,
 ) *Service {
 	return &Service{
 		broker:      broker,

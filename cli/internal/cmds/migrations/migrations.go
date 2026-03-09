@@ -1,12 +1,12 @@
 package migrations
 
 import (
-	"cactus/apps/core/config"
-	"cactus/apps/core/pkg/db"
 	"context"
+	"github.com/zalberix/cactus/apps/core/config"
+	"github.com/zalberix/cactus/apps/core/pkg/db"
 	"os"
 
-	_ "cactus/libs/migrations/postgres"
+	_ "github.com/zalberix/cactus/libs/migrations/postgres"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/pressly/goose/v3"

@@ -5,13 +5,13 @@ import (
 	"database/sql"
 	"fmt"
 
-	dto "cactus/apps/core/internal/DTO"
-	"cactus/libs/shared/pipeline"
-	"cactus/apps/core/storage/db"
+	dto "github.com/zalberix/cactus/apps/core/internal/DTO"
+	"github.com/zalberix/cactus/apps/core/storage/db"
+	lp "github.com/zalberix/cactus/libs/pipeline"
 )
 
 type CreatePipelineParams struct {
-	Pipeline  []pipeline.Step
+	Pipeline  []lp.Step
 	Message   dto.Message
 	ChannelID int32
 }

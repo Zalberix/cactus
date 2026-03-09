@@ -9,7 +9,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 
-	"cactus/apps/core/storage/db"
+	"github.com/zalberix/cactus/apps/core/storage/db"
 )
 
 type Store struct {

@@ -1,9 +1,9 @@
 package golang
 
 import (
-	"cactus/cli/internal/goapp"
 	"context"
 	"github.com/pterm/pterm"
+	"github.com/zalberix/cactus/cli/internal/goapp"
 )
 
 type GoApps struct {

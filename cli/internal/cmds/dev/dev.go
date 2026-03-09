@@ -7,12 +7,12 @@ import (
 	"strings"
 	"syscall"
 
-	"cactus/cli/internal/cmds/dependencies"
-	"cactus/cli/internal/cmds/dev/frontend"
-	devgolang "cactus/cli/internal/cmds/dev/golang"
-	"cactus/cli/internal/cmds/dev/helpers"
-	"cactus/cli/internal/cmds/migrations"
-	"cactus/cli/internal/cmds/proxy"
+	"github.com/zalberix/cactus/cli/internal/cmds/dependencies"
+	"github.com/zalberix/cactus/cli/internal/cmds/dev/frontend"
+	devgolang "github.com/zalberix/cactus/cli/internal/cmds/dev/golang"
+	"github.com/zalberix/cactus/cli/internal/cmds/dev/helpers"
+	"github.com/zalberix/cactus/cli/internal/cmds/migrations"
+	"github.com/zalberix/cactus/cli/internal/cmds/proxy"
 
 	"github.com/pterm/pterm"
 	"github.com/urfave/cli/v2"

@@ -5,9 +5,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"cactus/apps/core/internal/pkg/wshub"
-	"cactus/apps/core/storage/db"
-	"cactus/apps/core/internal/storage/plugin"
+	"github.com/zalberix/cactus/apps/core/internal/pkg/wshub"
+	"github.com/zalberix/cactus/apps/core/storage/db"
+	"github.com/zalberix/cactus/apps/core/internal/storage/plugin"
 )
 
 type Service struct {

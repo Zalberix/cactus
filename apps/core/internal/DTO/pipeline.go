@@ -1,7 +1,7 @@
 package dto
 
 import (
-	"cactus/apps/core/storage/db"
+	"github.com/zalberix/cactus/apps/core/storage/db"
 )
 
 // Pipeline wraps db.PipelineStep (renamed from pipeline table in schema v0.2.0).

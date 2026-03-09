@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	dto "cactus/apps/core/internal/DTO"
-	"cactus/apps/core/internal/http/response"
+	dto "github.com/zalberix/cactus/apps/core/internal/DTO"
+	"github.com/zalberix/cactus/apps/core/internal/http/response"
 )
 
 type getTypesWorkerService interface {

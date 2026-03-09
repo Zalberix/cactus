@@ -10,12 +10,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
-	DTO "cactus/apps/core/internal/DTO"
-	configSchema "cactus/libs/shared/configschema"
-	mocks_plugin "cactus/apps/core/internal/plugin/mocks"
-	"cactus/apps/core/internal/service/core"
-	"cactus/apps/core/internal/service/core/mocks"
-	"cactus/apps/core/storage/db"
+	DTO "github.com/zalberix/cactus/apps/core/internal/DTO"
+	configSchema "github.com/zalberix/cactus/libs/shared/configschema"
+	mocks_plugin "github.com/zalberix/cactus/apps/core/internal/plugin/mocks"
+	"github.com/zalberix/cactus/apps/core/internal/service/core"
+	"github.com/zalberix/cactus/apps/core/internal/service/core/mocks"
+	"github.com/zalberix/cactus/apps/core/storage/db"
 )
 
 type testSetupRegisterWorker struct {

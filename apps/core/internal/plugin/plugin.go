@@ -1,6 +1,6 @@
 package plugin
 
-import "cactus/libs/shared/pipeline"
+import "github.com/zalberix/cactus/libs/pipeline"
 
 //go:generate mockgen -package=mocks -destination=mocks/mock_plugin.go cactus/internal/plugin Plugin
 type Plugin interface {

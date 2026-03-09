@@ -3,7 +3,7 @@ package core
 import (
 	"context"
 
-	"cactus/apps/core/storage/db"
+	"github.com/zalberix/cactus/apps/core/storage/db"
 )
 
 func (s *Service) GetTokenByPublicToken(ctx context.Context, token string) (db.Token, error) {

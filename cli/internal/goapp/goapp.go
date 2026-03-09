@@ -1,9 +1,9 @@
 package goapp
 
 import (
-	"cactus/cli/internal/shell"
-	"cactus/cli/internal/watcher"
 	"fmt"
+	"github.com/zalberix/cactus/cli/internal/shell"
+	"github.com/zalberix/cactus/cli/internal/watcher"
 	"net"
 	"os"
 	"os/exec"

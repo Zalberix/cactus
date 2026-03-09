@@ -6,7 +6,7 @@ import (
 
 	u "github.com/google/uuid"
 
-	dto "cactus/apps/core/internal/DTO"
+	dto "github.com/zalberix/cactus/apps/core/internal/DTO"
 )
 
 func (s *Service) GetFile(ctx context.Context, uuid string) (dto.GetFile, error) {

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"reflect"
 
-	dto "cactus/apps/core/internal/DTO"
-	"cactus/apps/core/storage/db"
+	dto "github.com/zalberix/cactus/apps/core/internal/DTO"
+	"github.com/zalberix/cactus/apps/core/storage/db"
 )
 
 func (s *Service) GetMessages(ctx context.Context, slug string, systemID int) ([]dto.Message, error) {

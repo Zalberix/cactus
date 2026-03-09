@@ -1,6 +1,6 @@
 package plugin
 
-import "cactus/apps/core/internal/plugin"
+import "github.com/zalberix/cactus/apps/core/internal/plugin"
 
 type Storage struct {
 	plugins map[string]plugin.Plugin

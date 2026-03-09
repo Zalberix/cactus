@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
-	"cactus/apps/core/internal/service/core"
-	"cactus/apps/core/internal/service/core/mocks"
+	"github.com/zalberix/cactus/apps/core/internal/service/core"
+	"github.com/zalberix/cactus/apps/core/internal/service/core/mocks"
 )
 
 func TestGetFile_Success(t *testing.T) {

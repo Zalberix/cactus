@@ -10,7 +10,7 @@
 package mocks
 
 import (
-	db "cactus/apps/core/storage/db"
+	db "github.com/zalberix/cactus/apps/core/storage/db"
 	context "context"
 	reflect "reflect"
 
