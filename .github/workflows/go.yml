@@ -5,9 +5,9 @@ name: Cactus check lint and test
 
 on:
   push:
-    branches: [ "main", "developers" ]
+    branches: [ "main", "dev" ]
   pull_request:
-    branches: [ "main", "developers" ]
+    branches: [ "main", "dev" ]
 
 env:
   GO111MODULE: "on"
@@ -22,7 +22,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.23'
+          go-version: '1.25'
 
       - name: Linters
         uses: golangci/golangci-lint-action@v6
@@ -38,7 +38,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.23'
+          go-version: '1.25'
 
       - name: Unit tests
         run: go test -v -race -count=100 -timeout=1m ./...    
