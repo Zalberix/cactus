@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"cactus/apps/core/storage/db"
+	"github.com/zalberix/cactus/apps/core/storage/db"
 )
 
 type SeedFunc func(ctx context.Context, storage *db.Queries) error

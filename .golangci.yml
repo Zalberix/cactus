@@ -76,4 +76,4 @@ linters:
     - unparam
     - unused
     - wastedassign
-    - whitespace
+    - whitespace

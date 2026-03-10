@@ -11,6 +11,10 @@ type Plugin struct {
 	Slug   string
 }
 
+func NewFx() *Plugin {
+	return New()
+}
+
 func New() *Plugin {
 	return &Plugin{
 		Schema: Schema{},

@@ -30,11 +30,7 @@ type HTTPServer struct {
 }
 
 type Database struct {
-	Host string `yaml:"host" env-default:"db"`
-	Port string `yaml:"port" env-default:"5432"`
-	Name string `yaml:"name" env-default:"cactus"`
-	User string `yaml:"user" env-default:"root"`
-	Pass string `yaml:"pass" env-default:"root"`
+	URL string `yaml:"url" env-default:"postgres://root:root@localhost:5432/postgres?sslmode=disable"`
 }
 
 type Nats struct {

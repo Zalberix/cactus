@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"cactus/apps/core/storage/db"
+	"github.com/zalberix/cactus/apps/core/storage/db"
 )
 
 func init() {
@@ -29,7 +29,7 @@ func SeedSystems(ctx context.Context, storage *db.Queries) error {
 		Description:   sql.NullString{Valid: true, String: "demo для работы с системой"},
 		IsActive:      true,
 		Priority:      0,
-		PublicToken:    sql.NullString{Valid: true, String: "12345678910"},
+		PublicToken:   sql.NullString{Valid: true, String: "12345678910"},
 		PrivateToken:  sql.NullString{Valid: true, String: "10987654321"},
 	})
 	if err != nil {

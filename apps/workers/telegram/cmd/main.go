@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/zalberix/cactus/apps/workers/telegram/config"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -13,11 +14,11 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/redis/go-redis/v9"
 
-	"cactus/libs/shared/logger"
-	"cactus/libs/shared/configschema"
-	"cactus/libs/shared/contracts"
-	rdb "cactus/libs/shared/redis"
-	"cactus/libs/worker"
+	"github.com/zalberix/cactus/libs/shared/configschema"
+	"github.com/zalberix/cactus/libs/shared/contracts"
+	"github.com/zalberix/cactus/libs/shared/logger"
+	rdb "github.com/zalberix/cactus/libs/shared/redis"
+	"github.com/zalberix/cactus/libs/worker"
 )
 
 type TelegramWorkerConfig struct {
@@ -124,8 +125,9 @@ func main() {
 	Kind := "telegram"
 	NameKind := "Телеграм бот"
 
-	conf := MustLoad()
+	conf := config.MustLoad()
 
+	// TODO удалить после реализации БД
 	if conf.WorkerUUID == "" {
 		slog.Error("worker обязан иметь ID (UUID)")
 		return

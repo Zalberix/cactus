@@ -8,9 +8,20 @@ import (
 	"unsafe"
 
 	"github.com/jmoiron/sqlx"
+	"go.uber.org/fx"
 
 	"github.com/zalberix/cactus/apps/core/storage/db"
 )
+
+type Opts struct {
+	fx.In
+	DB      *sqlx.DB
+	Queries *db.Queries
+}
+
+func NewFx(opts Opts) *Store {
+	return New(opts.DB, opts.Queries)
+}
 
 type Store struct {
 	connect *sqlx.DB

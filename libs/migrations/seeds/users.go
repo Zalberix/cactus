@@ -7,7 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"cactus/apps/core/storage/db"
+	"github.com/zalberix/cactus/apps/core/storage/db"
 )
 
 func init() {
@@ -22,10 +22,10 @@ func SeedUsers(ctx context.Context, storage *db.Queries) error {
 
 	_, err := storage.CreateUser(ctx, db.CreateUserParams{
 		LastName:                "Demo",
-		FirstName:              "User",
-		Patronymic:             sql.NullString{Valid: true, String: "#1"},
-		Email:                  "demo@mail.ru",
-		Password:               hashPassword,
+		FirstName:               "User",
+		Patronymic:              sql.NullString{Valid: true, String: "#1"},
+		Email:                   "demo@mail.ru",
+		Password:                hashPassword,
 		ResetPasswordAfterLogin: sql.NullBool{Valid: true, Bool: false},
 	})
 	if err != nil {

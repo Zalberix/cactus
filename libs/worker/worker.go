@@ -16,9 +16,9 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"cactus/libs/shared/configschema"
-	"cactus/libs/shared/contracts"
-	"cactus/libs/shared/pipeline"
+	"github.com/zalberix/cactus/libs/shared/configschema"
+	"github.com/zalberix/cactus/libs/shared/contracts"
+	"github.com/zalberix/cactus/libs/shared/pipeline"
 )
 
 type Message struct {

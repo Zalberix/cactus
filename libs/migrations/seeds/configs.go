@@ -7,8 +7,8 @@ import (
 
 	"github.com/sqlc-dev/pqtype"
 
-	configschema "cactus/libs/shared/configschema"
-	"cactus/apps/core/storage/db"
+	"github.com/zalberix/cactus/apps/core/storage/db"
+	"github.com/zalberix/cactus/libs/shared/configschema"
 )
 
 func init() {

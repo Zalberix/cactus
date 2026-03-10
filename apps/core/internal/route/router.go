@@ -2,12 +2,24 @@ package route
 
 import (
 	"github.com/go-chi/cors"
+	"go.uber.org/fx"
 
 	"github.com/zalberix/cactus/apps/core/internal/pkg/router"
 	"github.com/zalberix/cactus/apps/core/internal/service/core"
 	"github.com/zalberix/cactus/apps/core/internal/service/pipeline"
 	"github.com/zalberix/cactus/apps/core/internal/storage/plugin"
 )
+
+type Opts struct {
+	fx.In
+	CoreService     *core.Service
+	PipelineService *pipeline.Service
+	Plugins         *plugin.Storage
+}
+
+func NewFx(opts Opts) *router.ServerRouter {
+	return New(opts.CoreService, opts.PipelineService, opts.Plugins)
+}
 
 func New(
 	coreService *core.Service,

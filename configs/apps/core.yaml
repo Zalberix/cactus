@@ -5,11 +5,7 @@ http_server:
   timeout: 4s
   idle_timeout: 30s
 db:
-  host: "localhost"
-  port: "5432"
-  name: "postgres"
-  user: "root"
-  pass: "root"
+  url: "postgres://root:root@localhost:5432/postgres?sslmode=disable"
 nats:
   url: "nats://localhost:4222"
 temporal:

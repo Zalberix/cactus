@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"cactus/apps/core/storage/db"
+	"github.com/zalberix/cactus/apps/core/storage/db"
 )
 
 func init() {

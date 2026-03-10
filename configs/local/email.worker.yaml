@@ -1,7 +1,0 @@
-env: "local" #local, prod, dev
-worker_uuid: "0a4f7102-fbf0-418d-bb2e-5c55bbe34726"
-token: "decedb9c-3a96-4b0f-9638-f2276ec624dd"
-redis:
-  address: "localhost:6379"
-  user: ""
-  password: "root"

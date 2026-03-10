@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/zalberix/cactus/apps/core/config"
 	"strings"
 
 	"github.com/nats-io/nats.go"
@@ -28,6 +29,10 @@ func New(url string) (*Bus, error) {
 	}
 
 	return &Bus{nc: nc, js: js}, nil
+}
+
+func NewFx(cfg *config.Config) (*Bus, error) {
+	return New(cfg.Nats.URL)
 }
 
 func (b *Bus) Close() {

@@ -18,6 +18,10 @@ type Storage struct {
 	FilesPath string
 }
 
+func NewFx() (*Storage, error) {
+	return New("storages/local")
+}
+
 func New(basePath string) (*Storage, error) {
 	binaryDir, err := os.Executable()
 	if err != nil || strings.HasPrefix(filepath.Dir(binaryDir), os.TempDir()) {

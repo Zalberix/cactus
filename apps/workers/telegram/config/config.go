@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"log"
@@ -15,6 +15,7 @@ type Config struct {
 	Token      string `yaml:"token"`
 }
 
+// TODO переписать на nats
 type Redis struct {
 	Address     string        `yaml:"address" env-default:"localhost:6379"`
 	Password    string        `yaml:"password" env-default:""`
@@ -27,7 +28,7 @@ type Redis struct {
 
 func MustLoad() *Config {
 	// TODO переделать на переменную среды так как нужно будет менять его при переезде на продакшен
-	configPath := "./config/telegram.worker.yaml"
+	configPath := "./configs/apps/workers/telegram.yaml"
 
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		log.Fatalf("config file does not exist: %s", configPath)

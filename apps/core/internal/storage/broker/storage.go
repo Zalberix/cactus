@@ -6,9 +6,20 @@ import (
 	"fmt"
 	"strings"
 
+	"go.uber.org/fx"
+
 	"github.com/zalberix/cactus/libs/bus"
 	"github.com/zalberix/cactus/libs/pipeline"
 )
+
+type Opts struct {
+	fx.In
+	Bus *bus.Bus
+}
+
+func NewFx(opts Opts) *Broker {
+	return New(opts.Bus)
+}
 
 type Broker struct {
 	bus *bus.Bus

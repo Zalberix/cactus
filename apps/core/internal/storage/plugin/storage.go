@@ -1,6 +1,24 @@
 package plugin
 
-import "github.com/zalberix/cactus/apps/core/internal/plugin"
+import (
+	"github.com/zalberix/cactus/apps/core/internal/plugin"
+	"github.com/zalberix/cactus/apps/core/internal/plugin/smtp"
+	"github.com/zalberix/cactus/apps/core/internal/plugin/telegram"
+	"go.uber.org/fx"
+)
+
+type Opts struct {
+	fx.In
+	SMTP     *smtp.Plugin
+	Telegram *telegram.Plugin
+}
+
+func NewFx(opts Opts) *Storage {
+	s := New()
+	s.Add("smtp", opts.SMTP)
+	s.Add("telegram", opts.Telegram)
+	return s
+}
 
 type Storage struct {
 	plugins map[string]plugin.Plugin

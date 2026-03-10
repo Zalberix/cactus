@@ -12,7 +12,6 @@ import (
 	"github.com/jmoiron/sqlx"
 
 	"go.temporal.io/sdk/client"
-	temporalworker "github.com/zalberix/cactus/apps/core/internal/temporal/worker"
 
 	"github.com/zalberix/cactus/apps/core/config"
 	"github.com/zalberix/cactus/apps/core/internal/pkg/router"
@@ -27,6 +26,8 @@ import (
 	filestorage "github.com/zalberix/cactus/apps/core/internal/storage/file"
 	pluginstorage "github.com/zalberix/cactus/apps/core/internal/storage/plugin"
 	"github.com/zalberix/cactus/apps/core/internal/storage/store"
+	"github.com/zalberix/cactus/apps/core/internal/temporal"
+	temporalworker "github.com/zalberix/cactus/apps/core/internal/temporal/worker"
 	pkgdb "github.com/zalberix/cactus/apps/core/pkg/db"
 	"github.com/zalberix/cactus/apps/core/storage/db"
 	"github.com/zalberix/cactus/libs/bus"
@@ -41,16 +42,18 @@ func main() {
 		fx.Supply(cfg),
 		fx.Provide(
 			// Инфраструктура
-			newDB,
-			newBus,
-			newTemporalClient,
-			newTemporalWorker,
-			newDBQueries,
-			store.New,
-			newFileStorage,
-			newPluginStorage,
-			newServerMeta,
-			broker.New,
+			pkgdb.NewFx,
+			bus.NewFx,
+			temporal.NewClientFx,
+			temporalworker.NewFx,
+			db.NewFx,
+			store.NewFx,
+			filestorage.NewFx,
+			smtp.NewFx,
+			telegram.NewFx,
+			pluginstorage.NewFx,
+			servermeta.NewFx,
+			broker.NewFx,
 
 			// Адаптеры интерфейсов
 			func(s *store.Store) coreservice.Storage { return s },
@@ -58,14 +61,15 @@ func main() {
 			func(b *broker.Broker) coreservice.Broker { return b },
 			func(f *filestorage.Storage) coreservice.FileStorage { return f },
 			func(p *pluginstorage.Storage) coreservice.Plugins { return p },
+			func(s *pipeline.Service) wshub.ServicePipelineHub { return s },
 
 			// Сервисы
-			pipeline.New,
-			newPipelineHub,
-			coreservice.New,
+			pipeline.NewFx,
+			wshub.NewPipelineHubFx,
+			coreservice.NewFx,
 
 			// HTTP
-			newRouter,
+			route.NewFx,
 			newHTTPServer,
 		),
 		fx.Invoke(
@@ -80,65 +84,12 @@ func main() {
 	app.Run()
 }
 
-func newDB(cfg *config.Config) (*sqlx.DB, error) {
-	return pkgdb.New(
-		context.Background(),
-		cfg.Database.Host,
-		cfg.Database.Port,
-		cfg.Database.Name,
-		cfg.Database.User,
-		cfg.Database.Pass,
-	)
-}
-
-func newBus(cfg *config.Config) (*bus.Bus, error) {
-	return bus.New(cfg.Nats.URL)
-}
-
-func newDBQueries(sqlxDB *sqlx.DB) *db.Queries {
-	return db.New(sqlxDB)
-}
-
-func newFileStorage() (*filestorage.Storage, error) {
-	return filestorage.New("storages/local")
-}
-
-func newPluginStorage() *pluginstorage.Storage {
-	s := pluginstorage.New()
-	s.Add("smtp", smtp.New())
-	s.Add("telegram", telegram.New())
-	return s
-}
-
-func newServerMeta(cfg *config.Config) (*servermeta.ServerMeta, error) {
-	host, err := os.Hostname()
-	if err != nil {
-		return nil, fmt.Errorf("не удалось получить hostname: %w", err)
-	}
-	return &servermeta.ServerMeta{
-		HostName: host,
-		Port:     cfg.HTTPServer.Port,
-	}, nil
-}
-
-func newPipelineHub(b *bus.Bus, svc *pipeline.Service) *wshub.PipelineHub {
-	return wshub.NewPipelineHub(context.Background(), b, svc)
-}
-
-func newRouter(
-	coreService *coreservice.Service,
-	pipelineService *pipeline.Service,
-	plugins *pluginstorage.Storage,
-) *router.ServerRouter {
-	r := route.New(coreService, pipelineService, plugins)
+func newHTTPServer(cfg *config.Config, r *router.ServerRouter) *http.Server {
 	r.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, "OK")
 	})
-	return r
-}
 
-func newHTTPServer(cfg *config.Config, r *router.ServerRouter) *http.Server {
 	return &http.Server{
 		Addr:         fmt.Sprintf("%v:%v", cfg.HTTPServer.Host, cfg.HTTPServer.Port),
 		Handler:      r,
@@ -170,17 +121,6 @@ func registerMetaEvent(cfg *config.Config, b *broker.Broker, queries *db.Queries
 	endpoint := fmt.Sprintf("http://%v:%v/api/register/worker", host, cfg.HTTPServer.Port)
 
 	return b.SendMetaEvent(ctx, maxPriority, endpoint)
-}
-
-func newTemporalClient(cfg *config.Config) (client.Client, error) {
-	return client.Dial(client.Options{
-		HostPort:  cfg.Temporal.HostPort,
-		Namespace: cfg.Temporal.Namespace,
-	})
-}
-
-func newTemporalWorker(c client.Client) temporalworker.Worker {
-	return temporalworker.New(c)
 }
 
 func registerTemporalWorker(w temporalworker.Worker, c client.Client, lc fx.Lifecycle) {

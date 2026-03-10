@@ -8,6 +8,7 @@ import (
 
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/google/uuid"
+	"go.uber.org/fx"
 
 	dto "github.com/zalberix/cactus/apps/core/internal/DTO"
 	"github.com/zalberix/cactus/apps/core/internal/plugin"
@@ -16,6 +17,19 @@ import (
 	"github.com/zalberix/cactus/apps/core/storage/db"
 	lp "github.com/zalberix/cactus/libs/pipeline"
 )
+
+type Opts struct {
+	fx.In
+	Storage     Storage
+	Broker      Broker
+	FileStorage FileStorage
+	Plugins     Plugins
+	Meta        *servermeta.ServerMeta
+}
+
+func NewFx(opts Opts) *Service {
+	return New(opts.Storage, opts.Broker, opts.FileStorage, opts.Plugins, opts.Meta)
+}
 
 //go:generate mockgen -package=mocks -destination=mocks/mock_storage.go github.com/zalberix/cactus/apps/core/internal/service/core Storage
 type Storage interface {

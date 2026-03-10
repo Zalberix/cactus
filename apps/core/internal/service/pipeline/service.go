@@ -4,11 +4,22 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"go.uber.org/fx"
 
 	"github.com/zalberix/cactus/apps/core/internal/pkg/wshub"
-	"github.com/zalberix/cactus/apps/core/storage/db"
 	"github.com/zalberix/cactus/apps/core/internal/storage/plugin"
+	"github.com/zalberix/cactus/apps/core/storage/db"
 )
+
+type Opts struct {
+	fx.In
+	Storage Storage
+	Plugins *plugin.Storage
+}
+
+func NewFx(opts Opts) *Service {
+	return New(opts.Storage, opts.Plugins)
+}
 
 type Service struct {
 	storage Storage

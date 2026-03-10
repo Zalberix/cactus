@@ -9,11 +9,22 @@ import (
 	"sync"
 
 	"github.com/gorilla/websocket"
+	"go.uber.org/fx"
 
 	dto "github.com/zalberix/cactus/apps/core/internal/DTO"
 	"github.com/zalberix/cactus/libs/bus"
 	"github.com/zalberix/cactus/libs/pipeline"
 )
+
+type PipelineHubOpts struct {
+	fx.In
+	Bus     *bus.Bus
+	Service ServicePipelineHub
+}
+
+func NewPipelineHubFx(opts PipelineHubOpts) *PipelineHub {
+	return NewPipelineHub(context.Background(), opts.Bus, opts.Service)
+}
 
 type PipelineClient struct {
 	Hub     *PipelineHub

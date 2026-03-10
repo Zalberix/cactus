@@ -1,11 +1,11 @@
 package main
 
 import (
-	"cactus/apps/smtp/config"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/zalberix/cactus/apps/workers/smtp/config"
 	"io"
 	"log/slog"
 	"net/http"
@@ -15,11 +15,11 @@ import (
 	"github.com/redis/go-redis/v9"
 	"gopkg.in/gomail.v2"
 
-	"cactus/libs/shared/configschema"
-	"cactus/libs/shared/contracts"
-	"cactus/libs/shared/logger"
-	rdb "cactus/libs/shared/redis"
-	"cactus/libs/worker"
+	"github.com/zalberix/cactus/libs/shared/configschema"
+	"github.com/zalberix/cactus/libs/shared/contracts"
+	"github.com/zalberix/cactus/libs/shared/logger"
+	rdb "github.com/zalberix/cactus/libs/shared/redis"
+	"github.com/zalberix/cactus/libs/worker"
 )
 
 // SMTPMessageSchema describes the JSON format of a message value for SMTP delivery.
