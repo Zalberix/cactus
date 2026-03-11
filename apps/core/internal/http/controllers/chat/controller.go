@@ -14,7 +14,7 @@ func Chat(s *chat_service.Service) http.HandlerFunc {
 
 		ws, err := s.Upgrader().Upgrade(w, r, nil)
 		if err != nil {
-			slog.Error(err.Error())
+			slog.Error("websocket upgrade failed", "error", err)
 		}
 		defer ws.Close()
 

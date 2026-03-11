@@ -10,8 +10,8 @@
 package mocks
 
 import (
-	db "github.com/zalberix/cactus/apps/core/storage/db"
 	context "context"
+	db "github.com/zalberix/cactus/apps/core/storage/db"
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"

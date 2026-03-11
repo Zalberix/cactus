@@ -10,8 +10,8 @@
 package mocks
 
 import (
-	"github.com/zalberix/cactus/libs/pipeline"
 	context "context"
+	"github.com/zalberix/cactus/libs/pipeline"
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"

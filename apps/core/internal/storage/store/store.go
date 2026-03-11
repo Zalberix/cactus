@@ -58,7 +58,7 @@ func (q *Store) SetContext(ctx context.Context, db interface{}) error {
 	newStore := *originalStore
 
 	newStore.tx = tx
-	newStore.Queries = q.Queries.WithTx(tx)
+	newStore.Queries = q.WithTx(tx)
 
 	elem.Set(reflect.ValueOf(&newStore))
 

@@ -17,7 +17,7 @@ func Listen(s *pipeline.Service) http.HandlerFunc {
 
 		ws, err := s.Hub().Upgrader().Upgrade(w, r, nil)
 		if err != nil {
-			slog.Error(err.Error())
+			slog.Error("websocket upgrade failed", "error", err)
 			response.FailJSON(w, "неудалось создать websocket соединение")
 			return
 		}

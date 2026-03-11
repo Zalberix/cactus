@@ -42,7 +42,7 @@ func GetFile(s getFilesService) http.HandlerFunc {
 
 		file, err := s.GetFile(ctx, req.UUID)
 		if err != nil {
-			slog.Error(err.Error())
+			slog.Error("не удалось получить файл", "error", err)
 			response.FailJSON(w, "не возможно получить файл.")
 			return
 		}
@@ -52,7 +52,7 @@ func GetFile(s getFilesService) http.HandlerFunc {
 		w.Header().Set("Content-Disposition", "attachment; filename=file.txt")
 		bfile, err := io.ReadAll(file.File)
 		if err != nil {
-			slog.Error(err.Error())
+			slog.Error("ошибка чтения файла", "error", err)
 			response.FailJSON(w, "ошибка чтения файла.")
 			return
 		}

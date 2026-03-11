@@ -11,11 +11,11 @@ import (
 	"go.uber.org/mock/gomock"
 
 	DTO "github.com/zalberix/cactus/apps/core/internal/DTO"
-	configSchema "github.com/zalberix/cactus/libs/shared/configschema"
 	mocks_plugin "github.com/zalberix/cactus/apps/core/internal/plugin/mocks"
 	"github.com/zalberix/cactus/apps/core/internal/service/core"
 	"github.com/zalberix/cactus/apps/core/internal/service/core/mocks"
 	"github.com/zalberix/cactus/apps/core/storage/db"
+	"github.com/zalberix/cactus/libs/pipeline"
 )
 
 type testSetupRegisterWorker struct {
@@ -53,7 +53,7 @@ func TestRegisterWorker_Success(t *testing.T) {
 		WorkerUUID:   testUUID,
 		Kind:         "email",
 		Type:         "worker_type",
-		ConfigSchema: []configSchema.ConfigField{},
+		ConfigSchema: []pipeline.ConfigField{},
 	}
 
 	expectedKindWorker := db.KindWorker{ID: 1, Slug: "email"}
@@ -86,7 +86,7 @@ func TestRegisterWorker_Fail_PluginNotFound(t *testing.T) {
 		WorkerUUID:   uuid.New(),
 		Kind:         "unknown",
 		Type:         "worker_type",
-		ConfigSchema: []configSchema.ConfigField{},
+		ConfigSchema: []pipeline.ConfigField{},
 	}
 
 	ts.mockPlugins.EXPECT().Get(testParams.Kind).Return(nil, false)
@@ -105,7 +105,7 @@ func TestRegisterWorker_Fail_StorageTransactionError(t *testing.T) {
 		WorkerUUID:   uuid.New(),
 		Kind:         "email",
 		Type:         "worker_type",
-		ConfigSchema: []configSchema.ConfigField{},
+		ConfigSchema: []pipeline.ConfigField{},
 	}
 
 	mockPlugin := mocks_plugin.NewMockPlugin(ts.ctrl)
@@ -127,7 +127,7 @@ func TestRegisterWorker_Fail_GetKindWorkerError(t *testing.T) {
 		WorkerUUID:   uuid.New(),
 		Kind:         "email",
 		Type:         "worker_type",
-		ConfigSchema: []configSchema.ConfigField{},
+		ConfigSchema: []pipeline.ConfigField{},
 	}
 
 	mockPlugin := mocks_plugin.NewMockPlugin(ts.ctrl)
@@ -155,7 +155,7 @@ func TestRegisterWorker_Fail_GetTypeWorkerError(t *testing.T) {
 		WorkerUUID:   uuid.New(),
 		Kind:         "email",
 		Type:         "worker_type",
-		ConfigSchema: []configSchema.ConfigField{},
+		ConfigSchema: []pipeline.ConfigField{},
 	}
 
 	expectedKindWorker := db.KindWorker{ID: 1, Slug: "email"}
@@ -189,7 +189,7 @@ func TestRegisterWorker_Fail_CreateWorkerError(t *testing.T) {
 		WorkerUUID:   testUUID,
 		Kind:         "email",
 		Type:         "worker_type",
-		ConfigSchema: []configSchema.ConfigField{},
+		ConfigSchema: []pipeline.ConfigField{},
 	}
 
 	expectedKindWorker := db.KindWorker{ID: 1, Slug: "email"}

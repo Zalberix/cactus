@@ -12,7 +12,7 @@ import (
 )
 
 type getMessagesService interface {
-	GetMessages(ctx context.Context, slug string, systemID int) ([]dto.Message, error)
+	GetMessages(ctx context.Context, slug string, systemID int32) ([]dto.Message, error)
 }
 
 func GetMessages(s getMessagesService) http.HandlerFunc {

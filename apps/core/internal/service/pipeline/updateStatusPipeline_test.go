@@ -11,10 +11,10 @@ import (
 	"go.uber.org/mock/gomock"
 
 	DTO "github.com/zalberix/cactus/apps/core/internal/DTO"
-	pipelinePkg "github.com/zalberix/cactus/libs/pipeline"
 	"github.com/zalberix/cactus/apps/core/internal/service/pipeline"
 	"github.com/zalberix/cactus/apps/core/internal/service/pipeline/mocks"
 	"github.com/zalberix/cactus/apps/core/storage/db"
+	pipelinePkg "github.com/zalberix/cactus/libs/pipeline"
 )
 
 type testSetupUpdateStatusPipeline struct {
@@ -61,7 +61,7 @@ func TestUpdateStatusPipeline_Success(t *testing.T) {
 	}
 
 	ts.mockStorage.EXPECT().
-		GetIdPipelineByUUIDMessageAndStep(ts.ctx, db.GetIdPipelineByUUIDMessageAndStepParams{Uuid: messageUUID, Step: step}).
+		GetIDPipelineByUUIDMessageAndStep(ts.ctx, db.GetIDPipelineByUUIDMessageAndStepParams{UUID: messageUUID, Step: step}).
 		Times(1).
 		Return(mockPipelineID, nil)
 
@@ -116,7 +116,7 @@ func TestUpdateStatusPipeline_Fail_StepNotFound(t *testing.T) {
 	messageUUID, _ := uuid.Parse(uuidMessage)
 
 	ts.mockStorage.EXPECT().
-		GetIdPipelineByUUIDMessageAndStep(ts.ctx, db.GetIdPipelineByUUIDMessageAndStepParams{Uuid: messageUUID, Step: step}).
+		GetIDPipelineByUUIDMessageAndStep(ts.ctx, db.GetIDPipelineByUUIDMessageAndStepParams{UUID: messageUUID, Step: step}).
 		Times(1).
 		Return(int32(0), errors.New("шаг не найден"))
 
@@ -142,7 +142,7 @@ func TestUpdateStatusPipeline_Fail_WorkerNotFound(t *testing.T) {
 	mockPipelineID := int32(124)
 
 	ts.mockStorage.EXPECT().
-		GetIdPipelineByUUIDMessageAndStep(ts.ctx, db.GetIdPipelineByUUIDMessageAndStepParams{Uuid: messageUUID, Step: step}).
+		GetIDPipelineByUUIDMessageAndStep(ts.ctx, db.GetIDPipelineByUUIDMessageAndStepParams{UUID: messageUUID, Step: step}).
 		Times(1).
 		Return(mockPipelineID, nil)
 

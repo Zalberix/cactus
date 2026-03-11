@@ -1,9 +1,5 @@
 package db
 
-// Compatibility layer for DB schema v0.1.x → v0.2.0 migration.
-// These types and wrapper methods preserve the old API surface
-// while the service layer is being updated to the new schema.
-
 import (
 	"context"
 	"database/sql"
@@ -13,16 +9,13 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
-// TypeWorker is an alias for Channel (table renamed in schema v0.2.0).
 type TypeWorker = Channel
 
-// CreateTypeWorkerParams for backward compatibility.
 type CreateTypeWorkerParams struct {
 	Slug string `json:"slug"`
 	Name string `json:"name"`
 }
 
-// KindWorker for backward compatibility (was kind_worker table, replaced by config in v0.2.0).
 type KindWorker struct {
 	ID           int32                 `json:"id"`
 	Name         string                `json:"name"`
@@ -31,7 +24,6 @@ type KindWorker struct {
 	Config       pqtype.NullRawMessage `json:"config"`
 }
 
-// CreateKindWorkerParams for backward compatibility.
 type CreateKindWorkerParams struct {
 	Name         string                `json:"name"`
 	Slug         string                `json:"slug"`
@@ -47,8 +39,8 @@ type Priority struct {
 	Slug   string `json:"slug"`
 }
 
-// GetPriorityBySystemIdRow for backward compatibility.
-type GetPriorityBySystemIdRow struct {
+// GetPriorityBySystemIDRow for backward compatibility.
+type GetPriorityBySystemIDRow struct {
 	Weight int32 `json:"weight"`
 }
 
@@ -74,18 +66,13 @@ type UpdatePipelineStatusAndWorkerByIDParams struct {
 	IDWorker sql.NullInt32 `json:"id_worker"`
 }
 
-// GetIdPipelineByUUIDMessageAndStepParams for backward compatibility.
-type GetIdPipelineByUUIDMessageAndStepParams struct {
-	Uuid uuid.UUID `json:"uuid"`
+// GetIDPipelineByUUIDMessageAndStepParams for backward compatibility.
+type GetIDPipelineByUUIDMessageAndStepParams struct {
+	UUID uuid.UUID `json:"uuid"`
 	Step int32     `json:"step"`
 }
 
 // ─── Wrapper methods on *Queries ────────────────────────────────────────────
-
-// GetSystemById bridges old lowercase naming to the new GetSystemByID.
-func (q *Queries) GetSystemById(ctx context.Context, id int32) (System, error) {
-	return q.GetSystemByID(ctx, id)
-}
 
 // GetTypeWorkers returns all channels (channel replaced type_worker in v0.2.0).
 func (q *Queries) GetTypeWorkers(ctx context.Context) ([]TypeWorker, error) {
@@ -99,11 +86,11 @@ func (q *Queries) GetTypeWorkerBySlug(ctx context.Context, slug string) (TypeWor
 
 // CreateTypeWorker creates a channel (type_worker replacement).
 func (q *Queries) CreateTypeWorker(ctx context.Context, arg CreateTypeWorkerParams) (TypeWorker, error) {
-	return q.CreateChannel(ctx, CreateChannelParams{Slug: arg.Slug, Name: arg.Name})
+	return q.CreateChannel(ctx, CreateChannelParams(arg))
 }
 
 // GetKindWorkerBySlug returns a KindWorker by slug (stub — config has no slug in v0.2.0).
-func (q *Queries) GetKindWorkerBySlug(ctx context.Context, slug string) (KindWorker, error) {
+func (q *Queries) GetKindWorkerBySlug(_ context.Context, _ string) (KindWorker, error) {
 	return KindWorker{}, sql.ErrNoRows
 }
 
@@ -140,22 +127,22 @@ func (q *Queries) GetKindWokerByID(ctx context.Context, id int32) (KindWorker, e
 	}, nil
 }
 
-// GetPriorityBySystemId returns priority weight from system record.
-func (q *Queries) GetPriorityBySystemId(ctx context.Context, id int32) (GetPriorityBySystemIdRow, error) {
+// GetPriorityBySystemID returns priority weight from system record.
+func (q *Queries) GetPriorityBySystemID(ctx context.Context, id int32) (GetPriorityBySystemIDRow, error) {
 	sys, err := q.GetSystemByID(ctx, id)
 	if err != nil {
-		return GetPriorityBySystemIdRow{}, err
+		return GetPriorityBySystemIDRow{}, err
 	}
-	return GetPriorityBySystemIdRow{Weight: sys.Priority}, nil
+	return GetPriorityBySystemIDRow{Weight: sys.Priority}, nil
 }
 
 // GetPriorityBySlug returns a stub Priority (priority table removed in v0.2.0).
-func (q *Queries) GetPriorityBySlug(ctx context.Context, slug string) (Priority, error) {
+func (q *Queries) GetPriorityBySlug(_ context.Context, slug string) (Priority, error) {
 	return Priority{ID: 1, Name: slug, Weight: 0, Slug: slug}, nil
 }
 
 // GetMaxPriorityWeight returns 0 (priority table removed in v0.2.0).
-func (q *Queries) GetMaxPriorityWeight(ctx context.Context) (int32, error) {
+func (q *Queries) GetMaxPriorityWeight(_ context.Context) (int32, error) {
 	return 0, nil
 }
 
@@ -173,7 +160,7 @@ func (q *Queries) GetTokenByPublicToken(ctx context.Context, publicToken string)
 }
 
 // GetWorkerByUUID is a stub — Worker no longer has a UUID column in v0.2.0.
-func (q *Queries) GetWorkerByUUID(ctx context.Context, argUUID uuid.UUID) (Worker, error) {
+func (q *Queries) GetWorkerByUUID(_ context.Context, _ uuid.UUID) (Worker, error) {
 	return Worker{}, sql.ErrNoRows
 }
 
@@ -183,17 +170,17 @@ func (q *Queries) GetMessagesBy(ctx context.Context, arg GetMessagesByParams) ([
 }
 
 // GetStatusMessageByUUID is a stub.
-func (q *Queries) GetStatusMessageByUUID(ctx context.Context, argUUID uuid.UUID) (string, error) {
+func (q *Queries) GetStatusMessageByUUID(_ context.Context, _ uuid.UUID) (string, error) {
 	return "", nil
 }
 
 // GetFilePathByUUID is a stub.
-func (q *Queries) GetFilePathByUUID(ctx context.Context, argUUID uuid.UUID) (string, error) {
+func (q *Queries) GetFilePathByUUID(_ context.Context, _ uuid.UUID) (string, error) {
 	return "", nil
 }
 
 // GetTypeSlugWorkerByKindSlugWorker is a stub.
-func (q *Queries) GetTypeSlugWorkerByKindSlugWorker(ctx context.Context, slug string) (string, error) {
+func (q *Queries) GetTypeSlugWorkerByKindSlugWorker(_ context.Context, _ string) (string, error) {
 	return "", nil
 }
 
@@ -220,12 +207,12 @@ func (q *Queries) UpdatePipelineStatusAndWorkerByID(
 	})
 }
 
-// GetIdPipelineByUUIDMessageAndStep finds a PipelineStep.ID by message UUID and step number.
-func (q *Queries) GetIdPipelineByUUIDMessageAndStep(
+// GetIDPipelineByUUIDMessageAndStep finds a PipelineStep.ID by message UUID and step number.
+func (q *Queries) GetIDPipelineByUUIDMessageAndStep(
 	ctx context.Context,
-	arg GetIdPipelineByUUIDMessageAndStepParams,
+	arg GetIDPipelineByUUIDMessageAndStepParams,
 ) (int32, error) {
-	msg, err := q.GetMessageByUUID(ctx, arg.Uuid)
+	msg, err := q.GetMessageByUUID(ctx, arg.UUID)
 	if err != nil {
 		return 0, err
 	}

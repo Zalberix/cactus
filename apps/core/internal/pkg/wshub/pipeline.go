@@ -91,7 +91,7 @@ func NewPipelineHub(ctx context.Context, b *bus.Bus, service ServicePipelineHub)
 	}
 }
 
-func (hub *PipelineHub) NewClient(ctx context.Context, uuid string, conn *websocket.Conn) *PipelineClient {
+func (hub *PipelineHub) NewClient(_ context.Context, uuid string, conn *websocket.Conn) *PipelineClient {
 	client := &PipelineClient{
 		Hub:     hub,
 		UUID:    uuid,

@@ -33,8 +33,8 @@ func NewFx(opts Opts) *Service {
 
 //go:generate mockgen -package=mocks -destination=mocks/mock_storage.go github.com/zalberix/cactus/apps/core/internal/service/core Storage
 type Storage interface {
-	GetSystemById(ctx context.Context, id int32) (db.System, error)
-	GetPriorityBySystemId(ctx context.Context, id int32) (db.GetPriorityBySystemIdRow, error)
+	GetSystemByID(ctx context.Context, id int32) (db.System, error)
+	GetPriorityBySystemID(ctx context.Context, id int32) (db.GetPriorityBySystemIDRow, error)
 	GetPriorityBySlug(ctx context.Context, slug string) (db.Priority, error)
 	CreateManifest(ctx context.Context, value json.RawMessage) (db.Manifest, error)
 	CreateMessage(ctx context.Context, arg db.CreateMessageParams) (db.Message, error)

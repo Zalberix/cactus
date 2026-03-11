@@ -47,7 +47,7 @@ func (s *Service) AddMessageToQueue(ctx context.Context, arg AddMessageToQueuePa
 		return err
 	}
 
-	system, err := s.storage.GetSystemById(ctx, arg.SystemID)
+	system, err := s.storage.GetSystemByID(ctx, arg.SystemID)
 	if err != nil {
 		slog.Error("невозможно получить систему по ID:", slog.Any("err", err))
 		return fmt.Errorf("невозможно получить систему по ID: %w", err)

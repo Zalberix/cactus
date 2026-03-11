@@ -10,7 +10,7 @@ import (
 	"github.com/zalberix/cactus/apps/core/storage/db"
 )
 
-func (s *Service) GetMessages(ctx context.Context, slug string, systemID int) ([]dto.Message, error) {
+func (s *Service) GetMessages(ctx context.Context, slug string, systemID int32) ([]dto.Message, error) {
 	typeWorker, err := s.storage.GetTypeWorkerBySlug(ctx, slug)
 	if err != nil {
 		return []dto.Message{}, err
@@ -18,7 +18,7 @@ func (s *Service) GetMessages(ctx context.Context, slug string, systemID int) ([
 
 	messagesDB, err := s.storage.GetMessagesBy(ctx, db.GetMessagesByParams{
 		IDTypeWorker: typeWorker.ID,
-		IDSystem:     int32(systemID),
+		IDSystem:     systemID,
 	})
 	if err != nil {
 		return []dto.Message{}, err

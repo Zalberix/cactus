@@ -10,8 +10,8 @@
 package mocks
 
 import (
-	db "github.com/zalberix/cactus/apps/core/storage/db"
 	context "context"
+	db "github.com/zalberix/cactus/apps/core/storage/db"
 	reflect "reflect"
 
 	uuid "github.com/google/uuid"
@@ -41,19 +41,19 @@ func (m *MockStorage) EXPECT() *MockStorageMockRecorder {
 	return m.recorder
 }
 
-// GetIdPipelineByUUIDMessageAndStep mocks base method.
-func (m *MockStorage) GetIdPipelineByUUIDMessageAndStep(arg0 context.Context, arg1 db.GetIdPipelineByUUIDMessageAndStepParams) (int32, error) {
+// GetIDPipelineByUUIDMessageAndStep mocks base method.
+func (m *MockStorage) GetIDPipelineByUUIDMessageAndStep(arg0 context.Context, arg1 db.GetIDPipelineByUUIDMessageAndStepParams) (int32, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetIdPipelineByUUIDMessageAndStep", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetIDPipelineByUUIDMessageAndStep", arg0, arg1)
 	ret0, _ := ret[0].(int32)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetIdPipelineByUUIDMessageAndStep indicates an expected call of GetIdPipelineByUUIDMessageAndStep.
-func (mr *MockStorageMockRecorder) GetIdPipelineByUUIDMessageAndStep(arg0, arg1 any) *gomock.Call {
+// GetIDPipelineByUUIDMessageAndStep indicates an expected call of GetIDPipelineByUUIDMessageAndStep.
+func (mr *MockStorageMockRecorder) GetIDPipelineByUUIDMessageAndStep(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIdPipelineByUUIDMessageAndStep", reflect.TypeOf((*MockStorage)(nil).GetIdPipelineByUUIDMessageAndStep), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIDPipelineByUUIDMessageAndStep", reflect.TypeOf((*MockStorage)(nil).GetIDPipelineByUUIDMessageAndStep), arg0, arg1)
 }
 
 // GetWorkerByUUID mocks base method.

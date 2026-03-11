@@ -10,9 +10,9 @@
 package mocks
 
 import (
-	db "github.com/zalberix/cactus/apps/core/storage/db"
 	context "context"
 	json "encoding/json"
+	db "github.com/zalberix/cactus/apps/core/storage/db"
 	reflect "reflect"
 
 	uuid "github.com/google/uuid"
@@ -251,19 +251,19 @@ func (mr *MockStorageMockRecorder) GetPriorityBySlug(arg0, arg1 any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPriorityBySlug", reflect.TypeOf((*MockStorage)(nil).GetPriorityBySlug), arg0, arg1)
 }
 
-// GetPriorityBySystemId mocks base method.
-func (m *MockStorage) GetPriorityBySystemId(arg0 context.Context, arg1 int32) (db.GetPriorityBySystemIdRow, error) {
+// GetPriorityBySystemID mocks base method.
+func (m *MockStorage) GetPriorityBySystemID(arg0 context.Context, arg1 int32) (db.GetPriorityBySystemIDRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetPriorityBySystemId", arg0, arg1)
-	ret0, _ := ret[0].(db.GetPriorityBySystemIdRow)
+	ret := m.ctrl.Call(m, "GetPriorityBySystemID", arg0, arg1)
+	ret0, _ := ret[0].(db.GetPriorityBySystemIDRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetPriorityBySystemId indicates an expected call of GetPriorityBySystemId.
-func (mr *MockStorageMockRecorder) GetPriorityBySystemId(arg0, arg1 any) *gomock.Call {
+// GetPriorityBySystemID indicates an expected call of GetPriorityBySystemID.
+func (mr *MockStorageMockRecorder) GetPriorityBySystemID(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPriorityBySystemId", reflect.TypeOf((*MockStorage)(nil).GetPriorityBySystemId), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPriorityBySystemID", reflect.TypeOf((*MockStorage)(nil).GetPriorityBySystemID), arg0, arg1)
 }
 
 // GetStatusMessageByUUID mocks base method.
@@ -281,19 +281,19 @@ func (mr *MockStorageMockRecorder) GetStatusMessageByUUID(arg0, arg1 any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStatusMessageByUUID", reflect.TypeOf((*MockStorage)(nil).GetStatusMessageByUUID), arg0, arg1)
 }
 
-// GetSystemById mocks base method.
-func (m *MockStorage) GetSystemById(arg0 context.Context, arg1 int32) (db.System, error) {
+// GetSystemByID mocks base method.
+func (m *MockStorage) GetSystemByID(arg0 context.Context, arg1 int32) (db.System, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetSystemById", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetSystemByID", arg0, arg1)
 	ret0, _ := ret[0].(db.System)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetSystemById indicates an expected call of GetSystemById.
-func (mr *MockStorageMockRecorder) GetSystemById(arg0, arg1 any) *gomock.Call {
+// GetSystemByID indicates an expected call of GetSystemByID.
+func (mr *MockStorageMockRecorder) GetSystemByID(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSystemById", reflect.TypeOf((*MockStorage)(nil).GetSystemById), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSystemByID", reflect.TypeOf((*MockStorage)(nil).GetSystemByID), arg0, arg1)
 }
 
 // GetTokenByPublicToken mocks base method.

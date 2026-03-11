@@ -68,7 +68,7 @@ func TestAddMessageToQueue_Success(t *testing.T) {
 	defer ts.ctrl.Finish()
 
 	ts.mockBroker.EXPECT().EnsureStreamGroup(ts.ctx, ts.queueName, "reader").Return(nil)
-	ts.mockStorage.EXPECT().GetSystemById(ts.ctx, ts.testParams.SystemID).Return(db.System{Name: "TestSystem"}, nil)
+	ts.mockStorage.EXPECT().GetSystemByID(ts.ctx, ts.testParams.SystemID).Return(db.System{Name: "TestSystem"}, nil)
 	ts.mockBroker.EXPECT().AddMessageToQueue(ts.ctx, ts.queueName, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
 	err := ts.service.AddMessageToQueue(ts.ctx, ts.testParams)
@@ -85,7 +85,7 @@ func TestAddMessageToQueue_Success_WithFiles(t *testing.T) {
 	}
 
 	ts.mockBroker.EXPECT().EnsureStreamGroup(ts.ctx, ts.queueName, "reader").Return(nil)
-	ts.mockStorage.EXPECT().GetSystemById(ts.ctx, ts.testParams.SystemID).Return(db.System{Name: "TestSystem"}, nil)
+	ts.mockStorage.EXPECT().GetSystemByID(ts.ctx, ts.testParams.SystemID).Return(db.System{Name: "TestSystem"}, nil)
 	ts.mockBroker.EXPECT().AddMessageToQueue(ts.ctx, ts.queueName, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
 	err := ts.service.AddMessageToQueue(ts.ctx, ts.testParams)
@@ -103,13 +103,13 @@ func TestAddMessageToQueue_Fail_EnsureStreamGroup(t *testing.T) {
 	assert.Contains(t, err.Error(), "ошибка Redis")
 }
 
-func TestAddMessageToQueue_Fail_GetSystemById(t *testing.T) {
+func TestAddMessageToQueue_Fail_GetSystemByID(t *testing.T) {
 	ts := prepareTest(t)
 	defer ts.ctrl.Finish()
 
 	ts.mockBroker.EXPECT().EnsureStreamGroup(ts.ctx, ts.queueName, "reader").Return(nil)
 	ts.mockStorage.EXPECT().
-		GetSystemById(ts.ctx, ts.testParams.SystemID).
+		GetSystemByID(ts.ctx, ts.testParams.SystemID).
 		Return(db.System{}, errors.New("система не найдена"))
 
 	err := ts.service.AddMessageToQueue(ts.ctx, ts.testParams)
@@ -122,7 +122,7 @@ func TestAddMessageToQueue_Fail_AddMessageToQueue(t *testing.T) {
 	defer ts.ctrl.Finish()
 
 	ts.mockBroker.EXPECT().EnsureStreamGroup(ts.ctx, ts.queueName, "reader").Return(nil)
-	ts.mockStorage.EXPECT().GetSystemById(ts.ctx, ts.testParams.SystemID).Return(db.System{Name: "TestSystem"}, nil)
+	ts.mockStorage.EXPECT().GetSystemByID(ts.ctx, ts.testParams.SystemID).Return(db.System{Name: "TestSystem"}, nil)
 	ts.mockBroker.EXPECT().
 		AddMessageToQueue(ts.ctx, ts.queueName, gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(errors.New("ошибка добавления в Redis"))

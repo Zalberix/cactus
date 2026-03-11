@@ -54,7 +54,7 @@ func (s *Service) CreateMessage(
 	}
 
 	// system, err := storage.GetSystemById(ctx, arg.IDSystem)
-	systemPriority, err := storageTx.GetPriorityBySystemId(ctx, arg.IDSystem)
+	systemPriority, err := storageTx.GetPriorityBySystemID(ctx, arg.IDSystem)
 	if err != nil {
 		return dto.CreateMessage{}, fmt.Errorf("ошибка получения приоритета системы: %w", err)
 	}

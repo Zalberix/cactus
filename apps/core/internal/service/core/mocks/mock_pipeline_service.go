@@ -10,9 +10,9 @@
 package mocks
 
 import (
+	context "context"
 	dto "github.com/zalberix/cactus/apps/core/internal/DTO"
 	pipeline "github.com/zalberix/cactus/apps/core/internal/service/pipeline"
-	context "context"
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"

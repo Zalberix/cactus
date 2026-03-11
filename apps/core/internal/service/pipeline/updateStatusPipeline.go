@@ -29,8 +29,8 @@ func (s *Service) UpdateStatusPipeline(
 		return dto.Pipeline{}, fmt.Errorf("проверьте UUID воркера, он неверного формата: %w", err)
 	}
 
-	idPipeline, err := s.storage.GetIdPipelineByUUIDMessageAndStep(ctx, db.GetIdPipelineByUUIDMessageAndStepParams{
-		Uuid: UUIDm,
+	idPipeline, err := s.storage.GetIDPipelineByUUIDMessageAndStep(ctx, db.GetIDPipelineByUUIDMessageAndStepParams{
+		UUID: UUIDm,
 		Step: step,
 	})
 	if err != nil {

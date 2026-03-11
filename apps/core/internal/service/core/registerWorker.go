@@ -12,8 +12,8 @@ import (
 	"github.com/sqlc-dev/pqtype"
 
 	dto "github.com/zalberix/cactus/apps/core/internal/DTO"
-	"github.com/zalberix/cactus/libs/pipeline"
 	"github.com/zalberix/cactus/apps/core/storage/db"
+	"github.com/zalberix/cactus/libs/pipeline"
 )
 
 type RegisterWorkerParams struct {

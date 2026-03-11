@@ -27,7 +27,7 @@ func Send(service *core.Service, piplineService *pipeline.Service, plugins *plug
 		if !ok {
 			slog.Error("Доступ запрещен")
 
-			response.ValidationJSON(w, "Доступ запрещен", map[string]string{
+			response.ValidationJSON(w, "Доступ запрещен", map[string]string{ //nolint:gosec // G101: not a credential
 				"Token": "Доступ запрещен",
 			})
 			return
@@ -47,9 +47,9 @@ func Send(service *core.Service, piplineService *pipeline.Service, plugins *plug
 			return
 		}
 
-		err = r.ParseMultipartForm(32 << 20) // 32 МБ
+		err = r.ParseMultipartForm(32 << 20) //nolint:gosec // G120: 32MB limit is intentional
 		if err != nil {
-			slog.Error(err.Error())
+			slog.Error("ошибка парсинга multipart формы", "error", err)
 			response.FailJSON(w, "Превышен размер файлов или формат запроса неверный в запроса.")
 			return
 		}
@@ -60,7 +60,7 @@ func Send(service *core.Service, piplineService *pipeline.Service, plugins *plug
 
 		err = decoder.Decode(&req, r.MultipartForm.Value)
 		if err != nil {
-			slog.Error("Ошибка декодирования: ", slog.String("message", err.Error()))
+			slog.Error("ошибка декодирования формы", "error", err)
 			response.FailJSON(w, "Проверьте поля на правильность написания, недолжно быть неизвестных полей.")
 			return
 		}
@@ -80,7 +80,7 @@ func Send(service *core.Service, piplineService *pipeline.Service, plugins *plug
 		schema := plugin.GetSchema()
 		err = json.Unmarshal([]byte(req.Value), schema)
 		if err != nil {
-			slog.Error("Ошибка при работе с полем value", slog.String("error", err.Error()))
+			slog.Error("ошибка при работе с полем value", "error", err)
 			response.FailJSON(w, "Ошибка при работе с полем value")
 			return
 		}
@@ -138,7 +138,8 @@ func Send(service *core.Service, piplineService *pipeline.Service, plugins *plug
 			piplineService,
 		)
 		if err != nil {
-			slog.Error("ошибка создания сообщения", slog.String("error-message", err.Error()), slog.String("slug", pluginSlug))
+			//nolint:gosec // G706: slug is a structured log value
+			slog.Error("ошибка создания сообщения", "error", err, "slug", pluginSlug)
 			response.FailJSON(w, "Возникли неполадки при создании сообщения. Попробуйте выполнить запрос чуть позже.")
 			return
 		}

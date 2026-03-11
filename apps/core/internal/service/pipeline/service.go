@@ -40,7 +40,7 @@ type Storage interface {
 		arg db.UpdatePipelineStatusAndWorkerByIDParams,
 	) (db.PipelineStep, error)
 	GetWorkerByUUID(ctx context.Context, argUUID uuid.UUID) (db.Worker, error)
-	GetIdPipelineByUUIDMessageAndStep(ctx context.Context, arg db.GetIdPipelineByUUIDMessageAndStepParams) (int32, error)
+	GetIDPipelineByUUIDMessageAndStep(ctx context.Context, arg db.GetIDPipelineByUUIDMessageAndStepParams) (int32, error)
 }
 
 func New(

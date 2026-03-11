@@ -9,10 +9,10 @@ import (
 	"go.uber.org/mock/gomock"
 
 	DTO "github.com/zalberix/cactus/apps/core/internal/DTO"
-	pipelinePkg "github.com/zalberix/cactus/libs/pipeline"
 	"github.com/zalberix/cactus/apps/core/internal/service/pipeline"
 	"github.com/zalberix/cactus/apps/core/internal/service/pipeline/mocks"
 	"github.com/zalberix/cactus/apps/core/storage/db"
+	pipelinePkg "github.com/zalberix/cactus/libs/pipeline"
 )
 
 type testSetupCreatePipeline struct {
@@ -164,4 +164,3 @@ func TestCreatePipeline_Fail_CreateStepError(t *testing.T) {
 	assert.Contains(t, err.Error(), "ошибка создания pipeline шага для Step 1")
 	assert.Empty(t, result)
 }
-

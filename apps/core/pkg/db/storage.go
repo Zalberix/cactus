@@ -2,8 +2,9 @@ package db
 
 import (
 	"context"
+
 	"github.com/jmoiron/sqlx"
-	_ "github.com/lib/pq"
+	_ "github.com/lib/pq" // PostgreSQL driver
 	"github.com/zalberix/cactus/apps/core/config"
 )
 

@@ -23,7 +23,7 @@ type testSetupGetMessages struct {
 	mockPlugins *mocks.MockPlugins
 	service     *core.Service
 	slug        string
-	systemID    int
+	systemID    int32
 }
 
 func prepareTestGetMessages(t *testing.T) *testSetupGetMessages {
@@ -62,7 +62,7 @@ func TestGetMessages_Success(t *testing.T) {
 	ts.mockStorage.EXPECT().
 		GetMessagesBy(ts.ctx, db.GetMessagesByParams{
 			IDTypeWorker: expectedTypeWorker.ID,
-			IDSystem:     int32(ts.systemID),
+			IDSystem:     ts.systemID,
 		}).
 		Return(expectedMessagesDB, nil)
 	ts.mockPlugins.EXPECT().Get(ts.slug).Return(expectedSchema, true)
@@ -85,7 +85,7 @@ func TestGetMessages_Success_EmptyMessages(t *testing.T) {
 	ts.mockStorage.EXPECT().
 		GetMessagesBy(ts.ctx, db.GetMessagesByParams{
 			IDTypeWorker: expectedTypeWorker.ID,
-			IDSystem:     int32(ts.systemID),
+			IDSystem:     ts.systemID,
 		}).
 		Return([]db.Message{}, nil)
 
@@ -118,7 +118,7 @@ func TestGetMessages_Fail_GetMessagesBy(t *testing.T) {
 	ts.mockStorage.EXPECT().
 		GetMessagesBy(ts.ctx, db.GetMessagesByParams{
 			IDTypeWorker: expectedTypeWorker.ID,
-			IDSystem:     int32(ts.systemID),
+			IDSystem:     ts.systemID,
 		}).
 		Return(nil, errors.New("ошибка получения сообщений"))
 
@@ -141,7 +141,7 @@ func TestGetMessages_Fail_PluginNotFound(t *testing.T) {
 	ts.mockStorage.EXPECT().
 		GetMessagesBy(ts.ctx, db.GetMessagesByParams{
 			IDTypeWorker: expectedTypeWorker.ID,
-			IDSystem:     int32(ts.systemID),
+			IDSystem:     ts.systemID,
 		}).
 		Return(expectedMessagesDB, nil)
 
