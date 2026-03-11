@@ -12,8 +12,8 @@ services:
       # this is db addr
       - POSTGRES_SEEDS=postgres
       - POSTGRES_PORT=5432
-      - POSTGRES_USER=cactus
-      - POSTGRES_PWD=cactus
+      - POSTGRES_USER=root
+      - POSTGRES_PWD=root
       - POSTGRES_DB=temporal
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
     volumes:

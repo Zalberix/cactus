@@ -34,11 +34,7 @@ func runMigration(migrationsDir string, fn func(*goose.Provider) error) error {
 
 	sqlxDB, err := db.New(
 		context.Background(),
-		cfg.Database.Host,
-		cfg.Database.Port,
-		cfg.Database.Name,
-		cfg.Database.User,
-		cfg.Database.Pass,
+		cfg.Database.URL,
 	)
 	if err != nil {
 		pterm.Error.Printfln("DB connection failed: %v", err)
