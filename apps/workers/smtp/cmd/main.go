@@ -5,20 +5,17 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/zalberix/cactus/apps/workers/smtp/config"
 	"io"
 	"log/slog"
 	"net/http"
 	"sync"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/redis/go-redis/v9"
 	"gopkg.in/gomail.v2"
 
-	"github.com/zalberix/cactus/libs/shared/configschema"
-	"github.com/zalberix/cactus/libs/shared/contracts"
-	"github.com/zalberix/cactus/libs/shared/logger"
-	rdb "github.com/zalberix/cactus/libs/shared/redis"
+	"github.com/zalberix/cactus/apps/workers/smtp/config"
+	"github.com/zalberix/cactus/libs/logger"
+	"github.com/zalberix/cactus/libs/pipeline"
 	"github.com/zalberix/cactus/libs/worker"
 )
 
@@ -84,7 +81,7 @@ func (conf *SMTPWorkerConfig) Update(values map[string]interface{}) {
 	}
 }
 
-func (conf *SMTPWorkerConfig) Send(message contracts.MessageValueInMessageQueue, _ contracts.SystemValueInMessageQueue) {
+func (conf *SMTPWorkerConfig) Send(message pipeline.MessageInQueue, _ pipeline.SystemInQueue) {
 	conf.mutex.Lock()
 	defer conf.mutex.Unlock()
 	conf.sendChan <- func() {
@@ -118,7 +115,6 @@ func (conf *SMTPWorkerConfig) Send(message contracts.MessageValueInMessageQueue,
 				defer resp.Body.Close()
 
 				if resp.StatusCode != http.StatusOK {
-					// TODO обработать сообщение
 					return fmt.Errorf("ошибка загрузки файла: статус %d", resp.StatusCode)
 				}
 
@@ -156,24 +152,12 @@ func main() {
 
 	slog.SetDefault(logger.SetupLogger(conf.Env))
 
-	RDBStorage, err := rdb.New(ctx, &redis.Options{
-		Addr:     conf.Redis.Address,
-		Password: conf.Redis.Password,
-		Username: conf.Redis.User,
-	})
+	broker, err := worker.NewBrokerNATS(conf.Nats.URL)
 	if err != nil {
-		slog.Error("Ошибка создания соединения с redis: ", slog.Any("error", err.Error()))
+		slog.Error("Ошибка создания соединения с NATS:", slog.Any("error", err.Error()))
 		return
 	}
-
-	defer func() {
-		err := RDBStorage.Close()
-		if err != nil {
-			slog.Error("Ошибка закрытия соединения с redis:", slog.Any("error", err.Error()))
-		}
-	}()
-
-	broker := worker.NewBrokerRedis(RDBStorage)
+	defer broker.Close()
 
 	workerCore := worker.NewWorker(ctx, broker, worker.Config{
 		Token:          conf.Token,
@@ -182,7 +166,7 @@ func main() {
 		WorkerType:     Type,
 		WorkerNameType: "Email рассылка",
 		WorkerUUID:     conf.WorkerUUID,
-		ConfigSchema: []configschema.ConfigField{
+		ConfigSchema: []pipeline.ConfigField{
 			{
 				Type: "host",
 				Slug: "host",
@@ -211,8 +195,6 @@ func main() {
 	workerCore.SetHandler(func(m worker.QueueMessage) {
 		defer m.Ack()
 
-		// TODO вынести эту логику парсинга в worker этим не должен пользователь заниматься
-
 		fmt.Printf("Отправляю: %+v\n", m.Message.UUID)
 		SMTPWorker.Send(m.Message, m.System)
 	})
@@ -221,5 +203,5 @@ func main() {
 	// TODO добавить CTRL+C сигнал и graceful-shutdown
 	workerCore.Run()
 
-	slog.Info("Воркер smtp запущен")
+	slog.Info("Воркер smtp остановлен")
 }

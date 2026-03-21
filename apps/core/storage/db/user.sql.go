@@ -19,7 +19,7 @@ INSERT INTO "user" (
     "password",
     reset_password_after_login
 ) VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, last_name, first_name, patronymic, email, password, reset_password_after_login, created_at, updated_at, deleted_at
+RETURNING id, organization_id, last_name, first_name, patronymic, email, password, reset_password_after_login, created_at, updated_at, deleted_at
 `
 
 type CreateUserParams struct {
@@ -43,6 +43,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.OrganizationID,
 		&i.LastName,
 		&i.FirstName,
 		&i.Patronymic,
@@ -57,7 +58,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, last_name, first_name, patronymic, email, password, reset_password_after_login, created_at, updated_at, deleted_at FROM "user"
+SELECT id, organization_id, last_name, first_name, patronymic, email, password, reset_password_after_login, created_at, updated_at, deleted_at FROM "user"
 WHERE email = $1 AND deleted_at IS NULL
 LIMIT 1
 `
@@ -67,6 +68,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.OrganizationID,
 		&i.LastName,
 		&i.FirstName,
 		&i.Patronymic,
@@ -81,7 +83,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, last_name, first_name, patronymic, email, password, reset_password_after_login, created_at, updated_at, deleted_at FROM "user"
+SELECT id, organization_id, last_name, first_name, patronymic, email, password, reset_password_after_login, created_at, updated_at, deleted_at FROM "user"
 WHERE id = $1 AND deleted_at IS NULL
 LIMIT 1
 `
@@ -91,6 +93,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id int32) (User, error) {
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.OrganizationID,
 		&i.LastName,
 		&i.FirstName,
 		&i.Patronymic,

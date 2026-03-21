@@ -14,11 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/redis/go-redis/v9"
-
-	"github.com/zalberix/cactus/libs/shared/configschema"
-	"github.com/zalberix/cactus/libs/shared/contracts"
-	"github.com/zalberix/cactus/libs/shared/pipeline"
+	"github.com/zalberix/cactus/libs/pipeline"
 )
 
 type Message struct {
@@ -36,9 +32,9 @@ type workerMeta struct {
 type QueueMessage struct {
 	stream   *StreamConfig
 	ID       string
-	Pipeline contracts.PipelineValueInMessageQueue `json:"pipeline"`
-	Message  contracts.MessageValueInMessageQueue  `json:"message"`
-	System   contracts.SystemValueInMessageQueue   `json:"system"`
+	Pipeline pipeline.PipelineInQueue `json:"pipeline"`
+	Message  pipeline.MessageInQueue  `json:"message"`
+	System   pipeline.SystemInQueue   `json:"system"`
 }
 
 func (m *QueueMessage) Ack() error {
@@ -82,7 +78,7 @@ type Config struct {
 	WorkerType     string
 	WorkerNameType string
 	WorkerUUID     string
-	ConfigSchema   []configschema.ConfigField
+	ConfigSchema   []pipeline.ConfigField
 }
 
 type Broker interface {
@@ -112,13 +108,13 @@ func NewWorker(
 		groupName: "reader",
 		streamsEvent: map[string]ArgStream{
 			"config": {
-				Name:  "event:config:" + config.WorkerKind,
+				Name:  "event.config." + config.WorkerKind,
 				ID:    "$",
 				Block: 0,
 				Count: 1,
 			},
 			"meta": {
-				Name:  "event:meta",
+				Name:  "event.meta",
 				ID:    "$",
 				Block: 0,
 				Count: 1,
@@ -223,7 +219,7 @@ func (w *Worker) Run() {
 		go func(weight int, workerType string, workerKind string) {
 			defer wg.Done()
 
-			streamName := fmt.Sprintf("messages:%v:%v:w-%v", workerType, workerKind, weight)
+			streamName := fmt.Sprintf("messages.%v.%v.w-%v", workerType, workerKind, weight)
 
 			<-w.ready
 
@@ -259,7 +255,7 @@ func (w *Worker) readEventStream(ctx context.Context, stream StreamConfig, handl
 			return
 		default:
 			msgs, err := w.broker.Read(w.ctx, []string{stream.Name, stream.ID}, stream.Block, stream.Count)
-			if err != nil && !errors.Is(err, redis.Nil) {
+			if err != nil && !errors.Is(err, ErrNoMessages) {
 				w.err <- fmt.Errorf("ошибка чтения стрима %v: %w", stream.Name, err)
 				continue
 			}
@@ -276,17 +272,11 @@ func (w *Worker) readEventStream(ctx context.Context, stream StreamConfig, handl
 	}
 }
 
-// Чтение из стрима Redis и обработка через handler
+// Чтение из стрима и обработка через handler.
 //
 // TODO сделать чтобы возвращался канал, а не принимался handler,
 // так как при изменении количества приоритетов (meta MaxPriority) нужно
-// чтобы была возможность дочитать сообщения и вернуть их в сервис,
-// a еще как то надо обыграть block 0 либо сделать block 1 мин. Надо перфоманс посмотреть.
-// Тут сложнее чем кажется, завершение ctx не будет работать для XReadGroup если Block = 0
-// # https://github.com/redis/go-redis/issues/2556
-// Тоесть завершить горутину можно будет только если XReadGroup вычитали сообщение,
-// В случае если стрим больше не нужен и туда не пишутся сообщения,
-// он не сомжет завершиться, так как нет сообщений для чтения.
+// чтобы была возможность дочитать сообщения и вернуть их в сервис.
 func (w *Worker) readQueueStream(ctx context.Context, stream StreamConfig, handler func(QueueMessage)) {
 	err := w.createStreamIfNotExist(stream.Name, stream.worker.groupName)
 	if err != nil {
@@ -312,7 +302,7 @@ func (w *Worker) readQueueStream(ctx context.Context, stream StreamConfig, handl
 				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 					return
 				}
-				if !errors.Is(err, redis.Nil) {
+				if !errors.Is(err, ErrNoMessages) {
 					w.err <- fmt.Errorf("ошибка чтения стрима %v: %w", stream.Name, err)
 				}
 				continue
@@ -340,19 +330,19 @@ func (w *Worker) ParseValueMessage(
 	values map[string]interface{},
 	stream StreamConfig,
 ) (QueueMessage, error) {
-	var pipelineVal contracts.PipelineValueInMessageQueue
+	var pipelineVal pipeline.PipelineInQueue
 	err := w.GetFromValue(values, "pipeline", &pipelineVal)
 	if err != nil {
 		return QueueMessage{}, err
 	}
 
-	var system contracts.SystemValueInMessageQueue
+	var system pipeline.SystemInQueue
 	err = w.GetFromValue(values, "system", &system)
 	if err != nil {
 		return QueueMessage{}, err
 	}
 
-	var message contracts.MessageValueInMessageQueue
+	var message pipeline.MessageInQueue
 	err = w.GetFromValue(values, "message", &message)
 	if err != nil {
 		return QueueMessage{}, err
@@ -387,7 +377,7 @@ func (w *Worker) registerWorker() error {
 	}
 	ctx := w.ctx
 
-	requestRegisterEndpoint := contracts.RegisterWorkerRequest{
+	requestRegisterEndpoint := pipeline.RegisterWorkerRequest{
 		Token:        w.config.Token,
 		WorkerUUID:   w.config.WorkerUUID,
 		Kind:         w.config.WorkerKind,
@@ -451,7 +441,7 @@ func (w *Worker) registerWorker() error {
 		return fmt.Errorf("регистрация невозможна: %+v", string(body))
 	}
 
-	var dataResp responseData[contracts.RegisterWorkerResponse]
+	var dataResp responseData[pipeline.RegisterWorkerResponse]
 
 	if err := json.Unmarshal(body, &dataResp); err != nil {
 		return fmt.Errorf("ошибка десериализации JSON-ответа: %w", err)
@@ -527,7 +517,7 @@ func (w *Worker) sendStatusWorkFor(m QueueMessage) {
 		return
 	}
 
-	err = w.broker.Add(w.ctx, "event:pipeline", "*",
+	err = w.broker.Add(w.ctx, "event.pipeline", "*",
 		map[string]interface{}{
 			"message": JSONm,
 		},
@@ -550,7 +540,7 @@ func (w *Worker) sendStatusDoneFor(m QueueMessage) {
 		return
 	}
 
-	err = w.broker.Add(w.ctx, "event:pipeline", "*",
+	err = w.broker.Add(w.ctx, "event.pipeline", "*",
 		map[string]interface{}{
 			"message": JSONm,
 		},

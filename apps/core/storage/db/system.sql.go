@@ -10,25 +10,9 @@ import (
 	"database/sql"
 )
 
-const addChannelForSystem = `-- name: AddChannelForSystem :exec
-INSERT INTO channel_system (
-    system_id,
-    channel_id
-) VALUES ($1, $2)
-`
-
-type AddChannelForSystemParams struct {
-	SystemID  int32 `json:"system_id"`
-	ChannelID int32 `json:"channel_id"`
-}
-
-func (q *Queries) AddChannelForSystem(ctx context.Context, arg AddChannelForSystemParams) error {
-	_, err := q.db.ExecContext(ctx, addChannelForSystem, arg.SystemID, arg.ChannelID)
-	return err
-}
-
 const createSystem = `-- name: CreateSystem :one
 INSERT INTO "system" (
+    organization_id,
     user_creator_id,
     "name",
     description,
@@ -37,22 +21,24 @@ INSERT INTO "system" (
     public_token,
     private_token
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, user_creator_id, name, description, is_active, priority, public_token, private_token, created_at, updated_at, deleted_at
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, organization_id, user_creator_id, name, description, is_active, priority, public_token, private_token, created_at, updated_at, deleted_at
 `
 
 type CreateSystemParams struct {
-	UserCreatorID sql.NullInt32  `json:"user_creator_id"`
-	Name          string         `json:"name"`
-	Description   sql.NullString `json:"description"`
-	IsActive      bool           `json:"is_active"`
-	Priority      int32          `json:"priority"`
-	PublicToken   sql.NullString `json:"public_token"`
-	PrivateToken  sql.NullString `json:"private_token"`
+	OrganizationID sql.NullInt32  `json:"organization_id"`
+	UserCreatorID  sql.NullInt32  `json:"user_creator_id"`
+	Name           string         `json:"name"`
+	Description    sql.NullString `json:"description"`
+	IsActive       bool           `json:"is_active"`
+	Priority       int32          `json:"priority"`
+	PublicToken    sql.NullString `json:"public_token"`
+	PrivateToken   sql.NullString `json:"private_token"`
 }
 
 func (q *Queries) CreateSystem(ctx context.Context, arg CreateSystemParams) (System, error) {
 	row := q.db.QueryRowContext(ctx, createSystem,
+		arg.OrganizationID,
 		arg.UserCreatorID,
 		arg.Name,
 		arg.Description,
@@ -64,6 +50,7 @@ func (q *Queries) CreateSystem(ctx context.Context, arg CreateSystemParams) (Sys
 	var i System
 	err := row.Scan(
 		&i.ID,
+		&i.OrganizationID,
 		&i.UserCreatorID,
 		&i.Name,
 		&i.Description,
@@ -79,7 +66,7 @@ func (q *Queries) CreateSystem(ctx context.Context, arg CreateSystemParams) (Sys
 }
 
 const getSystemByID = `-- name: GetSystemByID :one
-SELECT id, user_creator_id, name, description, is_active, priority, public_token, private_token, created_at, updated_at, deleted_at FROM "system"
+SELECT id, organization_id, user_creator_id, name, description, is_active, priority, public_token, private_token, created_at, updated_at, deleted_at FROM "system"
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -88,6 +75,7 @@ func (q *Queries) GetSystemByID(ctx context.Context, id int32) (System, error) {
 	var i System
 	err := row.Scan(
 		&i.ID,
+		&i.OrganizationID,
 		&i.UserCreatorID,
 		&i.Name,
 		&i.Description,
@@ -103,7 +91,7 @@ func (q *Queries) GetSystemByID(ctx context.Context, id int32) (System, error) {
 }
 
 const getSystemByPublicToken = `-- name: GetSystemByPublicToken :one
-SELECT id, user_creator_id, name, description, is_active, priority, public_token, private_token, created_at, updated_at, deleted_at FROM "system"
+SELECT id, organization_id, user_creator_id, name, description, is_active, priority, public_token, private_token, created_at, updated_at, deleted_at FROM "system"
 WHERE public_token = $1 AND deleted_at IS NULL
 LIMIT 1
 `
@@ -113,6 +101,99 @@ func (q *Queries) GetSystemByPublicToken(ctx context.Context, publicToken sql.Nu
 	var i System
 	err := row.Scan(
 		&i.ID,
+		&i.OrganizationID,
+		&i.UserCreatorID,
+		&i.Name,
+		&i.Description,
+		&i.IsActive,
+		&i.Priority,
+		&i.PublicToken,
+		&i.PrivateToken,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const listSystemsByOrganizationID = `-- name: ListSystemsByOrganizationID :many
+SELECT id, organization_id, user_creator_id, name, description, is_active, priority, public_token, private_token, created_at, updated_at, deleted_at FROM "system"
+WHERE organization_id = $1 AND deleted_at IS NULL
+ORDER BY id
+`
+
+func (q *Queries) ListSystemsByOrganizationID(ctx context.Context, organizationID sql.NullInt32) ([]System, error) {
+	rows, err := q.db.QueryContext(ctx, listSystemsByOrganizationID, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []System
+	for rows.Next() {
+		var i System
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.UserCreatorID,
+			&i.Name,
+			&i.Description,
+			&i.IsActive,
+			&i.Priority,
+			&i.PublicToken,
+			&i.PrivateToken,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const softDeleteSystem = `-- name: SoftDeleteSystem :exec
+UPDATE "system"
+SET deleted_at = CURRENT_TIMESTAMP
+WHERE id = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) SoftDeleteSystem(ctx context.Context, id int32) error {
+	_, err := q.db.ExecContext(ctx, softDeleteSystem, id)
+	return err
+}
+
+const updateSystem = `-- name: UpdateSystem :one
+UPDATE "system"
+SET "name" = $2, description = $3, is_active = $4, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1 AND deleted_at IS NULL
+RETURNING id, organization_id, user_creator_id, name, description, is_active, priority, public_token, private_token, created_at, updated_at, deleted_at
+`
+
+type UpdateSystemParams struct {
+	ID          int32          `json:"id"`
+	Name        string         `json:"name"`
+	Description sql.NullString `json:"description"`
+	IsActive    bool           `json:"is_active"`
+}
+
+func (q *Queries) UpdateSystem(ctx context.Context, arg UpdateSystemParams) (System, error) {
+	row := q.db.QueryRowContext(ctx, updateSystem,
+		arg.ID,
+		arg.Name,
+		arg.Description,
+		arg.IsActive,
+	)
+	var i System
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
 		&i.UserCreatorID,
 		&i.Name,
 		&i.Description,

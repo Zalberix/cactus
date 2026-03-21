@@ -1,7 +1,10 @@
 package db
 
+// Backward-compatibility types for code that still uses the old schema (v0.2.0).
+// These types exist ONLY in Go — no corresponding tables in the DB.
+// TODO: remove once all callers migrate to the new schema (v0.3.0 — Phase 2).
+
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 
@@ -9,11 +12,12 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
-type TypeWorker = Channel
+// ─── Old types (no DB tables) ───────────────────────────────────────────────
 
-type CreateTypeWorkerParams struct {
-	Slug string `json:"slug"`
+type TypeWorker struct {
+	ID   int32  `json:"id"`
 	Name string `json:"name"`
+	Slug string `json:"slug"`
 }
 
 type KindWorker struct {
@@ -24,14 +28,40 @@ type KindWorker struct {
 	Config       pqtype.NullRawMessage `json:"config"`
 }
 
-type CreateKindWorkerParams struct {
-	Name         string                `json:"name"`
-	Slug         string                `json:"slug"`
-	ConfigSchema json.RawMessage       `json:"config_schema"`
-	Config       pqtype.NullRawMessage `json:"config"`
+type OldPipeline struct {
+	ID               int32         `json:"id"`
+	MessageID        int32         `json:"message_id"`
+	ParentPipelineID sql.NullInt32 `json:"parent_pipeline_id"`
+	CreatedAt        sql.NullTime  `json:"created_at"`
+	UpdatedAt        sql.NullTime  `json:"updated_at"`
+	DeletedAt        sql.NullTime  `json:"deleted_at"`
 }
 
-// Priority for backward compatibility (was priority table, now system.priority in v0.2.0).
+// Pipeline is an alias kept for old code compatibility.
+type Pipeline = OldPipeline
+
+type OldPipelineStep struct {
+	ID                   int32         `json:"id"`
+	PipelineID           int32         `json:"pipeline_id"`
+	WorkerID             sql.NullInt32 `json:"worker_id"`
+	ChannelID            int32         `json:"channel_id"`
+	Step                 int32         `json:"step"`
+	TimeStart            sql.NullTime  `json:"time_start"`
+	TimeEnd              sql.NullTime  `json:"time_end"`
+	CreatedAt            sql.NullTime  `json:"created_at"`
+	UpdatedAt            sql.NullTime  `json:"updated_at"`
+	DeletedAt            sql.NullTime  `json:"deleted_at"`
+	PipelineStepStatusID int32         `json:"pipeline_step_status_id"`
+}
+
+type PipelineStep = OldPipelineStep
+
+type PipelineStepStatus struct {
+	ID   int32  `json:"id"`
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+}
+
 type Priority struct {
 	ID     int32  `json:"id"`
 	Name   string `json:"name"`
@@ -39,12 +69,10 @@ type Priority struct {
 	Slug   string `json:"slug"`
 }
 
-// GetPriorityBySystemIDRow for backward compatibility.
 type GetPriorityBySystemIDRow struct {
 	Weight int32 `json:"weight"`
 }
 
-// Token for backward compatibility (was token table, now system.public_token/private_token in v0.2.0).
 type Token struct {
 	IDSystem     int32  `json:"id_system"`
 	IDKindWorker int32  `json:"id_kind_worker"`
@@ -53,179 +81,123 @@ type Token struct {
 	SecretToken  string `json:"secret_token"`
 }
 
-// GetMessagesByParams for backward compatibility.
-type GetMessagesByParams struct {
-	IDTypeWorker int32 `json:"id_type_worker"`
-	IDSystem     int32 `json:"id_system"`
+type Manifest struct {
+	ID    int32           `json:"id"`
+	Value json.RawMessage `json:"value"`
 }
 
-// UpdatePipelineStatusAndWorkerByIDParams for backward compatibility (pipeline_step in v0.2.0).
+type Channel struct {
+	ID   int32  `json:"id"`
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+}
+
+type Config struct {
+	ID           int32                 `json:"id"`
+	Name         string                `json:"name"`
+	ConfigSchema json.RawMessage       `json:"config_schema"`
+	Config       pqtype.NullRawMessage `json:"config"`
+}
+
+// ─── Old param types ────────────────────────────────────────────────────────
+
+type CreateChannelParams struct {
+	Slug string `json:"slug"`
+	Name string `json:"name"`
+}
+
+type CreateTypeWorkerParams = CreateChannelParams
+
+type CreateKindWorkerParams struct {
+	Name         string                `json:"name"`
+	Slug         string                `json:"slug"`
+	ConfigSchema json.RawMessage       `json:"config_schema"`
+	Config       pqtype.NullRawMessage `json:"config"`
+}
+
+type CreateConfigParams struct {
+	Name         string                `json:"name"`
+	ConfigSchema json.RawMessage       `json:"config_schema"`
+	Config       pqtype.NullRawMessage `json:"config"`
+}
+
+type CreateManifestParams struct {
+	Value json.RawMessage `json:"value"`
+}
+
+type CreatePipelineParams struct {
+	MessageID        int32         `json:"message_id"`
+	ParentPipelineID sql.NullInt32 `json:"parent_pipeline_id"`
+}
+
+type CreatePipelineStepParams struct {
+	PipelineID           int32         `json:"pipeline_id"`
+	WorkerID             sql.NullInt32 `json:"worker_id"`
+	ChannelID            int32         `json:"channel_id"`
+	Step                 int32         `json:"step"`
+	TimeStart            sql.NullTime  `json:"time_start"`
+	TimeEnd              sql.NullTime  `json:"time_end"`
+	PipelineStepStatusID int32         `json:"pipeline_step_status_id"`
+}
+
+type CreatePipelineStepStatusParams struct {
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+}
+
+type UpdatePipelineStepStatusAndWorkerParams struct {
+	ID                   int32         `json:"id"`
+	PipelineStepStatusID int32         `json:"pipeline_step_status_id"`
+	WorkerID             sql.NullInt32 `json:"worker_id"`
+}
+
 type UpdatePipelineStatusAndWorkerByIDParams struct {
 	ID       int32         `json:"id"`
 	Status   string        `json:"status"`
 	IDWorker sql.NullInt32 `json:"id_worker"`
 }
 
-// GetIDPipelineByUUIDMessageAndStepParams for backward compatibility.
 type GetIDPipelineByUUIDMessageAndStepParams struct {
 	UUID uuid.UUID `json:"uuid"`
 	Step int32     `json:"step"`
 }
 
-// ─── Wrapper methods on *Queries ────────────────────────────────────────────
-
-// GetTypeWorkers returns all channels (channel replaced type_worker in v0.2.0).
-func (q *Queries) GetTypeWorkers(ctx context.Context) ([]TypeWorker, error) {
-	return q.GetChannels(ctx)
+type GetPipelineStepByPipelineIDAndStepParams struct {
+	PipelineID int32 `json:"pipeline_id"`
+	Step       int32 `json:"step"`
 }
 
-// GetTypeWorkerBySlug returns a channel by slug.
-func (q *Queries) GetTypeWorkerBySlug(ctx context.Context, slug string) (TypeWorker, error) {
-	return q.GetChannelBySlug(ctx, slug)
+type GetMessagesByParams struct {
+	IDTypeWorker int32 `json:"id_type_worker"`
+	IDSystem     int32 `json:"id_system"`
 }
 
-// CreateTypeWorker creates a channel (type_worker replacement).
-func (q *Queries) CreateTypeWorker(ctx context.Context, arg CreateTypeWorkerParams) (TypeWorker, error) {
-	return q.CreateChannel(ctx, CreateChannelParams(arg))
+// Old param types kept for backward compat — service layer uses these until Phase 2 rewrite.
+
+type CreateFileParams struct {
+	MessageID int32  `json:"message_id"`
+	Title     string `json:"title"`
+	Name      string `json:"name"`
+	Ext       string `json:"ext"`
+	Url       string `json:"url"`
 }
 
-// GetKindWorkerBySlug returns a KindWorker by slug (stub — config has no slug in v0.2.0).
-func (q *Queries) GetKindWorkerBySlug(_ context.Context, _ string) (KindWorker, error) {
-	return KindWorker{}, sql.ErrNoRows
+type CreateMessageParams struct {
+	SystemID   int32           `json:"system_id"`
+	ManifestID int32           `json:"manifest_id"`
+	Uuid       uuid.UUID       `json:"uuid"`
+	Priority   int32           `json:"priority"`
+	Value      json.RawMessage `json:"value"`
+	SendAt     sql.NullTime    `json:"send_at"`
 }
 
-// CreateKindWorker creates a Config and returns it as KindWorker.
-func (q *Queries) CreateKindWorker(ctx context.Context, arg CreateKindWorkerParams) (KindWorker, error) {
-	config, err := q.CreateConfig(ctx, CreateConfigParams{
-		Name:         arg.Name,
-		ConfigSchema: arg.ConfigSchema,
-		Config:       arg.Config,
-	})
-	if err != nil {
-		return KindWorker{}, err
-	}
-	return KindWorker{
-		ID:           config.ID,
-		Name:         config.Name,
-		Slug:         arg.Slug,
-		ConfigSchema: config.ConfigSchema,
-		Config:       config.Config,
-	}, nil
+type CreateWorkerParams struct {
+	ChannelID int32 `json:"channel_id"`
+	ConfigID  int32 `json:"config_id"`
+	IsActive  bool  `json:"is_active"`
 }
 
-// GetKindWokerByID returns a Config as KindWorker by ID.
-func (q *Queries) GetKindWokerByID(ctx context.Context, id int32) (KindWorker, error) {
-	config, err := q.GetConfigByID(ctx, id)
-	if err != nil {
-		return KindWorker{}, err
-	}
-	return KindWorker{
-		ID:           config.ID,
-		Name:         config.Name,
-		ConfigSchema: config.ConfigSchema,
-		Config:       config.Config,
-	}, nil
-}
-
-// GetPriorityBySystemID returns priority weight from system record.
-func (q *Queries) GetPriorityBySystemID(ctx context.Context, id int32) (GetPriorityBySystemIDRow, error) {
-	sys, err := q.GetSystemByID(ctx, id)
-	if err != nil {
-		return GetPriorityBySystemIDRow{}, err
-	}
-	return GetPriorityBySystemIDRow{Weight: sys.Priority}, nil
-}
-
-// GetPriorityBySlug returns a stub Priority (priority table removed in v0.2.0).
-func (q *Queries) GetPriorityBySlug(_ context.Context, slug string) (Priority, error) {
-	return Priority{ID: 1, Name: slug, Weight: 0, Slug: slug}, nil
-}
-
-// GetMaxPriorityWeight returns 0 (priority table removed in v0.2.0).
-func (q *Queries) GetMaxPriorityWeight(_ context.Context) (int32, error) {
-	return 0, nil
-}
-
-// GetTokenByPublicToken looks up the system by public token and returns it as Token.
-func (q *Queries) GetTokenByPublicToken(ctx context.Context, publicToken string) (Token, error) {
-	sys, err := q.GetSystemByPublicToken(ctx, sql.NullString{String: publicToken, Valid: true})
-	if err != nil {
-		return Token{}, err
-	}
-	return Token{
-		IDSystem:    sys.ID,
-		IsActive:    sys.IsActive,
-		PublicToken: sys.PublicToken.String,
-	}, nil
-}
-
-// GetWorkerByUUID is a stub — Worker no longer has a UUID column in v0.2.0.
-func (q *Queries) GetWorkerByUUID(_ context.Context, _ uuid.UUID) (Worker, error) {
-	return Worker{}, sql.ErrNoRows
-}
-
-// GetMessagesBy returns messages filtered by system ID (IDTypeWorker filter dropped in v0.2.0).
-func (q *Queries) GetMessagesBy(ctx context.Context, arg GetMessagesByParams) ([]Message, error) {
-	return q.GetMessagesBySystemID(ctx, arg.IDSystem)
-}
-
-// GetStatusMessageByUUID is a stub.
-func (q *Queries) GetStatusMessageByUUID(_ context.Context, _ uuid.UUID) (string, error) {
-	return "", nil
-}
-
-// GetFilePathByUUID is a stub.
-func (q *Queries) GetFilePathByUUID(_ context.Context, _ uuid.UUID) (string, error) {
-	return "", nil
-}
-
-// GetTypeSlugWorkerByKindSlugWorker is a stub.
-func (q *Queries) GetTypeSlugWorkerByKindSlugWorker(_ context.Context, _ string) (string, error) {
-	return "", nil
-}
-
-// UpdatePipelineStatusAndWorkerByID maps old Status string to PipelineStepStatusID.
-func (q *Queries) UpdatePipelineStatusAndWorkerByID(
-	ctx context.Context,
-	arg UpdatePipelineStatusAndWorkerByIDParams,
-) (PipelineStep, error) {
-	statusID := int32(1) // default: wait
-	switch arg.Status {
-	case "work":
-		statusID = 2
-	case "done":
-		statusID = 3
-	case "cancel":
-		statusID = 4
-	case "error":
-		statusID = 5
-	}
-	return q.UpdatePipelineStepStatusAndWorker(ctx, UpdatePipelineStepStatusAndWorkerParams{
-		ID:                   arg.ID,
-		PipelineStepStatusID: statusID,
-		WorkerID:             arg.IDWorker,
-	})
-}
-
-// GetIDPipelineByUUIDMessageAndStep finds a PipelineStep.ID by message UUID and step number.
-func (q *Queries) GetIDPipelineByUUIDMessageAndStep(
-	ctx context.Context,
-	arg GetIDPipelineByUUIDMessageAndStepParams,
-) (int32, error) {
-	msg, err := q.GetMessageByUUID(ctx, arg.UUID)
-	if err != nil {
-		return 0, err
-	}
-	pipelines, err := q.GetPipelinesByMessageID(ctx, msg.ID)
-	if err != nil || len(pipelines) == 0 {
-		return 0, sql.ErrNoRows
-	}
-	step, err := q.GetPipelineStepByPipelineIDAndStep(ctx, GetPipelineStepByPipelineIDAndStepParams{
-		PipelineID: pipelines[0].ID,
-		Step:       arg.Step,
-	})
-	if err != nil {
-		return 0, err
-	}
-	return step.ID, nil
+type AddChannelForSystemParams struct {
+	SystemID  int32 `json:"system_id"`
+	ChannelID int32 `json:"channel_id"`
 }

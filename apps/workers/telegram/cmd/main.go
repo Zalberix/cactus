@@ -5,19 +5,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/zalberix/cactus/apps/workers/telegram/config"
 	"log/slog"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/redis/go-redis/v9"
 
-	"github.com/zalberix/cactus/libs/shared/configschema"
-	"github.com/zalberix/cactus/libs/shared/contracts"
-	"github.com/zalberix/cactus/libs/shared/logger"
-	rdb "github.com/zalberix/cactus/libs/shared/redis"
+	"github.com/zalberix/cactus/apps/workers/telegram/config"
+	"github.com/zalberix/cactus/libs/logger"
+	"github.com/zalberix/cactus/libs/pipeline"
 	"github.com/zalberix/cactus/libs/worker"
 )
 
@@ -30,14 +27,14 @@ type TelegramWorkerConfig struct {
 }
 
 func NewTelegramWorkerConfig(worker *worker.Worker) *TelegramWorkerConfig {
-	smtpWorker := &TelegramWorkerConfig{
+	tgWorker := &TelegramWorkerConfig{
 		worker:     worker,
 		mutex:      &sync.Mutex{},
 		sendChan:   make(chan func()),
 		stopWorker: make(chan struct{}),
 	}
-	smtpWorker.run()
-	return smtpWorker
+	tgWorker.run()
+	return tgWorker
 }
 
 func (conf *TelegramWorkerConfig) run() {
@@ -72,7 +69,7 @@ func (conf *TelegramWorkerConfig) Update(values map[string]interface{}) {
 	}
 }
 
-func (conf *TelegramWorkerConfig) Send(message contracts.MessageValueInMessageQueue, _ contracts.SystemValueInMessageQueue) {
+func (conf *TelegramWorkerConfig) Send(message pipeline.MessageInQueue, _ pipeline.SystemInQueue) {
 	conf.mutex.Lock()
 	defer conf.mutex.Unlock()
 
@@ -127,7 +124,6 @@ func main() {
 
 	conf := config.MustLoad()
 
-	// TODO удалить после реализации БД
 	if conf.WorkerUUID == "" {
 		slog.Error("worker обязан иметь ID (UUID)")
 		return
@@ -137,24 +133,12 @@ func main() {
 
 	slog.SetDefault(logger.SetupLogger(conf.Env))
 
-	RDBStorage, err := rdb.New(ctx, &redis.Options{
-		Addr:     conf.Redis.Address,
-		Password: conf.Redis.Password,
-		Username: conf.Redis.User,
-	})
+	broker, err := worker.NewBrokerNATS(conf.Nats.URL)
 	if err != nil {
-		slog.Error("Ошибка создания соединения с redis: ", slog.Any("error", err.Error()))
+		slog.Error("Ошибка создания соединения с NATS:", slog.Any("error", err.Error()))
 		return
 	}
-
-	defer func() {
-		err := RDBStorage.Close()
-		if err != nil {
-			slog.Error("Ошибка закрытия соединения с redis:", slog.Any("error", err.Error()))
-		}
-	}()
-
-	broker := worker.NewBrokerRedis(RDBStorage)
+	defer broker.Close()
 
 	workerCore := worker.NewWorker(ctx, broker, worker.Config{
 		Token:          conf.Token,
@@ -163,7 +147,7 @@ func main() {
 		WorkerType:     Type,
 		WorkerNameType: NameType,
 		WorkerUUID:     conf.WorkerUUID,
-		ConfigSchema: []configschema.ConfigField{
+		ConfigSchema: []pipeline.ConfigField{
 			{
 				Type: "text",
 				Slug: "server_url",
@@ -181,8 +165,6 @@ func main() {
 
 	workerCore.SetHandler(func(m worker.QueueMessage) {
 		defer m.Ack()
-
-		// TODO вынести эту логику парсинга в worker этим не должен пользователь заниматься
 
 		fmt.Printf("Отправляю: %+v\n", m.Message.UUID)
 		TelegramWorker.Send(m.Message, m.System)

@@ -21,6 +21,7 @@ func SeedAll(ctx context.Context, storage *db.Queries) error {
 		{"users", SeedUsers},
 		{"configs", SeedConfigs},
 		{"systems", SeedSystems},
+		{"work_types", SeedWorkTypes},
 	}
 
 	for _, s := range ordered {

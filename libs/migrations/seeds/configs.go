@@ -8,7 +8,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 
 	"github.com/zalberix/cactus/apps/core/storage/db"
-	"github.com/zalberix/cactus/libs/shared/configschema"
+	"github.com/zalberix/cactus/libs/pipeline"
 )
 
 func init() {
@@ -16,7 +16,7 @@ func init() {
 }
 
 func SeedConfigs(ctx context.Context, storage *db.Queries) error {
-	schema, err := json.Marshal([]configschema.ConfigField{
+	schema, err := json.Marshal([]pipeline.ConfigField{
 		{Type: "numeric", Slug: "host", Name: "ip адрес сервера SMTP"},
 		{Type: "numeric", Slug: "port", Name: "Порт сервера"},
 		{Type: "text", Slug: "from", Name: "Адрес отправителя"},

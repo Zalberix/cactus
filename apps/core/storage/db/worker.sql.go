@@ -7,60 +7,134 @@ package db
 
 import (
 	"context"
+
+	"github.com/sqlc-dev/pqtype"
 )
 
-const createWorker = `-- name: CreateWorker :one
-INSERT INTO worker (channel_id, config_id, is_active)
-VALUES ($1, $2, $3)
-RETURNING id, channel_id, config_id, is_active
+const createNewWorker = `-- name: CreateNewWorker :one
+INSERT INTO "worker" (work_type_id, worker_settings_schema_id, "name", metadata)
+VALUES ($1, $2, $3, $4)
+RETURNING id, work_type_id, worker_settings_schema_id, name, metadata, registered_at, last_heartbeat_at
 `
 
-type CreateWorkerParams struct {
-	ChannelID int32 `json:"channel_id"`
-	ConfigID  int32 `json:"config_id"`
-	IsActive  bool  `json:"is_active"`
+type CreateNewWorkerParams struct {
+	WorkTypeID             int32                 `json:"work_type_id"`
+	WorkerSettingsSchemaID int32                 `json:"worker_settings_schema_id"`
+	Name                   string                `json:"name"`
+	Metadata               pqtype.NullRawMessage `json:"metadata"`
 }
 
-func (q *Queries) CreateWorker(ctx context.Context, arg CreateWorkerParams) (Worker, error) {
-	row := q.db.QueryRowContext(ctx, createWorker, arg.ChannelID, arg.ConfigID, arg.IsActive)
+func (q *Queries) CreateNewWorker(ctx context.Context, arg CreateNewWorkerParams) (Worker, error) {
+	row := q.db.QueryRowContext(ctx, createNewWorker,
+		arg.WorkTypeID,
+		arg.WorkerSettingsSchemaID,
+		arg.Name,
+		arg.Metadata,
+	)
 	var i Worker
 	err := row.Scan(
 		&i.ID,
-		&i.ChannelID,
-		&i.ConfigID,
-		&i.IsActive,
+		&i.WorkTypeID,
+		&i.WorkerSettingsSchemaID,
+		&i.Name,
+		&i.Metadata,
+		&i.RegisteredAt,
+		&i.LastHeartbeatAt,
 	)
 	return i, err
 }
 
-const getChannelSlugByWorkerID = `-- name: GetChannelSlugByWorkerID :one
-SELECT c.slug
-FROM worker w
-JOIN channel c ON c.id = w.channel_id
-WHERE w.id = $1
-`
-
-func (q *Queries) GetChannelSlugByWorkerID(ctx context.Context, id int32) (string, error) {
-	row := q.db.QueryRowContext(ctx, getChannelSlugByWorkerID, id)
-	var slug string
-	err := row.Scan(&slug)
-	return slug, err
-}
-
-const getWorkerByID = `-- name: GetWorkerByID :one
-SELECT id, channel_id, config_id, is_active FROM worker
+const getNewWorkerByID = `-- name: GetNewWorkerByID :one
+SELECT id, work_type_id, worker_settings_schema_id, name, metadata, registered_at, last_heartbeat_at FROM "worker"
 WHERE id = $1
-LIMIT 1
 `
 
-func (q *Queries) GetWorkerByID(ctx context.Context, id int32) (Worker, error) {
-	row := q.db.QueryRowContext(ctx, getWorkerByID, id)
+func (q *Queries) GetNewWorkerByID(ctx context.Context, id int32) (Worker, error) {
+	row := q.db.QueryRowContext(ctx, getNewWorkerByID, id)
 	var i Worker
 	err := row.Scan(
 		&i.ID,
-		&i.ChannelID,
-		&i.ConfigID,
-		&i.IsActive,
+		&i.WorkTypeID,
+		&i.WorkerSettingsSchemaID,
+		&i.Name,
+		&i.Metadata,
+		&i.RegisteredAt,
+		&i.LastHeartbeatAt,
+	)
+	return i, err
+}
+
+const listNewWorkersByWorkTypeID = `-- name: ListNewWorkersByWorkTypeID :many
+SELECT id, work_type_id, worker_settings_schema_id, name, metadata, registered_at, last_heartbeat_at FROM "worker"
+WHERE work_type_id = $1
+ORDER BY id
+`
+
+func (q *Queries) ListNewWorkersByWorkTypeID(ctx context.Context, workTypeID int32) ([]Worker, error) {
+	rows, err := q.db.QueryContext(ctx, listNewWorkersByWorkTypeID, workTypeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Worker
+	for rows.Next() {
+		var i Worker
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkTypeID,
+			&i.WorkerSettingsSchemaID,
+			&i.Name,
+			&i.Metadata,
+			&i.RegisteredAt,
+			&i.LastHeartbeatAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateNewWorkerHeartbeat = `-- name: UpdateNewWorkerHeartbeat :exec
+UPDATE "worker"
+SET last_heartbeat_at = CURRENT_TIMESTAMP
+WHERE id = $1
+`
+
+func (q *Queries) UpdateNewWorkerHeartbeat(ctx context.Context, id int32) error {
+	_, err := q.db.ExecContext(ctx, updateNewWorkerHeartbeat, id)
+	return err
+}
+
+const updateNewWorkerSchema = `-- name: UpdateNewWorkerSchema :one
+UPDATE "worker"
+SET worker_settings_schema_id = $2
+WHERE id = $1
+RETURNING id, work_type_id, worker_settings_schema_id, name, metadata, registered_at, last_heartbeat_at
+`
+
+type UpdateNewWorkerSchemaParams struct {
+	ID                     int32 `json:"id"`
+	WorkerSettingsSchemaID int32 `json:"worker_settings_schema_id"`
+}
+
+func (q *Queries) UpdateNewWorkerSchema(ctx context.Context, arg UpdateNewWorkerSchemaParams) (Worker, error) {
+	row := q.db.QueryRowContext(ctx, updateNewWorkerSchema, arg.ID, arg.WorkerSettingsSchemaID)
+	var i Worker
+	err := row.Scan(
+		&i.ID,
+		&i.WorkTypeID,
+		&i.WorkerSettingsSchemaID,
+		&i.Name,
+		&i.Metadata,
+		&i.RegisteredAt,
+		&i.LastHeartbeatAt,
 	)
 	return i, err
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/zalberix/cactus/apps/core/config"
 	"strings"
 
 	"github.com/nats-io/nats.go"
@@ -31,8 +30,13 @@ func New(url string) (*Bus, error) {
 	return &Bus{nc: nc, js: js}, nil
 }
 
-func NewFx(cfg *config.Config) (*Bus, error) {
-	return New(cfg.Nats.URL)
+// NatsConfig — минимальный интерфейс для получения URL подключения к NATS.
+type NatsConfig interface {
+	NatsURL() string
+}
+
+func NewFx(cfg NatsConfig) (*Bus, error) {
+	return New(cfg.NatsURL())
 }
 
 func (b *Bus) Close() {

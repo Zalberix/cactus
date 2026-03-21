@@ -3,7 +3,6 @@ package config
 import (
 	"log"
 	"os"
-	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
 )
@@ -11,23 +10,15 @@ import (
 type Config struct {
 	Env        string `yaml:"env" env-default:"dev"`
 	WorkerUUID string `yaml:"worker_uuid"`
-	Redis      Redis  `yaml:"redis"`
+	Nats       Nats   `yaml:"nats"`
 	Token      string `yaml:"token"`
 }
 
-// TODO переписать на nats
-type Redis struct {
-	Address     string        `yaml:"address" env-default:"localhost:6379"`
-	Password    string        `yaml:"password" env-default:""`
-	User        string        `yaml:"user" env-default:""`
-	DB          int           `yaml:"db" env-default:"0"`
-	MaxRetries  int           `yaml:"max_retries" env-default:"1"`
-	DialTimeout time.Duration `yaml:"dial_timeout" env-default:"10s"`
-	Timeout     time.Duration `yaml:"timeout" env-default:"10s"`
+type Nats struct {
+	URL string `yaml:"url" env-default:"nats://localhost:4222"`
 }
 
 func MustLoad() *Config {
-	// TODO переделать на переменную среды так как нужно будет менять его при переезде на продакшен
 	configPath := "./configs/apps/workers/telegram.yaml"
 
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {

@@ -42,6 +42,11 @@ type Temporal struct {
 	Namespace string `yaml:"namespace" env-default:"default"`
 }
 
+// NatsURL реализует интерфейс bus.NatsConfig.
+func (c *Config) NatsURL() string {
+	return c.Nats.URL
+}
+
 func MustLoad(cnfPath *string) *Config {
 	configPath := "./configs/apps/core.yaml"
 	if cnfPath != nil {
