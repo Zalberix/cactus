@@ -17,8 +17,6 @@
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
-# Go workspace file
-go.work
 # Default ignored files
 /shelf/
 /workspace.xml
@@ -35,3 +33,4 @@ go.work
 /docker/assets/
 /node_modules/
 /storages/
+/plans/
