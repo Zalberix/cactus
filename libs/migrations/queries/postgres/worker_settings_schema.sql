@@ -16,3 +16,8 @@ ORDER BY id;
 UPDATE "worker_settings_schema"
 SET deleted_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND deleted_at IS NULL;
+
+-- name: GetWorkerSettingsSchemaByVersion :one
+SELECT * FROM "worker_settings_schema"
+WHERE work_type_id = $1 AND "version" = $2 AND deleted_at IS NULL
+LIMIT 1;

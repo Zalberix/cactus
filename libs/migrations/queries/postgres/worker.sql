@@ -22,3 +22,8 @@ UPDATE "worker"
 SET worker_settings_schema_id = $2
 WHERE id = $1
 RETURNING *;
+
+-- name: GetWorkerByWorkTypeAndName :one
+SELECT * FROM "worker"
+WHERE work_type_id = $1 AND "name" = $2
+LIMIT 1;

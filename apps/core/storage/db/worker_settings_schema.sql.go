@@ -68,6 +68,34 @@ func (q *Queries) GetWorkerSettingsSchemaByID(ctx context.Context, id int32) (Wo
 	return i, err
 }
 
+const getWorkerSettingsSchemaByVersion = `-- name: GetWorkerSettingsSchemaByVersion :one
+SELECT id, work_type_id, version, settings_schema, input_schema, output_schema, created_at, updated_at, deleted_at FROM "worker_settings_schema"
+WHERE work_type_id = $1 AND "version" = $2 AND deleted_at IS NULL
+LIMIT 1
+`
+
+type GetWorkerSettingsSchemaByVersionParams struct {
+	WorkTypeID int32  `json:"work_type_id"`
+	Version    string `json:"version"`
+}
+
+func (q *Queries) GetWorkerSettingsSchemaByVersion(ctx context.Context, arg GetWorkerSettingsSchemaByVersionParams) (WorkerSettingsSchema, error) {
+	row := q.db.QueryRow(ctx, getWorkerSettingsSchemaByVersion, arg.WorkTypeID, arg.Version)
+	var i WorkerSettingsSchema
+	err := row.Scan(
+		&i.ID,
+		&i.WorkTypeID,
+		&i.Version,
+		&i.SettingsSchema,
+		&i.InputSchema,
+		&i.OutputSchema,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const listWorkerSettingsSchemasByWorkTypeID = `-- name: ListWorkerSettingsSchemasByWorkTypeID :many
 SELECT id, work_type_id, version, settings_schema, input_schema, output_schema, created_at, updated_at, deleted_at FROM "worker_settings_schema"
 WHERE work_type_id = $1 AND deleted_at IS NULL

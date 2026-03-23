@@ -62,6 +62,32 @@ func (q *Queries) GetNewWorkerByID(ctx context.Context, id int32) (Worker, error
 	return i, err
 }
 
+const getWorkerByWorkTypeAndName = `-- name: GetWorkerByWorkTypeAndName :one
+SELECT id, work_type_id, worker_settings_schema_id, name, metadata, registered_at, last_heartbeat_at FROM "worker"
+WHERE work_type_id = $1 AND "name" = $2
+LIMIT 1
+`
+
+type GetWorkerByWorkTypeAndNameParams struct {
+	WorkTypeID int32  `json:"work_type_id"`
+	Name       string `json:"name"`
+}
+
+func (q *Queries) GetWorkerByWorkTypeAndName(ctx context.Context, arg GetWorkerByWorkTypeAndNameParams) (Worker, error) {
+	row := q.db.QueryRow(ctx, getWorkerByWorkTypeAndName, arg.WorkTypeID, arg.Name)
+	var i Worker
+	err := row.Scan(
+		&i.ID,
+		&i.WorkTypeID,
+		&i.WorkerSettingsSchemaID,
+		&i.Name,
+		&i.Metadata,
+		&i.RegisteredAt,
+		&i.LastHeartbeatAt,
+	)
+	return i, err
+}
+
 const listNewWorkersByWorkTypeID = `-- name: ListNewWorkersByWorkTypeID :many
 SELECT id, work_type_id, worker_settings_schema_id, name, metadata, registered_at, last_heartbeat_at FROM "worker"
 WHERE work_type_id = $1
