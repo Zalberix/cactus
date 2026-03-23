@@ -13,6 +13,7 @@ import (
 	"github.com/zalberix/cactus/apps/core/config"
 	"github.com/zalberix/cactus/apps/core/internal/domain/auth"
 	"github.com/zalberix/cactus/apps/core/internal/domain/rbac"
+	"github.com/zalberix/cactus/apps/core/internal/domain/worktype"
 	apphttp "github.com/zalberix/cactus/apps/core/internal/http"
 	"github.com/zalberix/cactus/apps/core/internal/http/middleware"
 	"github.com/zalberix/cactus/apps/core/internal/store"
@@ -37,11 +38,14 @@ func main() {
 			auth.NewHandler,
 			newRBACService,
 			rbac.NewHandler,
+			newWorktypeService,
+			newWorktypeHandler,
 		),
 		fx.Invoke(
 			registerNATSStreams,
 			registerAuthRoutes,
 			registerRBACRoutes,
+			registerWorkTypeRoutes,
 			registerHTTPServer,
 		),
 		fx.NopLogger,
@@ -90,6 +94,22 @@ func newRBACService(s *store.Store, authSvc *auth.Service) *rbac.Service {
 
 // registerRBACRoutes регистрирует защищённые RBAC маршруты.
 func registerRBACRoutes(r *gin.Engine, h *rbac.Handler, authSvc *auth.Service, s *store.Store) {
+	authMw := middleware.Auth(authSvc)
+	h.RegisterRoutes(r, authMw, s)
+}
+
+// newWorktypeService создаёт worktype.Service, передавая store как Storage.
+func newWorktypeService(s *store.Store) *worktype.Service {
+	return worktype.NewService(s)
+}
+
+// newWorktypeHandler создаёт worktype.Handler.
+func newWorktypeHandler(svc *worktype.Service, s *store.Store) *worktype.Handler {
+	return worktype.NewHandler(svc, s)
+}
+
+// registerWorkTypeRoutes регистрирует маршруты worktype домена.
+func registerWorkTypeRoutes(r *gin.Engine, h *worktype.Handler, authSvc *auth.Service, s *store.Store) {
 	authMw := middleware.Auth(authSvc)
 	h.RegisterRoutes(r, authMw, s)
 }
