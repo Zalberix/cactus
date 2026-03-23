@@ -6,11 +6,12 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/fx"
 
-	"github.com/jmoiron/sqlx"
-
 	"github.com/zalberix/cactus/apps/core/config"
+	apphttp "github.com/zalberix/cactus/apps/core/internal/http"
+	"github.com/zalberix/cactus/apps/core/internal/store"
 	pkgdb "github.com/zalberix/cactus/apps/core/pkg/db"
 	"github.com/zalberix/cactus/libs/bus"
 	"github.com/zalberix/cactus/libs/logger"
@@ -24,8 +25,10 @@ func main() {
 		fx.Supply(cfg),
 		fx.Provide(
 			pkgdb.NewFx,
+			store.New,
 			bus.NewFx,
-			newHTTPServer,
+			apphttp.NewRouter,
+			apphttp.NewHTTPServer,
 		),
 		fx.Invoke(
 			registerNATSStreams,
@@ -35,22 +38,6 @@ func main() {
 	)
 
 	app.Run()
-}
-
-func newHTTPServer(cfg *config.Config) *http.Server {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "OK")
-	})
-
-	return &http.Server{
-		Addr:         fmt.Sprintf("%v:%v", cfg.HTTPServer.Host, cfg.HTTPServer.Port),
-		Handler:      mux,
-		IdleTimeout:  cfg.HTTPServer.IdleTimeout,
-		ReadTimeout:  cfg.HTTPServer.Timeout,
-		WriteTimeout: cfg.HTTPServer.Timeout,
-	}
 }
 
 func registerNATSStreams(lc fx.Lifecycle, b *bus.Bus) {
@@ -68,7 +55,7 @@ func registerNATSStreams(lc fx.Lifecycle, b *bus.Bus) {
 	})
 }
 
-func registerHTTPServer(srv *http.Server, lc fx.Lifecycle, sqlxDB *sqlx.DB, b *bus.Bus) {
+func registerHTTPServer(srv *http.Server, lc fx.Lifecycle, pool *pgxpool.Pool, b *bus.Bus) {
 	lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
 			slog.Info(
@@ -85,8 +72,8 @@ func registerHTTPServer(srv *http.Server, lc fx.Lifecycle, sqlxDB *sqlx.DB, b *b
 		},
 		OnStop: func(ctx context.Context) error {
 			slog.Info("Остановка сервера")
-			defer sqlxDB.Close()
-			defer b.Close()
+			pool.Close()
+			b.Close()
 			return srv.Shutdown(ctx)
 		},
 	})
