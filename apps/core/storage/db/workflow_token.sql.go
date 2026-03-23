@@ -25,7 +25,7 @@ type CheckWorkflowAccessParams struct {
 }
 
 func (q *Queries) CheckWorkflowAccess(ctx context.Context, arg CheckWorkflowAccessParams) (bool, error) {
-	row := q.db.QueryRowContext(ctx, checkWorkflowAccess, arg.WorkflowID, arg.PublicToken)
+	row := q.db.QueryRow(ctx, checkWorkflowAccess, arg.WorkflowID, arg.PublicToken)
 	var has_access bool
 	err := row.Scan(&has_access)
 	return has_access, err
@@ -42,7 +42,7 @@ type GrantWorkflowTokenParams struct {
 }
 
 func (q *Queries) GrantWorkflowToken(ctx context.Context, arg GrantWorkflowTokenParams) error {
-	_, err := q.db.ExecContext(ctx, grantWorkflowToken, arg.SystemTokenID, arg.WorkflowID)
+	_, err := q.db.Exec(ctx, grantWorkflowToken, arg.SystemTokenID, arg.WorkflowID)
 	return err
 }
 
@@ -53,7 +53,7 @@ ORDER BY workflow_id
 `
 
 func (q *Queries) ListWorkflowTokensBySystemTokenID(ctx context.Context, systemTokenID int32) ([]WorkflowToken, error) {
-	rows, err := q.db.QueryContext(ctx, listWorkflowTokensBySystemTokenID, systemTokenID)
+	rows, err := q.db.Query(ctx, listWorkflowTokensBySystemTokenID, systemTokenID)
 	if err != nil {
 		return nil, err
 	}
@@ -65,9 +65,6 @@ func (q *Queries) ListWorkflowTokensBySystemTokenID(ctx context.Context, systemT
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -82,7 +79,7 @@ ORDER BY system_token_id
 `
 
 func (q *Queries) ListWorkflowTokensByWorkflowID(ctx context.Context, workflowID int32) ([]WorkflowToken, error) {
-	rows, err := q.db.QueryContext(ctx, listWorkflowTokensByWorkflowID, workflowID)
+	rows, err := q.db.Query(ctx, listWorkflowTokensByWorkflowID, workflowID)
 	if err != nil {
 		return nil, err
 	}
@@ -94,9 +91,6 @@ func (q *Queries) ListWorkflowTokensByWorkflowID(ctx context.Context, workflowID
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -115,6 +109,6 @@ type RevokeWorkflowTokenParams struct {
 }
 
 func (q *Queries) RevokeWorkflowToken(ctx context.Context, arg RevokeWorkflowTokenParams) error {
-	_, err := q.db.ExecContext(ctx, revokeWorkflowToken, arg.SystemTokenID, arg.WorkflowID)
+	_, err := q.db.Exec(ctx, revokeWorkflowToken, arg.SystemTokenID, arg.WorkflowID)
 	return err
 }

@@ -7,7 +7,8 @@ package db
 
 import (
 	"context"
-	"database/sql"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createUser = `-- name: CreateUser :one
@@ -23,16 +24,16 @@ RETURNING id, organization_id, last_name, first_name, patronymic, email, passwor
 `
 
 type CreateUserParams struct {
-	LastName                string         `json:"last_name"`
-	FirstName               string         `json:"first_name"`
-	Patronymic              sql.NullString `json:"patronymic"`
-	Email                   string         `json:"email"`
-	Password                string         `json:"password"`
-	ResetPasswordAfterLogin sql.NullBool   `json:"reset_password_after_login"`
+	LastName                string      `json:"last_name"`
+	FirstName               string      `json:"first_name"`
+	Patronymic              pgtype.Text `json:"patronymic"`
+	Email                   string      `json:"email"`
+	Password                string      `json:"password"`
+	ResetPasswordAfterLogin pgtype.Bool `json:"reset_password_after_login"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, createUser,
+	row := q.db.QueryRow(ctx, createUser,
 		arg.LastName,
 		arg.FirstName,
 		arg.Patronymic,
@@ -64,7 +65,7 @@ LIMIT 1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
-	row := q.db.QueryRowContext(ctx, getUserByEmail, email)
+	row := q.db.QueryRow(ctx, getUserByEmail, email)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -89,7 +90,7 @@ LIMIT 1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id int32) (User, error) {
-	row := q.db.QueryRowContext(ctx, getUserByID, id)
+	row := q.db.QueryRow(ctx, getUserByID, id)
 	var i User
 	err := row.Scan(
 		&i.ID,

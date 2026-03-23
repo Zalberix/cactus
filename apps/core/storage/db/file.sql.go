@@ -7,9 +7,8 @@ package db
 
 import (
 	"context"
-	"database/sql"
 
-	"github.com/sqlc-dev/pqtype"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createNewFile = `-- name: CreateNewFile :one
@@ -19,19 +18,19 @@ RETURNING id, message_id, workflow_run_step_id, name, bucket, object_key, conten
 `
 
 type CreateNewFileParams struct {
-	MessageID         sql.NullInt32         `json:"message_id"`
-	WorkflowRunStepID sql.NullInt32         `json:"workflow_run_step_id"`
-	Name              string                `json:"name"`
-	Bucket            string                `json:"bucket"`
-	ObjectKey         string                `json:"object_key"`
-	ContentType       string                `json:"content_type"`
-	SizeBytes         int32                 `json:"size_bytes"`
-	Hash              string                `json:"hash"`
-	Metadata          pqtype.NullRawMessage `json:"metadata"`
+	MessageID         pgtype.Int4 `json:"message_id"`
+	WorkflowRunStepID pgtype.Int4 `json:"workflow_run_step_id"`
+	Name              string      `json:"name"`
+	Bucket            string      `json:"bucket"`
+	ObjectKey         string      `json:"object_key"`
+	ContentType       string      `json:"content_type"`
+	SizeBytes         int32       `json:"size_bytes"`
+	Hash              string      `json:"hash"`
+	Metadata          []byte      `json:"metadata"`
 }
 
 func (q *Queries) CreateNewFile(ctx context.Context, arg CreateNewFileParams) (File, error) {
-	row := q.db.QueryRowContext(ctx, createNewFile,
+	row := q.db.QueryRow(ctx, createNewFile,
 		arg.MessageID,
 		arg.WorkflowRunStepID,
 		arg.Name,
@@ -66,7 +65,7 @@ WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetNewFileByID(ctx context.Context, id int32) (File, error) {
-	row := q.db.QueryRowContext(ctx, getNewFileByID, id)
+	row := q.db.QueryRow(ctx, getNewFileByID, id)
 	var i File
 	err := row.Scan(
 		&i.ID,
@@ -92,7 +91,7 @@ LIMIT 1
 `
 
 func (q *Queries) GetNewFileByObjectKey(ctx context.Context, objectKey string) (File, error) {
-	row := q.db.QueryRowContext(ctx, getNewFileByObjectKey, objectKey)
+	row := q.db.QueryRow(ctx, getNewFileByObjectKey, objectKey)
 	var i File
 	err := row.Scan(
 		&i.ID,
@@ -117,8 +116,8 @@ WHERE message_id = $1 AND deleted_at IS NULL
 ORDER BY id
 `
 
-func (q *Queries) ListNewFilesByMessageID(ctx context.Context, messageID sql.NullInt32) ([]File, error) {
-	rows, err := q.db.QueryContext(ctx, listNewFilesByMessageID, messageID)
+func (q *Queries) ListNewFilesByMessageID(ctx context.Context, messageID pgtype.Int4) ([]File, error) {
+	rows, err := q.db.Query(ctx, listNewFilesByMessageID, messageID)
 	if err != nil {
 		return nil, err
 	}
@@ -143,9 +142,6 @@ func (q *Queries) ListNewFilesByMessageID(ctx context.Context, messageID sql.Nul
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -159,8 +155,8 @@ WHERE workflow_run_step_id = $1 AND deleted_at IS NULL
 ORDER BY id
 `
 
-func (q *Queries) ListNewFilesByRunStepID(ctx context.Context, workflowRunStepID sql.NullInt32) ([]File, error) {
-	rows, err := q.db.QueryContext(ctx, listNewFilesByRunStepID, workflowRunStepID)
+func (q *Queries) ListNewFilesByRunStepID(ctx context.Context, workflowRunStepID pgtype.Int4) ([]File, error) {
+	rows, err := q.db.Query(ctx, listNewFilesByRunStepID, workflowRunStepID)
 	if err != nil {
 		return nil, err
 	}
@@ -185,9 +181,6 @@ func (q *Queries) ListNewFilesByRunStepID(ctx context.Context, workflowRunStepID
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -202,6 +195,6 @@ WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) SoftDeleteNewFile(ctx context.Context, id int32) error {
-	_, err := q.db.ExecContext(ctx, softDeleteNewFile, id)
+	_, err := q.db.Exec(ctx, softDeleteNewFile, id)
 	return err
 }

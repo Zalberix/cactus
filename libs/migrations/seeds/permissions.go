@@ -4,15 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jmoiron/sqlx"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/zalberix/cactus/libs/permissions"
 )
 
 // SeedPermissions вставляет базовые права доступа.
-func SeedPermissions(ctx context.Context, db *sqlx.DB) error {
+func SeedPermissions(ctx context.Context, db *pgxpool.Pool) error {
 	for _, p := range permissions.All() {
-		_, err := db.ExecContext(ctx, `
+		_, err := db.Exec(ctx, `
 			INSERT INTO permission (slug, is_private)
 			VALUES ($1, $2)
 			ON CONFLICT (slug) DO NOTHING

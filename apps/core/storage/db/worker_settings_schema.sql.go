@@ -7,7 +7,6 @@ package db
 
 import (
 	"context"
-	"encoding/json"
 )
 
 const createWorkerSettingsSchema = `-- name: CreateWorkerSettingsSchema :one
@@ -17,15 +16,15 @@ RETURNING id, work_type_id, version, settings_schema, input_schema, output_schem
 `
 
 type CreateWorkerSettingsSchemaParams struct {
-	WorkTypeID     int32           `json:"work_type_id"`
-	Version        string          `json:"version"`
-	SettingsSchema json.RawMessage `json:"settings_schema"`
-	InputSchema    json.RawMessage `json:"input_schema"`
-	OutputSchema   json.RawMessage `json:"output_schema"`
+	WorkTypeID     int32  `json:"work_type_id"`
+	Version        string `json:"version"`
+	SettingsSchema []byte `json:"settings_schema"`
+	InputSchema    []byte `json:"input_schema"`
+	OutputSchema   []byte `json:"output_schema"`
 }
 
 func (q *Queries) CreateWorkerSettingsSchema(ctx context.Context, arg CreateWorkerSettingsSchemaParams) (WorkerSettingsSchema, error) {
-	row := q.db.QueryRowContext(ctx, createWorkerSettingsSchema,
+	row := q.db.QueryRow(ctx, createWorkerSettingsSchema,
 		arg.WorkTypeID,
 		arg.Version,
 		arg.SettingsSchema,
@@ -53,7 +52,7 @@ WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetWorkerSettingsSchemaByID(ctx context.Context, id int32) (WorkerSettingsSchema, error) {
-	row := q.db.QueryRowContext(ctx, getWorkerSettingsSchemaByID, id)
+	row := q.db.QueryRow(ctx, getWorkerSettingsSchemaByID, id)
 	var i WorkerSettingsSchema
 	err := row.Scan(
 		&i.ID,
@@ -76,7 +75,7 @@ ORDER BY id
 `
 
 func (q *Queries) ListWorkerSettingsSchemasByWorkTypeID(ctx context.Context, workTypeID int32) ([]WorkerSettingsSchema, error) {
-	rows, err := q.db.QueryContext(ctx, listWorkerSettingsSchemasByWorkTypeID, workTypeID)
+	rows, err := q.db.Query(ctx, listWorkerSettingsSchemasByWorkTypeID, workTypeID)
 	if err != nil {
 		return nil, err
 	}
@@ -99,9 +98,6 @@ func (q *Queries) ListWorkerSettingsSchemasByWorkTypeID(ctx context.Context, wor
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -115,6 +111,6 @@ WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) SoftDeleteWorkerSettingsSchema(ctx context.Context, id int32) error {
-	_, err := q.db.ExecContext(ctx, softDeleteWorkerSettingsSchema, id)
+	_, err := q.db.Exec(ctx, softDeleteWorkerSettingsSchema, id)
 	return err
 }

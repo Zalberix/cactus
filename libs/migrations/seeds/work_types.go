@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jmoiron/sqlx"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // SeedWorkTypes вставляет базовые типы работ (smtp, telegram).
-func SeedWorkTypes(ctx context.Context, db *sqlx.DB) error {
+func SeedWorkTypes(ctx context.Context, db *pgxpool.Pool) error {
 	workTypes := []struct {
 		Name string
 		Code string
@@ -18,7 +18,7 @@ func SeedWorkTypes(ctx context.Context, db *sqlx.DB) error {
 	}
 
 	for _, wt := range workTypes {
-		_, err := db.ExecContext(ctx, `
+		_, err := db.Exec(ctx, `
 			INSERT INTO work_type (name, code)
 			VALUES ($1, $2)
 			ON CONFLICT (code) DO NOTHING

@@ -7,7 +7,8 @@ package db
 
 import (
 	"context"
-	"database/sql"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createSystem = `-- name: CreateSystem :one
@@ -26,18 +27,18 @@ RETURNING id, organization_id, user_creator_id, name, description, is_active, pr
 `
 
 type CreateSystemParams struct {
-	OrganizationID sql.NullInt32  `json:"organization_id"`
-	UserCreatorID  sql.NullInt32  `json:"user_creator_id"`
-	Name           string         `json:"name"`
-	Description    sql.NullString `json:"description"`
-	IsActive       bool           `json:"is_active"`
-	Priority       int32          `json:"priority"`
-	PublicToken    sql.NullString `json:"public_token"`
-	PrivateToken   sql.NullString `json:"private_token"`
+	OrganizationID pgtype.Int4 `json:"organization_id"`
+	UserCreatorID  pgtype.Int4 `json:"user_creator_id"`
+	Name           string      `json:"name"`
+	Description    pgtype.Text `json:"description"`
+	IsActive       bool        `json:"is_active"`
+	Priority       int32       `json:"priority"`
+	PublicToken    pgtype.Text `json:"public_token"`
+	PrivateToken   pgtype.Text `json:"private_token"`
 }
 
 func (q *Queries) CreateSystem(ctx context.Context, arg CreateSystemParams) (System, error) {
-	row := q.db.QueryRowContext(ctx, createSystem,
+	row := q.db.QueryRow(ctx, createSystem,
 		arg.OrganizationID,
 		arg.UserCreatorID,
 		arg.Name,
@@ -71,7 +72,7 @@ WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetSystemByID(ctx context.Context, id int32) (System, error) {
-	row := q.db.QueryRowContext(ctx, getSystemByID, id)
+	row := q.db.QueryRow(ctx, getSystemByID, id)
 	var i System
 	err := row.Scan(
 		&i.ID,
@@ -96,8 +97,8 @@ WHERE public_token = $1 AND deleted_at IS NULL
 LIMIT 1
 `
 
-func (q *Queries) GetSystemByPublicToken(ctx context.Context, publicToken sql.NullString) (System, error) {
-	row := q.db.QueryRowContext(ctx, getSystemByPublicToken, publicToken)
+func (q *Queries) GetSystemByPublicToken(ctx context.Context, publicToken pgtype.Text) (System, error) {
+	row := q.db.QueryRow(ctx, getSystemByPublicToken, publicToken)
 	var i System
 	err := row.Scan(
 		&i.ID,
@@ -122,8 +123,8 @@ WHERE organization_id = $1 AND deleted_at IS NULL
 ORDER BY id
 `
 
-func (q *Queries) ListSystemsByOrganizationID(ctx context.Context, organizationID sql.NullInt32) ([]System, error) {
-	rows, err := q.db.QueryContext(ctx, listSystemsByOrganizationID, organizationID)
+func (q *Queries) ListSystemsByOrganizationID(ctx context.Context, organizationID pgtype.Int4) ([]System, error) {
+	rows, err := q.db.Query(ctx, listSystemsByOrganizationID, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -149,9 +150,6 @@ func (q *Queries) ListSystemsByOrganizationID(ctx context.Context, organizationI
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -165,7 +163,7 @@ WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) SoftDeleteSystem(ctx context.Context, id int32) error {
-	_, err := q.db.ExecContext(ctx, softDeleteSystem, id)
+	_, err := q.db.Exec(ctx, softDeleteSystem, id)
 	return err
 }
 
@@ -177,14 +175,14 @@ RETURNING id, organization_id, user_creator_id, name, description, is_active, pr
 `
 
 type UpdateSystemParams struct {
-	ID          int32          `json:"id"`
-	Name        string         `json:"name"`
-	Description sql.NullString `json:"description"`
-	IsActive    bool           `json:"is_active"`
+	ID          int32       `json:"id"`
+	Name        string      `json:"name"`
+	Description pgtype.Text `json:"description"`
+	IsActive    bool        `json:"is_active"`
 }
 
 func (q *Queries) UpdateSystem(ctx context.Context, arg UpdateSystemParams) (System, error) {
-	row := q.db.QueryRowContext(ctx, updateSystem,
+	row := q.db.QueryRow(ctx, updateSystem,
 		arg.ID,
 		arg.Name,
 		arg.Description,

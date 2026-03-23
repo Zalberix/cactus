@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jmoiron/sqlx"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // SeedUsers вставляет demo-пользователя в тестовую организацию.
 // Пароль: "password" (bcrypt hash).
-func SeedUsers(ctx context.Context, db *sqlx.DB) error {
+func SeedUsers(ctx context.Context, db *pgxpool.Pool) error {
 	// $2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi = "password"
-	_, err := db.ExecContext(ctx, `
+	_, err := db.Exec(ctx, `
 		INSERT INTO "user" (email, password, last_name, first_name, reset_password_after_login, organization_id)
 		VALUES (
 			'demo@test.local',

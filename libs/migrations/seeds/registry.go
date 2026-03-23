@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/jmoiron/sqlx"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// SQLSeedFunc — функция сида, работающая с сырым SQL через sqlx.DB.
-type SQLSeedFunc func(ctx context.Context, db *sqlx.DB) error
+// SQLSeedFunc — функция сида, работающая с сырым SQL через pgxpool.Pool.
+type SQLSeedFunc func(ctx context.Context, db *pgxpool.Pool) error
 
 var registry = map[string]SQLSeedFunc{}
 
@@ -17,7 +17,7 @@ func Register(name string, fn SQLSeedFunc) {
 	registry[name] = fn
 }
 
-func Run(ctx context.Context, db *sqlx.DB, name string) error {
+func Run(ctx context.Context, db *pgxpool.Pool, name string) error {
 	fn, ok := registry[name]
 	if !ok {
 		return fmt.Errorf("сид %q не найден. Доступные: %v", name, List())

@@ -8,10 +8,10 @@ use (
 	./apps/workers/telegram
 	./cli
 	./libs/bus
-	./libs/worker
 	./libs/config
 	./libs/logger
 	./libs/migrations
-	./libs/pipeline
 	./libs/permissions
+	./libs/pipeline
+	./libs/worker
 )

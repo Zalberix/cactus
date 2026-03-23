@@ -7,9 +7,8 @@ package db
 
 import (
 	"context"
-	"database/sql"
 
-	"github.com/sqlc-dev/pqtype"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createWorkflow = `-- name: CreateWorkflow :one
@@ -19,15 +18,15 @@ RETURNING id, system_id, name, priority, input_validation, description, created_
 `
 
 type CreateWorkflowParams struct {
-	SystemID        int32                 `json:"system_id"`
-	Name            string                `json:"name"`
-	Priority        int32                 `json:"priority"`
-	InputValidation pqtype.NullRawMessage `json:"input_validation"`
-	Description     sql.NullString        `json:"description"`
+	SystemID        int32       `json:"system_id"`
+	Name            string      `json:"name"`
+	Priority        int32       `json:"priority"`
+	InputValidation []byte      `json:"input_validation"`
+	Description     pgtype.Text `json:"description"`
 }
 
 func (q *Queries) CreateWorkflow(ctx context.Context, arg CreateWorkflowParams) (Workflow, error) {
-	row := q.db.QueryRowContext(ctx, createWorkflow,
+	row := q.db.QueryRow(ctx, createWorkflow,
 		arg.SystemID,
 		arg.Name,
 		arg.Priority,
@@ -55,7 +54,7 @@ WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetWorkflowByID(ctx context.Context, id int32) (Workflow, error) {
-	row := q.db.QueryRowContext(ctx, getWorkflowByID, id)
+	row := q.db.QueryRow(ctx, getWorkflowByID, id)
 	var i Workflow
 	err := row.Scan(
 		&i.ID,
@@ -78,7 +77,7 @@ ORDER BY id
 `
 
 func (q *Queries) ListWorkflowsBySystemID(ctx context.Context, systemID int32) ([]Workflow, error) {
-	rows, err := q.db.QueryContext(ctx, listWorkflowsBySystemID, systemID)
+	rows, err := q.db.Query(ctx, listWorkflowsBySystemID, systemID)
 	if err != nil {
 		return nil, err
 	}
@@ -101,9 +100,6 @@ func (q *Queries) ListWorkflowsBySystemID(ctx context.Context, systemID int32) (
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -117,7 +113,7 @@ WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) SoftDeleteWorkflow(ctx context.Context, id int32) error {
-	_, err := q.db.ExecContext(ctx, softDeleteWorkflow, id)
+	_, err := q.db.Exec(ctx, softDeleteWorkflow, id)
 	return err
 }
 
@@ -129,14 +125,14 @@ RETURNING id, system_id, name, priority, input_validation, description, created_
 `
 
 type UpdateWorkflowParams struct {
-	ID          int32          `json:"id"`
-	Name        string         `json:"name"`
-	Priority    int32          `json:"priority"`
-	Description sql.NullString `json:"description"`
+	ID          int32       `json:"id"`
+	Name        string      `json:"name"`
+	Priority    int32       `json:"priority"`
+	Description pgtype.Text `json:"description"`
 }
 
 func (q *Queries) UpdateWorkflow(ctx context.Context, arg UpdateWorkflowParams) (Workflow, error) {
-	row := q.db.QueryRowContext(ctx, updateWorkflow,
+	row := q.db.QueryRow(ctx, updateWorkflow,
 		arg.ID,
 		arg.Name,
 		arg.Priority,
@@ -165,12 +161,12 @@ RETURNING id, system_id, name, priority, input_validation, description, created_
 `
 
 type UpdateWorkflowInputValidationParams struct {
-	ID              int32                 `json:"id"`
-	InputValidation pqtype.NullRawMessage `json:"input_validation"`
+	ID              int32  `json:"id"`
+	InputValidation []byte `json:"input_validation"`
 }
 
 func (q *Queries) UpdateWorkflowInputValidation(ctx context.Context, arg UpdateWorkflowInputValidationParams) (Workflow, error) {
-	row := q.db.QueryRowContext(ctx, updateWorkflowInputValidation, arg.ID, arg.InputValidation)
+	row := q.db.QueryRow(ctx, updateWorkflowInputValidation, arg.ID, arg.InputValidation)
 	var i Workflow
 	err := row.Scan(
 		&i.ID,

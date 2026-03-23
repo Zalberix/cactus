@@ -7,8 +7,6 @@ package db
 
 import (
 	"context"
-
-	"github.com/sqlc-dev/pqtype"
 )
 
 const createNewWorker = `-- name: CreateNewWorker :one
@@ -18,14 +16,14 @@ RETURNING id, work_type_id, worker_settings_schema_id, name, metadata, registere
 `
 
 type CreateNewWorkerParams struct {
-	WorkTypeID             int32                 `json:"work_type_id"`
-	WorkerSettingsSchemaID int32                 `json:"worker_settings_schema_id"`
-	Name                   string                `json:"name"`
-	Metadata               pqtype.NullRawMessage `json:"metadata"`
+	WorkTypeID             int32  `json:"work_type_id"`
+	WorkerSettingsSchemaID int32  `json:"worker_settings_schema_id"`
+	Name                   string `json:"name"`
+	Metadata               []byte `json:"metadata"`
 }
 
 func (q *Queries) CreateNewWorker(ctx context.Context, arg CreateNewWorkerParams) (Worker, error) {
-	row := q.db.QueryRowContext(ctx, createNewWorker,
+	row := q.db.QueryRow(ctx, createNewWorker,
 		arg.WorkTypeID,
 		arg.WorkerSettingsSchemaID,
 		arg.Name,
@@ -50,7 +48,7 @@ WHERE id = $1
 `
 
 func (q *Queries) GetNewWorkerByID(ctx context.Context, id int32) (Worker, error) {
-	row := q.db.QueryRowContext(ctx, getNewWorkerByID, id)
+	row := q.db.QueryRow(ctx, getNewWorkerByID, id)
 	var i Worker
 	err := row.Scan(
 		&i.ID,
@@ -71,7 +69,7 @@ ORDER BY id
 `
 
 func (q *Queries) ListNewWorkersByWorkTypeID(ctx context.Context, workTypeID int32) ([]Worker, error) {
-	rows, err := q.db.QueryContext(ctx, listNewWorkersByWorkTypeID, workTypeID)
+	rows, err := q.db.Query(ctx, listNewWorkersByWorkTypeID, workTypeID)
 	if err != nil {
 		return nil, err
 	}
@@ -92,9 +90,6 @@ func (q *Queries) ListNewWorkersByWorkTypeID(ctx context.Context, workTypeID int
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -108,7 +103,7 @@ WHERE id = $1
 `
 
 func (q *Queries) UpdateNewWorkerHeartbeat(ctx context.Context, id int32) error {
-	_, err := q.db.ExecContext(ctx, updateNewWorkerHeartbeat, id)
+	_, err := q.db.Exec(ctx, updateNewWorkerHeartbeat, id)
 	return err
 }
 
@@ -125,7 +120,7 @@ type UpdateNewWorkerSchemaParams struct {
 }
 
 func (q *Queries) UpdateNewWorkerSchema(ctx context.Context, arg UpdateNewWorkerSchemaParams) (Worker, error) {
-	row := q.db.QueryRowContext(ctx, updateNewWorkerSchema, arg.ID, arg.WorkerSettingsSchemaID)
+	row := q.db.QueryRow(ctx, updateNewWorkerSchema, arg.ID, arg.WorkerSettingsSchemaID)
 	var i Worker
 	err := row.Scan(
 		&i.ID,

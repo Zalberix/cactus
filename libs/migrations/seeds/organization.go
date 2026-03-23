@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jmoiron/sqlx"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // SeedOrganization вставляет тестовую организацию.
-func SeedOrganization(ctx context.Context, db *sqlx.DB) error {
-	_, err := db.ExecContext(ctx, `
+func SeedOrganization(ctx context.Context, db *pgxpool.Pool) error {
+	_, err := db.Exec(ctx, `
 		INSERT INTO organization (name, code)
 		VALUES ('Test Organization', 'test')
 		ON CONFLICT (code) DO NOTHING

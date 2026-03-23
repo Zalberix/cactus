@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jmoiron/sqlx"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // SeedAll выполняет все сиды по порядку.
-func SeedAll(ctx context.Context, db *sqlx.DB) error {
+func SeedAll(ctx context.Context, db *pgxpool.Pool) error {
 	ordered := []struct {
 		name string
 		fn   SQLSeedFunc

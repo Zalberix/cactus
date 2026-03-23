@@ -7,7 +7,8 @@ package db
 
 import (
 	"context"
-	"database/sql"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createWorkflowVersion = `-- name: CreateWorkflowVersion :one
@@ -17,17 +18,17 @@ RETURNING id, workflow_id, created_by_user_id, version_number, is_valid, is_acti
 `
 
 type CreateWorkflowVersionParams struct {
-	WorkflowID      int32         `json:"workflow_id"`
-	CreatedByUserID sql.NullInt32 `json:"created_by_user_id"`
-	VersionNumber   int32         `json:"version_number"`
-	IsValid         bool          `json:"is_valid"`
-	IsActive        bool          `json:"is_active"`
-	TrafficWeight   int32         `json:"traffic_weight"`
-	IsControlGroup  bool          `json:"is_control_group"`
+	WorkflowID      int32       `json:"workflow_id"`
+	CreatedByUserID pgtype.Int4 `json:"created_by_user_id"`
+	VersionNumber   int32       `json:"version_number"`
+	IsValid         bool        `json:"is_valid"`
+	IsActive        bool        `json:"is_active"`
+	TrafficWeight   int32       `json:"traffic_weight"`
+	IsControlGroup  bool        `json:"is_control_group"`
 }
 
 func (q *Queries) CreateWorkflowVersion(ctx context.Context, arg CreateWorkflowVersionParams) (WorkflowVersion, error) {
-	row := q.db.QueryRowContext(ctx, createWorkflowVersion,
+	row := q.db.QueryRow(ctx, createWorkflowVersion,
 		arg.WorkflowID,
 		arg.CreatedByUserID,
 		arg.VersionNumber,
@@ -59,7 +60,7 @@ WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetWorkflowVersionByID(ctx context.Context, id int32) (WorkflowVersion, error) {
-	row := q.db.QueryRowContext(ctx, getWorkflowVersionByID, id)
+	row := q.db.QueryRow(ctx, getWorkflowVersionByID, id)
 	var i WorkflowVersion
 	err := row.Scan(
 		&i.ID,
@@ -84,7 +85,7 @@ ORDER BY version_number
 `
 
 func (q *Queries) ListActiveWorkflowVersions(ctx context.Context, workflowID int32) ([]WorkflowVersion, error) {
-	rows, err := q.db.QueryContext(ctx, listActiveWorkflowVersions, workflowID)
+	rows, err := q.db.Query(ctx, listActiveWorkflowVersions, workflowID)
 	if err != nil {
 		return nil, err
 	}
@@ -108,9 +109,6 @@ func (q *Queries) ListActiveWorkflowVersions(ctx context.Context, workflowID int
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -125,7 +123,7 @@ ORDER BY version_number
 `
 
 func (q *Queries) ListWorkflowVersionsByWorkflowID(ctx context.Context, workflowID int32) ([]WorkflowVersion, error) {
-	rows, err := q.db.QueryContext(ctx, listWorkflowVersionsByWorkflowID, workflowID)
+	rows, err := q.db.Query(ctx, listWorkflowVersionsByWorkflowID, workflowID)
 	if err != nil {
 		return nil, err
 	}
@@ -150,9 +148,6 @@ func (q *Queries) ListWorkflowVersionsByWorkflowID(ctx context.Context, workflow
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -166,7 +161,7 @@ WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) SoftDeleteWorkflowVersion(ctx context.Context, id int32) error {
-	_, err := q.db.ExecContext(ctx, softDeleteWorkflowVersion, id)
+	_, err := q.db.Exec(ctx, softDeleteWorkflowVersion, id)
 	return err
 }
 
@@ -183,7 +178,7 @@ type UpdateWorkflowVersionActiveParams struct {
 }
 
 func (q *Queries) UpdateWorkflowVersionActive(ctx context.Context, arg UpdateWorkflowVersionActiveParams) (WorkflowVersion, error) {
-	row := q.db.QueryRowContext(ctx, updateWorkflowVersionActive, arg.ID, arg.IsActive)
+	row := q.db.QueryRow(ctx, updateWorkflowVersionActive, arg.ID, arg.IsActive)
 	var i WorkflowVersion
 	err := row.Scan(
 		&i.ID,
@@ -214,7 +209,7 @@ type UpdateWorkflowVersionTrafficWeightParams struct {
 }
 
 func (q *Queries) UpdateWorkflowVersionTrafficWeight(ctx context.Context, arg UpdateWorkflowVersionTrafficWeightParams) (WorkflowVersion, error) {
-	row := q.db.QueryRowContext(ctx, updateWorkflowVersionTrafficWeight, arg.ID, arg.TrafficWeight)
+	row := q.db.QueryRow(ctx, updateWorkflowVersionTrafficWeight, arg.ID, arg.TrafficWeight)
 	var i WorkflowVersion
 	err := row.Scan(
 		&i.ID,
@@ -245,7 +240,7 @@ type UpdateWorkflowVersionValidParams struct {
 }
 
 func (q *Queries) UpdateWorkflowVersionValid(ctx context.Context, arg UpdateWorkflowVersionValidParams) (WorkflowVersion, error) {
-	row := q.db.QueryRowContext(ctx, updateWorkflowVersionValid, arg.ID, arg.IsValid)
+	row := q.db.QueryRow(ctx, updateWorkflowVersionValid, arg.ID, arg.IsValid)
 	var i WorkflowVersion
 	err := row.Scan(
 		&i.ID,

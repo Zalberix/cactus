@@ -1,15 +1,15 @@
 package db
 
 import (
-	"github.com/jmoiron/sqlx"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/fx"
 )
 
 type Opts struct {
 	fx.In
-	DB *sqlx.DB
+	Pool *pgxpool.Pool
 }
 
 func NewFx(opts Opts) *Queries {
-	return New(opts.DB)
+	return New(opts.Pool)
 }

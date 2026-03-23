@@ -7,8 +7,8 @@ package db
 
 import (
 	"context"
-	"database/sql"
-	"encoding/json"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createNewMessage = `-- name: CreateNewMessage :one
@@ -18,15 +18,15 @@ RETURNING id, workflow_id, external_message_id, overridden_priority, value, stat
 `
 
 type CreateNewMessageParams struct {
-	WorkflowID         int32           `json:"workflow_id"`
-	ExternalMessageID  sql.NullString  `json:"external_message_id"`
-	OverriddenPriority sql.NullInt32   `json:"overridden_priority"`
-	Value              json.RawMessage `json:"value"`
-	Status             string          `json:"status"`
+	WorkflowID         int32       `json:"workflow_id"`
+	ExternalMessageID  pgtype.Text `json:"external_message_id"`
+	OverriddenPriority pgtype.Int4 `json:"overridden_priority"`
+	Value              []byte      `json:"value"`
+	Status             string      `json:"status"`
 }
 
 func (q *Queries) CreateNewMessage(ctx context.Context, arg CreateNewMessageParams) (Message, error) {
-	row := q.db.QueryRowContext(ctx, createNewMessage,
+	row := q.db.QueryRow(ctx, createNewMessage,
 		arg.WorkflowID,
 		arg.ExternalMessageID,
 		arg.OverriddenPriority,
@@ -54,7 +54,7 @@ WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetNewMessageByID(ctx context.Context, id int32) (Message, error) {
-	row := q.db.QueryRowContext(ctx, getNewMessageByID, id)
+	row := q.db.QueryRow(ctx, getNewMessageByID, id)
 	var i Message
 	err := row.Scan(
 		&i.ID,
@@ -77,7 +77,7 @@ ORDER BY created_at DESC
 `
 
 func (q *Queries) ListNewMessagesByWorkflowID(ctx context.Context, workflowID int32) ([]Message, error) {
-	rows, err := q.db.QueryContext(ctx, listNewMessagesByWorkflowID, workflowID)
+	rows, err := q.db.Query(ctx, listNewMessagesByWorkflowID, workflowID)
 	if err != nil {
 		return nil, err
 	}
@@ -100,9 +100,6 @@ func (q *Queries) ListNewMessagesByWorkflowID(ctx context.Context, workflowID in
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -116,7 +113,7 @@ WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) SoftDeleteNewMessage(ctx context.Context, id int32) error {
-	_, err := q.db.ExecContext(ctx, softDeleteNewMessage, id)
+	_, err := q.db.Exec(ctx, softDeleteNewMessage, id)
 	return err
 }
 
@@ -133,7 +130,7 @@ type UpdateNewMessageStatusParams struct {
 }
 
 func (q *Queries) UpdateNewMessageStatus(ctx context.Context, arg UpdateNewMessageStatusParams) (Message, error) {
-	row := q.db.QueryRowContext(ctx, updateNewMessageStatus, arg.ID, arg.Status)
+	row := q.db.QueryRow(ctx, updateNewMessageStatus, arg.ID, arg.Status)
 	var i Message
 	err := row.Scan(
 		&i.ID,

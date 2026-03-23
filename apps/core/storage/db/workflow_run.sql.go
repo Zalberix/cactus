@@ -7,7 +7,8 @@ package db
 
 import (
 	"context"
-	"database/sql"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createWorkflowRun = `-- name: CreateWorkflowRun :one
@@ -17,14 +18,14 @@ RETURNING id, workflow_version_id, message_id, temporal_workflow_id, status, sta
 `
 
 type CreateWorkflowRunParams struct {
-	WorkflowVersionID  int32          `json:"workflow_version_id"`
-	MessageID          int32          `json:"message_id"`
-	TemporalWorkflowID sql.NullString `json:"temporal_workflow_id"`
-	Status             string         `json:"status"`
+	WorkflowVersionID  int32       `json:"workflow_version_id"`
+	MessageID          int32       `json:"message_id"`
+	TemporalWorkflowID pgtype.Text `json:"temporal_workflow_id"`
+	Status             string      `json:"status"`
 }
 
 func (q *Queries) CreateWorkflowRun(ctx context.Context, arg CreateWorkflowRunParams) (WorkflowRun, error) {
-	row := q.db.QueryRowContext(ctx, createWorkflowRun,
+	row := q.db.QueryRow(ctx, createWorkflowRun,
 		arg.WorkflowVersionID,
 		arg.MessageID,
 		arg.TemporalWorkflowID,
@@ -50,7 +51,7 @@ WHERE id = $1
 `
 
 func (q *Queries) GetWorkflowRunByID(ctx context.Context, id int32) (WorkflowRun, error) {
-	row := q.db.QueryRowContext(ctx, getWorkflowRunByID, id)
+	row := q.db.QueryRow(ctx, getWorkflowRunByID, id)
 	var i WorkflowRun
 	err := row.Scan(
 		&i.ID,
@@ -71,8 +72,8 @@ WHERE temporal_workflow_id = $1
 LIMIT 1
 `
 
-func (q *Queries) GetWorkflowRunByTemporalID(ctx context.Context, temporalWorkflowID sql.NullString) (WorkflowRun, error) {
-	row := q.db.QueryRowContext(ctx, getWorkflowRunByTemporalID, temporalWorkflowID)
+func (q *Queries) GetWorkflowRunByTemporalID(ctx context.Context, temporalWorkflowID pgtype.Text) (WorkflowRun, error) {
+	row := q.db.QueryRow(ctx, getWorkflowRunByTemporalID, temporalWorkflowID)
 	var i WorkflowRun
 	err := row.Scan(
 		&i.ID,
@@ -94,7 +95,7 @@ ORDER BY id
 `
 
 func (q *Queries) ListWorkflowRunsByMessageID(ctx context.Context, messageID int32) ([]WorkflowRun, error) {
-	rows, err := q.db.QueryContext(ctx, listWorkflowRunsByMessageID, messageID)
+	rows, err := q.db.Query(ctx, listWorkflowRunsByMessageID, messageID)
 	if err != nil {
 		return nil, err
 	}
@@ -116,9 +117,6 @@ func (q *Queries) ListWorkflowRunsByMessageID(ctx context.Context, messageID int
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -133,7 +131,7 @@ RETURNING id, workflow_version_id, message_id, temporal_workflow_id, status, sta
 `
 
 func (q *Queries) UpdateWorkflowRunStarted(ctx context.Context, id int32) (WorkflowRun, error) {
-	row := q.db.QueryRowContext(ctx, updateWorkflowRunStarted, id)
+	row := q.db.QueryRow(ctx, updateWorkflowRunStarted, id)
 	var i WorkflowRun
 	err := row.Scan(
 		&i.ID,
@@ -156,14 +154,14 @@ RETURNING id, workflow_version_id, message_id, temporal_workflow_id, status, sta
 `
 
 type UpdateWorkflowRunStatusParams struct {
-	ID           int32          `json:"id"`
-	Status       string         `json:"status"`
-	CompletedAt  sql.NullTime   `json:"completed_at"`
-	ErrorMessage sql.NullString `json:"error_message"`
+	ID           int32            `json:"id"`
+	Status       string           `json:"status"`
+	CompletedAt  pgtype.Timestamp `json:"completed_at"`
+	ErrorMessage pgtype.Text      `json:"error_message"`
 }
 
 func (q *Queries) UpdateWorkflowRunStatus(ctx context.Context, arg UpdateWorkflowRunStatusParams) (WorkflowRun, error) {
-	row := q.db.QueryRowContext(ctx, updateWorkflowRunStatus,
+	row := q.db.QueryRow(ctx, updateWorkflowRunStatus,
 		arg.ID,
 		arg.Status,
 		arg.CompletedAt,

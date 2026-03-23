@@ -7,7 +7,8 @@ package db
 
 import (
 	"context"
-	"database/sql"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createWorkflowStepDependency = `-- name: CreateWorkflowStepDependency :exec
@@ -16,13 +17,13 @@ VALUES ($1, $2, $3)
 `
 
 type CreateWorkflowStepDependencyParams struct {
-	StepID          int32          `json:"step_id"`
-	DependsOnStepID int32          `json:"depends_on_step_id"`
-	Outcome         sql.NullString `json:"outcome"`
+	StepID          int32       `json:"step_id"`
+	DependsOnStepID int32       `json:"depends_on_step_id"`
+	Outcome         pgtype.Text `json:"outcome"`
 }
 
 func (q *Queries) CreateWorkflowStepDependency(ctx context.Context, arg CreateWorkflowStepDependencyParams) error {
-	_, err := q.db.ExecContext(ctx, createWorkflowStepDependency, arg.StepID, arg.DependsOnStepID, arg.Outcome)
+	_, err := q.db.Exec(ctx, createWorkflowStepDependency, arg.StepID, arg.DependsOnStepID, arg.Outcome)
 	return err
 }
 
@@ -32,7 +33,7 @@ WHERE step_id = $1
 `
 
 func (q *Queries) DeleteDependenciesByStepID(ctx context.Context, stepID int32) error {
-	_, err := q.db.ExecContext(ctx, deleteDependenciesByStepID, stepID)
+	_, err := q.db.Exec(ctx, deleteDependenciesByStepID, stepID)
 	return err
 }
 
@@ -47,7 +48,7 @@ type DeleteWorkflowStepDependencyParams struct {
 }
 
 func (q *Queries) DeleteWorkflowStepDependency(ctx context.Context, arg DeleteWorkflowStepDependencyParams) error {
-	_, err := q.db.ExecContext(ctx, deleteWorkflowStepDependency, arg.StepID, arg.DependsOnStepID)
+	_, err := q.db.Exec(ctx, deleteWorkflowStepDependency, arg.StepID, arg.DependsOnStepID)
 	return err
 }
 
@@ -60,7 +61,7 @@ ORDER BY wsd.step_id, wsd.depends_on_step_id
 `
 
 func (q *Queries) ListDependenciesByVersionID(ctx context.Context, workflowVersionID int32) ([]WorkflowStepDependency, error) {
-	rows, err := q.db.QueryContext(ctx, listDependenciesByVersionID, workflowVersionID)
+	rows, err := q.db.Query(ctx, listDependenciesByVersionID, workflowVersionID)
 	if err != nil {
 		return nil, err
 	}
@@ -72,9 +73,6 @@ func (q *Queries) ListDependenciesByVersionID(ctx context.Context, workflowVersi
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -89,7 +87,7 @@ ORDER BY depends_on_step_id
 `
 
 func (q *Queries) ListWorkflowStepDependencies(ctx context.Context, stepID int32) ([]WorkflowStepDependency, error) {
-	rows, err := q.db.QueryContext(ctx, listWorkflowStepDependencies, stepID)
+	rows, err := q.db.Query(ctx, listWorkflowStepDependencies, stepID)
 	if err != nil {
 		return nil, err
 	}
@@ -101,9 +99,6 @@ func (q *Queries) ListWorkflowStepDependencies(ctx context.Context, stepID int32
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

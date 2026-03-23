@@ -7,9 +7,8 @@ package db
 
 import (
 	"context"
-	"database/sql"
 
-	"github.com/sqlc-dev/pqtype"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countRunningStepsByRevisionInWindow = `-- name: CountRunningStepsByRevisionInWindow :one
@@ -22,12 +21,12 @@ WHERE ws.worker_settings_revision_id = $1
 `
 
 type CountRunningStepsByRevisionInWindowParams struct {
-	WorkerSettingsRevisionID sql.NullInt32 `json:"worker_settings_revision_id"`
-	StartedAt                sql.NullTime  `json:"started_at"`
+	WorkerSettingsRevisionID pgtype.Int4      `json:"worker_settings_revision_id"`
+	StartedAt                pgtype.Timestamp `json:"started_at"`
 }
 
 func (q *Queries) CountRunningStepsByRevisionInWindow(ctx context.Context, arg CountRunningStepsByRevisionInWindowParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countRunningStepsByRevisionInWindow, arg.WorkerSettingsRevisionID, arg.StartedAt)
+	row := q.db.QueryRow(ctx, countRunningStepsByRevisionInWindow, arg.WorkerSettingsRevisionID, arg.StartedAt)
 	var cnt int64
 	err := row.Scan(&cnt)
 	return cnt, err
@@ -40,16 +39,16 @@ RETURNING id, workflow_run_id, workflow_step_id, worker_id, temporal_step_id, st
 `
 
 type CreateWorkflowRunStepParams struct {
-	WorkflowRunID  int32                 `json:"workflow_run_id"`
-	WorkflowStepID int32                 `json:"workflow_step_id"`
-	WorkerID       sql.NullInt32         `json:"worker_id"`
-	TemporalStepID sql.NullString        `json:"temporal_step_id"`
-	Status         string                `json:"status"`
-	InputData      pqtype.NullRawMessage `json:"input_data"`
+	WorkflowRunID  int32       `json:"workflow_run_id"`
+	WorkflowStepID int32       `json:"workflow_step_id"`
+	WorkerID       pgtype.Int4 `json:"worker_id"`
+	TemporalStepID pgtype.Text `json:"temporal_step_id"`
+	Status         string      `json:"status"`
+	InputData      []byte      `json:"input_data"`
 }
 
 func (q *Queries) CreateWorkflowRunStep(ctx context.Context, arg CreateWorkflowRunStepParams) (WorkflowRunStep, error) {
-	row := q.db.QueryRowContext(ctx, createWorkflowRunStep,
+	row := q.db.QueryRow(ctx, createWorkflowRunStep,
 		arg.WorkflowRunID,
 		arg.WorkflowStepID,
 		arg.WorkerID,
@@ -81,7 +80,7 @@ WHERE id = $1
 `
 
 func (q *Queries) GetWorkflowRunStepByID(ctx context.Context, id int32) (WorkflowRunStep, error) {
-	row := q.db.QueryRowContext(ctx, getWorkflowRunStepByID, id)
+	row := q.db.QueryRow(ctx, getWorkflowRunStepByID, id)
 	var i WorkflowRunStep
 	err := row.Scan(
 		&i.ID,
@@ -107,7 +106,7 @@ ORDER BY id
 `
 
 func (q *Queries) ListWorkflowRunStepsByRunID(ctx context.Context, workflowRunID int32) ([]WorkflowRunStep, error) {
-	rows, err := q.db.QueryContext(ctx, listWorkflowRunStepsByRunID, workflowRunID)
+	rows, err := q.db.Query(ctx, listWorkflowRunStepsByRunID, workflowRunID)
 	if err != nil {
 		return nil, err
 	}
@@ -133,9 +132,6 @@ func (q *Queries) ListWorkflowRunStepsByRunID(ctx context.Context, workflowRunID
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -150,12 +146,12 @@ RETURNING id, workflow_run_id, workflow_step_id, worker_id, temporal_step_id, st
 `
 
 type UpdateWorkflowRunStepStartedParams struct {
-	ID       int32         `json:"id"`
-	WorkerID sql.NullInt32 `json:"worker_id"`
+	ID       int32       `json:"id"`
+	WorkerID pgtype.Int4 `json:"worker_id"`
 }
 
 func (q *Queries) UpdateWorkflowRunStepStarted(ctx context.Context, arg UpdateWorkflowRunStepStartedParams) (WorkflowRunStep, error) {
-	row := q.db.QueryRowContext(ctx, updateWorkflowRunStepStarted, arg.ID, arg.WorkerID)
+	row := q.db.QueryRow(ctx, updateWorkflowRunStepStarted, arg.ID, arg.WorkerID)
 	var i WorkflowRunStep
 	err := row.Scan(
 		&i.ID,
@@ -182,16 +178,16 @@ RETURNING id, workflow_run_id, workflow_step_id, worker_id, temporal_step_id, st
 `
 
 type UpdateWorkflowRunStepStatusParams struct {
-	ID           int32                 `json:"id"`
-	Status       string                `json:"status"`
-	Outcome      sql.NullString        `json:"outcome"`
-	OutputData   pqtype.NullRawMessage `json:"output_data"`
-	CompletedAt  sql.NullTime          `json:"completed_at"`
-	ErrorMessage sql.NullString        `json:"error_message"`
+	ID           int32            `json:"id"`
+	Status       string           `json:"status"`
+	Outcome      pgtype.Text      `json:"outcome"`
+	OutputData   []byte           `json:"output_data"`
+	CompletedAt  pgtype.Timestamp `json:"completed_at"`
+	ErrorMessage pgtype.Text      `json:"error_message"`
 }
 
 func (q *Queries) UpdateWorkflowRunStepStatus(ctx context.Context, arg UpdateWorkflowRunStepStatusParams) (WorkflowRunStep, error) {
-	row := q.db.QueryRowContext(ctx, updateWorkflowRunStepStatus,
+	row := q.db.QueryRow(ctx, updateWorkflowRunStepStatus,
 		arg.ID,
 		arg.Status,
 		arg.Outcome,

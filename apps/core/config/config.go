@@ -20,6 +20,13 @@ type Config struct {
 	Database   Database   `yaml:"db"`
 	Nats       Nats       `yaml:"nats"`
 	Temporal   Temporal   `yaml:"temporal"`
+	JWT        JWT        `yaml:"jwt"`
+}
+
+type JWT struct {
+	Secret     string        `yaml:"secret" env:"JWT_SECRET" env-required:"true"`
+	AccessTTL  time.Duration `yaml:"access_ttl" env-default:"15m"`
+	RefreshTTL time.Duration `yaml:"refresh_ttl" env-default:"720h"`
 }
 
 type HTTPServer struct {

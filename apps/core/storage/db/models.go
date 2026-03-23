@@ -5,47 +5,43 @@
 package db
 
 import (
-	"database/sql"
-	"encoding/json"
-	"time"
-
-	"github.com/sqlc-dev/pqtype"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type File struct {
-	ID                int32                 `json:"id"`
-	MessageID         sql.NullInt32         `json:"message_id"`
-	WorkflowRunStepID sql.NullInt32         `json:"workflow_run_step_id"`
-	Name              string                `json:"name"`
-	Bucket            string                `json:"bucket"`
-	ObjectKey         string                `json:"object_key"`
-	ContentType       string                `json:"content_type"`
-	SizeBytes         int32                 `json:"size_bytes"`
-	Hash              string                `json:"hash"`
-	Metadata          pqtype.NullRawMessage `json:"metadata"`
-	CreatedAt         time.Time             `json:"created_at"`
-	DeletedAt         sql.NullTime          `json:"deleted_at"`
+	ID                int32            `json:"id"`
+	MessageID         pgtype.Int4      `json:"message_id"`
+	WorkflowRunStepID pgtype.Int4      `json:"workflow_run_step_id"`
+	Name              string           `json:"name"`
+	Bucket            string           `json:"bucket"`
+	ObjectKey         string           `json:"object_key"`
+	ContentType       string           `json:"content_type"`
+	SizeBytes         int32            `json:"size_bytes"`
+	Hash              string           `json:"hash"`
+	Metadata          []byte           `json:"metadata"`
+	CreatedAt         pgtype.Timestamp `json:"created_at"`
+	DeletedAt         pgtype.Timestamp `json:"deleted_at"`
 }
 
 type Message struct {
-	ID                 int32           `json:"id"`
-	WorkflowID         int32           `json:"workflow_id"`
-	ExternalMessageID  sql.NullString  `json:"external_message_id"`
-	OverriddenPriority sql.NullInt32   `json:"overridden_priority"`
-	Value              json.RawMessage `json:"value"`
-	Status             string          `json:"status"`
-	CreatedAt          time.Time       `json:"created_at"`
-	UpdatedAt          sql.NullTime    `json:"updated_at"`
-	DeletedAt          sql.NullTime    `json:"deleted_at"`
+	ID                 int32            `json:"id"`
+	WorkflowID         int32            `json:"workflow_id"`
+	ExternalMessageID  pgtype.Text      `json:"external_message_id"`
+	OverriddenPriority pgtype.Int4      `json:"overridden_priority"`
+	Value              []byte           `json:"value"`
+	Status             string           `json:"status"`
+	CreatedAt          pgtype.Timestamp `json:"created_at"`
+	UpdatedAt          pgtype.Timestamp `json:"updated_at"`
+	DeletedAt          pgtype.Timestamp `json:"deleted_at"`
 }
 
 type Organization struct {
-	ID        int32        `json:"id"`
-	Name      string       `json:"name"`
-	Code      string       `json:"code"`
-	CreatedAt time.Time    `json:"created_at"`
-	UpdatedAt sql.NullTime `json:"updated_at"`
-	DeletedAt sql.NullTime `json:"deleted_at"`
+	ID        int32            `json:"id"`
+	Name      string           `json:"name"`
+	Code      string           `json:"code"`
+	CreatedAt pgtype.Timestamp `json:"created_at"`
+	UpdatedAt pgtype.Timestamp `json:"updated_at"`
+	DeletedAt pgtype.Timestamp `json:"deleted_at"`
 }
 
 type Permission struct {
@@ -60,22 +56,22 @@ type PermissionRole struct {
 }
 
 type RevisionRateLimit struct {
-	ID                       int32        `json:"id"`
-	WorkerSettingsRevisionID int32        `json:"worker_settings_revision_id"`
-	Limit                    int32        `json:"limit"`
-	WindowSeconds            int32        `json:"window_seconds"`
-	CreatedAt                time.Time    `json:"created_at"`
-	UpdatedAt                sql.NullTime `json:"updated_at"`
+	ID                       int32            `json:"id"`
+	WorkerSettingsRevisionID int32            `json:"worker_settings_revision_id"`
+	Limit                    int32            `json:"limit"`
+	WindowSeconds            int32            `json:"window_seconds"`
+	CreatedAt                pgtype.Timestamp `json:"created_at"`
+	UpdatedAt                pgtype.Timestamp `json:"updated_at"`
 }
 
 type Role struct {
-	ID             int32          `json:"id"`
-	OrganizationID sql.NullInt32  `json:"organization_id"`
-	Name           string         `json:"name"`
-	Description    sql.NullString `json:"description"`
-	IsSystem       bool           `json:"is_system"`
-	CreatedAt      sql.NullTime   `json:"created_at"`
-	UpdatedAt      sql.NullTime   `json:"updated_at"`
+	ID             int32            `json:"id"`
+	OrganizationID pgtype.Int4      `json:"organization_id"`
+	Name           string           `json:"name"`
+	Description    pgtype.Text      `json:"description"`
+	IsSystem       bool             `json:"is_system"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
 }
 
 type RoleUser struct {
@@ -84,181 +80,181 @@ type RoleUser struct {
 }
 
 type System struct {
-	ID             int32          `json:"id"`
-	OrganizationID sql.NullInt32  `json:"organization_id"`
-	UserCreatorID  sql.NullInt32  `json:"user_creator_id"`
-	Name           string         `json:"name"`
-	Description    sql.NullString `json:"description"`
-	IsActive       bool           `json:"is_active"`
-	Priority       int32          `json:"priority"`
-	PublicToken    sql.NullString `json:"public_token"`
-	PrivateToken   sql.NullString `json:"private_token"`
-	CreatedAt      sql.NullTime   `json:"created_at"`
-	UpdatedAt      sql.NullTime   `json:"updated_at"`
-	DeletedAt      sql.NullTime   `json:"deleted_at"`
+	ID             int32            `json:"id"`
+	OrganizationID pgtype.Int4      `json:"organization_id"`
+	UserCreatorID  pgtype.Int4      `json:"user_creator_id"`
+	Name           string           `json:"name"`
+	Description    pgtype.Text      `json:"description"`
+	IsActive       bool             `json:"is_active"`
+	Priority       int32            `json:"priority"`
+	PublicToken    pgtype.Text      `json:"public_token"`
+	PrivateToken   pgtype.Text      `json:"private_token"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
+	DeletedAt      pgtype.Timestamp `json:"deleted_at"`
 }
 
 type SystemToken struct {
-	ID           int32        `json:"id"`
-	SystemID     int32        `json:"system_id"`
-	PublicToken  string       `json:"public_token"`
-	PrivateToken string       `json:"private_token"`
-	IsActive     bool         `json:"is_active"`
-	CreatedAt    time.Time    `json:"created_at"`
-	UpdatedAt    sql.NullTime `json:"updated_at"`
-	DeletedAt    sql.NullTime `json:"deleted_at"`
+	ID           int32            `json:"id"`
+	SystemID     int32            `json:"system_id"`
+	PublicToken  string           `json:"public_token"`
+	PrivateToken string           `json:"private_token"`
+	IsActive     bool             `json:"is_active"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
+	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+	DeletedAt    pgtype.Timestamp `json:"deleted_at"`
 }
 
 type User struct {
-	ID                      int32          `json:"id"`
-	OrganizationID          sql.NullInt32  `json:"organization_id"`
-	LastName                string         `json:"last_name"`
-	FirstName               string         `json:"first_name"`
-	Patronymic              sql.NullString `json:"patronymic"`
-	Email                   string         `json:"email"`
-	Password                string         `json:"password"`
-	ResetPasswordAfterLogin sql.NullBool   `json:"reset_password_after_login"`
-	CreatedAt               sql.NullTime   `json:"created_at"`
-	UpdatedAt               sql.NullTime   `json:"updated_at"`
-	DeletedAt               sql.NullTime   `json:"deleted_at"`
+	ID                      int32            `json:"id"`
+	OrganizationID          pgtype.Int4      `json:"organization_id"`
+	LastName                string           `json:"last_name"`
+	FirstName               string           `json:"first_name"`
+	Patronymic              pgtype.Text      `json:"patronymic"`
+	Email                   string           `json:"email"`
+	Password                string           `json:"password"`
+	ResetPasswordAfterLogin pgtype.Bool      `json:"reset_password_after_login"`
+	CreatedAt               pgtype.Timestamp `json:"created_at"`
+	UpdatedAt               pgtype.Timestamp `json:"updated_at"`
+	DeletedAt               pgtype.Timestamp `json:"deleted_at"`
 }
 
 type WorkType struct {
-	ID          int32          `json:"id"`
-	Name        string         `json:"name"`
-	Code        string         `json:"code"`
-	Description sql.NullString `json:"description"`
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   sql.NullTime   `json:"updated_at"`
-	DeletedAt   sql.NullTime   `json:"deleted_at"`
+	ID          int32            `json:"id"`
+	Name        string           `json:"name"`
+	Code        string           `json:"code"`
+	Description pgtype.Text      `json:"description"`
+	CreatedAt   pgtype.Timestamp `json:"created_at"`
+	UpdatedAt   pgtype.Timestamp `json:"updated_at"`
+	DeletedAt   pgtype.Timestamp `json:"deleted_at"`
 }
 
 type WorkTypeToken struct {
-	ID         int32        `json:"id"`
-	WorkTypeID int32        `json:"work_type_id"`
-	TokenHash  string       `json:"token_hash"`
-	IsActive   bool         `json:"is_active"`
-	CreatedAt  time.Time    `json:"created_at"`
-	DeletedAt  sql.NullTime `json:"deleted_at"`
+	ID         int32            `json:"id"`
+	WorkTypeID int32            `json:"work_type_id"`
+	TokenHash  string           `json:"token_hash"`
+	IsActive   bool             `json:"is_active"`
+	CreatedAt  pgtype.Timestamp `json:"created_at"`
+	DeletedAt  pgtype.Timestamp `json:"deleted_at"`
 }
 
 type Worker struct {
-	ID                     int32                 `json:"id"`
-	WorkTypeID             int32                 `json:"work_type_id"`
-	WorkerSettingsSchemaID int32                 `json:"worker_settings_schema_id"`
-	Name                   string                `json:"name"`
-	Metadata               pqtype.NullRawMessage `json:"metadata"`
-	RegisteredAt           time.Time             `json:"registered_at"`
-	LastHeartbeatAt        sql.NullTime          `json:"last_heartbeat_at"`
+	ID                     int32            `json:"id"`
+	WorkTypeID             int32            `json:"work_type_id"`
+	WorkerSettingsSchemaID int32            `json:"worker_settings_schema_id"`
+	Name                   string           `json:"name"`
+	Metadata               []byte           `json:"metadata"`
+	RegisteredAt           pgtype.Timestamp `json:"registered_at"`
+	LastHeartbeatAt        pgtype.Timestamp `json:"last_heartbeat_at"`
 }
 
 type WorkerSettingsRevision struct {
-	ID                     int32           `json:"id"`
-	WorkerSettingsSchemaID int32           `json:"worker_settings_schema_id"`
-	CreatedByUserID        sql.NullInt32   `json:"created_by_user_id"`
-	SettingsData           json.RawMessage `json:"settings_data"`
-	CreatedAt              time.Time       `json:"created_at"`
+	ID                     int32            `json:"id"`
+	WorkerSettingsSchemaID int32            `json:"worker_settings_schema_id"`
+	CreatedByUserID        pgtype.Int4      `json:"created_by_user_id"`
+	SettingsData           []byte           `json:"settings_data"`
+	CreatedAt              pgtype.Timestamp `json:"created_at"`
 }
 
 type WorkerSettingsSchema struct {
-	ID             int32           `json:"id"`
-	WorkTypeID     int32           `json:"work_type_id"`
-	Version        string          `json:"version"`
-	SettingsSchema json.RawMessage `json:"settings_schema"`
-	InputSchema    json.RawMessage `json:"input_schema"`
-	OutputSchema   json.RawMessage `json:"output_schema"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      sql.NullTime    `json:"updated_at"`
-	DeletedAt      sql.NullTime    `json:"deleted_at"`
+	ID             int32            `json:"id"`
+	WorkTypeID     int32            `json:"work_type_id"`
+	Version        string           `json:"version"`
+	SettingsSchema []byte           `json:"settings_schema"`
+	InputSchema    []byte           `json:"input_schema"`
+	OutputSchema   []byte           `json:"output_schema"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
+	DeletedAt      pgtype.Timestamp `json:"deleted_at"`
 }
 
 type Workflow struct {
-	ID              int32                 `json:"id"`
-	SystemID        int32                 `json:"system_id"`
-	Name            string                `json:"name"`
-	Priority        int32                 `json:"priority"`
-	InputValidation pqtype.NullRawMessage `json:"input_validation"`
-	Description     sql.NullString        `json:"description"`
-	CreatedAt       time.Time             `json:"created_at"`
-	UpdatedAt       sql.NullTime          `json:"updated_at"`
-	DeletedAt       sql.NullTime          `json:"deleted_at"`
+	ID              int32            `json:"id"`
+	SystemID        int32            `json:"system_id"`
+	Name            string           `json:"name"`
+	Priority        int32            `json:"priority"`
+	InputValidation []byte           `json:"input_validation"`
+	Description     pgtype.Text      `json:"description"`
+	CreatedAt       pgtype.Timestamp `json:"created_at"`
+	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
+	DeletedAt       pgtype.Timestamp `json:"deleted_at"`
 }
 
 type WorkflowRun struct {
-	ID                 int32          `json:"id"`
-	WorkflowVersionID  int32          `json:"workflow_version_id"`
-	MessageID          int32          `json:"message_id"`
-	TemporalWorkflowID sql.NullString `json:"temporal_workflow_id"`
-	Status             string         `json:"status"`
-	StartedAt          sql.NullTime   `json:"started_at"`
-	CompletedAt        sql.NullTime   `json:"completed_at"`
-	ErrorMessage       sql.NullString `json:"error_message"`
+	ID                 int32            `json:"id"`
+	WorkflowVersionID  int32            `json:"workflow_version_id"`
+	MessageID          int32            `json:"message_id"`
+	TemporalWorkflowID pgtype.Text      `json:"temporal_workflow_id"`
+	Status             string           `json:"status"`
+	StartedAt          pgtype.Timestamp `json:"started_at"`
+	CompletedAt        pgtype.Timestamp `json:"completed_at"`
+	ErrorMessage       pgtype.Text      `json:"error_message"`
 }
 
 type WorkflowRunStep struct {
-	ID             int32                 `json:"id"`
-	WorkflowRunID  int32                 `json:"workflow_run_id"`
-	WorkflowStepID int32                 `json:"workflow_step_id"`
-	WorkerID       sql.NullInt32         `json:"worker_id"`
-	TemporalStepID sql.NullString        `json:"temporal_step_id"`
-	Status         string                `json:"status"`
-	Outcome        sql.NullString        `json:"outcome"`
-	InputData      pqtype.NullRawMessage `json:"input_data"`
-	OutputData     pqtype.NullRawMessage `json:"output_data"`
-	StartedAt      sql.NullTime          `json:"started_at"`
-	CompletedAt    sql.NullTime          `json:"completed_at"`
-	ErrorMessage   sql.NullString        `json:"error_message"`
+	ID             int32            `json:"id"`
+	WorkflowRunID  int32            `json:"workflow_run_id"`
+	WorkflowStepID int32            `json:"workflow_step_id"`
+	WorkerID       pgtype.Int4      `json:"worker_id"`
+	TemporalStepID pgtype.Text      `json:"temporal_step_id"`
+	Status         string           `json:"status"`
+	Outcome        pgtype.Text      `json:"outcome"`
+	InputData      []byte           `json:"input_data"`
+	OutputData     []byte           `json:"output_data"`
+	StartedAt      pgtype.Timestamp `json:"started_at"`
+	CompletedAt    pgtype.Timestamp `json:"completed_at"`
+	ErrorMessage   pgtype.Text      `json:"error_message"`
 }
 
 type WorkflowRunStepAttempt struct {
-	ID                int32                 `json:"id"`
-	WorkflowRunStepID int32                 `json:"workflow_run_step_id"`
-	WorkerID          sql.NullInt32         `json:"worker_id"`
-	AttemptNumber     int32                 `json:"attempt_number"`
-	Status            string                `json:"status"`
-	ErrorCode         sql.NullString        `json:"error_code"`
-	ErrorMessage      sql.NullString        `json:"error_message"`
-	OutputData        pqtype.NullRawMessage `json:"output_data"`
-	StartedAt         sql.NullTime          `json:"started_at"`
-	CompletedAt       sql.NullTime          `json:"completed_at"`
+	ID                int32            `json:"id"`
+	WorkflowRunStepID int32            `json:"workflow_run_step_id"`
+	WorkerID          pgtype.Int4      `json:"worker_id"`
+	AttemptNumber     int32            `json:"attempt_number"`
+	Status            string           `json:"status"`
+	ErrorCode         pgtype.Text      `json:"error_code"`
+	ErrorMessage      pgtype.Text      `json:"error_message"`
+	OutputData        []byte           `json:"output_data"`
+	StartedAt         pgtype.Timestamp `json:"started_at"`
+	CompletedAt       pgtype.Timestamp `json:"completed_at"`
 }
 
 type WorkflowStep struct {
-	ID                       int32                 `json:"id"`
-	WorkflowVersionID        int32                 `json:"workflow_version_id"`
-	StepType                 string                `json:"step_type"`
-	WorkTypeID               sql.NullInt32         `json:"work_type_id"`
-	WorkerSettingsRevisionID sql.NullInt32         `json:"worker_settings_revision_id"`
-	ControlKind              sql.NullString        `json:"control_kind"`
-	ControlSettings          pqtype.NullRawMessage `json:"control_settings"`
-	InputMapping             pqtype.NullRawMessage `json:"input_mapping"`
-	CreatedAt                time.Time             `json:"created_at"`
-	UpdatedAt                sql.NullTime          `json:"updated_at"`
-	DeletedAt                sql.NullTime          `json:"deleted_at"`
+	ID                       int32            `json:"id"`
+	WorkflowVersionID        int32            `json:"workflow_version_id"`
+	StepType                 string           `json:"step_type"`
+	WorkTypeID               pgtype.Int4      `json:"work_type_id"`
+	WorkerSettingsRevisionID pgtype.Int4      `json:"worker_settings_revision_id"`
+	ControlKind              pgtype.Text      `json:"control_kind"`
+	ControlSettings          []byte           `json:"control_settings"`
+	InputMapping             []byte           `json:"input_mapping"`
+	CreatedAt                pgtype.Timestamp `json:"created_at"`
+	UpdatedAt                pgtype.Timestamp `json:"updated_at"`
+	DeletedAt                pgtype.Timestamp `json:"deleted_at"`
 }
 
 type WorkflowStepDependency struct {
-	StepID          int32          `json:"step_id"`
-	DependsOnStepID int32          `json:"depends_on_step_id"`
-	Outcome         sql.NullString `json:"outcome"`
+	StepID          int32       `json:"step_id"`
+	DependsOnStepID int32       `json:"depends_on_step_id"`
+	Outcome         pgtype.Text `json:"outcome"`
 }
 
 type WorkflowToken struct {
-	SystemTokenID int32     `json:"system_token_id"`
-	WorkflowID    int32     `json:"workflow_id"`
-	GrantedAt     time.Time `json:"granted_at"`
+	SystemTokenID int32            `json:"system_token_id"`
+	WorkflowID    int32            `json:"workflow_id"`
+	GrantedAt     pgtype.Timestamp `json:"granted_at"`
 }
 
 type WorkflowVersion struct {
-	ID              int32         `json:"id"`
-	WorkflowID      int32         `json:"workflow_id"`
-	CreatedByUserID sql.NullInt32 `json:"created_by_user_id"`
-	VersionNumber   int32         `json:"version_number"`
-	IsValid         bool          `json:"is_valid"`
-	IsActive        bool          `json:"is_active"`
-	TrafficWeight   int32         `json:"traffic_weight"`
-	IsControlGroup  bool          `json:"is_control_group"`
-	CreatedAt       time.Time     `json:"created_at"`
-	UpdatedAt       sql.NullTime  `json:"updated_at"`
-	DeletedAt       sql.NullTime  `json:"deleted_at"`
+	ID              int32            `json:"id"`
+	WorkflowID      int32            `json:"workflow_id"`
+	CreatedByUserID pgtype.Int4      `json:"created_by_user_id"`
+	VersionNumber   int32            `json:"version_number"`
+	IsValid         bool             `json:"is_valid"`
+	IsActive        bool             `json:"is_active"`
+	TrafficWeight   int32            `json:"traffic_weight"`
+	IsControlGroup  bool             `json:"is_control_group"`
+	CreatedAt       pgtype.Timestamp `json:"created_at"`
+	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
+	DeletedAt       pgtype.Timestamp `json:"deleted_at"`
 }

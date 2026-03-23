@@ -7,8 +7,8 @@ package db
 
 import (
 	"context"
-	"database/sql"
-	"encoding/json"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createWorkerSettingsRevision = `-- name: CreateWorkerSettingsRevision :one
@@ -18,13 +18,13 @@ RETURNING id, worker_settings_schema_id, created_by_user_id, settings_data, crea
 `
 
 type CreateWorkerSettingsRevisionParams struct {
-	WorkerSettingsSchemaID int32           `json:"worker_settings_schema_id"`
-	CreatedByUserID        sql.NullInt32   `json:"created_by_user_id"`
-	SettingsData           json.RawMessage `json:"settings_data"`
+	WorkerSettingsSchemaID int32       `json:"worker_settings_schema_id"`
+	CreatedByUserID        pgtype.Int4 `json:"created_by_user_id"`
+	SettingsData           []byte      `json:"settings_data"`
 }
 
 func (q *Queries) CreateWorkerSettingsRevision(ctx context.Context, arg CreateWorkerSettingsRevisionParams) (WorkerSettingsRevision, error) {
-	row := q.db.QueryRowContext(ctx, createWorkerSettingsRevision, arg.WorkerSettingsSchemaID, arg.CreatedByUserID, arg.SettingsData)
+	row := q.db.QueryRow(ctx, createWorkerSettingsRevision, arg.WorkerSettingsSchemaID, arg.CreatedByUserID, arg.SettingsData)
 	var i WorkerSettingsRevision
 	err := row.Scan(
 		&i.ID,
@@ -42,7 +42,7 @@ WHERE id = $1
 `
 
 func (q *Queries) GetWorkerSettingsRevisionByID(ctx context.Context, id int32) (WorkerSettingsRevision, error) {
-	row := q.db.QueryRowContext(ctx, getWorkerSettingsRevisionByID, id)
+	row := q.db.QueryRow(ctx, getWorkerSettingsRevisionByID, id)
 	var i WorkerSettingsRevision
 	err := row.Scan(
 		&i.ID,
@@ -61,7 +61,7 @@ ORDER BY created_at DESC
 `
 
 func (q *Queries) ListWorkerSettingsRevisionsBySchemaID(ctx context.Context, workerSettingsSchemaID int32) ([]WorkerSettingsRevision, error) {
-	rows, err := q.db.QueryContext(ctx, listWorkerSettingsRevisionsBySchemaID, workerSettingsSchemaID)
+	rows, err := q.db.Query(ctx, listWorkerSettingsRevisionsBySchemaID, workerSettingsSchemaID)
 	if err != nil {
 		return nil, err
 	}
@@ -79,9 +79,6 @@ func (q *Queries) ListWorkerSettingsRevisionsBySchemaID(ctx context.Context, wor
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

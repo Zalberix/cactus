@@ -22,7 +22,7 @@ type CreateWorkTypeTokenParams struct {
 }
 
 func (q *Queries) CreateWorkTypeToken(ctx context.Context, arg CreateWorkTypeTokenParams) (WorkTypeToken, error) {
-	row := q.db.QueryRowContext(ctx, createWorkTypeToken, arg.WorkTypeID, arg.TokenHash, arg.IsActive)
+	row := q.db.QueryRow(ctx, createWorkTypeToken, arg.WorkTypeID, arg.TokenHash, arg.IsActive)
 	var i WorkTypeToken
 	err := row.Scan(
 		&i.ID,
@@ -42,7 +42,7 @@ WHERE id = $1
 `
 
 func (q *Queries) DeactivateWorkTypeToken(ctx context.Context, id int32) error {
-	_, err := q.db.ExecContext(ctx, deactivateWorkTypeToken, id)
+	_, err := q.db.Exec(ctx, deactivateWorkTypeToken, id)
 	return err
 }
 
@@ -53,7 +53,7 @@ LIMIT 1
 `
 
 func (q *Queries) GetActiveWorkTypeTokenByHash(ctx context.Context, tokenHash string) (WorkTypeToken, error) {
-	row := q.db.QueryRowContext(ctx, getActiveWorkTypeTokenByHash, tokenHash)
+	row := q.db.QueryRow(ctx, getActiveWorkTypeTokenByHash, tokenHash)
 	var i WorkTypeToken
 	err := row.Scan(
 		&i.ID,
@@ -73,7 +73,7 @@ LIMIT 1
 `
 
 func (q *Queries) GetWorkTypeTokenByWorkTypeID(ctx context.Context, workTypeID int32) (WorkTypeToken, error) {
-	row := q.db.QueryRowContext(ctx, getWorkTypeTokenByWorkTypeID, workTypeID)
+	row := q.db.QueryRow(ctx, getWorkTypeTokenByWorkTypeID, workTypeID)
 	var i WorkTypeToken
 	err := row.Scan(
 		&i.ID,
@@ -93,6 +93,6 @@ WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) SoftDeleteWorkTypeToken(ctx context.Context, id int32) error {
-	_, err := q.db.ExecContext(ctx, softDeleteWorkTypeToken, id)
+	_, err := q.db.Exec(ctx, softDeleteWorkTypeToken, id)
 	return err
 }

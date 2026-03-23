@@ -22,7 +22,7 @@ type CreateRevisionRateLimitParams struct {
 }
 
 func (q *Queries) CreateRevisionRateLimit(ctx context.Context, arg CreateRevisionRateLimitParams) (RevisionRateLimit, error) {
-	row := q.db.QueryRowContext(ctx, createRevisionRateLimit, arg.WorkerSettingsRevisionID, arg.Limit, arg.WindowSeconds)
+	row := q.db.QueryRow(ctx, createRevisionRateLimit, arg.WorkerSettingsRevisionID, arg.Limit, arg.WindowSeconds)
 	var i RevisionRateLimit
 	err := row.Scan(
 		&i.ID,
@@ -41,7 +41,7 @@ WHERE id = $1
 `
 
 func (q *Queries) DeleteRevisionRateLimit(ctx context.Context, id int32) error {
-	_, err := q.db.ExecContext(ctx, deleteRevisionRateLimit, id)
+	_, err := q.db.Exec(ctx, deleteRevisionRateLimit, id)
 	return err
 }
 
@@ -52,7 +52,7 @@ ORDER BY id
 `
 
 func (q *Queries) ListRevisionRateLimitsByRevisionID(ctx context.Context, workerSettingsRevisionID int32) ([]RevisionRateLimit, error) {
-	rows, err := q.db.QueryContext(ctx, listRevisionRateLimitsByRevisionID, workerSettingsRevisionID)
+	rows, err := q.db.Query(ctx, listRevisionRateLimitsByRevisionID, workerSettingsRevisionID)
 	if err != nil {
 		return nil, err
 	}
@@ -71,9 +71,6 @@ func (q *Queries) ListRevisionRateLimitsByRevisionID(ctx context.Context, worker
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -95,7 +92,7 @@ type UpdateRevisionRateLimitParams struct {
 }
 
 func (q *Queries) UpdateRevisionRateLimit(ctx context.Context, arg UpdateRevisionRateLimitParams) (RevisionRateLimit, error) {
-	row := q.db.QueryRowContext(ctx, updateRevisionRateLimit, arg.ID, arg.Limit, arg.WindowSeconds)
+	row := q.db.QueryRow(ctx, updateRevisionRateLimit, arg.ID, arg.Limit, arg.WindowSeconds)
 	var i RevisionRateLimit
 	err := row.Scan(
 		&i.ID,

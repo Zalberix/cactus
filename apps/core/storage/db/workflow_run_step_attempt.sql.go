@@ -7,9 +7,8 @@ package db
 
 import (
 	"context"
-	"database/sql"
 
-	"github.com/sqlc-dev/pqtype"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createWorkflowRunStepAttempt = `-- name: CreateWorkflowRunStepAttempt :one
@@ -19,14 +18,14 @@ RETURNING id, workflow_run_step_id, worker_id, attempt_number, status, error_cod
 `
 
 type CreateWorkflowRunStepAttemptParams struct {
-	WorkflowRunStepID int32         `json:"workflow_run_step_id"`
-	WorkerID          sql.NullInt32 `json:"worker_id"`
-	AttemptNumber     int32         `json:"attempt_number"`
-	Status            string        `json:"status"`
+	WorkflowRunStepID int32       `json:"workflow_run_step_id"`
+	WorkerID          pgtype.Int4 `json:"worker_id"`
+	AttemptNumber     int32       `json:"attempt_number"`
+	Status            string      `json:"status"`
 }
 
 func (q *Queries) CreateWorkflowRunStepAttempt(ctx context.Context, arg CreateWorkflowRunStepAttemptParams) (WorkflowRunStepAttempt, error) {
-	row := q.db.QueryRowContext(ctx, createWorkflowRunStepAttempt,
+	row := q.db.QueryRow(ctx, createWorkflowRunStepAttempt,
 		arg.WorkflowRunStepID,
 		arg.WorkerID,
 		arg.AttemptNumber,
@@ -54,7 +53,7 @@ WHERE id = $1
 `
 
 func (q *Queries) GetWorkflowRunStepAttemptByID(ctx context.Context, id int32) (WorkflowRunStepAttempt, error) {
-	row := q.db.QueryRowContext(ctx, getWorkflowRunStepAttemptByID, id)
+	row := q.db.QueryRow(ctx, getWorkflowRunStepAttemptByID, id)
 	var i WorkflowRunStepAttempt
 	err := row.Scan(
 		&i.ID,
@@ -78,7 +77,7 @@ ORDER BY attempt_number
 `
 
 func (q *Queries) ListAttemptsByRunStepID(ctx context.Context, workflowRunStepID int32) ([]WorkflowRunStepAttempt, error) {
-	rows, err := q.db.QueryContext(ctx, listAttemptsByRunStepID, workflowRunStepID)
+	rows, err := q.db.Query(ctx, listAttemptsByRunStepID, workflowRunStepID)
 	if err != nil {
 		return nil, err
 	}
@@ -102,9 +101,6 @@ func (q *Queries) ListAttemptsByRunStepID(ctx context.Context, workflowRunStepID
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -119,16 +115,16 @@ RETURNING id, workflow_run_step_id, worker_id, attempt_number, status, error_cod
 `
 
 type UpdateWorkflowRunStepAttemptStatusParams struct {
-	ID           int32                 `json:"id"`
-	Status       string                `json:"status"`
-	ErrorCode    sql.NullString        `json:"error_code"`
-	ErrorMessage sql.NullString        `json:"error_message"`
-	OutputData   pqtype.NullRawMessage `json:"output_data"`
-	CompletedAt  sql.NullTime          `json:"completed_at"`
+	ID           int32            `json:"id"`
+	Status       string           `json:"status"`
+	ErrorCode    pgtype.Text      `json:"error_code"`
+	ErrorMessage pgtype.Text      `json:"error_message"`
+	OutputData   []byte           `json:"output_data"`
+	CompletedAt  pgtype.Timestamp `json:"completed_at"`
 }
 
 func (q *Queries) UpdateWorkflowRunStepAttemptStatus(ctx context.Context, arg UpdateWorkflowRunStepAttemptStatusParams) (WorkflowRunStepAttempt, error) {
-	row := q.db.QueryRowContext(ctx, updateWorkflowRunStepAttemptStatus,
+	row := q.db.QueryRow(ctx, updateWorkflowRunStepAttemptStatus,
 		arg.ID,
 		arg.Status,
 		arg.ErrorCode,

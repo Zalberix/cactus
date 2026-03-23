@@ -7,7 +7,8 @@ package db
 
 import (
 	"context"
-	"database/sql"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createWorkType = `-- name: CreateWorkType :one
@@ -17,13 +18,13 @@ RETURNING id, name, code, description, created_at, updated_at, deleted_at
 `
 
 type CreateWorkTypeParams struct {
-	Name        string         `json:"name"`
-	Code        string         `json:"code"`
-	Description sql.NullString `json:"description"`
+	Name        string      `json:"name"`
+	Code        string      `json:"code"`
+	Description pgtype.Text `json:"description"`
 }
 
 func (q *Queries) CreateWorkType(ctx context.Context, arg CreateWorkTypeParams) (WorkType, error) {
-	row := q.db.QueryRowContext(ctx, createWorkType, arg.Name, arg.Code, arg.Description)
+	row := q.db.QueryRow(ctx, createWorkType, arg.Name, arg.Code, arg.Description)
 	var i WorkType
 	err := row.Scan(
 		&i.ID,
@@ -44,7 +45,7 @@ LIMIT 1
 `
 
 func (q *Queries) GetWorkTypeByCode(ctx context.Context, code string) (WorkType, error) {
-	row := q.db.QueryRowContext(ctx, getWorkTypeByCode, code)
+	row := q.db.QueryRow(ctx, getWorkTypeByCode, code)
 	var i WorkType
 	err := row.Scan(
 		&i.ID,
@@ -64,7 +65,7 @@ WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetWorkTypeByID(ctx context.Context, id int32) (WorkType, error) {
-	row := q.db.QueryRowContext(ctx, getWorkTypeByID, id)
+	row := q.db.QueryRow(ctx, getWorkTypeByID, id)
 	var i WorkType
 	err := row.Scan(
 		&i.ID,
@@ -85,7 +86,7 @@ ORDER BY id
 `
 
 func (q *Queries) ListWorkTypes(ctx context.Context) ([]WorkType, error) {
-	rows, err := q.db.QueryContext(ctx, listWorkTypes)
+	rows, err := q.db.Query(ctx, listWorkTypes)
 	if err != nil {
 		return nil, err
 	}
@@ -106,9 +107,6 @@ func (q *Queries) ListWorkTypes(ctx context.Context) ([]WorkType, error) {
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -122,6 +120,6 @@ WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) SoftDeleteWorkType(ctx context.Context, id int32) error {
-	_, err := q.db.ExecContext(ctx, softDeleteWorkType, id)
+	_, err := q.db.Exec(ctx, softDeleteWorkType, id)
 	return err
 }

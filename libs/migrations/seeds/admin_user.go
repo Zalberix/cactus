@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jmoiron/sqlx"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // SeedAdminUser вставляет admin-пользователя в тестовую организацию.
 // Пароль: "admin" (bcrypt hash).
-func SeedAdminUser(ctx context.Context, db *sqlx.DB) error {
-	_, err := db.ExecContext(ctx, `
+func SeedAdminUser(ctx context.Context, db *pgxpool.Pool) error {
+	_, err := db.Exec(ctx, `
 		INSERT INTO "user" (email, password, last_name, first_name, reset_password_after_login, organization_id)
 		VALUES (
 			'admin@test.local',

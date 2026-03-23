@@ -7,9 +7,8 @@ package db
 
 import (
 	"context"
-	"database/sql"
 
-	"github.com/sqlc-dev/pqtype"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createWorkflowStep = `-- name: CreateWorkflowStep :one
@@ -19,17 +18,17 @@ RETURNING id, workflow_version_id, step_type, work_type_id, worker_settings_revi
 `
 
 type CreateWorkflowStepParams struct {
-	WorkflowVersionID        int32                 `json:"workflow_version_id"`
-	StepType                 string                `json:"step_type"`
-	WorkTypeID               sql.NullInt32         `json:"work_type_id"`
-	WorkerSettingsRevisionID sql.NullInt32         `json:"worker_settings_revision_id"`
-	ControlKind              sql.NullString        `json:"control_kind"`
-	ControlSettings          pqtype.NullRawMessage `json:"control_settings"`
-	InputMapping             pqtype.NullRawMessage `json:"input_mapping"`
+	WorkflowVersionID        int32       `json:"workflow_version_id"`
+	StepType                 string      `json:"step_type"`
+	WorkTypeID               pgtype.Int4 `json:"work_type_id"`
+	WorkerSettingsRevisionID pgtype.Int4 `json:"worker_settings_revision_id"`
+	ControlKind              pgtype.Text `json:"control_kind"`
+	ControlSettings          []byte      `json:"control_settings"`
+	InputMapping             []byte      `json:"input_mapping"`
 }
 
 func (q *Queries) CreateWorkflowStep(ctx context.Context, arg CreateWorkflowStepParams) (WorkflowStep, error) {
-	row := q.db.QueryRowContext(ctx, createWorkflowStep,
+	row := q.db.QueryRow(ctx, createWorkflowStep,
 		arg.WorkflowVersionID,
 		arg.StepType,
 		arg.WorkTypeID,
@@ -62,7 +61,7 @@ WHERE workflow_version_id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) DeleteWorkflowStepsByVersionID(ctx context.Context, workflowVersionID int32) error {
-	_, err := q.db.ExecContext(ctx, deleteWorkflowStepsByVersionID, workflowVersionID)
+	_, err := q.db.Exec(ctx, deleteWorkflowStepsByVersionID, workflowVersionID)
 	return err
 }
 
@@ -72,7 +71,7 @@ WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetWorkflowStepByID(ctx context.Context, id int32) (WorkflowStep, error) {
-	row := q.db.QueryRowContext(ctx, getWorkflowStepByID, id)
+	row := q.db.QueryRow(ctx, getWorkflowStepByID, id)
 	var i WorkflowStep
 	err := row.Scan(
 		&i.ID,
@@ -97,7 +96,7 @@ ORDER BY id
 `
 
 func (q *Queries) ListWorkflowStepsByVersionID(ctx context.Context, workflowVersionID int32) ([]WorkflowStep, error) {
-	rows, err := q.db.QueryContext(ctx, listWorkflowStepsByVersionID, workflowVersionID)
+	rows, err := q.db.Query(ctx, listWorkflowStepsByVersionID, workflowVersionID)
 	if err != nil {
 		return nil, err
 	}
@@ -122,9 +121,6 @@ func (q *Queries) ListWorkflowStepsByVersionID(ctx context.Context, workflowVers
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -138,7 +134,7 @@ WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) SoftDeleteWorkflowStep(ctx context.Context, id int32) error {
-	_, err := q.db.ExecContext(ctx, softDeleteWorkflowStep, id)
+	_, err := q.db.Exec(ctx, softDeleteWorkflowStep, id)
 	return err
 }
 
@@ -156,17 +152,17 @@ RETURNING id, workflow_version_id, step_type, work_type_id, worker_settings_revi
 `
 
 type UpdateWorkflowStepParams struct {
-	ID                       int32                 `json:"id"`
-	StepType                 string                `json:"step_type"`
-	WorkTypeID               sql.NullInt32         `json:"work_type_id"`
-	WorkerSettingsRevisionID sql.NullInt32         `json:"worker_settings_revision_id"`
-	ControlKind              sql.NullString        `json:"control_kind"`
-	ControlSettings          pqtype.NullRawMessage `json:"control_settings"`
-	InputMapping             pqtype.NullRawMessage `json:"input_mapping"`
+	ID                       int32       `json:"id"`
+	StepType                 string      `json:"step_type"`
+	WorkTypeID               pgtype.Int4 `json:"work_type_id"`
+	WorkerSettingsRevisionID pgtype.Int4 `json:"worker_settings_revision_id"`
+	ControlKind              pgtype.Text `json:"control_kind"`
+	ControlSettings          []byte      `json:"control_settings"`
+	InputMapping             []byte      `json:"input_mapping"`
 }
 
 func (q *Queries) UpdateWorkflowStep(ctx context.Context, arg UpdateWorkflowStepParams) (WorkflowStep, error) {
-	row := q.db.QueryRowContext(ctx, updateWorkflowStep,
+	row := q.db.QueryRow(ctx, updateWorkflowStep,
 		arg.ID,
 		arg.StepType,
 		arg.WorkTypeID,

@@ -21,7 +21,7 @@ type CreateOrganizationParams struct {
 }
 
 func (q *Queries) CreateOrganization(ctx context.Context, arg CreateOrganizationParams) (Organization, error) {
-	row := q.db.QueryRowContext(ctx, createOrganization, arg.Name, arg.Code)
+	row := q.db.QueryRow(ctx, createOrganization, arg.Name, arg.Code)
 	var i Organization
 	err := row.Scan(
 		&i.ID,
@@ -41,7 +41,7 @@ LIMIT 1
 `
 
 func (q *Queries) GetOrganizationByCode(ctx context.Context, code string) (Organization, error) {
-	row := q.db.QueryRowContext(ctx, getOrganizationByCode, code)
+	row := q.db.QueryRow(ctx, getOrganizationByCode, code)
 	var i Organization
 	err := row.Scan(
 		&i.ID,
@@ -60,7 +60,7 @@ WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetOrganizationByID(ctx context.Context, id int32) (Organization, error) {
-	row := q.db.QueryRowContext(ctx, getOrganizationByID, id)
+	row := q.db.QueryRow(ctx, getOrganizationByID, id)
 	var i Organization
 	err := row.Scan(
 		&i.ID,
@@ -80,7 +80,7 @@ ORDER BY id
 `
 
 func (q *Queries) ListOrganizations(ctx context.Context) ([]Organization, error) {
-	rows, err := q.db.QueryContext(ctx, listOrganizations)
+	rows, err := q.db.Query(ctx, listOrganizations)
 	if err != nil {
 		return nil, err
 	}
@@ -100,9 +100,6 @@ func (q *Queries) ListOrganizations(ctx context.Context) ([]Organization, error)
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -116,7 +113,7 @@ WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) SoftDeleteOrganization(ctx context.Context, id int32) error {
-	_, err := q.db.ExecContext(ctx, softDeleteOrganization, id)
+	_, err := q.db.Exec(ctx, softDeleteOrganization, id)
 	return err
 }
 
@@ -134,7 +131,7 @@ type UpdateOrganizationParams struct {
 }
 
 func (q *Queries) UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) (Organization, error) {
-	row := q.db.QueryRowContext(ctx, updateOrganization, arg.ID, arg.Name, arg.Code)
+	row := q.db.QueryRow(ctx, updateOrganization, arg.ID, arg.Name, arg.Code)
 	var i Organization
 	err := row.Scan(
 		&i.ID,

@@ -3,21 +3,15 @@ package db
 import (
 	"context"
 
-	"github.com/jmoiron/sqlx"
-	_ "github.com/lib/pq" // PostgreSQL driver
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/zalberix/cactus/apps/core/config"
 )
 
-func New(
-	ctx context.Context,
-	url string,
-) (*sqlx.DB, error) {
-	return sqlx.ConnectContext(ctx, "postgres", url)
+func New(ctx context.Context, url string) (*pgxpool.Pool, error) {
+	return pgxpool.New(ctx, url)
 }
 
-func NewFx(cfg *config.Config) (*sqlx.DB, error) {
-	return New(
-		context.Background(),
-		cfg.Database.URL,
-	)
+func NewFx(cfg *config.Config) (*pgxpool.Pool, error) {
+	return New(context.Background(), cfg.Database.URL)
 }

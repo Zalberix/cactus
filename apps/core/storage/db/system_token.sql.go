@@ -23,7 +23,7 @@ type CreateSystemTokenParams struct {
 }
 
 func (q *Queries) CreateSystemToken(ctx context.Context, arg CreateSystemTokenParams) (SystemToken, error) {
-	row := q.db.QueryRowContext(ctx, createSystemToken,
+	row := q.db.QueryRow(ctx, createSystemToken,
 		arg.SystemID,
 		arg.PublicToken,
 		arg.PrivateToken,
@@ -50,7 +50,7 @@ WHERE id = $1
 `
 
 func (q *Queries) DeactivateSystemToken(ctx context.Context, id int32) error {
-	_, err := q.db.ExecContext(ctx, deactivateSystemToken, id)
+	_, err := q.db.Exec(ctx, deactivateSystemToken, id)
 	return err
 }
 
@@ -60,7 +60,7 @@ WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetSystemTokenByID(ctx context.Context, id int32) (SystemToken, error) {
-	row := q.db.QueryRowContext(ctx, getSystemTokenByID, id)
+	row := q.db.QueryRow(ctx, getSystemTokenByID, id)
 	var i SystemToken
 	err := row.Scan(
 		&i.ID,
@@ -82,7 +82,7 @@ LIMIT 1
 `
 
 func (q *Queries) GetSystemTokenByPublicToken(ctx context.Context, publicToken string) (SystemToken, error) {
-	row := q.db.QueryRowContext(ctx, getSystemTokenByPublicToken, publicToken)
+	row := q.db.QueryRow(ctx, getSystemTokenByPublicToken, publicToken)
 	var i SystemToken
 	err := row.Scan(
 		&i.ID,
@@ -104,7 +104,7 @@ ORDER BY id
 `
 
 func (q *Queries) ListSystemTokensBySystemID(ctx context.Context, systemID int32) ([]SystemToken, error) {
-	rows, err := q.db.QueryContext(ctx, listSystemTokensBySystemID, systemID)
+	rows, err := q.db.Query(ctx, listSystemTokensBySystemID, systemID)
 	if err != nil {
 		return nil, err
 	}
@@ -126,9 +126,6 @@ func (q *Queries) ListSystemTokensBySystemID(ctx context.Context, systemID int32
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -142,6 +139,6 @@ WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) SoftDeleteSystemToken(ctx context.Context, id int32) error {
-	_, err := q.db.ExecContext(ctx, softDeleteSystemToken, id)
+	_, err := q.db.Exec(ctx, softDeleteSystemToken, id)
 	return err
 }
