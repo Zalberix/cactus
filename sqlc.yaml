@@ -3,10 +3,10 @@ sql:
   - engine: "postgresql"
     database:
       uri: postgresql://root:root@localhost:5432/postgres
-    queries: "./db/query"
-    schema: "./db/migrations"
+    queries: "./libs/migrations/queries/postgres"
+    schema: "./libs/migrations/postgres"
     gen:
       go:
         package: "db"
         emit_json_tags: true
-        out: "./internal/storage/db"
+        out: "./apps/core/storage/db"

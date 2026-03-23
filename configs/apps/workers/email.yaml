@@ -1,0 +1,4 @@
+env: "local" #local, prod, dev
+token: "decedb9c-3a96-4b0f-9638-f2276ec624dd"
+nats:
+  url: "nats://localhost:4222"

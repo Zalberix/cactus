@@ -1,0 +1,28 @@
+#!/bin/sh
+
+SQLC_OUT="./apps/core/storage/db"
+
+# Check if sqlc is installed
+if ! command -v sqlc >/dev/null 2>&1; then
+  echo "sqlc not found, skipping generation"
+  exit 0
+fi
+
+# Check if any relevant files were changed
+CHANGED=$(git diff --cached --name-only -- "libs/migrations/queries/postgres/" "libs/migrations/postgres/")
+
+if [ -z "$CHANGED" ]; then
+  exit 0
+fi
+
+echo "SQL files changed, running sqlc generate..."
+
+sqlc generate
+if [ $? -ne 0 ]; then
+  echo "sqlc generate failed"
+  exit 1
+fi
+
+git add "$SQLC_OUT"
+
+echo "sqlc: generated files staged"

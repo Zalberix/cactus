@@ -1,0 +1,17 @@
+go 1.25.5
+
+// ./apps/core/... ./apps/workers/smtp/... ./apps/workers/telegram/... ./cli/... ./libs/bus/... ./libs/worker/... ./libs/config/... ./libs/logger/... ./libs/migrations/... ./libs/pipeline/... ./libs/permissions/...
+
+use (
+	./apps/core
+	./apps/workers/smtp
+	./apps/workers/telegram
+	./cli
+	./libs/bus
+	./libs/worker
+	./libs/config
+	./libs/logger
+	./libs/migrations
+	./libs/pipeline
+	./libs/permissions
+)

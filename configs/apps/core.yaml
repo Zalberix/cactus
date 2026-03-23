@@ -1,0 +1,13 @@
+env: "local" #local, prod, dev
+http_server:
+  host: "0.0.0.0"
+  port: "3009"
+  timeout: 4s
+  idle_timeout: 30s
+db:
+  url: "postgres://root:root@localhost:5432/postgres?sslmode=disable"
+nats:
+  url: "nats://localhost:4222"
+temporal:
+  host_port: "localhost:7233"
+  namespace: "default"

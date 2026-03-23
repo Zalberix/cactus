@@ -1,0 +1,10 @@
+{
+    auto_https off
+}
+
+http://localhost {
+    handle_path /api/* {
+        reverse_proxy 127.0.0.1:3009
+    }
+    reverse_proxy http://127.0.0.1:3000
+}
