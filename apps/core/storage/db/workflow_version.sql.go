@@ -54,6 +54,18 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, arg CreateWorkflowV
 	return i, err
 }
 
+const getMaxVersionNumberByWorkflowID = `-- name: GetMaxVersionNumberByWorkflowID :one
+SELECT COALESCE(MAX(version_number), 0)::int FROM "workflow_version"
+WHERE workflow_id = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) GetMaxVersionNumberByWorkflowID(ctx context.Context, workflowID int32) (int32, error) {
+	row := q.db.QueryRow(ctx, getMaxVersionNumberByWorkflowID, workflowID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getWorkflowVersionByID = `-- name: GetWorkflowVersionByID :one
 SELECT id, workflow_id, created_by_user_id, version_number, is_valid, is_active, traffic_weight, is_control_group, created_at, updated_at, deleted_at FROM "workflow_version"
 WHERE id = $1 AND deleted_at IS NULL

@@ -1,0 +1,40 @@
+package workflow
+
+import (
+	"context"
+
+	db "github.com/zalberix/cactus/apps/core/storage/db"
+)
+
+// Storage — интерфейс хранилища для workflow домена.
+type Storage interface {
+	// Workflow
+	CreateWorkflow(ctx context.Context, arg db.CreateWorkflowParams) (db.Workflow, error)
+	GetWorkflowByID(ctx context.Context, id int32) (db.Workflow, error)
+	ListWorkflowsBySystemID(ctx context.Context, systemID int32) ([]db.Workflow, error)
+	UpdateWorkflow(ctx context.Context, arg db.UpdateWorkflowParams) (db.Workflow, error)
+	UpdateWorkflowInputValidation(ctx context.Context, arg db.UpdateWorkflowInputValidationParams) (db.Workflow, error)
+	SoftDeleteWorkflow(ctx context.Context, id int32) error
+
+	// WorkflowVersion
+	CreateWorkflowVersion(ctx context.Context, arg db.CreateWorkflowVersionParams) (db.WorkflowVersion, error)
+	GetWorkflowVersionByID(ctx context.Context, id int32) (db.WorkflowVersion, error)
+	GetMaxVersionNumberByWorkflowID(ctx context.Context, workflowID int32) (int32, error)
+	ListWorkflowVersionsByWorkflowID(ctx context.Context, workflowID int32) ([]db.WorkflowVersion, error)
+	ListActiveWorkflowVersions(ctx context.Context, workflowID int32) ([]db.WorkflowVersion, error)
+	UpdateWorkflowVersionValid(ctx context.Context, arg db.UpdateWorkflowVersionValidParams) (db.WorkflowVersion, error)
+	UpdateWorkflowVersionActive(ctx context.Context, arg db.UpdateWorkflowVersionActiveParams) (db.WorkflowVersion, error)
+
+	// WorkflowStep
+	CreateWorkflowStep(ctx context.Context, arg db.CreateWorkflowStepParams) (db.WorkflowStep, error)
+	GetWorkflowStepByID(ctx context.Context, id int32) (db.WorkflowStep, error)
+	ListWorkflowStepsByVersionID(ctx context.Context, workflowVersionID int32) ([]db.WorkflowStep, error)
+	UpdateWorkflowStep(ctx context.Context, arg db.UpdateWorkflowStepParams) (db.WorkflowStep, error)
+	SoftDeleteWorkflowStep(ctx context.Context, id int32) error
+
+	// WorkflowStepDependency
+	CreateWorkflowStepDependency(ctx context.Context, arg db.CreateWorkflowStepDependencyParams) error
+	ListDependenciesByVersionID(ctx context.Context, workflowVersionID int32) ([]db.WorkflowStepDependency, error)
+	DeleteDependenciesByStepID(ctx context.Context, stepID int32) error
+	DeleteWorkflowStepDependency(ctx context.Context, arg db.DeleteWorkflowStepDependencyParams) error
+}

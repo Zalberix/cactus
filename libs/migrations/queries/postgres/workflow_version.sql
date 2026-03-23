@@ -35,6 +35,10 @@ SET traffic_weight = $2, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;
 
+-- name: GetMaxVersionNumberByWorkflowID :one
+SELECT COALESCE(MAX(version_number), 0)::int FROM "workflow_version"
+WHERE workflow_id = $1 AND deleted_at IS NULL;
+
 -- name: SoftDeleteWorkflowVersion :exec
 UPDATE "workflow_version"
 SET deleted_at = CURRENT_TIMESTAMP
