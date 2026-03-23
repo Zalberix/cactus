@@ -25,6 +25,7 @@ func Command() *cli.Command {
 			DownMigrationCmd,
 			StatusMigrationCmd,
 			CreateMigrationCmd,
+			ResetMigrationCmd,
 		},
 	}
 }
