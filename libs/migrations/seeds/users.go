@@ -2,35 +2,29 @@ package seeds
 
 import (
 	"context"
-	"crypto/sha512"
-	"database/sql"
-	"encoding/hex"
 	"fmt"
 
-	"github.com/zalberix/cactus/apps/core/storage/db"
+	"github.com/jmoiron/sqlx"
 )
 
-func init() {
-	Register("users", SeedUsers)
-}
-
-func SeedUsers(ctx context.Context, storage *db.Queries) error {
-	password := "password"
-	hasher := sha512.New()
-	hasher.Write([]byte(password))
-	hashPassword := hex.EncodeToString(hasher.Sum(nil))
-
-	_, err := storage.CreateUser(ctx, db.CreateUserParams{
-		LastName:                "Demo",
-		FirstName:               "User",
-		Patronymic:              sql.NullString{Valid: true, String: "#1"},
-		Email:                   "demo@mail.ru",
-		Password:                hashPassword,
-		ResetPasswordAfterLogin: sql.NullBool{Valid: true, Bool: false},
-	})
+// SeedUsers вставляет demo-пользователя в тестовую организацию.
+// Пароль: "password" (bcrypt hash).
+func SeedUsers(ctx context.Context, db *sqlx.DB) error {
+	// $2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi = "password"
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO "user" (email, password, last_name, first_name, reset_password_after_login, organization_id)
+		VALUES (
+			'demo@test.local',
+			'$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+			'Demo',
+			'User',
+			false,
+			(SELECT id FROM organization WHERE code = 'test')
+		)
+		ON CONFLICT (email) DO NOTHING
+	`)
 	if err != nil {
-		return fmt.Errorf("ошибка при создании пользователя: %w", err)
+		return fmt.Errorf("seed demo user: %w", err)
 	}
-
 	return nil
 }

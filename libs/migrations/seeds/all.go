@@ -4,28 +4,25 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/zalberix/cactus/apps/core/storage/db"
+	"github.com/jmoiron/sqlx"
 )
 
-func init() {
-	Register("all", SeedAll)
-}
-
-func SeedAll(ctx context.Context, storage *db.Queries) error {
+// SeedAll выполняет все сиды по порядку.
+func SeedAll(ctx context.Context, db *sqlx.DB) error {
 	ordered := []struct {
 		name string
-		fn   SeedFunc
+		fn   SQLSeedFunc
 	}{
-		{"channels", SeedChannels},
-		{"pipeline_step_statuses", SeedPipelineStepStatuses},
+		{"organization", SeedOrganization},
+		{"admin_user", SeedAdminUser},
 		{"users", SeedUsers},
-		{"configs", SeedConfigs},
-		{"systems", SeedSystems},
+		{"permissions", SeedPermissions},
 		{"work_types", SeedWorkTypes},
+		{"systems", SeedSystems},
 	}
 
 	for _, s := range ordered {
-		if err := s.fn(ctx, storage); err != nil {
+		if err := s.fn(ctx, db); err != nil {
 			return fmt.Errorf("сид %q: %w", s.name, err)
 		}
 	}

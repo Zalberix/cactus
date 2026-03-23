@@ -2,47 +2,27 @@ package seeds
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
-	"github.com/zalberix/cactus/apps/core/storage/db"
+	"github.com/jmoiron/sqlx"
 )
 
-func init() {
-	Register("systems", SeedSystems)
-}
-
-func SeedSystems(ctx context.Context, storage *db.Queries) error {
-	user, err := storage.GetUserByEmail(ctx, "demo@mail.ru")
+// SeedSystems вставляет тестовую систему, привязанную к тестовой организации и admin-пользователю.
+func SeedSystems(ctx context.Context, db *sqlx.DB) error {
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO system (organization_id, user_creator_id, name, description, is_active, priority)
+		VALUES (
+			(SELECT id FROM organization WHERE code = 'test'),
+			(SELECT id FROM "user" WHERE email = 'admin@test.local'),
+			'Тестовая система',
+			'Demo-система для разработки',
+			true,
+			0
+		)
+		ON CONFLICT DO NOTHING
+	`)
 	if err != nil {
-		return fmt.Errorf("не найден пользователь demo@mail.ru: %w", err)
+		return fmt.Errorf("seed system: %w", err)
 	}
-
-	channel, err := storage.GetChannelBySlug(ctx, "email")
-	if err != nil {
-		return fmt.Errorf("не найден канал email: %w", err)
-	}
-
-	system, err := storage.CreateSystem(ctx, db.CreateSystemParams{
-		UserCreatorID: sql.NullInt32{Valid: true, Int32: user.ID},
-		Name:          "Тестовая система",
-		Description:   sql.NullString{Valid: true, String: "demo для работы с системой"},
-		IsActive:      true,
-		Priority:      0,
-		PublicToken:   sql.NullString{Valid: true, String: "12345678910"},
-		PrivateToken:  sql.NullString{Valid: true, String: "10987654321"},
-	})
-	if err != nil {
-		return fmt.Errorf("ошибка при создании системы: %w", err)
-	}
-
-	err = storage.AddChannelForSystem(ctx, db.AddChannelForSystemParams{
-		SystemID:  system.ID,
-		ChannelID: channel.ID,
-	})
-	if err != nil {
-		return fmt.Errorf("ошибка при привязке канала к системе: %w", err)
-	}
-
 	return nil
 }

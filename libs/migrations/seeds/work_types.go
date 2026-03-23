@@ -2,31 +2,30 @@ package seeds
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
-	"github.com/zalberix/cactus/apps/core/storage/db"
+	"github.com/jmoiron/sqlx"
 )
 
-func init() {
-	Register("work_types", SeedWorkTypes)
-}
-
-func SeedWorkTypes(ctx context.Context, storage *db.Queries) error {
-	workTypes := []db.CreateWorkTypeParams{
-		{Name: "Email рассылка", Code: "email", Description: sql.NullString{Valid: true, String: "Отправка email сообщений через SMTP/API провайдеров"}},
-		{Name: "Telegram уведомления", Code: "telegram", Description: sql.NullString{Valid: true, String: "Отправка сообщений через Telegram Bot API"}},
-		{Name: "SMS сообщения", Code: "sms", Description: sql.NullString{Valid: true, String: "Отправка SMS через провайдеров"}},
-		{Name: "Push уведомления", Code: "push", Description: sql.NullString{Valid: true, String: "Push уведомления на мобильные устройства"}},
-		{Name: "In-app уведомления", Code: "in_app", Description: sql.NullString{Valid: true, String: "Доставка уведомлений через WebSocket gateway"}},
+// SeedWorkTypes вставляет базовые типы работ (smtp, telegram).
+func SeedWorkTypes(ctx context.Context, db *sqlx.DB) error {
+	workTypes := []struct {
+		Name string
+		Code string
+	}{
+		{"Email SMTP", "smtp"},
+		{"Telegram", "telegram"},
 	}
 
 	for _, wt := range workTypes {
-		_, err := storage.CreateWorkType(ctx, wt)
+		_, err := db.ExecContext(ctx, `
+			INSERT INTO work_type (name, code)
+			VALUES ($1, $2)
+			ON CONFLICT (code) DO NOTHING
+		`, wt.Name, wt.Code)
 		if err != nil {
-			return fmt.Errorf("ошибка при создании типа работ %q: %w", wt.Code, err)
+			return fmt.Errorf("seed work type %s: %w", wt.Code, err)
 		}
 	}
-
 	return nil
 }
