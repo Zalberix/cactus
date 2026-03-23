@@ -13,6 +13,7 @@ import (
 	"github.com/zalberix/cactus/apps/core/config"
 	"github.com/zalberix/cactus/apps/core/internal/domain/auth"
 	apphttp "github.com/zalberix/cactus/apps/core/internal/http"
+	"github.com/zalberix/cactus/apps/core/internal/http/middleware"
 	"github.com/zalberix/cactus/apps/core/internal/store"
 	pkgdb "github.com/zalberix/cactus/apps/core/pkg/db"
 	"github.com/zalberix/cactus/libs/bus"
@@ -50,11 +51,17 @@ func newAuthService(cfg *config.Config, s *store.Store) *auth.Service {
 	return auth.NewService(cfg.JWT, s)
 }
 
-// registerAuthRoutes регистрирует публичные маршруты аутентификации.
-func registerAuthRoutes(r *gin.Engine, h *auth.Handler) {
+// registerAuthRoutes регистрирует публичные маршруты аутентификации
+// и создаёт защищённую группу /api/v1 с JWT middleware для планов 02-03..02-05.
+func registerAuthRoutes(r *gin.Engine, h *auth.Handler, authSvc *auth.Service) {
 	v1 := r.Group("/api/v1")
+
+	// Публичные маршруты
 	v1.POST("/auth/login", h.Login)
 	v1.POST("/auth/refresh", h.Refresh)
+
+	// Защищённая группа — маршруты планов 02-03, 02-04, 02-05 регистрируются в registerProtectedRoutes
+	_ = v1.Group("", middleware.Auth(authSvc))
 }
 
 func registerNATSStreams(lc fx.Lifecycle, b *bus.Bus) {
