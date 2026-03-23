@@ -12,6 +12,7 @@ import (
 
 	"github.com/zalberix/cactus/apps/core/config"
 	"github.com/zalberix/cactus/apps/core/internal/domain/auth"
+	"github.com/zalberix/cactus/apps/core/internal/domain/rbac"
 	apphttp "github.com/zalberix/cactus/apps/core/internal/http"
 	"github.com/zalberix/cactus/apps/core/internal/http/middleware"
 	"github.com/zalberix/cactus/apps/core/internal/store"
@@ -34,10 +35,13 @@ func main() {
 			apphttp.NewHTTPServer,
 			newAuthService,
 			auth.NewHandler,
+			newRBACService,
+			rbac.NewHandler,
 		),
 		fx.Invoke(
 			registerNATSStreams,
 			registerAuthRoutes,
+			registerRBACRoutes,
 			registerHTTPServer,
 		),
 		fx.NopLogger,
@@ -77,6 +81,17 @@ func registerNATSStreams(lc fx.Lifecycle, b *bus.Bus) {
 			return nil
 		},
 	})
+}
+
+// newRBACService создаёт rbac.Service, передавая store как Storage и authService как AuthService.
+func newRBACService(s *store.Store, authSvc *auth.Service) *rbac.Service {
+	return rbac.NewService(s, authSvc)
+}
+
+// registerRBACRoutes регистрирует защищённые RBAC маршруты.
+func registerRBACRoutes(r *gin.Engine, h *rbac.Handler, authSvc *auth.Service, s *store.Store) {
+	authMw := middleware.Auth(authSvc)
+	h.RegisterRoutes(r, authMw, s)
 }
 
 func registerHTTPServer(srv *http.Server, lc fx.Lifecycle, pool *pgxpool.Pool, b *bus.Bus) {
