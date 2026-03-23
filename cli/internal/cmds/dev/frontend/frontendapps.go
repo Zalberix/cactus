@@ -6,9 +6,8 @@ import (
 )
 
 // Apps lists all frontend applications managed by the CLI.
-var Apps = []app{
-	{name: "web", path: "web"},
-}
+// Frontend (Nuxt.js) will be added in Phase 5.
+var Apps = []app{}
 
 type FrontendApps struct {
 	apps []*app

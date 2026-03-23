@@ -8,7 +8,6 @@ import (
 	"syscall"
 
 	"github.com/zalberix/cactus/cli/internal/cmds/dependencies"
-	"github.com/zalberix/cactus/cli/internal/cmds/dev/frontend"
 	devgolang "github.com/zalberix/cactus/cli/internal/cmds/dev/golang"
 	"github.com/zalberix/cactus/cli/internal/cmds/dev/helpers"
 	"github.com/zalberix/cactus/cli/internal/cmds/migrations"
@@ -41,11 +40,6 @@ var Cmd = &cli.Command{
 			return fmt.Errorf("clear ports: %w", err)
 		}
 
-		//wd, err := os.Getwd()
-		//if err != nil {
-		//	return err
-		//}
-
 		proxyStartedChan, err := proxy.StartProxy(false)
 		if err != nil {
 			pterm.Fatal.Printfln("Proxy failed to start: %v", err)
@@ -64,11 +58,6 @@ var Cmd = &cli.Command{
 			}
 		}
 
-		// Сборка библиотек, но их пока нет
-		//if err := build.LibsCmd(wd); err != nil {
-		//	return fmt.Errorf("build libs: %w", err)
-		//}
-
 		if err := migrations.UpMigrationCmd.Run(c); err != nil {
 			pterm.Warning.Printfln("Migrations failed: %v (continuing anyway)", err)
 		}
@@ -79,18 +68,7 @@ var Cmd = &cli.Command{
 			return err
 		}
 
-		frontendApps, err := frontend.New()
-		if err != nil {
-			pterm.Fatal.Println(err)
-			return err
-		}
-
 		if err := golangApps.Start(c.Context); err != nil {
-			pterm.Error.Println(err)
-			return err
-		}
-
-		if err := frontendApps.Start(); err != nil {
 			pterm.Error.Println(err)
 			return err
 		}
@@ -101,7 +79,6 @@ var Cmd = &cli.Command{
 		<-exitSignal
 		pterm.Info.Println("Shutting down, waiting for services to stop...")
 		golangApps.Stop()
-		frontendApps.Stop()
 		pterm.Success.Println("All services stopped")
 		return nil
 	},
