@@ -15,7 +15,11 @@ LIMIT 1;
 -- name: ListOrganizations :many
 SELECT * FROM "organization"
 WHERE deleted_at IS NULL
-ORDER BY id;
+ORDER BY "name"
+LIMIT $1 OFFSET $2;
+
+-- name: CountOrganizations :one
+SELECT COUNT(*)::bigint FROM "organization" WHERE deleted_at IS NULL;
 
 -- name: UpdateOrganization :one
 UPDATE "organization"

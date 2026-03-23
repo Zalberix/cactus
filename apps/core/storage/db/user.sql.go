@@ -11,6 +11,20 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countUsersByOrgID = `-- name: CountUsersByOrgID :one
+SELECT COUNT(DISTINCT u.id)::bigint FROM "user" u
+JOIN "role_user" ru ON ru.user_id = u.id
+JOIN "role" r ON r.id = ru.role_id
+WHERE r.organization_id = $1 AND u.deleted_at IS NULL
+`
+
+func (q *Queries) CountUsersByOrgID(ctx context.Context, organizationID pgtype.Int4) (int64, error) {
+	row := q.db.QueryRow(ctx, countUsersByOrgID, organizationID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO "user" (
     last_name,
@@ -91,6 +105,103 @@ LIMIT 1
 
 func (q *Queries) GetUserByID(ctx context.Context, id int32) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByID, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.LastName,
+		&i.FirstName,
+		&i.Patronymic,
+		&i.Email,
+		&i.Password,
+		&i.ResetPasswordAfterLogin,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const listUsersByOrgID = `-- name: ListUsersByOrgID :many
+SELECT DISTINCT u.id, u.organization_id, u.last_name, u.first_name, u.patronymic, u.email, u.password, u.reset_password_after_login, u.created_at, u.updated_at, u.deleted_at FROM "user" u
+JOIN "role_user" ru ON ru.user_id = u.id
+JOIN "role" r ON r.id = ru.role_id
+WHERE r.organization_id = $1 AND u.deleted_at IS NULL
+ORDER BY u.last_name, u.first_name
+LIMIT $2 OFFSET $3
+`
+
+type ListUsersByOrgIDParams struct {
+	OrganizationID pgtype.Int4 `json:"organization_id"`
+	Limit          int64       `json:"limit"`
+	Offset         int64       `json:"offset"`
+}
+
+func (q *Queries) ListUsersByOrgID(ctx context.Context, arg ListUsersByOrgIDParams) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUsersByOrgID, arg.OrganizationID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.LastName,
+			&i.FirstName,
+			&i.Patronymic,
+			&i.Email,
+			&i.Password,
+			&i.ResetPasswordAfterLogin,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const softDeleteUser = `-- name: SoftDeleteUser :exec
+UPDATE "user" SET deleted_at = CURRENT_TIMESTAMP
+WHERE id = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) SoftDeleteUser(ctx context.Context, id int32) error {
+	_, err := q.db.Exec(ctx, softDeleteUser, id)
+	return err
+}
+
+const updateUser = `-- name: UpdateUser :one
+UPDATE "user"
+SET last_name = $2, first_name = $3, patronymic = $4, email = $5, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1 AND deleted_at IS NULL
+RETURNING id, organization_id, last_name, first_name, patronymic, email, password, reset_password_after_login, created_at, updated_at, deleted_at
+`
+
+type UpdateUserParams struct {
+	ID         int32       `json:"id"`
+	LastName   string      `json:"last_name"`
+	FirstName  string      `json:"first_name"`
+	Patronymic pgtype.Text `json:"patronymic"`
+	Email      string      `json:"email"`
+}
+
+func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUser,
+		arg.ID,
+		arg.LastName,
+		arg.FirstName,
+		arg.Patronymic,
+		arg.Email,
+	)
 	var i User
 	err := row.Scan(
 		&i.ID,

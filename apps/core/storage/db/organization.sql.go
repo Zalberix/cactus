@@ -9,6 +9,17 @@ import (
 	"context"
 )
 
+const countOrganizations = `-- name: CountOrganizations :one
+SELECT COUNT(*)::bigint FROM "organization" WHERE deleted_at IS NULL
+`
+
+func (q *Queries) CountOrganizations(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countOrganizations)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createOrganization = `-- name: CreateOrganization :one
 INSERT INTO "organization" ("name", code)
 VALUES ($1, $2)
@@ -76,11 +87,17 @@ func (q *Queries) GetOrganizationByID(ctx context.Context, id int32) (Organizati
 const listOrganizations = `-- name: ListOrganizations :many
 SELECT id, name, code, created_at, updated_at, deleted_at FROM "organization"
 WHERE deleted_at IS NULL
-ORDER BY id
+ORDER BY "name"
+LIMIT $1 OFFSET $2
 `
 
-func (q *Queries) ListOrganizations(ctx context.Context) ([]Organization, error) {
-	rows, err := q.db.Query(ctx, listOrganizations)
+type ListOrganizationsParams struct {
+	Limit  int64 `json:"limit"`
+	Offset int64 `json:"offset"`
+}
+
+func (q *Queries) ListOrganizations(ctx context.Context, arg ListOrganizationsParams) ([]Organization, error) {
+	rows, err := q.db.Query(ctx, listOrganizations, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
