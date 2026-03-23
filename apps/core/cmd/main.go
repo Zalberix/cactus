@@ -6,10 +6,12 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/fx"
 
 	"github.com/zalberix/cactus/apps/core/config"
+	"github.com/zalberix/cactus/apps/core/internal/domain/auth"
 	apphttp "github.com/zalberix/cactus/apps/core/internal/http"
 	"github.com/zalberix/cactus/apps/core/internal/store"
 	pkgdb "github.com/zalberix/cactus/apps/core/pkg/db"
@@ -29,15 +31,30 @@ func main() {
 			bus.NewFx,
 			apphttp.NewRouter,
 			apphttp.NewHTTPServer,
+			newAuthService,
+			auth.NewHandler,
 		),
 		fx.Invoke(
 			registerNATSStreams,
+			registerAuthRoutes,
 			registerHTTPServer,
 		),
 		fx.NopLogger,
 	)
 
 	app.Run()
+}
+
+// newAuthService создаёт auth.Service, передавая JWT конфиг и store как Storage.
+func newAuthService(cfg *config.Config, s *store.Store) *auth.Service {
+	return auth.NewService(cfg.JWT, s)
+}
+
+// registerAuthRoutes регистрирует публичные маршруты аутентификации.
+func registerAuthRoutes(r *gin.Engine, h *auth.Handler) {
+	v1 := r.Group("/api/v1")
+	v1.POST("/auth/login", h.Login)
+	v1.POST("/auth/refresh", h.Refresh)
 }
 
 func registerNATSStreams(lc fx.Lifecycle, b *bus.Bus) {
