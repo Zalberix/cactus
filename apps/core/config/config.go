@@ -48,6 +48,7 @@ type Nats struct {
 type Temporal struct {
 	HostPort  string `yaml:"host_port" env-default:"localhost:7233"`
 	Namespace string `yaml:"namespace" env-default:"default"`
+	TaskQueue string `yaml:"task_queue" env-default:"cactus-core"`
 }
 
 // NatsURL реализует интерфейс bus.NatsConfig.

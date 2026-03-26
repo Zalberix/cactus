@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/zalberix/cactus/apps/core/config"
-	"strings"
+	"time"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"github.com/zalberix/cactus/apps/core/config"
+	"strings"
 )
 
 type Bus struct {
@@ -46,6 +47,19 @@ func (b *Bus) EnsureStream(ctx context.Context, name string, subjects []string) 
 	_, err := b.js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
 		Name:     name,
 		Subjects: subjects,
+	})
+	if err != nil {
+		return fmt.Errorf("не удалось создать/обновить стрим %s: %w", name, err)
+	}
+	return nil
+}
+
+// EnsureStreamWithMaxAge создаёт JetStream-стрим с ограничением по возрасту сообщений.
+func (b *Bus) EnsureStreamWithMaxAge(ctx context.Context, name string, subjects []string, maxAge time.Duration) error {
+	_, err := b.js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
+		Name:     name,
+		Subjects: subjects,
+		MaxAge:   maxAge,
 	})
 	if err != nil {
 		return fmt.Errorf("не удалось создать/обновить стрим %s: %w", name, err)

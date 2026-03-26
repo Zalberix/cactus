@@ -11,6 +11,7 @@ nats:
 temporal:
   host_port: "localhost:7233"
   namespace: "default"
+  task_queue: "cactus-core"
 jwt:
   secret: "dev-secret-change-in-production-32chars!"
   access_ttl: 15m
