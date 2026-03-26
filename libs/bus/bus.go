@@ -103,6 +103,11 @@ func (b *Bus) Subscribe(subject string, handler func(data []byte)) (*nats.Subscr
 	return sub, nil
 }
 
+// JS возвращает JetStream интерфейс для прямого доступа (consumers, streams).
+func (b *Bus) JS() jetstream.JetStream {
+	return b.js
+}
+
 // SubjectToStreamName конвертирует NATS-субъект в имя стрима:
 // "messages.email.smtp.w-1" → "MESSAGES"
 func SubjectToStreamName(subject string) string {
