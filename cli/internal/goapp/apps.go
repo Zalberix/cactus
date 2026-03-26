@@ -10,7 +10,7 @@ type App struct {
 
 // Apps is the canonical list of Go services in the monorepo.
 var Apps = []GoApp{
-	{Name: "core", DebugPort: 2346, ConfigFileName: "configs/apps/core.yaml", AppDir: "core"},
-	//{Name: "telegram", DebugPort: 2347, ConfigFileName: "configs/apps/workers/telegram.yaml", AppDir: "workers/telegram"},
-	//{Name: "smtp", DebugPort: 2348, ConfigFileName: "configs/apps/workers/smtp.yaml", AppDir: "workers/smtp"},
+	{Name: "core", DebugPort: 2346, AppDir: "apps"},
+	//{Name: "telegram", DebugPort: 2347, AppDir: "apps/workers"},
+	{Name: "smtp", DebugPort: 2348, AppDir: "apps/workers"},
 }

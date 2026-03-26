@@ -19,6 +19,7 @@ func New(enableDebug bool) (*GoApps, error) {
 		application, err := goapp.NewApplication(
 			app.Name,
 			enableDebug,
+			app.AppDir,
 			app.Port,
 			app.DebugPort,
 			app.OnPortReady,

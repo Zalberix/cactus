@@ -10,9 +10,9 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.temporal.io/sdk/activity"
 
-	temporaltypes "github.com/zalberix/cactus/apps/core/internal/temporal"
 	"github.com/zalberix/cactus/apps/core/internal/store"
-	db "github.com/zalberix/cactus/apps/core/storage/db"
+	temporaltypes "github.com/zalberix/cactus/apps/core/internal/temporal"
+	"github.com/zalberix/cactus/apps/core/storage/db"
 	"github.com/zalberix/cactus/libs/bus"
 )
 
@@ -36,18 +36,18 @@ func New(store *store.Store, bus *bus.Bus) *Activities {
 // RunTaskStep — activity для выполнения task-шага (per EXEC-05, EXEC-06 dispatch side).
 //
 // Алгоритм:
-// 1. Resolve input mapping из message value + step outputs
-// 2. Создать workflow_run_step запись со статусом "running"
-// 3. Создать workflow_run_step_attempt запись
-// 4. Сформировать TaskMessage (per D-06)
-// 5. Опубликовать в NATS TASKS stream: subject "task.{work_type_id}.{revision_id}.{run_id}"
-//    NOTE: D-02 deviation — используется integer revision ID вместо configRevisionHash.
-//    Hash добавляет сложность без явной пользы в v1, integer revision ID проще и достаточен.
-// 6. Ждать результат через waitForResult на "result.{run_id}.{step_id}"
-//    Per D-05: timeout берётся из input.Step.Timeout (populated from WorkerSettingsRevision
-//    in buildDAGInput), falls back to defaultWorkerTimeout (5 min)
-// 7. Обновить workflow_run_step и attempt с результатом
-// 8. Вернуть StepResult
+//  1. Resolve input mapping из message value + step outputs
+//  2. Создать workflow_run_step запись со статусом "running"
+//  3. Создать workflow_run_step_attempt запись
+//  4. Сформировать TaskMessage (per D-06)
+//  5. Опубликовать в NATS TASKS stream: subject "task.{work_type_id}.{revision_id}.{run_id}"
+//     NOTE: D-02 deviation — используется integer revision ID вместо configRevisionHash.
+//     Hash добавляет сложность без явной пользы в v1, integer revision ID проще и достаточен.
+//  6. Ждать результат через waitForResult на "result.{run_id}.{step_id}"
+//     Per D-05: timeout берётся из input.Step.Timeout (populated from WorkerSettingsRevision
+//     in buildDAGInput), falls back to defaultWorkerTimeout (5 min)
+//  7. Обновить workflow_run_step и attempt с результатом
+//  8. Вернуть StepResult
 func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTaskStepInput) (temporaltypes.StepResult, error) {
 	info := activity.GetInfo(ctx)
 	attempt := int32(info.Attempt) + 1 // Temporal attempts 0-based, мы 1-based

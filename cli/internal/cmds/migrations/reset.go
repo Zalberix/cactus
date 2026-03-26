@@ -1,6 +1,7 @@
 package migrations
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -29,10 +30,12 @@ var ResetMigrationCmd = &cli.Command{
 		migrationsPath := filepath.Join(wd, c.String("migrations-path"), "postgres")
 
 		return runMigration(migrationsPath, func(provider *goose.Provider) error {
-			// Down all migrations one by one
 			for {
 				result, err := provider.Down(c.Context)
 				if err != nil {
+					if errors.Is(err, goose.ErrNoNextVersion) {
+						break
+					}
 					return err
 				}
 				if result.Source.Path == "" {
@@ -41,7 +44,6 @@ var ResetMigrationCmd = &cli.Command{
 				pterm.Info.Printfln("Rolled back: %s", result.Source.Path)
 			}
 
-			// Re-apply all
 			results, err := provider.Up(c.Context)
 			if err != nil {
 				return err

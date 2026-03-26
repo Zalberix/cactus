@@ -14,6 +14,7 @@ import (
 	"gopkg.in/gomail.v2"
 
 	"github.com/zalberix/cactus/apps/workers/smtp/config"
+	cfgloader "github.com/zalberix/cactus/libs/config"
 	"github.com/zalberix/cactus/libs/logger"
 	"github.com/zalberix/cactus/libs/pipeline"
 	"github.com/zalberix/cactus/libs/worker"
@@ -141,7 +142,7 @@ func main() {
 	Type := "email"
 	Kind := "smtp"
 
-	conf := config.MustLoad("./config/email.worker.yaml")
+	conf := cfgloader.MustLoad[config.Config]("configs/workers/" + Kind + ".yaml")
 
 	if conf.WorkerUUID == "" {
 		slog.Error("worker обязан иметь ID (UUID)")

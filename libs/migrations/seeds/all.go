@@ -19,6 +19,7 @@ func SeedAll(ctx context.Context, db *pgxpool.Pool) error {
 		{"permissions", SeedPermissions},
 		{"work_types", SeedWorkTypes},
 		{"systems", SeedSystems},
+		{"demo", SeedDemo},
 	}
 
 	for _, s := range ordered {

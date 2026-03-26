@@ -14,19 +14,18 @@ import (
 
 // GoApp manages the lifecycle of a single Go microservice (build + run via dlv).
 type GoApp struct {
-	Name           string
-	DebugPort      int
-	Port           *int
-	OnPortReady    func()
-	Cmd            *exec.Cmd
-	CorePath       string
-	AppDir         string
-	ConfigFileName string
-	Watcher        *watcher.Watcher
-	debugEnabled   bool
+	Name         string
+	DebugPort    int
+	Port         *int
+	OnPortReady  func()
+	Cmd          *exec.Cmd
+	CorePath     string
+	AppDir       string
+	Watcher      *watcher.Watcher
+	debugEnabled bool
 }
 
-func NewApplication(name string, enableDebug bool, port *int, debugPort int, onPortReady func()) (
+func NewApplication(name string, enableDebug bool, appDir string, port *int, debugPort int, onPortReady func()) (
 	*GoApp,
 	error,
 ) {
@@ -39,7 +38,7 @@ func NewApplication(name string, enableDebug bool, port *int, debugPort int, onP
 		Name:         name,
 		Cmd:          nil,
 		CorePath:     wd,
-		AppDir:       "apps",
+		AppDir:       appDir,
 		Watcher:      watcher.New(),
 		debugEnabled: enableDebug,
 		Port:         port,
@@ -65,7 +64,7 @@ func (g *GoApp) GetAppPath() string {
 }
 
 func (g *GoApp) getConfigPath() string {
-	return filepath.Join(g.CorePath, ".configs", g.AppDir, g.Name+".yaml")
+	return filepath.Join(g.CorePath, "configs", g.AppDir, g.Name+".yaml")
 }
 
 // Build compiles the binary for this service.

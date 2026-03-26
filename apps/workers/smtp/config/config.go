@@ -1,12 +1,5 @@
 package config
 
-import (
-	"log"
-	"os"
-
-	"github.com/ilyakaznacheev/cleanenv"
-)
-
 type Config struct {
 	Env        string `yaml:"env" env-default:"dev"`
 	WorkerUUID string `yaml:"worker_uuid"`
@@ -16,18 +9,4 @@ type Config struct {
 
 type Nats struct {
 	URL string `yaml:"url" env-default:"nats://localhost:4222"`
-}
-
-func MustLoad(configPath string) *Config {
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		log.Fatalf("config file does not exist: %s", configPath)
-	}
-
-	var cfg Config
-
-	if err := cleanenv.ReadConfig(configPath, &cfg); err != nil {
-		log.Fatalf("cannot read config: %s", err)
-	}
-
-	return &cfg
 }

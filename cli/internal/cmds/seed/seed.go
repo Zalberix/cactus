@@ -7,6 +7,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/zalberix/cactus/apps/core/config"
+	cfgloader "github.com/zalberix/cactus/libs/config"
 	pkgdb "github.com/zalberix/cactus/apps/core/pkg/db"
 	"github.com/zalberix/cactus/libs/migrations/seeds"
 )
@@ -17,7 +18,7 @@ var Cmd = &cli.Command{
 	Action: func(c *cli.Context) error {
 		pterm.Info.Println("Seeding database...")
 
-		cfg := config.MustLoad("configs/apps/core.yaml")
+		cfg := cfgloader.MustLoad[config.Config]("configs/apps/core.yaml")
 		db, err := pkgdb.New(context.Background(), cfg.Database.URL)
 		if err != nil {
 			return fmt.Errorf("db connection failed: %w", err)

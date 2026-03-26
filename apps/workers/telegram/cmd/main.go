@@ -13,6 +13,7 @@ import (
 	"github.com/go-playground/validator/v10"
 
 	"github.com/zalberix/cactus/apps/workers/telegram/config"
+	cfgloader "github.com/zalberix/cactus/libs/config"
 	"github.com/zalberix/cactus/libs/logger"
 	"github.com/zalberix/cactus/libs/pipeline"
 	"github.com/zalberix/cactus/libs/worker"
@@ -122,7 +123,7 @@ func main() {
 	Kind := "telegram"
 	NameKind := "Телеграм бот"
 
-	conf := config.MustLoad()
+	conf := cfgloader.MustLoad[config.Config]("configs/apps/workers/telegram.yaml")
 
 	if conf.WorkerUUID == "" {
 		slog.Error("worker обязан иметь ID (UUID)")

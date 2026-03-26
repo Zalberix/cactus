@@ -9,7 +9,7 @@ db:
 nats:
   url: "nats://localhost:4222"
 temporal:
-  host_port: "localhost:7233"
+  host_port: "127.0.0.1:7233"
   namespace: "default"
   task_queue: "cactus-core"
 jwt:

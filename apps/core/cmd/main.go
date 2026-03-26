@@ -13,6 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/zalberix/cactus/apps/core/config"
+	cfgloader "github.com/zalberix/cactus/libs/config"
 	"github.com/zalberix/cactus/apps/core/internal/domain/auth"
 	"github.com/zalberix/cactus/apps/core/internal/domain/message"
 	"github.com/zalberix/cactus/apps/core/internal/domain/rbac"
@@ -29,7 +30,7 @@ import (
 )
 
 func main() {
-	cfg := config.MustLoad("configs/apps/core.yaml")
+	cfg := cfgloader.MustLoad[config.Config]("configs/apps/core.yaml")
 	slog.SetDefault(logger.SetupLogger(cfg.Env))
 
 	app := fx.New(
