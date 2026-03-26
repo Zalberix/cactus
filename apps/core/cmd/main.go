@@ -3,11 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"go.uber.org/fx"
 	"log/slog"
 	"net/http"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"go.temporal.io/sdk/client"
+	"go.uber.org/fx"
 
 	"github.com/zalberix/cactus/apps/core/config"
 	"github.com/zalberix/cactus/apps/core/internal/domain/auth"
@@ -17,6 +20,8 @@ import (
 	apphttp "github.com/zalberix/cactus/apps/core/internal/http"
 	"github.com/zalberix/cactus/apps/core/internal/http/middleware"
 	"github.com/zalberix/cactus/apps/core/internal/store"
+	temporalactivity "github.com/zalberix/cactus/apps/core/internal/temporal/activity"
+	temporalworker "github.com/zalberix/cactus/apps/core/internal/temporal/worker"
 	pkgdb "github.com/zalberix/cactus/apps/core/pkg/db"
 	"github.com/zalberix/cactus/libs/bus"
 	"github.com/zalberix/cactus/libs/logger"
@@ -42,6 +47,8 @@ func main() {
 			newWorktypeHandler,
 			newWorkflowService,
 			newWorkflowHandler,
+			temporalworker.NewTemporalClient,
+			temporalactivity.New,
 		),
 		fx.Invoke(
 			registerNATSStreams,
@@ -49,6 +56,7 @@ func main() {
 			registerRBACRoutes,
 			registerWorkTypeRoutes,
 			registerWorkflowRoutes,
+			temporalworker.RegisterTemporalWorker,
 			registerHTTPServer,
 		),
 		//fx.NopLogger,
@@ -78,13 +86,21 @@ func registerAuthRoutes(r *gin.Engine, h *auth.Handler, authSvc *auth.Service) {
 func registerNATSStreams(lc fx.Lifecycle, b *bus.Bus) {
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
+			// Старые streams (обратная совместимость, Phase 4 мигрирует воркеров)
 			if err := b.EnsureStream(ctx, "MESSAGES", []string{"messages.>"}); err != nil {
 				return fmt.Errorf("ensure MESSAGES stream: %w", err)
 			}
 			if err := b.EnsureStream(ctx, "EVENTS", []string{"event.>"}); err != nil {
 				return fmt.Errorf("ensure EVENTS stream: %w", err)
 			}
-			slog.Info("NATS JetStream streams ensured", slog.String("streams", "MESSAGES, EVENTS"))
+			// Новые streams для Phase 3 (per D-03)
+			if err := b.EnsureStream(ctx, "TASKS", []string{"task.>"}); err != nil {
+				return fmt.Errorf("ensure TASKS stream: %w", err)
+			}
+			if err := b.EnsureStreamWithMaxAge(ctx, "RESULTS", []string{"result.>"}, time.Hour); err != nil {
+				return fmt.Errorf("ensure RESULTS stream: %w", err)
+			}
+			slog.Info("NATS JetStream streams ensured", slog.String("streams", "MESSAGES, EVENTS, TASKS, RESULTS"))
 			return nil
 		},
 	})
@@ -133,7 +149,7 @@ func registerWorkflowRoutes(r *gin.Engine, h *workflow.Handler, authSvc *auth.Se
 	h.RegisterRoutes(r, authMw)
 }
 
-func registerHTTPServer(srv *http.Server, lc fx.Lifecycle, pool *pgxpool.Pool, b *bus.Bus) {
+func registerHTTPServer(srv *http.Server, lc fx.Lifecycle, pool *pgxpool.Pool, b *bus.Bus, tc client.Client) {
 	lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
 			slog.Info(
@@ -152,6 +168,7 @@ func registerHTTPServer(srv *http.Server, lc fx.Lifecycle, pool *pgxpool.Pool, b
 			slog.Info("Остановка сервера")
 			pool.Close()
 			b.Close()
+			tc.Close() // Close Temporal client
 			return srv.Shutdown(ctx)
 		},
 	})
