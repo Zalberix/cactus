@@ -15,20 +15,19 @@ import (
 )
 
 // registerRequest --- тело запроса на регистрацию воркера (POST /api/v1/register/worker).
+// Matches apps/core/internal/domain/worktype.RegisterWorkerRequest.
 type registerRequest struct {
-	Token        string          `json:"token"`
-	WorkerUUID   string          `json:"worker_uuid"`
-	Kind         string          `json:"kind"`
-	NameKind     string          `json:"name_kind"`
-	Type         string          `json:"type"`
-	NameType     string          `json:"name_type"`
-	ConfigSchema json.RawMessage `json:"config_schema,omitempty"`
+	BootstrapToken string          `json:"bootstrap_token"`
+	Name           string          `json:"name"`
+	Manifest       json.RawMessage `json:"manifest"`
 }
 
 // registerResponse --- envelope ответа от Manager.
+// Data contains db.Worker fields; we only parse what we need.
 type registerResponse struct {
 	Success bool `json:"success"`
 	Data    struct {
+		ID     int32          `json:"id"`
 		Config map[string]any `json:"config,omitempty"`
 	} `json:"data"`
 }
@@ -83,14 +82,15 @@ func (w *Worker) register(ctx context.Context) error {
 
 // sendRegistration отправляет POST /api/v1/register/worker.
 func (w *Worker) sendRegistration(ctx context.Context) error {
+	manifestJSON, err := json.Marshal(w.cfg.Manifest)
+	if err != nil {
+		return fmt.Errorf("marshal manifest: %w", err)
+	}
+
 	reqBody := registerRequest{
-		Token:        w.cfg.BootstrapToken,
-		WorkerUUID:   strconv.Itoa(int(w.workerID)),
-		Kind:         w.cfg.Manifest.Kind,
-		NameKind:     w.cfg.Manifest.NameKind,
-		Type:         w.cfg.Manifest.Type,
-		NameType:     w.cfg.Manifest.NameType,
-		ConfigSchema: w.cfg.Manifest.InputSchema,
+		BootstrapToken: w.cfg.BootstrapToken,
+		Name:           w.cfg.WorkerName,
+		Manifest:       manifestJSON,
 	}
 
 	bodyJSON, err := json.Marshal(reqBody)
@@ -127,6 +127,10 @@ func (w *Worker) sendRegistration(ctx context.Context) error {
 
 	if !regResp.Success {
 		return fmt.Errorf("registration rejected: %s", string(respBody))
+	}
+
+	if regResp.Data.ID > 0 {
+		w.workerID = regResp.Data.ID
 	}
 
 	return nil
