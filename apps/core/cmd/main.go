@@ -14,6 +14,7 @@ import (
 
 	"github.com/zalberix/cactus/apps/core/config"
 	"github.com/zalberix/cactus/apps/core/internal/domain/auth"
+	"github.com/zalberix/cactus/apps/core/internal/domain/message"
 	"github.com/zalberix/cactus/apps/core/internal/domain/rbac"
 	"github.com/zalberix/cactus/apps/core/internal/domain/workflow"
 	"github.com/zalberix/cactus/apps/core/internal/domain/worktype"
@@ -49,6 +50,8 @@ func main() {
 			newWorkflowHandler,
 			temporalworker.NewTemporalClient,
 			temporalactivity.New,
+			newMessageService,
+			newMessageHandler,
 		),
 		fx.Invoke(
 			registerNATSStreams,
@@ -56,6 +59,7 @@ func main() {
 			registerRBACRoutes,
 			registerWorkTypeRoutes,
 			registerWorkflowRoutes,
+			registerMessageRoutes,
 			temporalworker.RegisterTemporalWorker,
 			registerHTTPServer,
 		),
@@ -147,6 +151,25 @@ func newWorkflowHandler(svc *workflow.Service, s *store.Store) *workflow.Handler
 func registerWorkflowRoutes(r *gin.Engine, h *workflow.Handler, authSvc *auth.Service) {
 	authMw := middleware.Auth(authSvc)
 	h.RegisterRoutes(r, authMw)
+}
+
+// newMessageService создаёт message.Service с Temporal client.
+func newMessageService(s *store.Store, tc client.Client) *message.Service {
+	return message.NewService(s, tc)
+}
+
+// newMessageHandler создаёт message.Handler.
+func newMessageHandler(svc *message.Service) *message.Handler {
+	return message.NewHandler(svc)
+}
+
+// registerMessageRoutes регистрирует маршруты message domain.
+// Per D-11: POST /api/v1/messages/send доступен через system token auth (M2M)
+// и POST /api/v1/messages/send-user через JWT auth (UI).
+func registerMessageRoutes(r *gin.Engine, h *message.Handler, s *store.Store, authSvc *auth.Service) {
+	systemTokenMw := middleware.SystemTokenAuth(s)
+	jwtMw := middleware.Auth(authSvc)
+	h.RegisterRoutes(r, jwtMw, systemTokenMw)
 }
 
 func registerHTTPServer(srv *http.Server, lc fx.Lifecycle, pool *pgxpool.Pool, b *bus.Bus, tc client.Client) {
