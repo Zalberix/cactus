@@ -1,7 +1,10 @@
 package message
 
 import (
+	"fmt"
 	"log/slog"
+	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -67,6 +70,30 @@ func (h *Handler) SendMessage(c *gin.Context) {
 	response.OK(c, resp)
 }
 
+// GetMessageStatus returns message status (per D-20).
+// GET /api/v1/messages/:id/status
+func (h *Handler) GetMessageStatus(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 32)
+	if err != nil {
+		response.BadRequest(c, "INVALID_ID", "Invalid message ID")
+		return
+	}
+
+	resp, err := h.service.GetMessageStatus(c.Request.Context(), int32(id))
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "no rows") {
+			response.Fail(c, http.StatusNotFound, "MESSAGE_NOT_FOUND",
+				fmt.Sprintf("Message with ID %d not found", id))
+			return
+		}
+		response.InternalError(c, "Error fetching message status")
+		return
+	}
+
+	response.OK(c, resp)
+}
+
 // RegisterRoutes регистрирует маршруты message domain.
 // Per D-11: endpoint доступен через system token auth (M2M) И JWT auth (UI).
 //
@@ -74,15 +101,19 @@ func (h *Handler) SendMessage(c *gin.Context) {
 // используем два пути:
 //   - POST /api/v1/messages/send — M2M (system token auth)
 //   - POST /api/v1/messages/send-user — UI (JWT auth)
+//   - GET /api/v1/messages/:id/status-system — M2M (system token auth, per D-22)
+//   - GET /api/v1/messages/:id/status — UI (JWT auth, per D-22)
 //
-// Оба пути ведут в один handler SendMessage.
+// Оба пути ведут в один handler SendMessage/GetMessageStatus.
 func (h *Handler) RegisterRoutes(r *gin.Engine, jwtAuthMw gin.HandlerFunc, systemTokenAuthMw gin.HandlerFunc) {
 	v1 := r.Group("/api/v1")
 
-	// M2M endpoint (system token auth, per D-11)
+	// M2M endpoints (system token auth, per D-11, D-22)
 	v1.POST("/messages/send", systemTokenAuthMw, h.SendMessage)
+	v1.GET("/messages/:id/status-system", systemTokenAuthMw, h.GetMessageStatus)
 
-	// JWT endpoint (per D-11: JWT auth also accepted)
+	// JWT endpoints (per D-11, D-22: JWT auth also accepted)
 	jwtGroup := v1.Group("", jwtAuthMw)
 	jwtGroup.POST("/messages/send-user", h.SendMessage)
+	jwtGroup.GET("/messages/:id/status", h.GetMessageStatus)
 }

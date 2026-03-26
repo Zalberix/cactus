@@ -25,4 +25,8 @@ type Storage interface {
 
 	// Workflow token access check
 	CheckWorkflowAccess(ctx context.Context, arg db.CheckWorkflowAccessParams) (bool, error)
+
+	// Status API (per EXEC-09)
+	GetMessageStatusByID(ctx context.Context, id int32) (db.GetMessageStatusByIDRow, error)
+	ListWorkflowRunStepStatusesByRunID(ctx context.Context, workflowRunID int32) ([]db.ListWorkflowRunStepStatusesByRunIDRow, error)
 }

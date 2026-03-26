@@ -99,6 +99,57 @@ func (q *Queries) GetWorkflowRunStepByID(ctx context.Context, id int32) (Workflo
 	return i, err
 }
 
+const listWorkflowRunStepStatusesByRunID = `-- name: ListWorkflowRunStepStatusesByRunID :many
+SELECT wrs.id, wrs.workflow_step_id, wrs.status, wrs.outcome,
+       wrs.started_at, wrs.completed_at, wrs.error_message,
+       ws.step_type
+FROM "workflow_run_step" wrs
+JOIN "workflow_step" ws ON ws.id = wrs.workflow_step_id
+WHERE wrs.workflow_run_id = $1
+ORDER BY wrs.id
+`
+
+type ListWorkflowRunStepStatusesByRunIDRow struct {
+	ID             int32            `json:"id"`
+	WorkflowStepID int32            `json:"workflow_step_id"`
+	Status         string           `json:"status"`
+	Outcome        pgtype.Text      `json:"outcome"`
+	StartedAt      pgtype.Timestamp `json:"started_at"`
+	CompletedAt    pgtype.Timestamp `json:"completed_at"`
+	ErrorMessage   pgtype.Text      `json:"error_message"`
+	StepType       string           `json:"step_type"`
+}
+
+// Status API: step statuses WITHOUT input/output data (per D-21 — may be large)
+func (q *Queries) ListWorkflowRunStepStatusesByRunID(ctx context.Context, workflowRunID int32) ([]ListWorkflowRunStepStatusesByRunIDRow, error) {
+	rows, err := q.db.Query(ctx, listWorkflowRunStepStatusesByRunID, workflowRunID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListWorkflowRunStepStatusesByRunIDRow
+	for rows.Next() {
+		var i ListWorkflowRunStepStatusesByRunIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkflowStepID,
+			&i.Status,
+			&i.Outcome,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.ErrorMessage,
+			&i.StepType,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkflowRunStepsByRunID = `-- name: ListWorkflowRunStepsByRunID :many
 SELECT id, workflow_run_id, workflow_step_id, worker_id, temporal_step_id, status, outcome, input_data, output_data, started_at, completed_at, error_message FROM "workflow_run_step"
 WHERE workflow_run_id = $1

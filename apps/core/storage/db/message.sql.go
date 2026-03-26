@@ -48,6 +48,46 @@ func (q *Queries) CreateNewMessage(ctx context.Context, arg CreateNewMessagePara
 	return i, err
 }
 
+const getMessageStatusByID = `-- name: GetMessageStatusByID :one
+SELECT m.id, m.status AS message_status, m.created_at,
+       wr.id AS workflow_run_id, wr.status AS workflow_status,
+       wr.started_at AS run_started_at, wr.completed_at AS run_completed_at,
+       wr.error_message AS run_error_message
+FROM "message" m
+LEFT JOIN "workflow_run" wr ON wr.message_id = m.id
+WHERE m.id = $1 AND m.deleted_at IS NULL
+ORDER BY wr.id DESC
+LIMIT 1
+`
+
+type GetMessageStatusByIDRow struct {
+	ID              int32            `json:"id"`
+	MessageStatus   string           `json:"message_status"`
+	CreatedAt       pgtype.Timestamp `json:"created_at"`
+	WorkflowRunID   pgtype.Int4      `json:"workflow_run_id"`
+	WorkflowStatus  pgtype.Text      `json:"workflow_status"`
+	RunStartedAt    pgtype.Timestamp `json:"run_started_at"`
+	RunCompletedAt  pgtype.Timestamp `json:"run_completed_at"`
+	RunErrorMessage pgtype.Text      `json:"run_error_message"`
+}
+
+// Status API: returns message + latest workflow_run status (per D-20, D-21)
+func (q *Queries) GetMessageStatusByID(ctx context.Context, id int32) (GetMessageStatusByIDRow, error) {
+	row := q.db.QueryRow(ctx, getMessageStatusByID, id)
+	var i GetMessageStatusByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.MessageStatus,
+		&i.CreatedAt,
+		&i.WorkflowRunID,
+		&i.WorkflowStatus,
+		&i.RunStartedAt,
+		&i.RunCompletedAt,
+		&i.RunErrorMessage,
+	)
+	return i, err
+}
+
 const getNewMessageByID = `-- name: GetNewMessageByID :one
 SELECT id, workflow_id, external_message_id, overridden_priority, value, status, created_at, updated_at, deleted_at FROM "message"
 WHERE id = $1 AND deleted_at IS NULL

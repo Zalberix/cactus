@@ -31,3 +31,13 @@ JOIN "workflow_step" ws ON ws.id = wrs.workflow_step_id
 WHERE ws.worker_settings_revision_id = $1
   AND wrs.started_at >= $2
   AND wrs.status IN ('running', 'completed');
+
+-- name: ListWorkflowRunStepStatusesByRunID :many
+-- Status API: step statuses WITHOUT input/output data (per D-21 — may be large)
+SELECT wrs.id, wrs.workflow_step_id, wrs.status, wrs.outcome,
+       wrs.started_at, wrs.completed_at, wrs.error_message,
+       ws.step_type
+FROM "workflow_run_step" wrs
+JOIN "workflow_step" ws ON ws.id = wrs.workflow_step_id
+WHERE wrs.workflow_run_id = $1
+ORDER BY wrs.id;
