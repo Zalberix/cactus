@@ -21,6 +21,7 @@ import (
 	"github.com/zalberix/cactus/apps/core/internal/domain/worktype"
 	apphttp "github.com/zalberix/cactus/apps/core/internal/http"
 	"github.com/zalberix/cactus/apps/core/internal/http/middleware"
+	"github.com/zalberix/cactus/apps/core/internal/pkg/wshub"
 	"github.com/zalberix/cactus/apps/core/internal/store"
 	temporalactivity "github.com/zalberix/cactus/apps/core/internal/temporal/activity"
 	temporalworker "github.com/zalberix/cactus/apps/core/internal/temporal/worker"
@@ -53,6 +54,7 @@ func main() {
 			temporalactivity.New,
 			newMessageService,
 			newMessageHandler,
+			newWSHub,
 		),
 		fx.Invoke(
 			registerNATSStreams,
@@ -61,6 +63,7 @@ func main() {
 			registerWorkTypeRoutes,
 			registerWorkflowRoutes,
 			registerMessageRoutes,
+			registerWSRoutes,
 			temporalworker.RegisterTemporalWorker,
 			registerHTTPServer,
 		),
@@ -171,6 +174,17 @@ func registerMessageRoutes(r *gin.Engine, h *message.Handler, s *store.Store, au
 	systemTokenMw := middleware.SystemTokenAuth(s)
 	jwtMw := middleware.Auth(authSvc)
 	h.RegisterRoutes(r, jwtMw, systemTokenMw)
+}
+
+// newWSHub creates the WebSocket Hub for real-time workflow status.
+func newWSHub(b *bus.Bus, msgSvc *message.Service, authSvc *auth.Service, s *store.Store) *wshub.Hub {
+	return wshub.New(b, msgSvc, authSvc, s)
+}
+
+// registerWSRoutes registers the WebSocket endpoint (per D-12).
+// No auth middleware here -- auth happens inside the WS handshake (per D-13).
+func registerWSRoutes(r *gin.Engine, hub *wshub.Hub) {
+	r.GET("/ws/workflow/:messageID", hub.HandleWS)
 }
 
 func registerHTTPServer(srv *http.Server, lc fx.Lifecycle, pool *pgxpool.Pool, b *bus.Bus, tc client.Client) {
