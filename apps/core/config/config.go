@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
@@ -54,19 +55,27 @@ func (c *Config) NatsURL() string {
 	return c.Nats.URL
 }
 
-func MustLoad(cnfPath *string) *Config {
-	configPath := "./configs/apps/core.yaml"
-	if cnfPath != nil {
-		configPath = *cnfPath
+func MustLoad(configFileName string) *Config {
+
+	configDir := os.Getenv("CONFIG_DIR")
+
+	if configDir == "" {
+		wd, err := os.Getwd()
+		if err != nil {
+			log.Fatalf("failed to get working directory: %v", err)
+		}
+		configDir = wd
 	}
 
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		log.Fatalf("config file does not exist: %s", configPath)
+	fullPath := filepath.Join(configDir, configFileName)
+
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		log.Fatalf("config file does not exist: %s", fullPath)
 	}
 
 	var cfg Config
 
-	if err := cleanenv.ReadConfig(configPath, &cfg); err != nil {
+	if err := cleanenv.ReadConfig(fullPath, &cfg); err != nil {
 		log.Fatalf("cannot read config: %s", err)
 	}
 

@@ -33,7 +33,7 @@ func Command() *cli.Command {
 }
 
 func runMigration(migrationsDir string, fn func(*goose.Provider) error) error {
-	cfg := config.MustLoad(nil)
+	cfg := config.MustLoad("configs/apps/core.yaml")
 
 	pool, err := pkgdb.New(
 		context.Background(),
@@ -58,7 +58,7 @@ func runMigration(migrationsDir string, fn func(*goose.Provider) error) error {
 }
 
 func runMigrationWithPool(fn func(*pgxpool.Pool) error) error {
-	cfg := config.MustLoad(nil)
+	cfg := config.MustLoad("configs/apps/core.yaml")
 
 	pool, err := pkgdb.New(
 		context.Background(),

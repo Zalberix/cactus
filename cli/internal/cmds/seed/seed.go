@@ -3,7 +3,6 @@ package seed
 import (
 	"context"
 	"fmt"
-
 	"github.com/pterm/pterm"
 	"github.com/urfave/cli/v2"
 
@@ -18,7 +17,7 @@ var Cmd = &cli.Command{
 	Action: func(c *cli.Context) error {
 		pterm.Info.Println("Seeding database...")
 
-		cfg := config.MustLoad(nil)
+		cfg := config.MustLoad("configs/apps/core.yaml")
 		db, err := pkgdb.New(context.Background(), cfg.Database.URL)
 		if err != nil {
 			return fmt.Errorf("db connection failed: %w", err)

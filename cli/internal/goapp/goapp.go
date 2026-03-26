@@ -2,27 +2,28 @@ package goapp
 
 import (
 	"fmt"
+	"github.com/pterm/pterm"
 	"github.com/zalberix/cactus/cli/internal/shell"
 	"github.com/zalberix/cactus/cli/internal/watcher"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"syscall"
-
-	"github.com/pterm/pterm"
+	"runtime"
 )
 
 // GoApp manages the lifecycle of a single Go microservice (build + run via dlv).
 type GoApp struct {
-	Name         string
-	DebugPort    int
-	Port         *int
-	OnPortReady  func()
-	Cmd          *exec.Cmd
-	Path         string
-	Watcher      *watcher.Watcher
-	debugEnabled bool
+	Name           string
+	DebugPort      int
+	Port           *int
+	OnPortReady    func()
+	Cmd            *exec.Cmd
+	CorePath       string
+	AppDir         string
+	ConfigFileName string
+	Watcher        *watcher.Watcher
+	debugEnabled   bool
 }
 
 func NewApplication(name string, enableDebug bool, port *int, debugPort int, onPortReady func()) (
@@ -37,7 +38,8 @@ func NewApplication(name string, enableDebug bool, port *int, debugPort int, onP
 	app := GoApp{
 		Name:         name,
 		Cmd:          nil,
-		Path:         filepath.Join(wd, "apps", name),
+		CorePath:     wd,
+		AppDir:       "apps",
 		Watcher:      watcher.New(),
 		debugEnabled: enableDebug,
 		Port:         port,
@@ -54,15 +56,23 @@ func NewApplication(name string, enableDebug bool, port *int, debugPort int, onP
 	return &app, nil
 }
 
-func (g *GoApp) getAppPath() string {
-	return filepath.Join(g.Path, ".out", "cactus-"+g.Name)
+func (g *GoApp) getBinAppPath() string {
+	return filepath.Join(g.GetAppPath(), ".out", "cactus-"+g.Name)
+}
+
+func (g *GoApp) GetAppPath() string {
+	return filepath.Join(g.CorePath, g.AppDir, g.Name)
+}
+
+func (g *GoApp) getConfigPath() string {
+	return filepath.Join(g.CorePath, ".configs", g.AppDir, g.Name+".yaml")
 }
 
 // Build compiles the binary for this service.
 func (g *GoApp) Build() error {
 	pterm.Info.Printfln("[%s] Building...", g.Name)
 
-	if err := os.MkdirAll(filepath.Dir(g.getAppPath()), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(g.getBinAppPath()), 0o755); err != nil {
 		return fmt.Errorf("create bin dir: %w", err)
 	}
 	args := []string{"build"}
@@ -71,10 +81,12 @@ func (g *GoApp) Build() error {
 	} else {
 		args = append(args, `-ldflags=-s -w`)
 	}
-	args = append(args, "-o", g.getAppPath(), "./cmd/main.go")
+	args = append(args, "-o", g.getBinAppPath(), g.GetAppPath()+"/cmd/main.go")
+
+	pterm.Info.Println("args for build:", args)
 
 	cmd := exec.Command("go", args...)
-	cmd.Dir = g.Path
+	cmd.Dir = g.CorePath
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -88,27 +100,37 @@ func (g *GoApp) Build() error {
 }
 
 func (g *GoApp) Stop() error {
-	if g.Cmd != nil && g.Cmd.Process != nil {
-		if err := g.Cmd.Process.Signal(syscall.SIGTERM); err != nil {
-			return err
-		}
+	if g.Cmd == nil || g.Cmd.Process == nil {
+		return nil
 	}
 
-	return nil
+	if runtime.GOOS == "windows" {
+		// /F - принудительно (Force)
+		// /T - убить дерево процессов (Tree), то есть и dlv, и само приложение
+		killCmd := exec.Command("taskkill", "/F", "/T", "/PID", fmt.Sprint(g.Cmd.Process.Pid))
+		err := killCmd.Run()
+		if err != nil {
+			return fmt.Errorf("taskkill failed: %w", err)
+		}
+		return nil
+	}
+
+	// Стандартное поведение для Linux/Mac
+	return g.Cmd.Process.Kill()
 }
 
 func (g *GoApp) Start() error {
 	if err := g.Stop(); err != nil {
-		return err
+		return fmt.Errorf("stoping error: %v", err)
 	}
 
 	if err := g.Build(); err != nil {
-		return err
+		return fmt.Errorf("building error: %v", err)
 	}
 
 	newCmd, err := g.CreateAppCommand()
 	if err != nil {
-		return err
+		return fmt.Errorf("create app command: %v", err)
 	}
 
 	g.Cmd = newCmd
@@ -127,10 +149,10 @@ func (g *GoApp) CreateAppCommand() (*exec.Cmd, error) {
 		shell.ExecCommandOpts{
 			Command: fmt.Sprintf(
 				"dlv exec %s --headless=true --api-version=2 --check-go-version=false --only-same-user=false --listen=:%d --log --continue --accept-multiclient",
-				g.getAppPath(),
+				g.getBinAppPath(),
 				g.DebugPort,
 			),
-			Pwd:    g.Path,
+			Pwd:    g.CorePath,
 			Stdout: os.Stdout,
 			Stderr: os.Stderr,
 		},

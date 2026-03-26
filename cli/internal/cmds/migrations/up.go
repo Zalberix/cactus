@@ -25,6 +25,8 @@ var UpMigrationCmd = &cli.Command{
 			return err
 		}
 
+		pterm.Info.Println(wd)
+
 		// Пока только postgres, других миграций нет
 		migrationsPath := filepath.Join(wd, c.String("migrations-path"), "postgres")
 

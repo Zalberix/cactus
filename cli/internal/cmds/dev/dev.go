@@ -2,12 +2,12 @@ package dev
 
 import (
 	"fmt"
+	"github.com/zalberix/cactus/cli/internal/cmds/dependencies"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 
-	"github.com/zalberix/cactus/cli/internal/cmds/dependencies"
 	devgolang "github.com/zalberix/cactus/cli/internal/cmds/dev/golang"
 	"github.com/zalberix/cactus/cli/internal/cmds/dev/helpers"
 	"github.com/zalberix/cactus/cli/internal/cmds/migrations"
@@ -35,6 +35,19 @@ var Cmd = &cli.Command{
 		helpers.CleanPortsCmd,
 	},
 	Action: func(c *cli.Context) error {
+		wd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		pterm.Info.Printf("Приложение запущено из: %s\n", wd)
+		skipDeps := c.Bool("skip-deps")
+		isDebugEnabled := c.Bool("debug")
+
+		if isDebugEnabled {
+			pterm.Info.Println("Режим отладки ВКЛЮЧЕН")
+		} else {
+			pterm.Info.Println("Режим отладки ВЫКЛЮЧЕН")
+		}
 
 		if err := helpers.CleanPortsCmd.Run(c); err != nil {
 			return fmt.Errorf("clear ports: %w", err)
@@ -48,9 +61,6 @@ var Cmd = &cli.Command{
 
 		// wait proxy to up
 		<-proxyStartedChan
-
-		skipDeps := c.Bool("skip-deps")
-		isDebugEnabled := c.Bool("debug")
 
 		if !skipDeps {
 			if err := dependencies.Cmd.Run(c); err != nil {
@@ -69,7 +79,7 @@ var Cmd = &cli.Command{
 		}
 
 		if err := golangApps.Start(c.Context); err != nil {
-			pterm.Error.Println(err)
+			pterm.Error.Println("Error start: ", err)
 			return err
 		}
 

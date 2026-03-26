@@ -38,13 +38,13 @@ func (c *GoApps) Start(ctx context.Context) error {
 		app := app
 
 		pterm.Info.Println("Starting " + app.Name)
-		pterm.Info.Println("Starting " + app.Path)
+		pterm.Info.Println("Starting " + app.GetAppPath())
 		if err := app.Start(); err != nil {
 			return err
 		}
 
 		go func() {
-			chann, err := app.Watcher.Start(app.Path)
+			chann, err := app.Watcher.Start(app.GetAppPath())
 			if err != nil {
 				pterm.Fatal.Println(err)
 			}
@@ -52,7 +52,7 @@ func (c *GoApps) Start(ctx context.Context) error {
 			for range chann {
 				pterm.Info.Println("ReStarting " + app.Name)
 				if err := app.Start(); err != nil {
-					pterm.Error.Println(err)
+					pterm.Error.Println("Error Watch of: ", err)
 				}
 			}
 		}()

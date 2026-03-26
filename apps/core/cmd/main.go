@@ -3,12 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/fx"
+	"log/slog"
+	"net/http"
 
 	"github.com/zalberix/cactus/apps/core/config"
 	"github.com/zalberix/cactus/apps/core/internal/domain/auth"
@@ -24,7 +23,7 @@ import (
 )
 
 func main() {
-	cfg := config.MustLoad(nil)
+	cfg := config.MustLoad("configs/apps/core.yaml")
 	slog.SetDefault(logger.SetupLogger(cfg.Env))
 
 	app := fx.New(
@@ -52,7 +51,7 @@ func main() {
 			registerWorkflowRoutes,
 			registerHTTPServer,
 		),
-		fx.NopLogger,
+		//fx.NopLogger,
 	)
 
 	app.Run()

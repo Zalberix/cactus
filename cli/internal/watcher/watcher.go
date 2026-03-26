@@ -1,6 +1,7 @@
 package watcher
 
 import (
+	"github.com/pterm/pterm"
 	"strings"
 	"time"
 
@@ -39,6 +40,8 @@ func (c *Watcher) Start(path string) (chan struct{}, error) {
 			if strings.HasSuffix(event.Path(), "~") || strings.Contains(event.Path(), ".out") {
 				continue
 			}
+
+			pterm.Warning.Printfln("Файл изменен, триггерим рестарт: %s", event.Path())
 
 			reload()
 		}
