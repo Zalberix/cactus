@@ -35,6 +35,7 @@ func DAGExecutorWorkflow(ctx workflow.Context, input temporaltypes.DAGInput) err
 	for _, step := range input.Steps {
 		_ = workflow.ExecuteActivity(ctx, "RecordStep", temporaltypes.RecordStepInput{
 			WorkflowRunID: input.WorkflowRunID,
+			MessageID:     input.MessageID,
 			StepID:        step.ID,
 			Status:        temporaltypes.StepStatusPending,
 		}).Get(ctx, nil)
@@ -62,6 +63,7 @@ func DAGExecutorWorkflow(ctx workflow.Context, input temporaltypes.DAGInput) err
 	launchStep := func(step temporaltypes.StepDef) {
 		f := workflow.ExecuteActivity(ctx, "RunTaskStep", temporaltypes.RunTaskStepInput{
 			WorkflowRunID: input.WorkflowRunID,
+			MessageID:     input.MessageID,
 			Step:          step,
 			Attempt:       1,
 			MessageValue:  input.MessageValue,
@@ -104,6 +106,7 @@ func DAGExecutorWorkflow(ctx workflow.Context, input temporaltypes.DAGInput) err
 				for remID := range remaining {
 					_ = workflow.ExecuteActivity(ctx, "RecordStep", temporaltypes.RecordStepInput{
 						WorkflowRunID: input.WorkflowRunID,
+						MessageID:     input.MessageID,
 						StepID:        remID,
 						Status:        temporaltypes.StepStatusSkipped,
 					}).Get(ctx, nil)
@@ -139,11 +142,13 @@ func DAGExecutorWorkflow(ctx workflow.Context, input temporaltypes.DAGInput) err
 	}
 
 	if failErr != nil {
+		// Обновляем статус workflow_run как failed и публикуем workflow_failed event
+		_ = workflow.ExecuteActivity(ctx, "UpdateRunStatus", input.WorkflowRunID, input.MessageID, temporaltypes.RunStatusFailed, failErr.Error()).Get(ctx, nil)
 		return failErr
 	}
 
 	// Все шаги успешно завершены — обновляем статус workflow run
-	_ = workflow.ExecuteActivity(ctx, "UpdateRunStatus", input.WorkflowRunID, temporaltypes.RunStatusCompleted, "").Get(ctx, nil)
+	_ = workflow.ExecuteActivity(ctx, "UpdateRunStatus", input.WorkflowRunID, input.MessageID, temporaltypes.RunStatusCompleted, "").Get(ctx, nil)
 
 	return nil
 }

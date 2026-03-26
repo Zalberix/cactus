@@ -33,6 +33,23 @@ func New(store *store.Store, bus *bus.Bus) *Activities {
 	}
 }
 
+// publishWorkflowEvent publishes a workflow event to NATS for WebSocket Hub.
+// Subject: event.workflow.{messageID}
+// This is fire-and-forget — event publishing failure should not break activity execution.
+func (a *Activities) publishWorkflowEvent(ctx context.Context, messageID int32, event temporaltypes.WorkflowEvent) {
+	if messageID == 0 {
+		return // no messageID available, skip silently
+	}
+	event.Timestamp = time.Now().Format(time.RFC3339)
+	subject := fmt.Sprintf("event.workflow.%d", messageID)
+	if err := a.bus.PublishJS(ctx, subject, event); err != nil {
+		a.logger.Warn("failed to publish workflow event",
+			slog.String("subject", subject),
+			slog.String("error", err.Error()),
+		)
+	}
+}
+
 // RunTaskStep — activity для выполнения task-шага (per EXEC-05, EXEC-06 dispatch side).
 //
 // Алгоритм:
@@ -78,6 +95,14 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 	if err != nil {
 		return temporaltypes.StepResult{}, fmt.Errorf("create workflow_run_step: %w", err)
 	}
+
+	// Publish step_update running event
+	a.publishWorkflowEvent(ctx, input.MessageID, temporaltypes.WorkflowEvent{
+		Type:     "step_update",
+		StepID:   input.Step.ID,
+		StepType: input.Step.StepType,
+		Status:   temporaltypes.StepStatusRunning,
+	})
 
 	// 3. Создать attempt
 	stepAttempt, err := a.store.CreateWorkflowRunStepAttempt(ctx, db.CreateWorkflowRunStepAttemptParams{
@@ -152,6 +177,14 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 			CompletedAt: now,
 		})
 
+		// Publish step_update completed event
+		a.publishWorkflowEvent(ctx, input.MessageID, temporaltypes.WorkflowEvent{
+			Type:     "step_update",
+			StepID:   input.Step.ID,
+			StepType: input.Step.StepType,
+			Status:   temporaltypes.StepStatusCompleted,
+		})
+
 		return temporaltypes.StepResult{
 			StepID:   input.Step.ID,
 			Success:  true,
@@ -174,6 +207,15 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 		ErrorCode:    pgtype.Text{},
 		ErrorMessage: pgtype.Text{String: workerResult.Error, Valid: true},
 		CompletedAt:  now,
+	})
+
+	// Publish step_update failed event
+	a.publishWorkflowEvent(ctx, input.MessageID, temporaltypes.WorkflowEvent{
+		Type:     "step_update",
+		StepID:   input.Step.ID,
+		StepType: input.Step.StepType,
+		Status:   temporaltypes.StepStatusFailed,
+		Error:    workerResult.Error,
 	})
 
 	return temporaltypes.StepResult{
@@ -204,6 +246,13 @@ func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordS
 			return fmt.Errorf("create pending run step %d: %w", input.StepID, err)
 		}
 
+		// Publish step_update pending event
+		a.publishWorkflowEvent(ctx, input.MessageID, temporaltypes.WorkflowEvent{
+			Type:   "step_update",
+			StepID: input.StepID,
+			Status: temporaltypes.StepStatusPending,
+		})
+
 	case temporaltypes.StepStatusSkipped:
 		// Обновляем существующую запись как skipped
 		// Находим run_step по workflow_run_id + workflow_step_id
@@ -219,6 +268,13 @@ func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordS
 					Status:      temporaltypes.StepStatusSkipped,
 					CompletedAt: now,
 				})
+
+				// Publish step_update skipped event
+				a.publishWorkflowEvent(ctx, input.MessageID, temporaltypes.WorkflowEvent{
+					Type:   "step_update",
+					StepID: input.StepID,
+					Status: temporaltypes.StepStatusSkipped,
+				})
 				break
 			}
 		}
@@ -227,7 +283,7 @@ func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordS
 }
 
 // UpdateRunStatus — activity для обновления статуса workflow_run (per D-20).
-func (a *Activities) UpdateRunStatus(ctx context.Context, workflowRunID int32, status string, errorMsg string) error {
+func (a *Activities) UpdateRunStatus(ctx context.Context, workflowRunID int32, messageID int32, status string, errorMsg string) error {
 	a.logger.Info("UpdateRunStatus",
 		slog.Int("workflow_run_id", int(workflowRunID)),
 		slog.String("status", status),
@@ -240,5 +296,22 @@ func (a *Activities) UpdateRunStatus(ctx context.Context, workflowRunID int32, s
 		CompletedAt:  now,
 		ErrorMessage: pgtype.Text{String: errorMsg, Valid: errorMsg != ""},
 	})
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Publish terminal workflow event
+	switch status {
+	case temporaltypes.RunStatusCompleted:
+		a.publishWorkflowEvent(ctx, messageID, temporaltypes.WorkflowEvent{
+			Type: "workflow_done",
+		})
+	case temporaltypes.RunStatusFailed:
+		a.publishWorkflowEvent(ctx, messageID, temporaltypes.WorkflowEvent{
+			Type:  "workflow_failed",
+			Error: errorMsg,
+		})
+	}
+
+	return nil
 }
