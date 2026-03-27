@@ -50,16 +50,22 @@ export function useMessages() {
   }
 
   async function fetchMessages(
-    _orgId: number,
-    _page: number = 1,
+    orgId: number,
+    page: number = 1,
     perPage: number = 20,
   ): Promise<{ data: MessageListItem[]; meta: PaginationMeta }> {
-    // TODO: Backend endpoint GET /organizations/:orgId/messages not yet implemented
-    // See RESEARCH.md Open Question #1
-    console.warn('[useMessages] ListMessages endpoint not implemented in backend')
+    const resp = await api<ApiResponse<MessageListItem[]>>(
+      `/organizations/${orgId}/messages`,
+      {
+        params: { page, per_page: perPage },
+      },
+    )
+    if (!resp.success || !resp.data) {
+      throw new Error(resp.error?.message ?? 'Failed to fetch messages')
+    }
     return {
-      data: [] as MessageListItem[],
-      meta: { total: 0, page: 1, per_page: perPage, total_pages: 0 },
+      data: resp.data,
+      meta: resp.meta ?? { total: 0, page, per_page: perPage, total_pages: 0 },
     }
   }
 
