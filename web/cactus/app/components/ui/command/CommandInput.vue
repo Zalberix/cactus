@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { ComboboxInputProps } from 'radix-vue'
+import type { ComboboxInputProps } from 'reka-ui'
 import type { HTMLAttributes } from 'vue'
-import { cn } from 'app/lib/utils'
+import { cn } from '~/lib/utils'
 import { Search } from 'lucide-vue-next'
-import { ComboboxInput, useForwardProps } from 'radix-vue'
+import { ComboboxInput, useForwardProps } from 'reka-ui'
 import { computed } from 'vue'
 
 defineOptions({
