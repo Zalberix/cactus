@@ -142,14 +142,41 @@
     "name": "Name",
     "workType": "Work Type",
     "status": "Status",
-    "lastHeartbeat": "Last Heartbeat"
+    "lastHeartbeat": "Last Heartbeat",
+    "viewRevisions": "Revisions",
+    "settingsRevisions": "Settings Revisions",
+    "revisionsDescription": "View and create settings revisions for this worker.",
+    "noSchema": "This worker has no settings schema.",
+    "noRevisions": "No revisions created yet.",
+    "createRevision": "Create Revision",
+    "revisionCreated": "Revision created successfully",
+    "settingsJson": "Settings (JSON)"
   },
   "messages": {
     "title": "Messages",
     "id": "ID",
     "workflow": "Workflow",
     "status": "Status",
-    "createdAt": "Created"
+    "createdAt": "Created",
+    "viewDetails": "View",
+    "autoRefresh": "Auto-refreshing every {seconds}s",
+    "stubBanner": "Message list endpoint not yet available. Messages will appear once backend support is added.",
+    "detail": {
+      "title": "Message #{id}",
+      "workflowStatus": "Workflow Status",
+      "steps": "Steps",
+      "stepName": "Step Name",
+      "startedAt": "Started",
+      "finishedAt": "Finished",
+      "duration": "Duration",
+      "attempts": "Attempts",
+      "error": "Error",
+      "noSteps": "No steps available",
+      "connected": "Connected",
+      "disconnected": "Disconnected",
+      "workflowCompleted": "Workflow completed successfully",
+      "workflowFailed": "Workflow failed"
+    }
   },
   "empty": {
     "workflows": {

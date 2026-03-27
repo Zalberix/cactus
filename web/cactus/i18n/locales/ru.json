@@ -68,14 +68,41 @@
     "name": "Название",
     "workType": "Тип работы",
     "status": "Статус",
-    "lastHeartbeat": "Последний heartbeat"
+    "lastHeartbeat": "Последний heartbeat",
+    "viewRevisions": "Ревизии",
+    "settingsRevisions": "Ревизии настроек",
+    "revisionsDescription": "Просмотр и создание ревизий настроек воркера.",
+    "noSchema": "У этого воркера нет схемы настроек.",
+    "noRevisions": "Ревизии ещё не созданы.",
+    "createRevision": "Создать ревизию",
+    "revisionCreated": "Ревизия создана",
+    "settingsJson": "Настройки (JSON)"
   },
   "messages": {
     "title": "Сообщения",
     "id": "ID",
     "workflow": "Процесс",
     "status": "Статус",
-    "createdAt": "Создано"
+    "createdAt": "Создано",
+    "viewDetails": "Просмотр",
+    "autoRefresh": "Автообновление каждые {seconds}с",
+    "stubBanner": "Endpoint списка сообщений ещё не реализован. Сообщения появятся после добавления поддержки в бэкенде.",
+    "detail": {
+      "title": "Сообщение #{id}",
+      "workflowStatus": "Статус процесса",
+      "steps": "Шаги",
+      "stepName": "Название шага",
+      "startedAt": "Начало",
+      "finishedAt": "Завершение",
+      "duration": "Длительность",
+      "attempts": "Попытки",
+      "error": "Ошибка",
+      "noSteps": "Нет доступных шагов",
+      "connected": "Подключено",
+      "disconnected": "Отключено",
+      "workflowCompleted": "Процесс завершён успешно",
+      "workflowFailed": "Процесс завершён с ошибкой"
+    }
   },
   "empty": {
     "workflows": {
