@@ -6,7 +6,8 @@
     "emailPlaceholder": "name{'@'}example.com",
     "passwordPlaceholder": "Enter your password",
     "forgotPassword": "Forgot password?",
-    "sessionExpired": "Your session has expired."
+    "sessionExpired": "Your session has expired.",
+    "logout": "Logout"
   },
   "nav": {
     "workflows": "Workflows",
@@ -193,7 +194,15 @@
     "showing": "Showing {from} to {to} of {total}",
     "perPage": "Per page",
     "selectAll": "Select all",
-    "deselectAll": "Deselect all"
+    "deselectAll": "Deselect all",
+    "page": "Page {page} of {total}",
+    "rowsPerPage": "Rows per page"
+  },
+  "layout": {
+    "desktopRequired": "Desktop Required",
+    "desktopRequiredBody": "This application requires a screen width of at least 1024px. Please use a desktop browser.",
+    "collapse": "Collapse",
+    "expand": "Expand"
   },
   "org": {
     "switch": "Switch Organization",
