@@ -3,6 +3,8 @@ package message
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	db "github.com/zalberix/cactus/apps/core/storage/db"
 )
 
@@ -29,4 +31,8 @@ type Storage interface {
 	// Status API (per EXEC-09)
 	GetMessageStatusByID(ctx context.Context, id int32) (db.GetMessageStatusByIDRow, error)
 	ListWorkflowRunStepStatusesByRunID(ctx context.Context, workflowRunID int32) ([]db.ListWorkflowRunStepStatusesByRunIDRow, error)
+
+	// Message listing (per UI-12)
+	ListMessagesByOrganizationID(ctx context.Context, arg db.ListMessagesByOrganizationIDParams) ([]db.ListMessagesByOrganizationIDRow, error)
+	CountMessagesByOrganizationID(ctx context.Context, organizationID pgtype.Int4) (int64, error)
 }

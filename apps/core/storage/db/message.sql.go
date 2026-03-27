@@ -48,6 +48,21 @@ func (q *Queries) CreateNewMessage(ctx context.Context, arg CreateNewMessagePara
 	return i, err
 }
 
+const countMessagesByOrganizationID = `-- name: CountMessagesByOrganizationID :one
+SELECT COUNT(*) AS total
+FROM "message" m
+JOIN "workflow" w ON w.id = m.workflow_id AND w.deleted_at IS NULL
+JOIN "system" s ON s.id = w.system_id AND s.deleted_at IS NULL
+WHERE s.organization_id = $1 AND m.deleted_at IS NULL
+`
+
+func (q *Queries) CountMessagesByOrganizationID(ctx context.Context, organizationID pgtype.Int4) (int64, error) {
+	row := q.db.QueryRow(ctx, countMessagesByOrganizationID, organizationID)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
 const getMessageStatusByID = `-- name: GetMessageStatusByID :one
 SELECT m.id, m.status AS message_status, m.created_at,
        wr.id AS workflow_run_id, wr.status AS workflow_status,
@@ -86,6 +101,61 @@ func (q *Queries) GetMessageStatusByID(ctx context.Context, id int32) (GetMessag
 		&i.RunErrorMessage,
 	)
 	return i, err
+}
+
+const listMessagesByOrganizationID = `-- name: ListMessagesByOrganizationID :many
+SELECT m.id, m.workflow_id, w."name" AS workflow_name,
+       m.status, m.created_at, m.updated_at
+FROM "message" m
+JOIN "workflow" w ON w.id = m.workflow_id AND w.deleted_at IS NULL
+JOIN "system" s ON s.id = w.system_id AND s.deleted_at IS NULL
+WHERE s.organization_id = $1 AND m.deleted_at IS NULL
+ORDER BY m.created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListMessagesByOrganizationIDParams struct {
+	OrganizationID pgtype.Int4 `json:"organization_id"`
+	Limit          int64       `json:"limit"`
+	Offset         int64       `json:"offset"`
+}
+
+type ListMessagesByOrganizationIDRow struct {
+	ID           int32            `json:"id"`
+	WorkflowID   int32            `json:"workflow_id"`
+	WorkflowName string           `json:"workflow_name"`
+	Status       string           `json:"status"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
+	UpdatedAt    pgtype.Timestamp `json:"updated_at"`
+}
+
+// List messages for all workflows belonging to systems within an organization.
+// Joins: message -> workflow -> system (filtered by organization_id).
+func (q *Queries) ListMessagesByOrganizationID(ctx context.Context, arg ListMessagesByOrganizationIDParams) ([]ListMessagesByOrganizationIDRow, error) {
+	rows, err := q.db.Query(ctx, listMessagesByOrganizationID, arg.OrganizationID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListMessagesByOrganizationIDRow
+	for rows.Next() {
+		var i ListMessagesByOrganizationIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkflowID,
+			&i.WorkflowName,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getNewMessageByID = `-- name: GetNewMessageByID :one

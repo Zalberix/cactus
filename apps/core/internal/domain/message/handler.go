@@ -94,6 +94,28 @@ func (h *Handler) GetMessageStatus(c *gin.Context) {
 	response.OK(c, resp)
 }
 
+// ListMessages returns paginated messages for an organization (per UI-12).
+// GET /api/v1/organizations/:orgId/messages?page=1&per_page=20
+func (h *Handler) ListMessages(c *gin.Context) {
+	orgIDStr := c.Param("orgId")
+	orgID, err := strconv.ParseInt(orgIDStr, 10, 32)
+	if err != nil {
+		response.BadRequest(c, "INVALID_ID", "Invalid organization ID")
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "20"))
+
+	items, total, err := h.service.ListMessages(c.Request.Context(), int32(orgID), page, perPage)
+	if err != nil {
+		response.InternalError(c, "Ошибка получения списка сообщений")
+		return
+	}
+
+	response.OKPaginated(c, items, total, page, perPage)
+}
+
 // RegisterRoutes регистрирует маршруты message domain.
 // Per D-11: endpoint доступен через system token auth (M2M) И JWT auth (UI).
 //
@@ -116,4 +138,5 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, jwtAuthMw gin.HandlerFunc, syste
 	jwtGroup := v1.Group("", jwtAuthMw)
 	jwtGroup.POST("/messages/send-user", h.SendMessage)
 	jwtGroup.GET("/messages/:id/status", h.GetMessageStatus)
+	jwtGroup.GET("/organizations/:orgId/messages", h.ListMessages)
 }

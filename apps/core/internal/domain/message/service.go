@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.temporal.io/sdk/client"
@@ -191,6 +192,47 @@ func (s *Service) buildDAGInput(ctx context.Context, versionID, messageID int32,
 		Steps:        stepDefs,
 		Deps:         depDefs,
 	}, nil
+}
+
+// ListMessages возвращает пагинированный список сообщений организации (per UI-12).
+func (s *Service) ListMessages(ctx context.Context, orgID int32, page, perPage int) ([]MessageListItem, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if perPage < 1 || perPage > 100 {
+		perPage = 20
+	}
+	offset := (page - 1) * perPage
+
+	// Get total count
+	total, err := s.store.CountMessagesByOrganizationID(ctx, pgtype.Int4{Int32: orgID, Valid: true})
+	if err != nil {
+		return nil, 0, fmt.Errorf("count messages: %w", err)
+	}
+
+	// Get page of messages
+	rows, err := s.store.ListMessagesByOrganizationID(ctx, db.ListMessagesByOrganizationIDParams{
+		OrganizationID: pgtype.Int4{Int32: orgID, Valid: true},
+		Limit:          int64(perPage),
+		Offset:         int64(offset),
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("list messages: %w", err)
+	}
+
+	items := make([]MessageListItem, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, MessageListItem{
+			ID:           r.ID,
+			WorkflowID:   r.WorkflowID,
+			WorkflowName: r.WorkflowName,
+			Status:       r.Status,
+			CreatedAt:    r.CreatedAt.Time.Format(time.RFC3339),
+			UpdatedAt:    r.UpdatedAt.Time.Format(time.RFC3339),
+		})
+	}
+
+	return items, total, nil
 }
 
 // GetMessageStatus returns message status with workflow run and step statuses (per EXEC-09, D-20, D-21).

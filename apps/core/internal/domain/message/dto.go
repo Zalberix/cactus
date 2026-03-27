@@ -46,3 +46,13 @@ type StepStatusDTO struct {
 	CompletedAt  *time.Time `json:"completed_at"`
 	ErrorMessage *string    `json:"error_message"`
 }
+
+// MessageListItem -- single message in organization listing (per UI-12).
+type MessageListItem struct {
+	ID           int32  `json:"id"`
+	WorkflowID   int32  `json:"workflow_id"`
+	WorkflowName string `json:"workflow_name"`
+	Status       string `json:"status"`
+	CreatedAt    string `json:"created_at"`
+	UpdatedAt    string `json:"updated_at"`
+}
