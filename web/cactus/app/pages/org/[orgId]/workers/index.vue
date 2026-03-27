@@ -25,7 +25,7 @@ const { t } = useI18n()
 const route = useRoute()
 const orgId = computed(() => Number(route.params.orgId))
 
-const { fetchWorkersForOrg, fetchRevisions, createRevision } = useWorkers()
+const { fetchWorkersForOrg, fetchRevisions, createRevision, fetchSchema } = useWorkers()
 
 const workers = ref<Worker[]>([])
 const loading = ref(true)
@@ -38,8 +38,8 @@ const showCreateForm = ref(false)
 const formData = ref<Record<string, unknown>>({})
 const submitting = ref(false)
 
-// Mock schema for now -- real schema would come from a dedicated endpoint
 const settingsSchema = ref<Record<string, unknown>>({})
+const schemaLoading = ref(false)
 
 async function loadWorkers() {
   loading.value = true
@@ -67,6 +67,19 @@ async function openRevisions(worker: Worker) {
   sheetOpen.value = true
 
   if (!worker.schema_id) return
+
+  // Fetch schema definition for DynamicSettingsForm
+  schemaLoading.value = true
+  try {
+    const schema = await fetchSchema(worker.schema_id)
+    settingsSchema.value = schema.settings_schema ?? {}
+  }
+  catch {
+    settingsSchema.value = {}
+  }
+  finally {
+    schemaLoading.value = false
+  }
 
   revisionsLoading.value = true
   try {

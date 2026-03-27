@@ -25,6 +25,16 @@ export interface SettingsRevision {
   created_at: string
 }
 
+export interface WorkerSettingsSchema {
+  id: number
+  work_type_id: number
+  version: string
+  settings_schema: Record<string, unknown>
+  input_schema: Record<string, unknown>
+  output_schema: Record<string, unknown>
+  created_at: string
+}
+
 export function useWorkers() {
   const { api } = useApi()
 
@@ -92,11 +102,22 @@ export function useWorkers() {
     return resp.data
   }
 
+  async function fetchSchema(schemaId: number): Promise<WorkerSettingsSchema> {
+    const resp = await api<ApiResponse<WorkerSettingsSchema>>(
+      `/worker-settings-schemas/${schemaId}`,
+    )
+    if (!resp.success || !resp.data) {
+      throw new Error(resp.error?.message ?? 'Failed to fetch settings schema')
+    }
+    return resp.data
+  }
+
   return {
     fetchWorkTypes,
     fetchWorkers,
     fetchWorkersForOrg,
     fetchRevisions,
     createRevision,
+    fetchSchema,
   }
 }
