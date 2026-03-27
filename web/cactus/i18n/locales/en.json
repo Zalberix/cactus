@@ -1,0 +1,218 @@
+{
+  "auth": {
+    "signIn": "Sign In",
+    "email": "Email",
+    "password": "Password",
+    "emailPlaceholder": "name{'@'}example.com",
+    "passwordPlaceholder": "Enter your password",
+    "forgotPassword": "Forgot password?",
+    "sessionExpired": "Your session has expired."
+  },
+  "nav": {
+    "workflows": "Workflows",
+    "workers": "Workers",
+    "messages": "Messages",
+    "settings": "Settings",
+    "users": "Users",
+    "roles": "Roles",
+    "systems": "Systems",
+    "tokens": "Tokens"
+  },
+  "workflows": {
+    "create": "Create Workflow",
+    "title": "Workflows",
+    "name": "Name",
+    "system": "System",
+    "priority": "Priority",
+    "status": "Status",
+    "createdAt": "Created",
+    "updatedAt": "Updated"
+  },
+  "editor": {
+    "saveVersion": "Save Version",
+    "activateVersion": "Activate Version",
+    "versions": "Versions",
+    "steps": "Steps",
+    "activeVersion": "Active"
+  },
+  "users": {
+    "invite": "Invite User",
+    "title": "Users",
+    "email": "Email",
+    "role": "Role",
+    "joinedAt": "Joined"
+  },
+  "roles": {
+    "create": "Create Role",
+    "title": "Roles",
+    "name": "Name",
+    "permissions": "Permissions",
+    "usersCount": "Users"
+  },
+  "systems": {
+    "create": "Create System",
+    "title": "Systems",
+    "name": "Name",
+    "slug": "Slug",
+    "tokensCount": "Tokens"
+  },
+  "tokens": {
+    "create": "Create Token",
+    "title": "Tokens",
+    "publicToken": "Public Token",
+    "privateToken": "Private Token",
+    "createdAt": "Created"
+  },
+  "workers": {
+    "title": "Workers",
+    "name": "Name",
+    "workType": "Work Type",
+    "status": "Status",
+    "lastHeartbeat": "Last Heartbeat"
+  },
+  "messages": {
+    "title": "Messages",
+    "id": "ID",
+    "workflow": "Workflow",
+    "status": "Status",
+    "createdAt": "Created"
+  },
+  "empty": {
+    "workflows": {
+      "heading": "No workflows yet",
+      "body": "Create your first workflow to start orchestrating notifications.",
+      "cta": "Create Workflow"
+    },
+    "messages": {
+      "heading": "No messages sent",
+      "body": "Messages will appear here once workflows start processing."
+    },
+    "workers": {
+      "heading": "No workers registered",
+      "body": "Workers connect automatically when started with a bootstrap token."
+    },
+    "users": {
+      "heading": "No users in this organization",
+      "body": "Invite team members to collaborate on workflows.",
+      "cta": "Invite User"
+    },
+    "roles": {
+      "heading": "No roles created",
+      "body": "Roles define what users can access. Create one to get started.",
+      "cta": "Create Role"
+    },
+    "systems": {
+      "heading": "No systems configured",
+      "body": "Systems represent external services that send messages through workflows.",
+      "cta": "Create System"
+    },
+    "tokens": {
+      "heading": "No tokens issued",
+      "body": "Create a token to authenticate API calls from this system.",
+      "cta": "Create Token"
+    },
+    "versions": {
+      "heading": "No versions",
+      "body": "Create a version to start building your workflow DAG.",
+      "cta": "Create Version"
+    },
+    "dagCanvas": {
+      "heading": "Drag steps here",
+      "body": "Add steps from the toolbar to build your notification flow."
+    }
+  },
+  "error": {
+    "network": "Unable to reach the server. Check your connection and try again.",
+    "unauthorized": "Your session has expired.",
+    "forbidden": "You don't have permission to perform this action.",
+    "notFound": "The requested resource was not found.",
+    "validation": "Please check the form for errors.",
+    "server": "Something went wrong on our end. Please try again later.",
+    "dagValidation": "Workflow validation failed. Check the highlighted nodes.",
+    "wsDisconnected": "Real-time connection lost. Reconnecting...",
+    "retry": "Retry",
+    "backToList": "Back to list"
+  },
+  "destructive": {
+    "deleteOrg": {
+      "title": "Delete Organization",
+      "body": "This will permanently delete \"{name}\" and all its data. This action cannot be undone.",
+      "confirm": "Delete Organization"
+    },
+    "removeUser": {
+      "title": "Remove User",
+      "body": "Remove \"{email}\" from this organization? They will lose access to all resources.",
+      "confirm": "Remove User"
+    },
+    "deleteRole": {
+      "title": "Delete Role",
+      "body": "Delete role \"{name}\"? Users with this role will lose its permissions.",
+      "confirm": "Delete Role"
+    },
+    "deleteSystem": {
+      "title": "Delete System",
+      "body": "Delete system \"{name}\" and revoke all its tokens?",
+      "confirm": "Delete System"
+    },
+    "revokeToken": {
+      "title": "Revoke Token",
+      "body": "Revoke this token? Any services using it will lose access immediately.",
+      "confirm": "Revoke Token"
+    },
+    "deleteWorkflow": {
+      "title": "Delete Workflow",
+      "body": "Delete workflow \"{name}\" and all its versions? Existing messages will not be affected.",
+      "confirm": "Delete Workflow"
+    },
+    "deactivateVersion": {
+      "title": "Deactivate Version",
+      "body": "Deactivate version {number}? New messages will not use this version.",
+      "confirm": "Deactivate"
+    },
+    "cancel": "Cancel"
+  },
+  "tokenShowOnce": {
+    "heading": "Token Created",
+    "body": "Copy your private token now. It will not be shown again.",
+    "copyButton": "Copy Private Token",
+    "copied": "Copied!"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search...",
+    "loading": "Loading...",
+    "noResults": "No results found.",
+    "actions": "Actions",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "showing": "Showing {from} to {to} of {total}",
+    "perPage": "Per page",
+    "selectAll": "Select all",
+    "deselectAll": "Deselect all"
+  },
+  "org": {
+    "switch": "Switch Organization",
+    "current": "Current Organization"
+  },
+  "theme": {
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "status": {
+    "pending": "Pending",
+    "running": "Running",
+    "done": "Done",
+    "failed": "Failed",
+    "ready": "Ready",
+    "working": "Working",
+    "offline": "Offline",
+    "active": "Active",
+    "inactive": "Inactive"
+  }
+}

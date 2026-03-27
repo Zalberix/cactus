@@ -3,6 +3,9 @@
 }
 
 http://localhost {
+    handle /ws/* {
+        reverse_proxy 127.0.0.1:3009
+    }
     handle_path /api/* {
         reverse_proxy 127.0.0.1:3009
     }
