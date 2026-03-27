@@ -27,14 +27,35 @@
     "priority": "Priority",
     "status": "Status",
     "createdAt": "Created",
-    "updatedAt": "Updated"
+    "updatedAt": "Updated",
+    "created": "Workflow created successfully",
+    "deleted": "Workflow deleted successfully",
+    "updated": "Workflow updated successfully"
   },
   "editor": {
     "saveVersion": "Save Version",
     "activateVersion": "Activate Version",
+    "deactivateVersion": "Deactivate Version",
+    "createVersion": "Create Version",
     "versions": "Versions",
     "steps": "Steps",
-    "activeVersion": "Active"
+    "activeVersion": "Active",
+    "validated": "Version saved and validated",
+    "validationErrors": "Validation errors",
+    "stepName": "Step Name",
+    "stepType": "Type",
+    "workType": "Work Type",
+    "inputMapping": "Input Mapping",
+    "config": "Configuration",
+    "addMapping": "Add Mapping",
+    "key": "Key",
+    "value": "Value",
+    "deleteStep": "Delete Step",
+    "versionNumber": "Version {number}",
+    "valid": "Valid",
+    "invalid": "Invalid",
+    "task": "Task",
+    "control": "Control"
   },
   "users": {
     "invite": "Invite User",
