@@ -39,30 +39,82 @@
   "users": {
     "invite": "Invite User",
     "title": "Users",
+    "name": "Name",
     "email": "Email",
     "role": "Role",
-    "joinedAt": "Joined"
+    "joinedAt": "Joined",
+    "inviteDescription": "Add a new team member to this organization.",
+    "namePlaceholder": "Full name",
+    "passwordPlaceholder": "Min. 6 characters",
+    "selectRole": "Select a role (optional)",
+    "invited": "User invited successfully",
+    "deleted": "User removed from organization",
+    "updated": "User updated successfully",
+    "validation": {
+      "emailInvalid": "Please enter a valid email address",
+      "nameRequired": "Name is required",
+      "passwordMin": "Password must be at least 6 characters"
+    }
   },
   "roles": {
     "create": "Create Role",
     "title": "Roles",
     "name": "Name",
     "permissions": "Permissions",
-    "usersCount": "Users"
+    "usersCount": "Users",
+    "description": "Description",
+    "namePlaceholder": "Role name",
+    "descriptionPlaceholder": "Optional description",
+    "createDescription": "Create a new role. You can assign permissions after creation.",
+    "permissionsCount": "{count} permissions",
+    "created": "Role created successfully",
+    "updated": "Role updated successfully",
+    "deleted": "Role deleted successfully",
+    "backToRoles": "Back to roles",
+    "editRole": "Edit Role",
+    "saveChanges": "Save Changes",
+    "searchPermissions": "Search permissions...",
+    "selectedCount": "{n} of {total} selected",
+    "validation": {
+      "nameRequired": "Role name is required",
+      "nameMin": "Name must be at least 2 characters"
+    }
   },
   "systems": {
     "create": "Create System",
     "title": "Systems",
     "name": "Name",
     "slug": "Slug",
-    "tokensCount": "Tokens"
+    "description": "Description",
+    "tokensCount": "Tokens",
+    "createdAt": "Created",
+    "namePlaceholder": "System name",
+    "descriptionPlaceholder": "Optional description",
+    "createDescription": "Register a new external system.",
+    "created": "System created successfully",
+    "updated": "System updated successfully",
+    "deleted": "System deleted successfully",
+    "manageTokens": "Manage Tokens",
+    "validation": {
+      "nameRequired": "System name is required"
+    }
   },
   "tokens": {
     "create": "Create Token",
     "title": "Tokens",
     "publicToken": "Public Token",
     "privateToken": "Private Token",
-    "createdAt": "Created"
+    "createdAt": "Created",
+    "status": "Status",
+    "name": "Name",
+    "namePlaceholder": "Token name (optional)",
+    "createDescription": "Create a new API token for this system.",
+    "revoked": "Token revoked successfully",
+    "closeWarning": "Make sure you've copied the private token.",
+    "confirmClose": "I've copied it",
+    "validation": {
+      "nameOptional": "Token name is optional"
+    }
   },
   "workers": {
     "title": "Workers",
