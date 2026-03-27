@@ -325,6 +325,13 @@ func (s *Service) UnbindWorkflowFromToken(ctx context.Context, tokenID, workflow
 	})
 }
 
+// --- Settings Schema methods ---
+
+// GetSettingsSchema возвращает схему настроек воркера по ID.
+func (s *Service) GetSettingsSchema(ctx context.Context, schemaID int32) (db.WorkerSettingsSchema, error) {
+	return s.store.GetWorkerSettingsSchemaByID(ctx, schemaID)
+}
+
 // --- Settings Revision methods ---
 
 // CreateSettingsRevision создаёт ревизию настроек для схемы воркера.

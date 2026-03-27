@@ -1,10 +1,12 @@
 package worktype
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/zalberix/cactus/apps/core/internal/http/middleware"
 	"github.com/zalberix/cactus/apps/core/internal/http/response"
@@ -58,6 +60,10 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc, store mi
 		middleware.RequirePermission(h.permChecker, permissions.WorkerWrite), h.CreateWorkType)
 	v1.GET("/work-types/:workTypeId/workers",
 		middleware.RequirePermission(h.permChecker, permissions.WorkerRead), h.ListWorkers)
+
+	// Settings Schemas
+	v1.GET("/worker-settings-schemas/:schemaId",
+		middleware.RequirePermission(h.permChecker, permissions.WorkerRead), h.GetSettingsSchema)
 
 	// Settings Revisions
 	v1.GET("/worker-settings-schemas/:schemaId/revisions",
@@ -308,6 +314,28 @@ func (h *Handler) RegisterWorker(c *gin.Context) {
 		return
 	}
 	response.OK(c, worker)
+}
+
+// --- Settings Schema handlers ---
+
+// GetSettingsSchema godoc
+// GET /api/v1/worker-settings-schemas/:schemaId
+func (h *Handler) GetSettingsSchema(c *gin.Context) {
+	schemaID, ok := parseID(c, "schemaId")
+	if !ok {
+		return
+	}
+
+	schema, err := h.service.GetSettingsSchema(c.Request.Context(), schemaID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			response.NotFound(c, "Схема настроек не найдена")
+			return
+		}
+		response.InternalError(c, "Ошибка получения схемы настроек")
+		return
+	}
+	response.OK(c, schema)
 }
 
 // --- Settings Revision handlers ---
