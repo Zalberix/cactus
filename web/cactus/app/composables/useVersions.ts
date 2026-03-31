@@ -33,12 +33,6 @@ export interface ValidationResult {
   errors?: string[]
 }
 
-export interface WorkType {
-  id: number
-  name: string
-  slug: string
-}
-
 export function useVersions() {
   const { api } = useApi()
 

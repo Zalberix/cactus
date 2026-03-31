@@ -4,6 +4,7 @@ export interface WorkType {
   id: number
   name: string
   code: string
+  slug?: string
   description?: string
   bootstrap_token?: string
 }

@@ -164,8 +164,8 @@ function onSearch(value: string) {
   }, 300)
 }
 
-function onEditUser(_user: User) {
-  // Edit functionality -- future enhancement
+function onEditUser(u: User) {
+  router.push(`/org/${orgId.value}/settings/users/${u.id}`)
 }
 
 function onConfirmDelete(user: User) {

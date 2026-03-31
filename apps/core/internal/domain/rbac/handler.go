@@ -248,7 +248,38 @@ func (h *Handler) ListRoles(c *gin.Context) {
 		response.Fail(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Ошибка получения ролей")
 		return
 	}
-	response.OK(c, roles)
+
+	type roleWithPerms struct {
+		ID          int32    `json:"id"`
+		Name        string   `json:"name"`
+		Description string   `json:"description,omitempty"`
+		IsSystem    bool     `json:"is_system"`
+		Permissions []string `json:"permissions"`
+	}
+
+	result := make([]roleWithPerms, 0, len(roles))
+	for _, r := range roles {
+		perms, permErr := h.service.ListRolePermissions(c.Request.Context(), r.ID)
+		if permErr != nil {
+			perms = nil
+		}
+		slugs := make([]string, 0, len(perms))
+		for _, p := range perms {
+			slugs = append(slugs, p.Slug)
+		}
+		desc := ""
+		if r.Description.Valid {
+			desc = r.Description.String
+		}
+		result = append(result, roleWithPerms{
+			ID:          r.ID,
+			Name:        r.Name,
+			Description: desc,
+			IsSystem:    r.IsSystem,
+			Permissions: slugs,
+		})
+	}
+	response.OK(c, result)
 }
 
 // CreateRole godoc

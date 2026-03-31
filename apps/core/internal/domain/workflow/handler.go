@@ -296,7 +296,15 @@ func (h *Handler) ListSteps(c *gin.Context) {
 		response.InternalError(c, "Ошибка получения шагов")
 		return
 	}
-	response.OK(c, steps)
+	deps, err := h.service.ListDependencies(c.Request.Context(), versionID)
+	if err != nil {
+		response.InternalError(c, "Ошибка получения зависимостей")
+		return
+	}
+	response.OK(c, gin.H{
+		"steps":        steps,
+		"dependencies": deps,
+	})
 }
 
 // CreateStep godoc
@@ -313,7 +321,7 @@ func (h *Handler) CreateStep(c *gin.Context) {
 	}
 	step, err := h.service.CreateStep(c.Request.Context(), versionID, req)
 	if err != nil {
-		response.InternalError(c, "Ошибка создания шага")
+		response.InternalError(c, "Ошибка создания шага: "+err.Error())
 		return
 	}
 	response.Created(c, step)

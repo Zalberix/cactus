@@ -74,8 +74,13 @@ const columns: ColumnDef<Role>[] = [
     id: 'permissionsCount',
     header: t('roles.permissions'),
     cell: ({ row }) => {
-      const count = row.original.permissions?.length ?? 0
-      return h(Badge, { variant: 'secondary' }, () => t('roles.permissionsCount', { count }))
+      const perms = row.original.permissions ?? []
+      if (perms.length === 0) {
+        return h('span', { class: 'text-muted-foreground text-sm' }, t('roles.noPermissions'))
+      }
+      return h('div', { class: 'flex flex-wrap gap-1' },
+        perms.map(p => h(Badge, { variant: 'secondary', class: 'text-xs' }, () => p)),
+      )
     },
   },
   {

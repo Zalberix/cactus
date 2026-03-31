@@ -26,13 +26,24 @@ export default defineNuxtConfig({
   colorMode: {
     classSuffix: '',
   },
+  css: ['~/assets/css/tailwind.css'],
   runtimeConfig: {
     public: {
       apiBase: '/api/v1',
     },
   },
+  devServer: {
+    host: '127.0.0.1',
+  },
   vite: {
     plugins: [tailwindcss()],
+    server: {
+      hmr: {
+        protocol: 'ws',
+        host: 'localhost',
+        clientPort: 80,
+      },
+    },
   },
   spaLoadingTemplate: true,
 })

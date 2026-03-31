@@ -53,11 +53,12 @@ async function loadRole() {
     if (role.value) {
       try {
         const perms = await fetchRolePermissions(roleId.value)
-        permissions.value = perms as Permission[]
+        permissions.value = perms.map((p: any) => typeof p === 'string' ? p : p.slug) as Permission[]
       }
       catch {
         // Fallback to role's inline permissions
-        permissions.value = (role.value.permissions ?? []) as Permission[]
+        const rp = role.value.permissions ?? []
+        permissions.value = rp.map((p: any) => typeof p === 'string' ? p : p.slug) as Permission[]
       }
     }
   }

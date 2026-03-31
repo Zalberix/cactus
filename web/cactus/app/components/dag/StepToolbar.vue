@@ -10,7 +10,7 @@ import {
   GripVertical,
 } from 'lucide-vue-next'
 import type { Component } from 'vue'
-import type { WorkType } from '~/composables/useVersions'
+import type { WorkType } from '~/composables/useWorkers'
 import { ScrollArea } from '~/components/ui/scroll-area'
 import { Button } from '~/components/ui/button'
 
@@ -58,7 +58,7 @@ const items = computed<ToolbarItem[]>(() => {
   ]
 
   for (const wt of workTypes.value) {
-    const slug = wt.slug.toLowerCase()
+    const slug = (wt.slug ?? wt.code ?? '').toLowerCase()
     list.push({
       id: `wt-${wt.id}`,
       name: wt.name,

@@ -28,18 +28,18 @@ type UpdateUserRequest struct {
 type CreateRoleRequest struct {
 	Name        string   `json:"name" binding:"required,min=2,max=255"`
 	Description string   `json:"description"`
-	Permissions []string `json:"permissions" binding:"required,min=1"`
+	Permissions []string `json:"permissions"`
 }
 
 type UpdateRoleRequest struct {
 	Name        string   `json:"name" binding:"required,min=2,max=255"`
 	Description string   `json:"description"`
-	Permissions []string `json:"permissions" binding:"required,min=1"`
+	Permissions []string `json:"permissions"`
 }
 
 type PaginationQuery struct {
-	Page    int `form:"page" binding:"min=1"`
-	PerPage int `form:"per_page" binding:"min=1,max=100"`
+	Page    int `form:"page"`
+	PerPage int `form:"per_page" binding:"max=100"`
 }
 
 func (p *PaginationQuery) Defaults() {

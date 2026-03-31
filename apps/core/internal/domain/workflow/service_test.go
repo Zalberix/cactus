@@ -95,6 +95,12 @@ func (m *mockStorage) DeleteDependenciesByStepID(_ context.Context, _ int32) err
 func (m *mockStorage) DeleteWorkflowStepDependency(_ context.Context, _ db.DeleteWorkflowStepDependencyParams) error {
 	return nil
 }
+func (m *mockStorage) ListWorkerSettingsSchemasByWorkTypeID(_ context.Context, _ int32) ([]db.WorkerSettingsSchema, error) {
+	return nil, nil
+}
+func (m *mockStorage) ListWorkerSettingsRevisionsBySchemaID(_ context.Context, _ int32) ([]db.WorkerSettingsRevision, error) {
+	return nil, nil
+}
 
 // TestActivateVersion_GuardInvalid — нельзя активировать версию с is_valid=false.
 func TestActivateVersion_GuardInvalid(t *testing.T) {

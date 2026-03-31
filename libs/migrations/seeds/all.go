@@ -17,6 +17,7 @@ func SeedAll(ctx context.Context, db *pgxpool.Pool) error {
 		{"admin_user", SeedAdminUser},
 		{"users", SeedUsers},
 		{"permissions", SeedPermissions},
+		{"admin_role", SeedAdminRole},
 		{"work_types", SeedWorkTypes},
 		{"systems", SeedSystems},
 		{"demo", SeedDemo},

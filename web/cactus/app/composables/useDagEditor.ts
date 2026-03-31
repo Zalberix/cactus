@@ -53,6 +53,7 @@ export function useDagEditor(
     deleteDependency,
   } = useVersions()
 
+
   const nodes = ref<Node[]>([])
   const edges = ref<Edge[]>([])
   const selectedNodeId = ref<string | null>(null)

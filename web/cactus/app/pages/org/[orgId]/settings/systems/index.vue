@@ -133,8 +133,8 @@ function onManageTokens(system: System) {
   router.push(`/org/${orgId.value}/settings/systems/${system.id}/tokens`)
 }
 
-function onEditSystem(_system: System) {
-  // Edit functionality -- future enhancement
+function onEditSystem(s: System) {
+  router.push(`/org/${orgId.value}/settings/systems/${s.id}`)
 }
 
 function onConfirmDelete(system: System) {

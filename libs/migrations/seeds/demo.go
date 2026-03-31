@@ -28,7 +28,7 @@ func SeedDemo(ctx context.Context, db *pgxpool.Pool) error {
 	_, err := db.Exec(ctx, `
 		INSERT INTO system_token (system_id, public_token, private_token, is_active)
 		VALUES (
-			(SELECT id FROM system WHERE name = 'Тестовая система'),
+			(SELECT id FROM system WHERE name = 'Тестовая система' LIMIT 1),
 			'demo-public-token',
 			encode(sha256('demo-private-token'::bytea), 'hex'),
 			true
@@ -43,7 +43,7 @@ func SeedDemo(ctx context.Context, db *pgxpool.Pool) error {
 	_, err = db.Exec(ctx, `
 		INSERT INTO workflow (system_id, name, priority, description, input_validation)
 		VALUES (
-			(SELECT id FROM system WHERE name = 'Тестовая система'),
+			(SELECT id FROM system WHERE name = 'Тестовая система' LIMIT 1),
 			'Demo Email Notification',
 			1,
 			'Демо workflow: отправка email и telegram уведомлений',

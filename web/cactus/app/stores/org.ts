@@ -1,12 +1,5 @@
 import type { ApiResponse } from '~/utils/api-types'
 
-export interface Organization {
-  id: number
-  name: string
-  description?: string
-  created_at: string
-}
-
 export const useOrgStore = defineStore('org', () => {
   const currentOrgId = ref<number | null>(null)
   const organizations = ref<Organization[]>([])

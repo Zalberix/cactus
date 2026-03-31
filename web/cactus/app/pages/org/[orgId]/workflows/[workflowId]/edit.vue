@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import '@vue-flow/core/dist/style.css'
 import { Save, Play, Pause, AlertCircle, X } from 'lucide-vue-next'
 import type { Connection } from '@vue-flow/core'
 import type { Version, WorkType } from '~/composables/useVersions'

@@ -67,7 +67,7 @@ const crumbs = computed<BreadcrumbEntry[]>(() => {
       <template v-for="(crumb, idx) in crumbs" :key="idx">
         <BreadcrumbSeparator v-if="idx > 0" />
         <BreadcrumbItem>
-          <BreadcrumbLink v-if="crumb.to" :href="crumb.to" as-child>
+          <BreadcrumbLink v-if="crumb.to" as-child>
             <NuxtLink :to="crumb.to">
               {{ crumb.label }}
             </NuxtLink>

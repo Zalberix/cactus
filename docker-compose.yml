@@ -79,6 +79,15 @@ services:
     networks:
       - cactus-net
 
+  nui:
+    image: ghcr.io/nats-nui/nui
+    ports:
+      - "31311:31311"
+    volumes:
+      - ./docker/assets/nui:/db
+    networks:
+      - cactus-net
+
   mailhog:
     image: mailhog/mailhog:latest
     restart: unless-stopped

@@ -92,6 +92,8 @@ func (s *Service) ListVersions(ctx context.Context, workflowID int32) ([]db.Work
 // --- Step CRUD ---
 
 // CreateStep создаёт новый шаг в версии workflow (WF-03).
+// Если step_type=task и work_type_id указан, но worker_settings_revision_id нет —
+// автоматически находит последнюю ревизию для данного work_type.
 func (s *Service) CreateStep(ctx context.Context, versionID int32, req CreateStepRequest) (db.WorkflowStep, error) {
 	params := db.CreateWorkflowStepParams{
 		WorkflowVersionID: versionID,
@@ -108,7 +110,36 @@ func (s *Service) CreateStep(ctx context.Context, versionID int32, req CreateSte
 	if req.ControlKind != nil {
 		params.ControlKind = pgtype.Text{String: *req.ControlKind, Valid: true}
 	}
+
+	// Автоподстановка revision для task-шагов
+	if req.StepType == "task" && req.WorkTypeID != nil && req.WorkerSettingsRevisionID == nil {
+		revID, err := s.resolveLatestRevision(ctx, *req.WorkTypeID)
+		if err != nil {
+			return db.WorkflowStep{}, fmt.Errorf("auto-resolve revision: %w", err)
+		}
+		params.WorkerSettingsRevisionID = pgtype.Int4{Int32: revID, Valid: true}
+	}
+
 	return s.store.CreateWorkflowStep(ctx, params)
+}
+
+// resolveLatestRevision находит последнюю ревизию настроек для work_type.
+func (s *Service) resolveLatestRevision(ctx context.Context, workTypeID int32) (int32, error) {
+	schemas, err := s.store.ListWorkerSettingsSchemasByWorkTypeID(ctx, workTypeID)
+	if err != nil {
+		return 0, fmt.Errorf("list schemas: %w", err)
+	}
+	if len(schemas) == 0 {
+		return 0, fmt.Errorf("no settings schema found for work_type_id=%d", workTypeID)
+	}
+	revisions, err := s.store.ListWorkerSettingsRevisionsBySchemaID(ctx, schemas[0].ID)
+	if err != nil {
+		return 0, fmt.Errorf("list revisions: %w", err)
+	}
+	if len(revisions) == 0 {
+		return 0, fmt.Errorf("no settings revision found for schema_id=%d", schemas[0].ID)
+	}
+	return revisions[0].ID, nil
 }
 
 // ListSteps возвращает все шаги версии workflow.
@@ -143,6 +174,11 @@ func (s *Service) DeleteStep(ctx context.Context, stepID int32) error {
 		return fmt.Errorf("delete step dependencies: %w", err)
 	}
 	return s.store.SoftDeleteWorkflowStep(ctx, stepID)
+}
+
+// ListDependencies возвращает все зависимости версии workflow.
+func (s *Service) ListDependencies(ctx context.Context, versionID int32) ([]db.WorkflowStepDependency, error) {
+	return s.store.ListDependenciesByVersionID(ctx, versionID)
 }
 
 // --- Dependency management ---

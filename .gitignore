@@ -35,4 +35,5 @@
 /storages/
 /plans/
 .planning/
-/.claude/worktrees/
+.playwright-mcp/
+/.claude/

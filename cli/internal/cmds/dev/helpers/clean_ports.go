@@ -17,7 +17,7 @@ var CleanPortsCmd = &cli.Command{
 	Usage: "Kill all processes listening on development ports",
 	Action: func(c *cli.Context) error {
 		// Главное не задеть порты docker, тк он зависает
-		ports := []int{80, 3000, 3010}
+		ports := []int{80, 3010, 3009}
 		for _, app := range goapp.Apps {
 			ports = append(ports, app.DebugPort)
 		}

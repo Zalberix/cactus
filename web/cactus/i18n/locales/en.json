@@ -71,6 +71,16 @@
     "invited": "User invited successfully",
     "deleted": "User removed from organization",
     "updated": "User updated successfully",
+    "backToUsers": "Back to users",
+    "editUser": "Edit User",
+    "lastName": "Last Name",
+    "firstName": "First Name",
+    "roles": "Roles",
+    "noRoles": "No roles assigned to this user.",
+    "assignRole": "Assign Role",
+    "assign": "Assign",
+    "roleAssigned": "Role assigned successfully",
+    "roleRemoved": "Role removed successfully",
     "validation": {
       "emailInvalid": "Please enter a valid email address",
       "nameRequired": "Name is required",
@@ -88,6 +98,7 @@
     "descriptionPlaceholder": "Optional description",
     "createDescription": "Create a new role. You can assign permissions after creation.",
     "permissionsCount": "{count} permissions",
+    "noPermissions": "No permissions",
     "created": "Role created successfully",
     "updated": "Role updated successfully",
     "deleted": "Role deleted successfully",
@@ -117,8 +128,11 @@
     "deleted": "System deleted successfully",
     "manageTokens": "Manage Tokens",
     "validation": {
-      "nameRequired": "System name is required"
-    }
+      "nameRequired": "System name is required",
+      "nameMin": "Name must be at least 2 characters"
+    },
+    "backToSystems": "Back to systems",
+    "editSystem": "Edit System"
   },
   "tokens": {
     "create": "Create Token",
@@ -131,6 +145,12 @@
     "namePlaceholder": "Token name (optional)",
     "createDescription": "Create a new API token for this system.",
     "revoked": "Token revoked successfully",
+    "created": "Token created successfully",
+    "noTokens": "No tokens created yet.",
+    "revokeTitle": "Revoke Token",
+    "revokeDescription": "This token will no longer be accepted for API authentication. This action cannot be undone.",
+    "revoke": "Revoke",
+    "privateWarning": "This private token will only be shown once. Copy it now.",
     "closeWarning": "Make sure you've copied the private token.",
     "confirmClose": "I've copied it",
     "validation": {
