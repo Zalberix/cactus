@@ -43,7 +43,7 @@ type Storage interface {
 	// System CRUD
 	CreateSystem(ctx context.Context, arg db.CreateSystemParams) (db.System, error)
 	GetSystemByID(ctx context.Context, id int32) (db.System, error)
-	ListSystemsByOrganizationID(ctx context.Context, organizationID pgtype.Int4) ([]db.System, error)
+	ListSystemsByOrganizationID(ctx context.Context, organizationID pgtype.Int4) ([]db.ListSystemsByOrganizationIDRow, error)
 	UpdateSystem(ctx context.Context, arg db.UpdateSystemParams) (db.System, error)
 	SoftDeleteSystem(ctx context.Context, id int32) error
 
@@ -53,6 +53,7 @@ type Storage interface {
 	GetSystemTokenByPublicToken(ctx context.Context, publicToken string) (db.SystemToken, error)
 	ListSystemTokensBySystemID(ctx context.Context, systemID int32) ([]db.SystemToken, error)
 	DeactivateSystemToken(ctx context.Context, id int32) error
+	ActivateSystemToken(ctx context.Context, id int32) error
 
 	// Workflow Token
 	GrantWorkflowToken(ctx context.Context, arg db.GrantWorkflowTokenParams) error

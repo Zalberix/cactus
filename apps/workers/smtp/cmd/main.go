@@ -67,7 +67,7 @@ type SMTPHandler struct {
 	tls      string
 }
 
-// Handle обрабатывает задачу отправки email (per D-08).
+// Handle обрабатывает задачу отправки email
 // Извлекает to, subject, body из task.Input, отправляет через SMTP.
 func (h *SMTPHandler) Handle(_ context.Context, task worker.TaskMessage) (worker.Result, error) {
 	to, _ := task.Input["to"].(string)
@@ -78,7 +78,6 @@ func (h *SMTPHandler) Handle(_ context.Context, task worker.TaskMessage) (worker
 		return worker.Result{}, fmt.Errorf("missing required fields: to=%q, subject=%q", to, subject)
 	}
 
-	// Создание email через go-mail (per D-09)
 	m := mail.NewMsg()
 	if err := m.From(h.from); err != nil {
 		return worker.Result{}, fmt.Errorf("set from %q: %w", h.from, err)

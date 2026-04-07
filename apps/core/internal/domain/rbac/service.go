@@ -172,6 +172,11 @@ func (s *Service) ListRolesByOrg(ctx context.Context, orgID int32) ([]db.Role, e
 	return s.store.ListRolesByOrgID(ctx, pgtype.Int4{Int32: orgID, Valid: true})
 }
 
+// ListRolesByUser возвращает роли пользователя.
+func (s *Service) ListRolesByUser(ctx context.Context, userID int32) ([]db.Role, error) {
+	return s.store.ListRolesByUserID(ctx, userID)
+}
+
 // UpdateRole обновляет роль и заменяет набор прав в транзакции.
 func (s *Service) UpdateRole(ctx context.Context, id int32, req UpdateRoleRequest) (db.Role, error) {
 	var role db.Role

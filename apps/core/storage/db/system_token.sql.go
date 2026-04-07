@@ -9,14 +9,26 @@ import (
 	"context"
 )
 
+const activateSystemToken = `-- name: ActivateSystemToken :exec
+UPDATE "system_token"
+SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+`
+
+func (q *Queries) ActivateSystemToken(ctx context.Context, id int32) error {
+	_, err := q.db.Exec(ctx, activateSystemToken, id)
+	return err
+}
+
 const createSystemToken = `-- name: CreateSystemToken :one
-INSERT INTO "system_token" (system_id, public_token, private_token, is_active)
-VALUES ($1, $2, $3, $4)
-RETURNING id, system_id, public_token, private_token, is_active, created_at, updated_at, deleted_at
+INSERT INTO "system_token" (system_id, name, public_token, private_token, is_active)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, system_id, name, public_token, private_token, is_active, created_at, updated_at, deleted_at
 `
 
 type CreateSystemTokenParams struct {
 	SystemID     int32  `json:"system_id"`
+	Name         string `json:"name"`
 	PublicToken  string `json:"public_token"`
 	PrivateToken string `json:"private_token"`
 	IsActive     bool   `json:"is_active"`
@@ -25,6 +37,7 @@ type CreateSystemTokenParams struct {
 func (q *Queries) CreateSystemToken(ctx context.Context, arg CreateSystemTokenParams) (SystemToken, error) {
 	row := q.db.QueryRow(ctx, createSystemToken,
 		arg.SystemID,
+		arg.Name,
 		arg.PublicToken,
 		arg.PrivateToken,
 		arg.IsActive,
@@ -33,6 +46,7 @@ func (q *Queries) CreateSystemToken(ctx context.Context, arg CreateSystemTokenPa
 	err := row.Scan(
 		&i.ID,
 		&i.SystemID,
+		&i.Name,
 		&i.PublicToken,
 		&i.PrivateToken,
 		&i.IsActive,
@@ -55,7 +69,7 @@ func (q *Queries) DeactivateSystemToken(ctx context.Context, id int32) error {
 }
 
 const getSystemTokenByID = `-- name: GetSystemTokenByID :one
-SELECT id, system_id, public_token, private_token, is_active, created_at, updated_at, deleted_at FROM "system_token"
+SELECT id, system_id, name, public_token, private_token, is_active, created_at, updated_at, deleted_at FROM "system_token"
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -65,6 +79,7 @@ func (q *Queries) GetSystemTokenByID(ctx context.Context, id int32) (SystemToken
 	err := row.Scan(
 		&i.ID,
 		&i.SystemID,
+		&i.Name,
 		&i.PublicToken,
 		&i.PrivateToken,
 		&i.IsActive,
@@ -76,7 +91,7 @@ func (q *Queries) GetSystemTokenByID(ctx context.Context, id int32) (SystemToken
 }
 
 const getSystemTokenByPublicToken = `-- name: GetSystemTokenByPublicToken :one
-SELECT id, system_id, public_token, private_token, is_active, created_at, updated_at, deleted_at FROM "system_token"
+SELECT id, system_id, name, public_token, private_token, is_active, created_at, updated_at, deleted_at FROM "system_token"
 WHERE public_token = $1 AND is_active = TRUE AND deleted_at IS NULL
 LIMIT 1
 `
@@ -87,6 +102,7 @@ func (q *Queries) GetSystemTokenByPublicToken(ctx context.Context, publicToken s
 	err := row.Scan(
 		&i.ID,
 		&i.SystemID,
+		&i.Name,
 		&i.PublicToken,
 		&i.PrivateToken,
 		&i.IsActive,
@@ -98,7 +114,7 @@ func (q *Queries) GetSystemTokenByPublicToken(ctx context.Context, publicToken s
 }
 
 const listSystemTokensBySystemID = `-- name: ListSystemTokensBySystemID :many
-SELECT id, system_id, public_token, private_token, is_active, created_at, updated_at, deleted_at FROM "system_token"
+SELECT id, system_id, name, public_token, private_token, is_active, created_at, updated_at, deleted_at FROM "system_token"
 WHERE system_id = $1 AND deleted_at IS NULL
 ORDER BY id
 `
@@ -115,6 +131,7 @@ func (q *Queries) ListSystemTokensBySystemID(ctx context.Context, systemID int32
 		if err := rows.Scan(
 			&i.ID,
 			&i.SystemID,
+			&i.Name,
 			&i.PublicToken,
 			&i.PrivateToken,
 			&i.IsActive,

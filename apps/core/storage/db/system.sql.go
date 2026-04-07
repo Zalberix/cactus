@@ -118,20 +118,40 @@ func (q *Queries) GetSystemByPublicToken(ctx context.Context, publicToken pgtype
 }
 
 const listSystemsByOrganizationID = `-- name: ListSystemsByOrganizationID :many
-SELECT id, organization_id, user_creator_id, name, description, is_active, priority, public_token, private_token, created_at, updated_at, deleted_at FROM "system"
-WHERE organization_id = $1 AND deleted_at IS NULL
-ORDER BY id
+SELECT s.id, s.organization_id, s.user_creator_id, s.name, s.description, s.is_active, s.priority, s.public_token, s.private_token, s.created_at, s.updated_at, s.deleted_at,
+  (SELECT COUNT(*) FROM system_token st
+   WHERE st.system_id = s.id AND st.is_active = TRUE AND st.deleted_at IS NULL
+  )::int AS active_tokens_count
+FROM "system" s
+WHERE s.organization_id = $1 AND s.deleted_at IS NULL
+ORDER BY s.id
 `
 
-func (q *Queries) ListSystemsByOrganizationID(ctx context.Context, organizationID pgtype.Int4) ([]System, error) {
+type ListSystemsByOrganizationIDRow struct {
+	ID                int32            `json:"id"`
+	OrganizationID    pgtype.Int4      `json:"organization_id"`
+	UserCreatorID     pgtype.Int4      `json:"user_creator_id"`
+	Name              string           `json:"name"`
+	Description       pgtype.Text      `json:"description"`
+	IsActive          bool             `json:"is_active"`
+	Priority          int32            `json:"priority"`
+	PublicToken       pgtype.Text      `json:"public_token"`
+	PrivateToken      pgtype.Text      `json:"private_token"`
+	CreatedAt         pgtype.Timestamp `json:"created_at"`
+	UpdatedAt         pgtype.Timestamp `json:"updated_at"`
+	DeletedAt         pgtype.Timestamp `json:"deleted_at"`
+	ActiveTokensCount int32            `json:"active_tokens_count"`
+}
+
+func (q *Queries) ListSystemsByOrganizationID(ctx context.Context, organizationID pgtype.Int4) ([]ListSystemsByOrganizationIDRow, error) {
 	rows, err := q.db.Query(ctx, listSystemsByOrganizationID, organizationID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []System
+	var items []ListSystemsByOrganizationIDRow
 	for rows.Next() {
-		var i System
+		var i ListSystemsByOrganizationIDRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationID,
@@ -145,6 +165,7 @@ func (q *Queries) ListSystemsByOrganizationID(ctx context.Context, organizationI
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+			&i.ActiveTokensCount,
 		); err != nil {
 			return nil, err
 		}

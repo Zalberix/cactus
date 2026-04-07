@@ -37,7 +37,7 @@ const crumbs = computed<BreadcrumbEntry[]>(() => {
   if (!orgMatch) return entries
 
   const orgId = orgMatch[1]
-  const orgName = orgStore.currentOrg?.name ?? `Org ${orgId}`
+  const orgName = orgStore.currentOrg?.name ?? (orgStore.organizations.length > 0 ? `Org ${orgId}` : '...')
 
   entries.push({ label: orgName, to: `/org/${orgId}/workflows` })
 

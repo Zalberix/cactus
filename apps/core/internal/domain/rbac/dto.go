@@ -1,5 +1,52 @@
 package rbac
 
+import (
+	"github.com/jackc/pgx/v5/pgtype"
+
+	db "github.com/zalberix/cactus/apps/core/storage/db"
+)
+
+type UserRoleRef struct {
+	ID   int32  `json:"id"`
+	Name string `json:"name"`
+}
+
+type UserResponse struct {
+	ID                      int32            `json:"id"`
+	OrganizationID          pgtype.Int4      `json:"organization_id"`
+	LastName                string           `json:"last_name"`
+	FirstName               string           `json:"first_name"`
+	Patronymic              pgtype.Text      `json:"patronymic"`
+	Email                   string           `json:"email"`
+	ResetPasswordAfterLogin pgtype.Bool      `json:"reset_password_after_login"`
+	CreatedAt               pgtype.Timestamp `json:"created_at"`
+	UpdatedAt               pgtype.Timestamp `json:"updated_at"`
+	Roles                   []UserRoleRef    `json:"roles"`
+}
+
+func toUserResponse(u db.User) UserResponse {
+	return UserResponse{
+		ID:                      u.ID,
+		OrganizationID:          u.OrganizationID,
+		LastName:                u.LastName,
+		FirstName:               u.FirstName,
+		Patronymic:              u.Patronymic,
+		Email:                   u.Email,
+		ResetPasswordAfterLogin: u.ResetPasswordAfterLogin,
+		CreatedAt:               u.CreatedAt,
+		UpdatedAt:               u.UpdatedAt,
+		Roles:                   []UserRoleRef{},
+	}
+}
+
+func toUserResponses(users []db.User) []UserResponse {
+	out := make([]UserResponse, len(users))
+	for i, u := range users {
+		out[i] = toUserResponse(u)
+	}
+	return out
+}
+
 type CreateOrgRequest struct {
 	Name string `json:"name" binding:"required,min=2,max=255"`
 	Code string `json:"code" binding:"required,min=2,max=100"`

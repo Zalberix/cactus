@@ -21,6 +21,10 @@ interface JsonSchemaProperty {
   description?: string
   default?: unknown
   enum?: string[]
+  'x-ui-widget'?: string
+  'x-ui-order'?: number
+  'x-ui-placeholder'?: string
+  'x-ui-help'?: string
 }
 
 const props = defineProps<{
@@ -38,11 +42,13 @@ const properties = computed(() => {
   const p = parsedSchema.value.properties
   if (!p) return []
 
-  return Object.entries(p).map(([key, prop]) => ({
-    key,
-    ...prop,
-    isRequired: parsedSchema.value.required?.includes(key) ?? false,
-  }))
+  return Object.entries(p)
+    .map(([key, prop]) => ({
+      key,
+      ...prop,
+      isRequired: parsedSchema.value.required?.includes(key) ?? false,
+    }))
+    .sort((a, b) => (a['x-ui-order'] ?? 999) - (b['x-ui-order'] ?? 999))
 })
 
 function formatLabel(key: string): string {
@@ -71,22 +77,33 @@ function getFieldValue(key: string): unknown {
       class="space-y-2"
     >
       <Label :for="`field-${prop.key}`" class="flex items-center gap-1">
-        {{ formatLabel(prop.key) }}
+        {{ prop.title ?? formatLabel(prop.key) }}
         <span v-if="prop.isRequired" class="text-red-500">*</span>
       </Label>
 
-      <p v-if="prop.description" class="text-xs text-muted-foreground">
-        {{ prop.description }}
+      <p v-if="prop.description || prop['x-ui-help']" class="text-xs text-muted-foreground">
+        {{ prop['x-ui-help'] ?? prop.description }}
       </p>
 
-      <!-- Boolean: Switch -->
-      <div v-if="prop.type === 'boolean'" class="flex items-center gap-2">
+      <!-- Boolean: Switch (or x-ui-widget: toggle) -->
+      <div v-if="prop.type === 'boolean' || prop['x-ui-widget'] === 'toggle'" class="flex items-center gap-2">
         <Switch
           :id="`field-${prop.key}`"
           :model-value="!!getFieldValue(prop.key)"
           @update:model-value="updateField(prop.key, $event)"
         />
       </div>
+
+      <!-- Textarea: x-ui-widget: textarea -->
+      <textarea
+        v-else-if="prop['x-ui-widget'] === 'textarea'"
+        :id="`field-${prop.key}`"
+        class="w-full rounded-md border bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+        rows="4"
+        :placeholder="prop['x-ui-placeholder'] ?? ''"
+        :value="String(getFieldValue(prop.key) || '')"
+        @input="updateField(prop.key, ($event.target as HTMLTextAreaElement).value)"
+      />
 
       <!-- Enum: Select -->
       <Select
@@ -95,7 +112,7 @@ function getFieldValue(key: string): unknown {
         @update:model-value="updateField(prop.key, $event)"
       >
         <SelectTrigger :id="`field-${prop.key}`">
-          <SelectValue :placeholder="`Select ${formatLabel(prop.key)}`" />
+          <SelectValue :placeholder="prop['x-ui-placeholder'] ?? `Select ${formatLabel(prop.key)}`" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem
@@ -115,6 +132,7 @@ function getFieldValue(key: string): unknown {
         type="number"
         :model-value="getFieldValue(prop.key) as number"
         :required="prop.isRequired"
+        :placeholder="prop['x-ui-placeholder'] ?? ''"
         @update:model-value="updateField(prop.key, Number($event))"
       />
 
@@ -125,6 +143,7 @@ function getFieldValue(key: string): unknown {
         type="text"
         :model-value="String(getFieldValue(prop.key) || '')"
         :required="prop.isRequired"
+        :placeholder="prop['x-ui-placeholder'] ?? ''"
         @update:model-value="updateField(prop.key, $event)"
       />
     </div>

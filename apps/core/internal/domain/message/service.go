@@ -9,8 +9,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.temporal.io/sdk/client"
 
-	temporaltypes "github.com/zalberix/cactus/apps/core/internal/temporal"
 	"github.com/zalberix/cactus/apps/core/internal/http/response"
+	temporaltypes "github.com/zalberix/cactus/apps/core/internal/temporal"
 	db "github.com/zalberix/cactus/apps/core/storage/db"
 )
 
@@ -28,17 +28,17 @@ func NewService(store Storage, tc client.Client) *Service {
 	}
 }
 
-// SendMessage — основная бизнес-логика отправки сообщения (per EXEC-01, EXEC-02, EXEC-03).
+// SendMessage — основная бизнес-логика отправки сообщения.
 //
 // Алгоритм:
 // 1. Загрузить workflow по ID
 // 2. Проверить доступ (system token → CheckWorkflowAccess)
-// 3. Найти единственную активную версию (per D-12)
-// 4. Валидировать payload по input_validation (per EXEC-02)
+// 3. Найти единственную активную версию
+// 4. Валидировать payload по input_validation
 // 5. Создать message в БД
 // 6. Сформировать DAGInput из steps + deps активной версии
 // 7. Создать workflow_run в БД
-// 8. Запустить Temporal workflow (per EXEC-03, D-13 — синхронный)
+// 8. Запустить Temporal workflow
 // 9. Обновить workflow_run с temporal_workflow_id
 // 10. Вернуть response
 func (s *Service) SendMessage(ctx context.Context, req SendMessageRequest, publicToken string) (*SendMessageResponse, []response.ErrorDetail, error) {
@@ -59,7 +59,7 @@ func (s *Service) SendMessage(ctx context.Context, req SendMessageRequest, publi
 		}
 	}
 
-	// 3. Найти активную версию (per D-12: единственная активная в v1)
+	// 3. Найти активную версию
 	activeVersions, err := s.store.ListActiveWorkflowVersions(ctx, req.WorkflowID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("list active versions: %w", err)
@@ -69,7 +69,7 @@ func (s *Service) SendMessage(ctx context.Context, req SendMessageRequest, publi
 	}
 	activeVersion := activeVersions[0]
 
-	// 4. Валидировать payload по JSON Schema (per EXEC-02)
+	// 4. Валидировать payload по JSON Schema
 	if validationErrors := ValidatePayload(wf.InputValidation, req.Value); len(validationErrors) > 0 {
 		return nil, validationErrors, nil
 	}

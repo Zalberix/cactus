@@ -12,25 +12,32 @@ import (
 )
 
 const createWorkType = `-- name: CreateWorkType :one
-INSERT INTO "work_type" ("name", code, description)
-VALUES ($1, $2, $3)
-RETURNING id, name, code, description, created_at, updated_at, deleted_at
+INSERT INTO "work_type" ("name", code, description, meta)
+VALUES ($1, $2, $3, $4)
+RETURNING id, name, code, description, meta, created_at, updated_at, deleted_at
 `
 
 type CreateWorkTypeParams struct {
 	Name        string      `json:"name"`
 	Code        string      `json:"code"`
 	Description pgtype.Text `json:"description"`
+	Meta        []byte      `json:"meta"`
 }
 
 func (q *Queries) CreateWorkType(ctx context.Context, arg CreateWorkTypeParams) (WorkType, error) {
-	row := q.db.QueryRow(ctx, createWorkType, arg.Name, arg.Code, arg.Description)
+	row := q.db.QueryRow(ctx, createWorkType,
+		arg.Name,
+		arg.Code,
+		arg.Description,
+		arg.Meta,
+	)
 	var i WorkType
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
 		&i.Code,
 		&i.Description,
+		&i.Meta,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
@@ -39,7 +46,7 @@ func (q *Queries) CreateWorkType(ctx context.Context, arg CreateWorkTypeParams) 
 }
 
 const getWorkTypeByCode = `-- name: GetWorkTypeByCode :one
-SELECT id, name, code, description, created_at, updated_at, deleted_at FROM "work_type"
+SELECT id, name, code, description, meta, created_at, updated_at, deleted_at FROM "work_type"
 WHERE code = $1 AND deleted_at IS NULL
 LIMIT 1
 `
@@ -52,6 +59,7 @@ func (q *Queries) GetWorkTypeByCode(ctx context.Context, code string) (WorkType,
 		&i.Name,
 		&i.Code,
 		&i.Description,
+		&i.Meta,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
@@ -60,7 +68,7 @@ func (q *Queries) GetWorkTypeByCode(ctx context.Context, code string) (WorkType,
 }
 
 const getWorkTypeByID = `-- name: GetWorkTypeByID :one
-SELECT id, name, code, description, created_at, updated_at, deleted_at FROM "work_type"
+SELECT id, name, code, description, meta, created_at, updated_at, deleted_at FROM "work_type"
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -72,6 +80,7 @@ func (q *Queries) GetWorkTypeByID(ctx context.Context, id int32) (WorkType, erro
 		&i.Name,
 		&i.Code,
 		&i.Description,
+		&i.Meta,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
@@ -80,7 +89,7 @@ func (q *Queries) GetWorkTypeByID(ctx context.Context, id int32) (WorkType, erro
 }
 
 const listWorkTypes = `-- name: ListWorkTypes :many
-SELECT id, name, code, description, created_at, updated_at, deleted_at FROM "work_type"
+SELECT id, name, code, description, meta, created_at, updated_at, deleted_at FROM "work_type"
 WHERE deleted_at IS NULL
 ORDER BY id
 `
@@ -99,6 +108,7 @@ func (q *Queries) ListWorkTypes(ctx context.Context) ([]WorkType, error) {
 			&i.Name,
 			&i.Code,
 			&i.Description,
+			&i.Meta,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,

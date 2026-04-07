@@ -65,8 +65,8 @@ func (w *Worker) Run(ctx context.Context) error {
 		_ = w.nc.Drain()
 	}()
 
-	// 2. Регистрация или загрузка workerID
-	if err := w.loadOrRegister(ctx); err != nil {
+	// 2. Регистрация или загрузка workerID (с retry)
+	if err := w.registerWithRetry(ctx); err != nil {
 		return fmt.Errorf("registration: %w", err)
 	}
 
@@ -85,6 +85,41 @@ func (w *Worker) Run(ctx context.Context) error {
 
 	// 5. Consume loop
 	return w.consumeLoop(ctx)
+}
+
+// registerWithRetry пытается зарегистрироваться с экспоненциальным backoff.
+// Не сдаётся до отмены ctx.
+func (w *Worker) registerWithRetry(ctx context.Context) error {
+	backoff := []time.Duration{
+		1 * time.Second,
+		2 * time.Second,
+		5 * time.Second,
+	}
+	const maxDelay = 5 * time.Second
+
+	for attempt := 0; ; attempt++ {
+		err := w.loadOrRegister(ctx)
+		if err == nil {
+			return nil
+		}
+
+		delay := maxDelay
+		if attempt < len(backoff) {
+			delay = backoff[attempt]
+		}
+
+		w.logger.Warn("registration failed, retrying...",
+			slog.String("error", err.Error()),
+			slog.Int("attempt", attempt+1),
+			slog.Duration("retry_in", delay),
+		)
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+		}
+	}
 }
 
 // consumeLoop подписывается на TASKS stream и обрабатывает сообщения.

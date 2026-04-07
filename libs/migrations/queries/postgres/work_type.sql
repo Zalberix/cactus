@@ -1,6 +1,6 @@
 -- name: CreateWorkType :one
-INSERT INTO "work_type" ("name", code, description)
-VALUES ($1, $2, $3)
+INSERT INTO "work_type" ("name", code, description, meta)
+VALUES ($1, $2, $3, $4)
 RETURNING *;
 
 -- name: GetWorkTypeByID :one

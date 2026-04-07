@@ -26,9 +26,10 @@ func SeedDemo(ctx context.Context, db *pgxpool.Pool) error {
 	// 1. System token
 	// private_token хранится как SHA256 hex от "demo-private-token"
 	_, err := db.Exec(ctx, `
-		INSERT INTO system_token (system_id, public_token, private_token, is_active)
+		INSERT INTO system_token (system_id, name, public_token, private_token, is_active)
 		VALUES (
 			(SELECT id FROM system WHERE name = 'Тестовая система' LIMIT 1),
+			'demo-token',
 			'demo-public-token',
 			encode(sha256('demo-private-token'::bytea), 'hex'),
 			true

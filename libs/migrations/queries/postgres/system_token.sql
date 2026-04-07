@@ -1,6 +1,6 @@
 -- name: CreateSystemToken :one
-INSERT INTO "system_token" (system_id, public_token, private_token, is_active)
-VALUES ($1, $2, $3, $4)
+INSERT INTO "system_token" (system_id, name, public_token, private_token, is_active)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: GetSystemTokenByID :one
@@ -20,6 +20,11 @@ ORDER BY id;
 -- name: DeactivateSystemToken :exec
 UPDATE "system_token"
 SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1;
+
+-- name: ActivateSystemToken :exec
+UPDATE "system_token"
+SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1;
 
 -- name: SoftDeleteSystemToken :exec

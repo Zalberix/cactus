@@ -23,7 +23,7 @@ func NewHandler(svc *Service) *Handler {
 	return &Handler{service: svc}
 }
 
-// SendMessage обрабатывает запрос на отправку сообщения (per D-10, D-11).
+// SendMessage обрабатывает запрос на отправку сообщения.
 //
 // Авторизация: system token (X-Public-Token + X-Private-Token) ИЛИ JWT.
 // Для system token: middleware.SystemTokenAuth уже проверил credentials,
@@ -70,7 +70,7 @@ func (h *Handler) SendMessage(c *gin.Context) {
 	response.OK(c, resp)
 }
 
-// GetMessageStatus returns message status (per D-20).
+// GetMessageStatus returns message status.
 // GET /api/v1/messages/:id/status
 func (h *Handler) GetMessageStatus(c *gin.Context) {
 	idStr := c.Param("id")
@@ -94,7 +94,7 @@ func (h *Handler) GetMessageStatus(c *gin.Context) {
 	response.OK(c, resp)
 }
 
-// ListMessages returns paginated messages for an organization (per UI-12).
+// ListMessages returns paginated messages for an organization.
 // GET /api/v1/organizations/:orgId/messages?page=1&per_page=20
 func (h *Handler) ListMessages(c *gin.Context) {
 	orgIDStr := c.Param("orgId")
@@ -117,24 +117,24 @@ func (h *Handler) ListMessages(c *gin.Context) {
 }
 
 // RegisterRoutes регистрирует маршруты message domain.
-// Per D-11: endpoint доступен через system token auth (M2M) И JWT auth (UI).
+// endpoint доступен через system token auth (M2M) И JWT auth (UI).
 //
 // Поскольку Gin не допускает регистрацию одного пути с разными middleware,
 // используем два пути:
 //   - POST /api/v1/messages/send — M2M (system token auth)
 //   - POST /api/v1/messages/send-user — UI (JWT auth)
-//   - GET /api/v1/messages/:id/status-system — M2M (system token auth, per D-22)
-//   - GET /api/v1/messages/:id/status — UI (JWT auth, per D-22)
+//   - GET /api/v1/messages/:id/status-system — M2M (system token auth)
+//   - GET /api/v1/messages/:id/status — UI (JWT auth)
 //
 // Оба пути ведут в один handler SendMessage/GetMessageStatus.
 func (h *Handler) RegisterRoutes(r *gin.Engine, jwtAuthMw gin.HandlerFunc, systemTokenAuthMw gin.HandlerFunc) {
 	v1 := r.Group("/api/v1")
 
-	// M2M endpoints (system token auth, per D-11, D-22)
+	// M2M endpoints (system token auth)
 	v1.POST("/messages/send", systemTokenAuthMw, h.SendMessage)
 	v1.GET("/messages/:id/status-system", systemTokenAuthMw, h.GetMessageStatus)
 
-	// JWT endpoints (per D-11, D-22: JWT auth also accepted)
+	// JWT endpoints
 	jwtGroup := v1.Group("", jwtAuthMw)
 	jwtGroup.POST("/messages/send-user", h.SendMessage)
 	jwtGroup.GET("/messages/:id/status", h.GetMessageStatus)

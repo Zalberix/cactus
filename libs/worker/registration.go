@@ -35,7 +35,7 @@ type registerResponse struct {
 // loadOrRegister загружает workerID из файла или регистрирует новый.
 // При наличии файла с workerID отправляет heartbeat для подтверждения.
 // При отсутствии --- регистрируется через POST /api/v1/register/worker.
-// Сохраняет workerID в файл (per D-03).
+// Сохраняет workerID в файл.
 func (w *Worker) loadOrRegister(ctx context.Context) error {
 	// Попытка загрузить workerID из файла
 	if w.cfg.WorkerIDFile != "" {

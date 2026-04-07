@@ -1,6 +1,6 @@
 -- name: CreateWorkflowStepDependency :exec
-INSERT INTO "workflow_step_dependency" (step_id, depends_on_step_id, outcome)
-VALUES ($1, $2, $3);
+INSERT INTO "workflow_step_dependency" (step_id, depends_on_step_id, outcome, output_index)
+VALUES ($1, $2, $3, $4);
 
 -- name: ListWorkflowStepDependencies :many
 SELECT * FROM "workflow_step_dependency"

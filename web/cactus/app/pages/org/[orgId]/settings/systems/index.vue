@@ -74,7 +74,7 @@ const columns: ColumnDef<System>[] = [
     id: 'tokensCount',
     header: t('systems.tokensCount'),
     cell: ({ row }) => {
-      const count = row.original.tokens_count ?? 0
+      const count = row.original.active_tokens_count ?? 0
       return h(Badge, { variant: 'secondary' }, () => String(count))
     },
   },

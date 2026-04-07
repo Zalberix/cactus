@@ -8,6 +8,7 @@ import DagCanvas from '~/components/dag/DagCanvas.vue'
 import StepToolbar from '~/components/dag/StepToolbar.vue'
 import StepPanel from '~/components/dag/StepPanel.vue'
 import VersionSelector from '~/components/dag/VersionSelector.vue'
+import NodeEditor from '~/components/dag/node-editor/NodeEditor.vue'
 import EmptyState from '~/components/feedback/EmptyState.vue'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
@@ -47,6 +48,9 @@ const deactivateOpen = ref(false)
 
 // DAG editor composable
 const dagEditor = useDagEditor(workflowId, selectedVersionId)
+
+// Node editor composable
+const nodeEditor = useNodeEditor()
 
 const currentVersion = computed(() =>
   versions.value.find(v => v.id === selectedVersionId.value),
@@ -101,7 +105,6 @@ async function onSave() {
     const success = await dagEditor.saveVersion()
     if (success) {
       toast({ title: t('editor.validated') })
-      // Refresh versions to update valid status
       versions.value = await fetchVersions(workflowId.value)
     }
     else if (dagEditor.validationErrors.value.length > 0) {
@@ -174,6 +177,10 @@ function onNodeClick(nodeId: string) {
   dagEditor.selectNode(nodeId)
 }
 
+function onNodeDoubleClick(nodeId: string) {
+  nodeEditor.open(nodeId)
+}
+
 function onEdgeClick(_edgeId: string) {
   // Select edge for potential deletion
 }
@@ -185,10 +192,11 @@ function onRemoveEdge(edgeId: string) {
 function onDrop(
   stepType: string,
   workTypeId: number | undefined,
+  workTypeCode: string | undefined,
   position: { x: number; y: number },
   name: string | undefined,
 ) {
-  dagEditor.addStep(stepType, workTypeId, position, name)
+  dagEditor.addStep(stepType, workTypeId, workTypeCode, position, name)
 }
 
 function onToolbarAddStep(
@@ -196,7 +204,7 @@ function onToolbarAddStep(
   workTypeId: number | undefined,
   position: { x: number; y: number },
 ) {
-  dagEditor.addStep(stepType, workTypeId, position)
+  dagEditor.addStep(stepType, workTypeId, undefined, position)
 }
 
 function onDeleteSelected() {
@@ -215,6 +223,15 @@ function onPanelUpdateStep(stepId: string, data: Record<string, unknown>) {
 
 function onPanelDeleteStep(stepId: string) {
   dagEditor.removeStep(stepId)
+}
+
+function onPanelOpenEditor(nodeId: string) {
+  nodeEditor.open(nodeId)
+}
+
+function onNodeEditorSave(nodeId: string, config: Record<string, unknown>, inputMapping: Record<string, string>) {
+  dagEditor.updateNodeData(nodeId, { config, inputMapping })
+  dagEditor.updateStepOnServer(nodeId, { config, input_mapping: inputMapping })
 }
 
 function dismissErrors() {
@@ -330,6 +347,7 @@ onMounted(() => {
           @connect="onConnect"
           @node-drag-stop="onNodeDragStop"
           @node-click="onNodeClick"
+          @node-double-click="onNodeDoubleClick"
           @edge-click="onEdgeClick"
           @remove-edge="onRemoveEdge"
           @drop="onDrop"
@@ -343,6 +361,7 @@ onMounted(() => {
         :node="dagEditor.selectedNode.value"
         :work-types="workTypes"
         @close="dagEditor.selectNode(null)"
+        @open-editor="onPanelOpenEditor"
         @update-data="onPanelUpdateData"
         @update-step="onPanelUpdateStep"
         @delete-step="onPanelDeleteStep"
@@ -363,6 +382,15 @@ onMounted(() => {
     <div v-else class="flex flex-1 items-center justify-center">
       <p class="text-muted-foreground">{{ t('common.loading') }}</p>
     </div>
+
+    <!-- Node Editor (full-screen sheet) -->
+    <NodeEditor
+      v-model:open="nodeEditor.isOpen.value"
+      :node-id="nodeEditor.editingNodeId.value"
+      :all-nodes="dagEditor.nodes.value"
+      :all-edges="dagEditor.edges.value"
+      @save="onNodeEditorSave"
+    />
 
     <!-- Deactivate Confirmation Dialog -->
     <Dialog v-model:open="deactivateOpen">

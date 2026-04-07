@@ -5,7 +5,7 @@ export interface System {
   name: string
   description?: string
   created_at: string
-  tokens_count?: number
+  active_tokens_count?: number
 }
 
 export interface Token {
@@ -103,6 +103,15 @@ export function useSystems() {
     }
   }
 
+  async function activateToken(tokenId: number) {
+    const resp = await api<ApiResponse<null>>(`/tokens/${tokenId}/activate`, {
+      method: 'POST',
+    })
+    if (!resp.success) {
+      throw new Error(resp.error?.message ?? 'Failed to activate token')
+    }
+  }
+
   return {
     fetchSystems,
     createSystem,
@@ -111,5 +120,6 @@ export function useSystems() {
     fetchTokens,
     createToken,
     revokeToken,
+    activateToken,
   }
 }

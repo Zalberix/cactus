@@ -87,6 +87,8 @@ services:
       - ./docker/assets/nui:/db
     networks:
       - cactus-net
+    depends_on:
+      - nats
 
   mailhog:
     image: mailhog/mailhog:latest

@@ -97,6 +97,7 @@ type System struct {
 type SystemToken struct {
 	ID           int32            `json:"id"`
 	SystemID     int32            `json:"system_id"`
+	Name         string           `json:"name"`
 	PublicToken  string           `json:"public_token"`
 	PrivateToken string           `json:"private_token"`
 	IsActive     bool             `json:"is_active"`
@@ -124,6 +125,7 @@ type WorkType struct {
 	Name        string           `json:"name"`
 	Code        string           `json:"code"`
 	Description pgtype.Text      `json:"description"`
+	Meta        []byte           `json:"meta"`
 	CreatedAt   pgtype.Timestamp `json:"created_at"`
 	UpdatedAt   pgtype.Timestamp `json:"updated_at"`
 	DeletedAt   pgtype.Timestamp `json:"deleted_at"`
@@ -228,6 +230,7 @@ type WorkflowStep struct {
 	ControlKind              pgtype.Text      `json:"control_kind"`
 	ControlSettings          []byte           `json:"control_settings"`
 	InputMapping             []byte           `json:"input_mapping"`
+	CanvasPosition           []byte           `json:"canvas_position"`
 	CreatedAt                pgtype.Timestamp `json:"created_at"`
 	UpdatedAt                pgtype.Timestamp `json:"updated_at"`
 	DeletedAt                pgtype.Timestamp `json:"deleted_at"`
@@ -237,6 +240,7 @@ type WorkflowStepDependency struct {
 	StepID          int32       `json:"step_id"`
 	DependsOnStepID int32       `json:"depends_on_step_id"`
 	Outcome         pgtype.Text `json:"outcome"`
+	OutputIndex     int32       `json:"output_index"`
 }
 
 type WorkflowToken struct {

@@ -48,6 +48,8 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc, store mi
 		middleware.RequirePermission(h.permChecker, permissions.SystemRead), h.ListTokens)
 	v1.DELETE("/tokens/:tokenId",
 		middleware.RequirePermission(h.permChecker, permissions.SystemWrite), h.DeactivateToken)
+	v1.POST("/tokens/:tokenId/activate",
+		middleware.RequirePermission(h.permChecker, permissions.SystemWrite), h.ActivateToken)
 	v1.POST("/tokens/:tokenId/workflows/:workflowId",
 		middleware.RequirePermission(h.permChecker, permissions.SystemWrite), h.BindWorkflow)
 	v1.DELETE("/tokens/:tokenId/workflows/:workflowId",
@@ -171,8 +173,13 @@ func (h *Handler) CreateToken(c *gin.Context) {
 	if !ok {
 		return
 	}
+	var req CreateSystemTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "INVALID_BODY", err.Error())
+		return
+	}
 
-	tokenResp, err := h.service.CreateSystemToken(c.Request.Context(), systemID)
+	tokenResp, err := h.service.CreateSystemToken(c.Request.Context(), systemID, req.Name)
 	if err != nil {
 		response.InternalError(c, "Ошибка создания токена")
 		return
@@ -209,6 +216,21 @@ func (h *Handler) DeactivateToken(c *gin.Context) {
 		return
 	}
 	response.OK(c, gin.H{"message": "Токен деактивирован"})
+}
+
+// ActivateToken godoc
+// POST /api/v1/tokens/:tokenId/activate
+func (h *Handler) ActivateToken(c *gin.Context) {
+	tokenID, ok := parseID(c, "tokenId")
+	if !ok {
+		return
+	}
+
+	if err := h.service.ActivateSystemToken(c.Request.Context(), tokenID); err != nil {
+		response.InternalError(c, "Ошибка активации токена")
+		return
+	}
+	response.OK(c, gin.H{"message": "Токен активирован"})
 }
 
 // BindWorkflow godoc

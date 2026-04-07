@@ -13,7 +13,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/zalberix/cactus/apps/core/config"
-	cfgloader "github.com/zalberix/cactus/libs/config"
 	"github.com/zalberix/cactus/apps/core/internal/domain/auth"
 	"github.com/zalberix/cactus/apps/core/internal/domain/message"
 	"github.com/zalberix/cactus/apps/core/internal/domain/rbac"
@@ -27,6 +26,7 @@ import (
 	temporalworker "github.com/zalberix/cactus/apps/core/internal/temporal/worker"
 	pkgdb "github.com/zalberix/cactus/apps/core/pkg/db"
 	"github.com/zalberix/cactus/libs/bus"
+	cfgloader "github.com/zalberix/cactus/libs/config"
 	"github.com/zalberix/cactus/libs/logger"
 )
 
@@ -101,7 +101,6 @@ func registerNATSStreams(lc fx.Lifecycle, b *bus.Bus) {
 			if err := b.EnsureStream(ctx, "EVENTS", []string{"event.>"}); err != nil {
 				return fmt.Errorf("ensure EVENTS stream: %w", err)
 			}
-			// Новые streams для Phase 3 (per D-03)
 			if err := b.EnsureStream(ctx, "TASKS", []string{"task.>"}); err != nil {
 				return fmt.Errorf("ensure TASKS stream: %w", err)
 			}
@@ -181,8 +180,8 @@ func newWSHub(b *bus.Bus, msgSvc *message.Service, authSvc *auth.Service, s *sto
 	return wshub.New(b, msgSvc, authSvc, s)
 }
 
-// registerWSRoutes registers the WebSocket endpoint (per D-12).
-// No auth middleware here -- auth happens inside the WS handshake (per D-13).
+// registerWSRoutes registers the WebSocket endpoint
+// No auth middleware here -- auth happens inside the WS handshake
 func registerWSRoutes(r *gin.Engine, hub *wshub.Hub) {
 	r.GET("/ws/workflow/:messageID", hub.HandleWS)
 }

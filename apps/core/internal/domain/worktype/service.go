@@ -89,6 +89,7 @@ func (s *Service) CreateWorkType(ctx context.Context, req CreateWorkTypeRequest)
 			String: req.Description,
 			Valid:  req.Description != "",
 		},
+		Meta: req.Meta,
 	})
 	if err != nil {
 		return CreateWorkTypeResponse{}, fmt.Errorf("create work type: %w", err)
@@ -115,8 +116,27 @@ func (s *Service) CreateWorkType(ctx context.Context, req CreateWorkTypeRequest)
 }
 
 // ListWorkTypes возвращает все типы работ.
-func (s *Service) ListWorkTypes(ctx context.Context) ([]db.WorkType, error) {
-	return s.store.ListWorkTypes(ctx)
+func (s *Service) ListWorkTypes(ctx context.Context) ([]WorkTypeResponse, error) {
+	rows, err := s.store.ListWorkTypes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]WorkTypeResponse, 0, len(rows))
+	for _, r := range rows {
+		wt := WorkTypeResponse{
+			ID:   r.ID,
+			Name: r.Name,
+			Code: r.Code,
+		}
+		if r.Description.Valid {
+			wt.Description = r.Description.String
+		}
+		if len(r.Meta) > 0 {
+			wt.Meta = json.RawMessage(r.Meta)
+		}
+		result = append(result, wt)
+	}
+	return result, nil
 }
 
 // --- Worker methods ---
@@ -125,7 +145,7 @@ func (s *Service) ListWorkTypes(ctx context.Context) ([]db.WorkType, error) {
 // 1. Хэшируем bootstrap_token → ищем work_type_token
 // 2. Вычисляем манифест-хэш → ищем/создаём WorkerSettingsSchema
 // 3. Ищем/создаём Worker по (work_type_id, name)
-// 4. Обновляем heartbeat (WORK-05)
+// 4. Обновляем heartbeat
 func (s *Service) RegisterWorker(ctx context.Context, req RegisterWorkerRequest) (db.Worker, error) {
 	// 1. Хэшируем bootstrap token и ищем work_type_token
 	tokenHash := sha256hex(req.BootstrapToken)
@@ -258,8 +278,8 @@ func (s *Service) DeleteSystem(ctx context.Context, id int32) error {
 	return s.store.SoftDeleteSystem(ctx, id)
 }
 
-// ListSystems возвращает системы организации.
-func (s *Service) ListSystems(ctx context.Context, orgID int32) ([]db.System, error) {
+// ListSystems возвращает системы организации с количеством активных токенов.
+func (s *Service) ListSystems(ctx context.Context, orgID int32) ([]db.ListSystemsByOrganizationIDRow, error) {
 	return s.store.ListSystemsByOrganizationID(ctx, pgtype.Int4{Int32: orgID, Valid: true})
 }
 
@@ -268,7 +288,7 @@ func (s *Service) ListSystems(ctx context.Context, orgID int32) ([]db.System, er
 // CreateSystemToken генерирует public + private токен, хранит хэш private токена.
 // Возвращает plaintext public + private ОДИН раз.
 // Per D-05/D-18: вся криптологическая логика в сервисе.
-func (s *Service) CreateSystemToken(ctx context.Context, systemID int32) (CreateSystemTokenResponse, error) {
+func (s *Service) CreateSystemToken(ctx context.Context, systemID int32, name string) (CreateSystemTokenResponse, error) {
 	// Генерируем public token (16 random bytes → hex)
 	pubBytes := make([]byte, 16)
 	if _, err := rand.Read(pubBytes); err != nil {
@@ -288,6 +308,7 @@ func (s *Service) CreateSystemToken(ctx context.Context, systemID int32) (Create
 
 	token, err := s.store.CreateSystemToken(ctx, db.CreateSystemTokenParams{
 		SystemID:     systemID,
+		Name:         name,
 		PublicToken:  publicToken,
 		PrivateToken: privateTokenHash,
 		IsActive:     true,
@@ -299,6 +320,7 @@ func (s *Service) CreateSystemToken(ctx context.Context, systemID int32) (Create
 	return CreateSystemTokenResponse{
 		ID:           token.ID,
 		SystemID:     token.SystemID,
+		Name:         name,
 		PublicToken:  publicToken,
 		PrivateToken: privateTokenPlain,
 	}, nil
@@ -307,6 +329,11 @@ func (s *Service) CreateSystemToken(ctx context.Context, systemID int32) (Create
 // DeactivateSystemToken деактивирует токен системы.
 func (s *Service) DeactivateSystemToken(ctx context.Context, tokenID int32) error {
 	return s.store.DeactivateSystemToken(ctx, tokenID)
+}
+
+// ActivateSystemToken активирует токен системы.
+func (s *Service) ActivateSystemToken(ctx context.Context, tokenID int32) error {
+	return s.store.ActivateSystemToken(ctx, tokenID)
 }
 
 // BindWorkflowToToken привязывает workflow к токену (RBAC-08).

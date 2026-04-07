@@ -97,6 +97,7 @@ CREATE TABLE "work_type" (
     "name" VARCHAR(255) NOT NULL,
     code VARCHAR(255) NOT NULL,
     description TEXT,
+    meta JSONB DEFAULT '{}',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP DEFAULT NULL,
@@ -171,13 +172,15 @@ CREATE TABLE "worker" (
 CREATE TABLE "system_token" (
     id SERIAL PRIMARY KEY,
     system_id INT NOT NULL,
+    name VARCHAR(255) NOT NULL,
     public_token VARCHAR(512) NOT NULL,
     private_token VARCHAR(512) NOT NULL,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP DEFAULT NULL,
-    CONSTRAINT system_token_system_id_fkey FOREIGN KEY (system_id) REFERENCES "system"(id) ON DELETE CASCADE
+    CONSTRAINT system_token_system_id_fkey FOREIGN KEY (system_id) REFERENCES "system"(id) ON DELETE CASCADE,
+    CONSTRAINT system_token_system_id_name_uq UNIQUE (system_id, name)
 );
 
 -- ============================================================
@@ -233,6 +236,7 @@ CREATE TABLE "workflow_step" (
     control_kind VARCHAR(50),
     control_settings JSONB,
     input_mapping JSONB,
+    canvas_position JSONB DEFAULT '{"x":0,"y":0}',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP DEFAULT NULL,
@@ -250,6 +254,7 @@ CREATE TABLE "workflow_step_dependency" (
     step_id INT NOT NULL,
     depends_on_step_id INT NOT NULL,
     outcome VARCHAR(255),
+    output_index INTEGER NOT NULL DEFAULT 0,
     CONSTRAINT workflow_step_dependency_pkey PRIMARY KEY (step_id, depends_on_step_id),
     CONSTRAINT workflow_step_dependency_step_id_fkey FOREIGN KEY (step_id) REFERENCES "workflow_step"(id) ON DELETE CASCADE,
     CONSTRAINT workflow_step_dependency_depends_on_fkey FOREIGN KEY (depends_on_step_id) REFERENCES "workflow_step"(id) ON DELETE CASCADE

@@ -11,6 +11,21 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countMessagesByOrganizationID = `-- name: CountMessagesByOrganizationID :one
+SELECT COUNT(*) AS total
+FROM "message" m
+JOIN "workflow" w ON w.id = m.workflow_id AND w.deleted_at IS NULL
+JOIN "system" s ON s.id = w.system_id AND s.deleted_at IS NULL
+WHERE s.organization_id = $1 AND m.deleted_at IS NULL
+`
+
+func (q *Queries) CountMessagesByOrganizationID(ctx context.Context, organizationID pgtype.Int4) (int64, error) {
+	row := q.db.QueryRow(ctx, countMessagesByOrganizationID, organizationID)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
 const createNewMessage = `-- name: CreateNewMessage :one
 INSERT INTO "message" (workflow_id, external_message_id, overridden_priority, value, status)
 VALUES ($1, $2, $3, $4, $5)
@@ -46,21 +61,6 @@ func (q *Queries) CreateNewMessage(ctx context.Context, arg CreateNewMessagePara
 		&i.DeletedAt,
 	)
 	return i, err
-}
-
-const countMessagesByOrganizationID = `-- name: CountMessagesByOrganizationID :one
-SELECT COUNT(*) AS total
-FROM "message" m
-JOIN "workflow" w ON w.id = m.workflow_id AND w.deleted_at IS NULL
-JOIN "system" s ON s.id = w.system_id AND s.deleted_at IS NULL
-WHERE s.organization_id = $1 AND m.deleted_at IS NULL
-`
-
-func (q *Queries) CountMessagesByOrganizationID(ctx context.Context, organizationID pgtype.Int4) (int64, error) {
-	row := q.db.QueryRow(ctx, countMessagesByOrganizationID, organizationID)
-	var total int64
-	err := row.Scan(&total)
-	return total, err
 }
 
 const getMessageStatusByID = `-- name: GetMessageStatusByID :one
@@ -99,6 +99,28 @@ func (q *Queries) GetMessageStatusByID(ctx context.Context, id int32) (GetMessag
 		&i.RunStartedAt,
 		&i.RunCompletedAt,
 		&i.RunErrorMessage,
+	)
+	return i, err
+}
+
+const getNewMessageByID = `-- name: GetNewMessageByID :one
+SELECT id, workflow_id, external_message_id, overridden_priority, value, status, created_at, updated_at, deleted_at FROM "message"
+WHERE id = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) GetNewMessageByID(ctx context.Context, id int32) (Message, error) {
+	row := q.db.QueryRow(ctx, getNewMessageByID, id)
+	var i Message
+	err := row.Scan(
+		&i.ID,
+		&i.WorkflowID,
+		&i.ExternalMessageID,
+		&i.OverriddenPriority,
+		&i.Value,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
@@ -156,28 +178,6 @@ func (q *Queries) ListMessagesByOrganizationID(ctx context.Context, arg ListMess
 		return nil, err
 	}
 	return items, nil
-}
-
-const getNewMessageByID = `-- name: GetNewMessageByID :one
-SELECT id, workflow_id, external_message_id, overridden_priority, value, status, created_at, updated_at, deleted_at FROM "message"
-WHERE id = $1 AND deleted_at IS NULL
-`
-
-func (q *Queries) GetNewMessageByID(ctx context.Context, id int32) (Message, error) {
-	row := q.db.QueryRow(ctx, getNewMessageByID, id)
-	var i Message
-	err := row.Scan(
-		&i.ID,
-		&i.WorkflowID,
-		&i.ExternalMessageID,
-		&i.OverriddenPriority,
-		&i.Value,
-		&i.Status,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-	)
-	return i, err
 }
 
 const listNewMessagesByWorkflowID = `-- name: ListNewMessagesByWorkflowID :many

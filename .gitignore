@@ -33,7 +33,7 @@
 /docker/assets/
 /node_modules/
 /storages/
-/plans/
 .planning/
 .playwright-mcp/
 /.claude/
+/docs/plans/

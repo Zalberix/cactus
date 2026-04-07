@@ -36,6 +36,10 @@ type Storage interface {
 	ListWorkerSettingsSchemasByWorkTypeID(ctx context.Context, workTypeID int32) ([]db.WorkerSettingsSchema, error)
 	ListWorkerSettingsRevisionsBySchemaID(ctx context.Context, schemaID int32) ([]db.WorkerSettingsRevision, error)
 
+	// WorkflowStep (extended)
+	UpdateWorkflowStepPosition(ctx context.Context, arg db.UpdateWorkflowStepPositionParams) error
+	ListEnrichedStepsByVersionID(ctx context.Context, workflowVersionID int32) ([]db.ListEnrichedStepsByVersionIDRow, error)
+
 	// WorkflowStepDependency
 	CreateWorkflowStepDependency(ctx context.Context, arg db.CreateWorkflowStepDependencyParams) error
 	ListDependenciesByVersionID(ctx context.Context, workflowVersionID int32) ([]db.WorkflowStepDependency, error)

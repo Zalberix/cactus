@@ -1,11 +1,19 @@
 import type { ApiResponse } from '~/utils/api-types'
 
+export interface WorkTypeMeta {
+  icon?: string
+  color?: string
+  category?: string
+  kind?: string
+}
+
 export interface WorkType {
   id: number
   name: string
   code: string
   slug?: string
   description?: string
+  meta?: WorkTypeMeta
   bootstrap_token?: string
 }
 

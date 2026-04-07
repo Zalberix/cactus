@@ -172,7 +172,21 @@ func (h *Handler) ListUsers(c *gin.Context) {
 		response.Fail(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Ошибка получения пользователей")
 		return
 	}
-	response.OKPaginated(c, users, total, pq.Page, pq.PerPage)
+
+	result := toUserResponses(users)
+	for i, u := range users {
+		roles, err := h.service.ListRolesByUser(c.Request.Context(), u.ID)
+		if err != nil {
+			continue
+		}
+		refs := make([]UserRoleRef, len(roles))
+		for j, r := range roles {
+			refs[j] = UserRoleRef{ID: r.ID, Name: r.Name}
+		}
+		result[i].Roles = refs
+	}
+
+	response.OKPaginated(c, result, total, pq.Page, pq.PerPage)
 }
 
 // CreateUser godoc
@@ -194,7 +208,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		response.Fail(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Ошибка создания пользователя")
 		return
 	}
-	response.Created(c, user)
+	response.Created(c, toUserResponse(user))
 }
 
 // UpdateUser godoc
@@ -215,7 +229,7 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		response.Fail(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Ошибка обновления пользователя")
 		return
 	}
-	response.OK(c, user)
+	response.OK(c, toUserResponse(user))
 }
 
 // DeleteUser godoc

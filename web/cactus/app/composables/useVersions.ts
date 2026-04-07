@@ -1,4 +1,5 @@
 import type { ApiResponse } from '~/utils/api-types'
+import type { WorkType, WorkTypeMeta } from '~/composables/useWorkers'
 
 export interface Version {
   id: number
@@ -16,16 +17,23 @@ export interface Step {
   step_type: string
   work_type_id?: number
   work_type_name?: string
+  work_type_code?: string
+  work_type_meta?: WorkTypeMeta
+  control_kind?: string
+  control_settings?: Record<string, unknown>
   config?: Record<string, unknown>
   input_mapping?: Record<string, string>
-  position_x?: number
-  position_y?: number
+  canvas_position?: { x: number; y: number }
+  settings_schema?: Record<string, unknown>
+  input_schema?: Record<string, unknown>
+  output_schema?: Record<string, unknown>
 }
 
 export interface Dependency {
   step_id: number
   depends_on_step_id: number
   outcome: string
+  output_index: number
 }
 
 export interface ValidationResult {
@@ -63,7 +71,6 @@ export function useVersions() {
       { method: 'POST' },
     )
     if (!resp.success || !resp.data) {
-      // If the API returns validation errors in the error field
       if (resp.error?.details) {
         return {
           valid: false,
@@ -107,7 +114,14 @@ export function useVersions() {
 
   async function createStep(
     versionId: number,
-    data: { name: string; step_type: string; work_type_id?: number; config?: Record<string, unknown> },
+    data: {
+      name: string
+      step_type: string
+      work_type_id?: number
+      control_kind?: string
+      config?: Record<string, unknown>
+      canvas_position?: { x: number; y: number }
+    },
   ): Promise<Step> {
     const resp = await api<ApiResponse<Step>>(
       `/versions/${versionId}/steps`,
@@ -136,6 +150,19 @@ export function useVersions() {
     return resp.data
   }
 
+  async function updateStepPosition(stepId: number, position: { x: number; y: number }): Promise<void> {
+    const resp = await api<ApiResponse<null>>(
+      `/steps/${stepId}/position`,
+      {
+        method: 'PATCH',
+        body: { canvas_position: position },
+      },
+    )
+    if (!resp.success) {
+      throw new Error(resp.error?.message ?? 'Failed to update step position')
+    }
+  }
+
   async function deleteStep(stepId: number): Promise<void> {
     const resp = await api<ApiResponse<null>>(
       `/steps/${stepId}`,
@@ -150,12 +177,13 @@ export function useVersions() {
     stepId: number,
     dependsOnStepId: number,
     outcome: string,
+    outputIndex: number = 0,
   ): Promise<void> {
     const resp = await api<ApiResponse<null>>(
       `/steps/${stepId}/dependencies`,
       {
         method: 'POST',
-        body: { depends_on_step_id: dependsOnStepId, outcome },
+        body: { depends_on_step_id: dependsOnStepId, outcome, output_index: outputIndex },
       },
     )
     if (!resp.success) {
@@ -190,6 +218,7 @@ export function useVersions() {
     fetchSteps,
     createStep,
     updateStep,
+    updateStepPosition,
     deleteStep,
     createDependency,
     deleteDependency,

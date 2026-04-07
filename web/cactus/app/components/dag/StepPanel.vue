@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { X, Trash2, Plus } from 'lucide-vue-next'
+import { X, Trash2, Plus, Settings2 } from 'lucide-vue-next'
 import type { Node } from '@vue-flow/core'
 import type { StepData } from '~/composables/useDagEditor'
 import type { WorkType } from '~/composables/useVersions'
@@ -24,6 +24,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: []
+  openEditor: [nodeId: string]
   updateData: [nodeId: string, data: Partial<StepData>]
   updateStep: [stepId: string, data: Record<string, unknown>]
   deleteStep: [stepId: string]
@@ -38,11 +39,25 @@ const configText = ref(
     : '{}',
 )
 
-// Input mapping as key-value pairs for editing
+// Parse input mapping — handles both array [{source, target}] and dict {key: value} formats
+function parseMappingPairs(raw: unknown): Array<{ key: string; value: string }> {
+  if (!raw) return []
+  if (Array.isArray(raw)) {
+    return raw.map((entry: { target?: string; source?: string }) => ({
+      key: entry.target ?? '',
+      value: entry.source ?? '',
+    }))
+  }
+  if (typeof raw === 'object') {
+    return Object.entries(raw as Record<string, string>).map(
+      ([key, value]) => ({ key, value: String(value) }),
+    )
+  }
+  return []
+}
+
 const mappingPairs = ref<Array<{ key: string; value: string }>>(
-  Object.entries((props.node.data.inputMapping ?? {}) as Record<string, string>).map(
-    ([key, value]) => ({ key, value }),
-  ),
+  parseMappingPairs(props.node.data.inputMapping),
 )
 
 // Watch for node changes (when selecting different nodes)
@@ -53,9 +68,7 @@ watch(
     configText.value = props.node.data.config
       ? JSON.stringify(props.node.data.config, null, 2)
       : '{}'
-    mappingPairs.value = Object.entries(
-      (props.node.data.inputMapping ?? {}) as Record<string, string>,
-    ).map(([key, value]) => ({ key, value }))
+    mappingPairs.value = parseMappingPairs(props.node.data.inputMapping)
   },
 )
 
@@ -132,6 +145,18 @@ function onDelete() {
 
     <ScrollArea class="flex-1">
       <div class="space-y-4 p-4">
+        <!-- Configure button -->
+        <Button
+          variant="outline"
+          class="w-full"
+          @click="emit('openEditor', node.id)"
+        >
+          <Settings2 class="mr-2 h-4 w-4" />
+          {{ t('editor.configure') || 'Configure' }}
+        </Button>
+
+        <Separator />
+
         <!-- Type -->
         <div>
           <Label class="text-xs text-muted-foreground">{{ t('editor.stepType') }}</Label>

@@ -22,9 +22,13 @@ WHERE public_token = $1 AND deleted_at IS NULL
 LIMIT 1;
 
 -- name: ListSystemsByOrganizationID :many
-SELECT * FROM "system"
-WHERE organization_id = $1 AND deleted_at IS NULL
-ORDER BY id;
+SELECT s.*,
+  (SELECT COUNT(*) FROM system_token st
+   WHERE st.system_id = s.id AND st.is_active = TRUE AND st.deleted_at IS NULL
+  )::int AS active_tokens_count
+FROM "system" s
+WHERE s.organization_id = $1 AND s.deleted_at IS NULL
+ORDER BY s.id;
 
 -- name: UpdateSystem :one
 UPDATE "system"

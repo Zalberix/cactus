@@ -100,6 +100,7 @@ func (s *Service) CreateStep(ctx context.Context, versionID int32, req CreateSte
 		StepType:          req.StepType,
 		InputMapping:      req.InputMapping,
 		ControlSettings:   req.ControlSettings,
+		CanvasPosition:    req.CanvasPosition,
 	}
 	if req.WorkTypeID != nil {
 		params.WorkTypeID = pgtype.Int4{Int32: *req.WorkTypeID, Valid: true}
@@ -154,6 +155,7 @@ func (s *Service) UpdateStep(ctx context.Context, stepID int32, req UpdateStepRe
 		StepType:        req.StepType,
 		InputMapping:    req.InputMapping,
 		ControlSettings: req.ControlSettings,
+		CanvasPosition:  req.CanvasPosition,
 	}
 	if req.WorkTypeID != nil {
 		params.WorkTypeID = pgtype.Int4{Int32: *req.WorkTypeID, Valid: true}
@@ -189,7 +191,68 @@ func (s *Service) CreateDependency(ctx context.Context, stepID int32, req Create
 		StepID:          stepID,
 		DependsOnStepID: req.DependsOnStepID,
 		Outcome:         pgtype.Text{String: req.Outcome, Valid: true},
+		OutputIndex:     req.OutputIndex,
 	})
+}
+
+// UpdateStepPosition обновляет только позицию шага на холсте.
+func (s *Service) UpdateStepPosition(ctx context.Context, stepID int32, req UpdateStepPositionRequest) error {
+	return s.store.UpdateWorkflowStepPosition(ctx, db.UpdateWorkflowStepPositionParams{
+		ID:             stepID,
+		CanvasPosition: req.CanvasPosition,
+	})
+}
+
+// ListEnrichedSteps возвращает шаги с подгруженными work_type meta и settings schemas.
+// Маппит []byte JSONB-поля в json.RawMessage для корректной JSON-сериализации.
+func (s *Service) ListEnrichedSteps(ctx context.Context, versionID int32) ([]EnrichedStepResponse, error) {
+	rows, err := s.store.ListEnrichedStepsByVersionID(ctx, versionID)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]EnrichedStepResponse, 0, len(rows))
+	for _, r := range rows {
+		step := EnrichedStepResponse{
+			ID:                r.ID,
+			WorkflowVersionID: r.WorkflowVersionID,
+			StepType:          r.StepType,
+			ControlSettings:   toRawMessage(r.ControlSettings),
+			InputMapping:      toRawMessage(r.InputMapping),
+			CanvasPosition:    toRawMessage(r.CanvasPosition),
+			WorkTypeMeta:      toRawMessage(r.WorkTypeMeta),
+			SettingsSchema:    toRawMessage(r.SettingsSchema),
+			InputSchema:       toRawMessage(r.InputSchema),
+			OutputSchema:      toRawMessage(r.OutputSchema),
+		}
+		if r.WorkTypeID.Valid {
+			id := r.WorkTypeID.Int32
+			step.WorkTypeID = &id
+		}
+		if r.WorkerSettingsRevisionID.Valid {
+			id := r.WorkerSettingsRevisionID.Int32
+			step.WorkerSettingsRevisionID = &id
+		}
+		if r.ControlKind.Valid {
+			step.ControlKind = &r.ControlKind.String
+		}
+		if r.WorkTypeName.Valid {
+			step.WorkTypeName = &r.WorkTypeName.String
+		}
+		if r.WorkTypeCode.Valid {
+			step.WorkTypeCode = &r.WorkTypeCode.String
+		}
+		result = append(result, step)
+	}
+	return result, nil
+}
+
+// toRawMessage конвертирует []byte в json.RawMessage, возвращает nil для пустых значений.
+func toRawMessage(b []byte) json.RawMessage {
+	if len(b) == 0 {
+		return nil
+	}
+	return json.RawMessage(b)
 }
 
 // DeleteDependency удаляет зависимость между шагами.

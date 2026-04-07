@@ -38,6 +38,12 @@ export default defineNuxtConfig({
   vite: {
     plugins: [tailwindcss()],
     server: {
+      watch: {
+        awaitWriteFinish: {
+          stabilityThreshold: 300,
+          pollInterval: 100,
+        },
+      },
       hmr: {
         protocol: 'ws',
         host: 'localhost',

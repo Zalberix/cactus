@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -74,6 +75,9 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc) {
 	// PUT /api/v1/steps/:stepId
 	v1.PUT("/steps/:stepId",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.UpdateStep)
+	// PATCH /api/v1/steps/:stepId/position
+	v1.PATCH("/steps/:stepId/position",
+		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.UpdateStepPosition)
 	// DELETE /api/v1/steps/:stepId
 	v1.DELETE("/steps/:stepId",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.DeleteStep)
@@ -286,12 +290,13 @@ func (h *Handler) DeactivateVersion(c *gin.Context) {
 
 // ListSteps godoc
 // GET /api/v1/versions/:versionId/steps
+// Возвращает enriched шаги с work_type meta и settings schemas.
 func (h *Handler) ListSteps(c *gin.Context) {
 	versionID, ok := parseID(c, "versionId")
 	if !ok {
 		return
 	}
-	steps, err := h.service.ListSteps(c.Request.Context(), versionID)
+	steps, err := h.service.ListEnrichedSteps(c.Request.Context(), versionID)
 	if err != nil {
 		response.InternalError(c, "Ошибка получения шагов")
 		return
@@ -305,6 +310,25 @@ func (h *Handler) ListSteps(c *gin.Context) {
 		"steps":        steps,
 		"dependencies": deps,
 	})
+}
+
+// UpdateStepPosition godoc
+// PATCH /api/v1/steps/:stepId/position
+func (h *Handler) UpdateStepPosition(c *gin.Context) {
+	stepID, ok := parseID(c, "stepId")
+	if !ok {
+		return
+	}
+	var req UpdateStepPositionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "INVALID_BODY", err.Error())
+		return
+	}
+	if err := h.service.UpdateStepPosition(c.Request.Context(), stepID, req); err != nil {
+		response.InternalError(c, "Ошибка обновления позиции шага")
+		return
+	}
+	response.OK(c, gin.H{"message": "Позиция обновлена"})
 }
 
 // CreateStep godoc
@@ -321,6 +345,8 @@ func (h *Handler) CreateStep(c *gin.Context) {
 	}
 	step, err := h.service.CreateStep(c.Request.Context(), versionID, req)
 	if err != nil {
+		fmt.Printf("[CreateStep ERROR] versionID=%d stepType=%s workTypeID=%v controlKind=%v err=%v\n",
+			versionID, req.StepType, req.WorkTypeID, req.ControlKind, err)
 		response.InternalError(c, "Ошибка создания шага: "+err.Error())
 		return
 	}

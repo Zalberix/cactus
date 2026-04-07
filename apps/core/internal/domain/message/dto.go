@@ -2,7 +2,7 @@ package message
 
 import "time"
 
-// SendMessageRequest — запрос на отправку сообщения (per D-10).
+// SendMessageRequest — запрос на отправку сообщения
 // JSON body: {"workflow_id": 1, "value": {...}, "external_id": "ext-123"}
 type SendMessageRequest struct {
 	WorkflowID int32          `json:"workflow_id" binding:"required"`
@@ -10,14 +10,14 @@ type SendMessageRequest struct {
 	ExternalID string         `json:"external_id"`
 }
 
-// SendMessageResponse — ответ на успешную отправку (per D-14).
+// SendMessageResponse — ответ на успешную отправку
 type SendMessageResponse struct {
 	MessageID     int32  `json:"message_id"`
 	WorkflowRunID int32  `json:"workflow_run_id"`
 	Status        string `json:"status"` // "running"
 }
 
-// MessageStatusResponse — ответ Status API (per D-20, D-21). Envelope format.
+// MessageStatusResponse — ответ Status API. Envelope format.
 type MessageStatusResponse struct {
 	MessageID     int32              `json:"message_id"`
 	MessageStatus string             `json:"message_status"`
@@ -35,7 +35,7 @@ type WorkflowRunStatus struct {
 	ErrorMessage *string    `json:"error_message"`
 }
 
-// StepStatusDTO — step status without input/output (per D-21).
+// StepStatusDTO — step status without input/output.
 type StepStatusDTO struct {
 	ID           int32      `json:"id"`
 	StepID       int32      `json:"step_id"`
@@ -47,7 +47,7 @@ type StepStatusDTO struct {
 	ErrorMessage *string    `json:"error_message"`
 }
 
-// MessageListItem -- single message in organization listing (per UI-12).
+// MessageListItem -- single message in organization listing.
 type MessageListItem struct {
 	ID           int32  `json:"id"`
 	WorkflowID   int32  `json:"workflow_id"`

@@ -12,18 +12,24 @@ import (
 )
 
 const createWorkflowStepDependency = `-- name: CreateWorkflowStepDependency :exec
-INSERT INTO "workflow_step_dependency" (step_id, depends_on_step_id, outcome)
-VALUES ($1, $2, $3)
+INSERT INTO "workflow_step_dependency" (step_id, depends_on_step_id, outcome, output_index)
+VALUES ($1, $2, $3, $4)
 `
 
 type CreateWorkflowStepDependencyParams struct {
 	StepID          int32       `json:"step_id"`
 	DependsOnStepID int32       `json:"depends_on_step_id"`
 	Outcome         pgtype.Text `json:"outcome"`
+	OutputIndex     int32       `json:"output_index"`
 }
 
 func (q *Queries) CreateWorkflowStepDependency(ctx context.Context, arg CreateWorkflowStepDependencyParams) error {
-	_, err := q.db.Exec(ctx, createWorkflowStepDependency, arg.StepID, arg.DependsOnStepID, arg.Outcome)
+	_, err := q.db.Exec(ctx, createWorkflowStepDependency,
+		arg.StepID,
+		arg.DependsOnStepID,
+		arg.Outcome,
+		arg.OutputIndex,
+	)
 	return err
 }
 
@@ -53,7 +59,7 @@ func (q *Queries) DeleteWorkflowStepDependency(ctx context.Context, arg DeleteWo
 }
 
 const listDependenciesByVersionID = `-- name: ListDependenciesByVersionID :many
-SELECT wsd.step_id, wsd.depends_on_step_id, wsd.outcome
+SELECT wsd.step_id, wsd.depends_on_step_id, wsd.outcome, wsd.output_index
 FROM "workflow_step_dependency" wsd
 JOIN "workflow_step" ws ON ws.id = wsd.step_id
 WHERE ws.workflow_version_id = $1 AND ws.deleted_at IS NULL
@@ -69,7 +75,12 @@ func (q *Queries) ListDependenciesByVersionID(ctx context.Context, workflowVersi
 	var items []WorkflowStepDependency
 	for rows.Next() {
 		var i WorkflowStepDependency
-		if err := rows.Scan(&i.StepID, &i.DependsOnStepID, &i.Outcome); err != nil {
+		if err := rows.Scan(
+			&i.StepID,
+			&i.DependsOnStepID,
+			&i.Outcome,
+			&i.OutputIndex,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -81,7 +92,7 @@ func (q *Queries) ListDependenciesByVersionID(ctx context.Context, workflowVersi
 }
 
 const listWorkflowStepDependencies = `-- name: ListWorkflowStepDependencies :many
-SELECT step_id, depends_on_step_id, outcome FROM "workflow_step_dependency"
+SELECT step_id, depends_on_step_id, outcome, output_index FROM "workflow_step_dependency"
 WHERE step_id = $1
 ORDER BY depends_on_step_id
 `
@@ -95,7 +106,12 @@ func (q *Queries) ListWorkflowStepDependencies(ctx context.Context, stepID int32
 	var items []WorkflowStepDependency
 	for rows.Next() {
 		var i WorkflowStepDependency
-		if err := rows.Scan(&i.StepID, &i.DependsOnStepID, &i.Outcome); err != nil {
+		if err := rows.Scan(
+			&i.StepID,
+			&i.DependsOnStepID,
+			&i.Outcome,
+			&i.OutputIndex,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

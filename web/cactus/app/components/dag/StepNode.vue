@@ -1,71 +1,153 @@
 <script setup lang="ts">
 import { Handle, Position, useNode } from '@vue-flow/core'
-import { Mail, MessageSquare, Bell, Workflow, GitBranch } from 'lucide-vue-next'
+import {
+  Mail, MessageSquare, Bell, Workflow, GitBranch,
+  Clock, Split, Zap,
+} from 'lucide-vue-next'
 import type { Component } from 'vue'
 
 const { node } = useNode()
 
-const statusColors: Record<string, string> = {
-  pending: 'border-muted-foreground bg-muted',
-  running: 'border-blue-500 bg-blue-50 dark:bg-blue-950 animate-pulse',
-  done: 'border-green-500 bg-green-50 dark:bg-green-950',
-  error: 'border-red-500 bg-red-50 dark:bg-red-950',
+const iconMap: Record<string, Component> = {
+  'mail': Mail,
+  'message-square': MessageSquare,
+  'bell': Bell,
+  'workflow': Workflow,
+  'git-branch': GitBranch,
+  'clock': Clock,
+  'split': Split,
+  'zap': Zap,
 }
 
-const workTypeIcons: Record<string, Component> = {
-  email: Mail,
-  smtp: Mail,
-  sms: MessageSquare,
-  push: Bell,
-  telegram: MessageSquare,
+// Control node output handles
+const controlHandles: Record<string, Array<{ id: string; label: string; color: string }>> = {
+  condition: [
+    { id: 'true', label: 'true', color: '#22c55e' },
+    { id: 'false', label: 'false', color: '#ef4444' },
+  ],
+  switch: [
+    { id: 'case0', label: '0', color: '#3b82f6' },
+    { id: 'case1', label: '1', color: '#8b5cf6' },
+    { id: 'default', label: '∗', color: '#6b7280' },
+  ],
+  delay: [
+    { id: 'continue', label: '', color: '#22c55e' },
+  ],
 }
 
 const icon = computed(() => {
+  const metaIcon = node.data.workTypeMeta?.icon
+  if (metaIcon && iconMap[metaIcon]) return iconMap[metaIcon]
   if (node.data.stepType === 'control') return GitBranch
-
-  const wtName = (node.data.workTypeName ?? '').toLowerCase()
-  return workTypeIcons[wtName] ?? Workflow
+  return Workflow
 })
 
-const nodeClass = computed(() => {
-  const base = 'rounded-lg border-2 p-3 min-w-[180px] shadow-sm transition-colors duration-300 cursor-pointer'
-  const statusClass = statusColors[node.data.status] ?? statusColors.pending
-  return `${base} ${statusClass}`
+const accentColor = computed(() => node.data.workTypeMeta?.color ?? '#607d8b')
+
+const isControl = computed(() => node.data.stepType === 'control')
+
+const outputHandles = computed(() => {
+  if (isControl.value && node.data.controlKind) {
+    return controlHandles[node.data.controlKind] ?? [{ id: 'success', label: '', color: '#22c55e' }]
+  }
+  return [{ id: 'success', label: '', color: '#22c55e' }]
 })
+
+const statusIndicator = computed(() => {
+  const s = node.data.status ?? 'pending'
+  const map: Record<string, string> = {
+    pending: 'bg-gray-300 dark:bg-gray-600',
+    running: 'bg-blue-500 animate-pulse',
+    done: 'bg-green-500',
+    error: 'bg-red-500',
+  }
+  return map[s] ?? map.pending
+})
+
+const label = computed(() => node.data.label ?? 'Step')
+const subtitle = computed(() => node.data.workTypeCode ?? node.data.controlKind ?? '')
 </script>
 
 <template>
-  <div :class="nodeClass">
+  <div
+    class="relative flex items-stretch rounded-lg border bg-background shadow-sm transition-shadow hover:shadow-md cursor-pointer select-none"
+    :class="node.selected ? 'ring-2 ring-primary shadow-md' : ''"
+    style="min-width: 200px;"
+  >
+    <!-- Color accent bar (left) -->
+    <div
+      class="w-1 shrink-0 rounded-l-lg"
+      :style="{ backgroundColor: accentColor }"
+    />
+
+    <!-- Input handle (left side) -->
     <Handle
       type="target"
-      :position="Position.Top"
+      :position="Position.Left"
+      class="!w-3 !h-3 !border-2 !border-background !bg-gray-400 !-left-1.5"
     />
 
-    <div class="flex items-center gap-2">
-      <component
-        :is="icon"
-        class="size-5 shrink-0"
+    <!-- Content -->
+    <div class="flex items-center gap-3 px-3 py-2.5 min-w-0 flex-1">
+      <!-- Icon circle -->
+      <div
+        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+        :style="{ backgroundColor: accentColor + '20', color: accentColor }"
+      >
+        <component :is="icon" class="h-4 w-4" />
+      </div>
+
+      <!-- Text -->
+      <div class="min-w-0 flex-1">
+        <div class="truncate text-sm font-medium leading-tight">{{ label }}</div>
+        <div
+          v-if="subtitle"
+          class="truncate text-[11px] text-muted-foreground leading-tight"
+        >
+          {{ subtitle }}
+        </div>
+      </div>
+
+      <!-- Status dot -->
+      <div
+        class="h-2 w-2 shrink-0 rounded-full"
+        :class="statusIndicator"
       />
-      <span class="font-semibold text-sm truncate">{{ node.data.label }}</span>
     </div>
 
-    <Handle
-      type="source"
-      id="success"
-      :position="Position.Bottom"
-      class="!bg-green-500"
-    />
-    <Handle
-      type="source"
-      id="failure"
-      :position="Position.Right"
-      class="!bg-red-500"
-    />
-    <Handle
-      type="source"
-      id="skip"
-      :position="Position.Left"
-      class="!bg-gray-400"
-    />
+    <!-- Output handles (right side) -->
+    <div class="relative shrink-0 flex flex-col justify-center" style="width: 6px;">
+      <Handle
+        v-for="(handle, idx) in outputHandles"
+        :key="handle.id"
+        type="source"
+        :id="handle.id"
+        :position="Position.Right"
+        class="!w-3 !h-3 !border-2 !border-background !-right-1.5"
+        :style="{
+          backgroundColor: handle.color,
+          top: outputHandles.length === 1
+            ? '50%'
+            : `${20 + (idx * 60 / Math.max(outputHandles.length - 1, 1))}%`,
+        }"
+      />
+
+      <!-- Handle labels for multi-output controls -->
+      <template v-if="outputHandles.length > 1">
+        <div
+          v-for="(handle, idx) in outputHandles"
+          :key="`label-${handle.id}`"
+          class="absolute text-[9px] font-medium leading-none pointer-events-none"
+          :style="{
+            color: handle.color,
+            right: '10px',
+            top: `${20 + (idx * 60 / Math.max(outputHandles.length - 1, 1))}%`,
+            transform: 'translateY(-50%)',
+          }"
+        >
+          {{ handle.label }}
+        </div>
+      </template>
+    </div>
   </div>
 </template>

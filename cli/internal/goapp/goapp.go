@@ -2,14 +2,16 @@ package goapp
 
 import (
 	"fmt"
-	"github.com/pterm/pterm"
-	"github.com/zalberix/cactus/cli/internal/shell"
-	"github.com/zalberix/cactus/cli/internal/watcher"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"time"
+
+	"github.com/pterm/pterm"
+	"github.com/zalberix/cactus/cli/internal/shell"
+	"github.com/zalberix/cactus/cli/internal/watcher"
 )
 
 // GoApp manages the lifecycle of a single Go microservice (build + run via dlv).
@@ -18,6 +20,8 @@ type GoApp struct {
 	DebugPort    int
 	Port         *int
 	OnPortReady  func()
+	DependsOn    []string
+	Ready        chan struct{}
 	Cmd          *exec.Cmd
 	CorePath     string
 	AppDir       string
@@ -25,7 +29,7 @@ type GoApp struct {
 	debugEnabled bool
 }
 
-func NewApplication(name string, enableDebug bool, appDir string, port *int, debugPort int, onPortReady func()) (
+func NewApplication(name string, enableDebug bool, appDir string, port *int, debugPort int, onPortReady func(), dependsOn []string) (
 	*GoApp,
 	error,
 ) {
@@ -44,6 +48,7 @@ func NewApplication(name string, enableDebug bool, appDir string, port *int, deb
 		Port:         port,
 		OnPortReady:  onPortReady,
 		DebugPort:    debugPort,
+		DependsOn:    dependsOn,
 	}
 
 	cmd, err := app.CreateAppCommand()
@@ -107,8 +112,11 @@ func (g *GoApp) Stop() error {
 		// /F - принудительно (Force)
 		// /T - убить дерево процессов (Tree), то есть и dlv, и само приложение
 		killCmd := exec.Command("taskkill", "/F", "/T", "/PID", fmt.Sprint(g.Cmd.Process.Pid))
-		err := killCmd.Run()
-		if err != nil {
+		if err := killCmd.Run(); err != nil {
+			// Exit code 128 — процесс уже завершён, не ошибка
+			if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 128 {
+				return nil
+			}
 			return fmt.Errorf("taskkill failed: %w", err)
 		}
 		return nil
@@ -134,11 +142,46 @@ func (g *GoApp) Start() error {
 
 	g.Cmd = newCmd
 
-	go func() {
-		g.waitPortReady()
+	// Создаём новый Ready канал при каждом (ре)старте
+	g.Ready = make(chan struct{})
+
+	if err := g.Cmd.Start(); err != nil {
+		return err
+	}
+
+	go g.signalReady()
+
+	return nil
+}
+
+// signalReady закрывает канал Ready когда приложение готово:
+// если Port задан — ждёт ответа порта, иначе — сразу.
+func (g *GoApp) signalReady() {
+	defer func() {
+		select {
+		case <-g.Ready:
+			// уже закрыт
+		default:
+			close(g.Ready)
+		}
 	}()
 
-	return g.Cmd.Start()
+	if g.Port == nil {
+		return
+	}
+
+	for {
+		conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", *g.Port))
+		if err == nil {
+			conn.Close()
+			pterm.Success.Printfln("[%s] Порт %d готов", g.Name, *g.Port)
+			if g.OnPortReady != nil {
+				g.OnPortReady()
+			}
+			return
+		}
+		time.Sleep(300 * time.Millisecond)
+	}
 }
 
 func (g *GoApp) CreateAppCommand() (*exec.Cmd, error) {
@@ -164,19 +207,3 @@ func (g *GoApp) CreateAppCommand() (*exec.Cmd, error) {
 	return cmd, nil
 }
 
-func (g *GoApp) waitPortReady() {
-	if g.Port == nil || g.OnPortReady == nil {
-		return
-	}
-
-	for {
-		_, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", *g.Port))
-		if err != nil {
-			continue
-		}
-
-		pterm.Info.Println("Port " + g.Name + " is ready, running hook")
-		g.OnPortReady()
-		break
-	}
-}

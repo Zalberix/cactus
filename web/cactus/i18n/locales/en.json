@@ -55,7 +55,27 @@
     "valid": "Valid",
     "invalid": "Invalid",
     "task": "Task",
-    "control": "Control"
+    "control": "Control",
+    "configure": "Configure"
+  },
+  "nodeEditor": {
+    "title": "Configure Step",
+    "input": "Input",
+    "parameters": "Parameters",
+    "output": "Output",
+    "upstream": "Upstream Outputs",
+    "noUpstream": "No upstream dependencies.",
+    "schema": "Schema",
+    "json": "JSON",
+    "expression": "Expression",
+    "fixedValue": "Fixed Value",
+    "save": "Save",
+    "configure": "Configure"
+  },
+  "toolbar": {
+    "channels": "Channels",
+    "logic": "Logic",
+    "other": "Other"
   },
   "users": {
     "invite": "Invite User",
@@ -142,19 +162,23 @@
     "createdAt": "Created",
     "status": "Status",
     "name": "Name",
-    "namePlaceholder": "Token name (optional)",
+    "namePlaceholder": "Token name",
     "createDescription": "Create a new API token for this system.",
     "revoked": "Token revoked successfully",
+    "activated": "Token activated successfully",
     "created": "Token created successfully",
     "noTokens": "No tokens created yet.",
     "revokeTitle": "Revoke Token",
-    "revokeDescription": "This token will no longer be accepted for API authentication. This action cannot be undone.",
+    "revokeDescription": "This token will no longer be accepted for API authentication.",
     "revoke": "Revoke",
-    "privateWarning": "This private token will only be shown once. Copy it now.",
-    "closeWarning": "Make sure you've copied the private token.",
-    "confirmClose": "I've copied it",
+    "activate": "Activate",
+    "activateTitle": "Activate Token",
+    "activateDescription": "Re-activate this token? Services will be able to authenticate with it again.",
+    "privateWarning": "This private token will only be shown once.",
+    "closeWarning": "Make sure you've saved the token credentials.",
+    "downloadJson": "Download JSON",
     "validation": {
-      "nameOptional": "Token name is optional"
+      "nameRequired": "Token name is required"
     }
   },
   "workers": {
@@ -280,6 +304,11 @@
       "body": "Revoke this token? Any services using it will lose access immediately.",
       "confirm": "Revoke Token"
     },
+    "activateToken": {
+      "title": "Activate Token",
+      "body": "Re-activate this token? Services will be able to authenticate with it again.",
+      "confirm": "Activate"
+    },
     "deleteWorkflow": {
       "title": "Delete Workflow",
       "body": "Delete workflow \"{name}\" and all its versions? Existing messages will not be affected.",
@@ -294,9 +323,8 @@
   },
   "tokenShowOnce": {
     "heading": "Token Created",
-    "body": "Copy your private token now. It will not be shown again.",
-    "copyButton": "Copy Private Token",
-    "copied": "Copied!"
+    "body": "Download the token credentials. The private token will not be shown again.",
+    "downloadButton": "Download JSON"
   },
   "common": {
     "save": "Save",

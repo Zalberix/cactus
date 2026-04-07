@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import type { ColumnDef } from '@tanstack/vue-table'
 import { h } from 'vue'
-import { Key, ArrowLeft, Copy, Check } from 'lucide-vue-next'
-import { useClipboard } from '@vueuse/core'
+import { Key, ArrowLeft, Download, ShieldCheck, ShieldOff } from 'lucide-vue-next'
 import type { Token, CreateTokenResponse } from '~/composables/useSystems'
 import DataTable from '~/components/tables/DataTable.vue'
 import DataTableColumnHeader from '~/components/tables/DataTableColumnHeader.vue'
@@ -27,7 +26,7 @@ const router = useRouter()
 const orgId = computed(() => Number(route.params.orgId))
 const systemId = computed(() => Number(route.params.systemId))
 
-const { fetchSystems, fetchTokens, createToken, revokeToken } = useSystems()
+const { fetchSystems, fetchTokens, createToken, revokeToken, activateToken } = useSystems()
 
 const tokens = ref<Token[]>([])
 const systemName = ref('')
@@ -41,25 +40,25 @@ const submitting = ref(false)
 // Show-once state
 const showOnce = ref(false)
 const createdToken = ref<CreateTokenResponse | null>(null)
-const { copy, copied } = useClipboard({ copiedDuring: 2000 })
 
-// Revoke dialog state
-const revokeOpen = ref(false)
-const tokenToRevoke = ref<Token | null>(null)
+// Revoke/Activate dialog state
+const confirmOpen = ref(false)
+const confirmAction = ref<'revoke' | 'activate'>('revoke')
+const tokenToAction = ref<Token | null>(null)
 
 const columns: ColumnDef<Token>[] = [
-  {
-    accessorKey: 'public_token',
-    header: ({ column }) => h(DataTableColumnHeader, { column: column as any, title: t('tokens.publicToken') }),
-    cell: ({ row }) => h('code', { class: 'text-sm font-mono bg-muted px-2 py-1 rounded' }, row.getValue('public_token')),
-  },
   {
     id: 'name',
     header: t('tokens.name'),
     cell: ({ row }) => {
       const name = row.original.name
-      return h('span', { class: 'text-muted-foreground' }, name || '-')
+      return h('span', { class: 'font-medium' }, name || '-')
     },
+  },
+  {
+    accessorKey: 'public_token',
+    header: ({ column }) => h(DataTableColumnHeader, { column: column as any, title: t('tokens.publicToken') }),
+    cell: ({ row }) => h('code', { class: 'text-sm font-mono bg-muted px-2 py-1 rounded' }, row.getValue('public_token')),
   },
   {
     accessorKey: 'created_at',
@@ -83,15 +82,22 @@ const columns: ColumnDef<Token>[] = [
   {
     id: 'actions',
     header: '',
-    size: 80,
+    size: 120,
     cell: ({ row }) => {
-      if (!row.original.is_active) return null
+      const token = row.original
+      if (token.is_active) {
+        return h(Button, {
+          variant: 'ghost',
+          size: 'sm',
+          class: 'text-destructive hover:text-destructive',
+          onClick: () => onConfirmAction(token, 'revoke'),
+        }, () => t('tokens.revoke'))
+      }
       return h(Button, {
         variant: 'ghost',
         size: 'sm',
-        class: 'text-destructive hover:text-destructive',
-        onClick: () => onConfirmRevoke(row.original),
-      }, () => t('destructive.revokeToken.confirm'))
+        onClick: () => onConfirmAction(token, 'activate'),
+      }, () => t('tokens.activate'))
     },
   },
 ]
@@ -99,12 +105,9 @@ const columns: ColumnDef<Token>[] = [
 async function loadData() {
   loading.value = true
   try {
-    // Load system name
     const systems = await fetchSystems(orgId.value)
     const system = systems.find(s => s.id === systemId.value)
     systemName.value = system?.name ?? ''
-
-    // Load tokens
     tokens.value = await fetchTokens(systemId.value)
   }
   catch {
@@ -125,10 +128,9 @@ function openCreateDialog() {
 async function onCreateToken() {
   submitting.value = true
   try {
-    const result = await createToken(systemId.value, tokenName.value || undefined)
+    const result = await createToken(systemId.value, tokenName.value)
     createdToken.value = result
     showOnce.value = true
-    // Reload tokens list in background
     fetchTokens(systemId.value).then(data => tokens.value = data).catch(() => {})
   }
   catch {
@@ -139,10 +141,19 @@ async function onCreateToken() {
   }
 }
 
-function onCopyPrivateToken() {
-  if (createdToken.value) {
-    copy(createdToken.value.private_token)
+function downloadTokenJson() {
+  if (!createdToken.value) return
+  const data = {
+    public_token: createdToken.value.public_token,
+    private_token: createdToken.value.private_token,
   }
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `token-${createdToken.value.public_token.slice(0, 8)}.json`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 function onCloseShowOnce() {
@@ -151,20 +162,27 @@ function onCloseShowOnce() {
   createdToken.value = null
 }
 
-function onConfirmRevoke(token: Token) {
-  tokenToRevoke.value = token
-  revokeOpen.value = true
+function onConfirmAction(token: Token, action: 'revoke' | 'activate') {
+  tokenToAction.value = token
+  confirmAction.value = action
+  confirmOpen.value = true
 }
 
-async function onRevoke() {
-  if (!tokenToRevoke.value) return
+async function onExecuteAction() {
+  if (!tokenToAction.value) return
   submitting.value = true
   try {
-    await revokeToken(tokenToRevoke.value.id)
-    revokeOpen.value = false
-    tokenToRevoke.value = null
-    toast({ title: t('tokens.revoked') })
-    await loadData()
+    if (confirmAction.value === 'revoke') {
+      await revokeToken(tokenToAction.value.id)
+      toast({ title: t('tokens.revoked') })
+    }
+    else {
+      await activateToken(tokenToAction.value.id)
+      toast({ title: t('tokens.activated') })
+    }
+    confirmOpen.value = false
+    tokenToAction.value = null
+    tokens.value = await fetchTokens(systemId.value)
   }
   catch {
     toast({ title: t('error.server'), variant: 'destructive' })
@@ -248,7 +266,7 @@ onMounted(() => {
             <Button type="button" variant="outline" @click="createOpen = false">
               {{ t('common.cancel') }}
             </Button>
-            <Button :disabled="submitting" @click="onCreateToken">
+            <Button :disabled="submitting || !tokenName.trim()" @click="onCreateToken">
               {{ t('tokens.create') }}
             </Button>
           </DialogFooter>
@@ -273,26 +291,9 @@ onMounted(() => {
             <!-- Private Token -->
             <div class="space-y-2">
               <Label>{{ t('tokens.privateToken') }}</Label>
-              <div class="flex gap-2">
-                <code class="flex-1 rounded-md border bg-muted px-3 py-2 text-sm font-mono break-all">
-                  {{ createdToken?.private_token }}
-                </code>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  class="shrink-0 gap-2"
-                  @click="onCopyPrivateToken"
-                >
-                  <template v-if="copied">
-                    <Check class="h-4 w-4" />
-                    {{ t('tokenShowOnce.copied') }}
-                  </template>
-                  <template v-else>
-                    <Copy class="h-4 w-4" />
-                    {{ t('tokenShowOnce.copyButton') }}
-                  </template>
-                </Button>
-              </div>
+              <code class="block w-full rounded-md border bg-muted px-3 py-2 text-sm font-mono break-all">
+                {{ createdToken?.private_token }}
+              </code>
             </div>
           </div>
 
@@ -300,34 +301,40 @@ onMounted(() => {
             {{ t('tokens.closeWarning') }}
           </div>
 
-          <DialogFooter>
+          <DialogFooter class="gap-2 sm:gap-0">
+            <Button variant="outline" class="gap-2" @click="downloadTokenJson">
+              <Download class="h-4 w-4" />
+              {{ t('tokens.downloadJson') }}
+            </Button>
             <Button @click="onCloseShowOnce">
-              {{ t('tokens.confirmClose') }}
+              {{ t('common.cancel') }}
             </Button>
           </DialogFooter>
         </template>
       </DialogContent>
     </Dialog>
 
-    <!-- Revoke Confirmation Dialog -->
-    <Dialog v-model:open="revokeOpen">
+    <!-- Revoke / Activate Confirmation Dialog -->
+    <Dialog v-model:open="confirmOpen">
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{{ t('destructive.revokeToken.title') }}</DialogTitle>
+          <DialogTitle>
+            {{ confirmAction === 'revoke' ? t('destructive.revokeToken.title') : t('destructive.activateToken.title') }}
+          </DialogTitle>
           <DialogDescription>
-            {{ t('destructive.revokeToken.body') }}
+            {{ confirmAction === 'revoke' ? t('destructive.revokeToken.body') : t('destructive.activateToken.body') }}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button type="button" variant="outline" @click="revokeOpen = false">
+          <Button type="button" variant="outline" @click="confirmOpen = false">
             {{ t('destructive.cancel') }}
           </Button>
           <Button
-            variant="destructive"
+            :variant="confirmAction === 'revoke' ? 'destructive' : 'default'"
             :disabled="submitting"
-            @click="onRevoke"
+            @click="onExecuteAction"
           >
-            {{ t('destructive.revokeToken.confirm') }}
+            {{ confirmAction === 'revoke' ? t('destructive.revokeToken.confirm') : t('destructive.activateToken.confirm') }}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -15,6 +15,18 @@ import ThemeToggle from '~/components/layout/ThemeToggle.vue'
 
 const { t } = useI18n()
 const authStore = useAuthStore()
+const orgStore = useOrgStore()
+
+onMounted(async () => {
+  if (orgStore.organizations.length === 0) {
+    try {
+      await orgStore.fetchOrganizations()
+    }
+    catch {
+      // Non-critical for layout
+    }
+  }
+})
 </script>
 
 <template>

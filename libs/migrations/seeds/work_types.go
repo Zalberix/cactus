@@ -7,24 +7,58 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// SeedWorkTypes вставляет базовые типы работ (smtp, telegram).
+// SeedWorkTypes вставляет базовые типы работ (smtp, telegram, control-типы)
+// и создаёт dev bootstrap-токены для них.
 func SeedWorkTypes(ctx context.Context, db *pgxpool.Pool) error {
 	workTypes := []struct {
-		Name string
-		Code string
+		Name      string
+		Code      string
+		Meta      string
+		TokenHash string // sha256(plaintext)
 	}{
-		{"Email SMTP", "smtp"},
-		{"Telegram", "telegram"},
+		// plaintext: "dev-smtp-bootstrap-token"
+		{"Email SMTP", "smtp",
+			`{"icon":"mail","color":"#3b82f6","category":"Channels"}`,
+			"224962dd1073f04c98ccd8f27fe21a9c1046619649fad79743bd41c2fc834118"},
+		// plaintext: "dev-telegram-bootstrap-token"
+		{"Telegram", "telegram",
+			`{"icon":"message-square","color":"#0088cc","category":"Channels"}`,
+			""},
+		// Control types
+		{"IF Condition", "condition",
+			`{"kind":"control","icon":"git-branch","color":"#ff6b6b","category":"Logic"}`,
+			""},
+		{"Switch", "switch",
+			`{"kind":"control","icon":"split","color":"#e85d75","category":"Logic"}`,
+			""},
+		{"Delay", "delay",
+			`{"kind":"control","icon":"clock","color":"#607d8b","category":"Logic"}`,
+			""},
 	}
 
 	for _, wt := range workTypes {
 		_, err := db.Exec(ctx, `
-			INSERT INTO work_type (name, code)
-			VALUES ($1, $2)
-			ON CONFLICT (code) DO NOTHING
-		`, wt.Name, wt.Code)
+			INSERT INTO work_type (name, code, meta)
+			VALUES ($1, $2, $3::jsonb)
+			ON CONFLICT (code) DO UPDATE SET meta = $3::jsonb
+		`, wt.Name, wt.Code, wt.Meta)
 		if err != nil {
 			return fmt.Errorf("seed work type %s: %w", wt.Code, err)
+		}
+
+		if wt.TokenHash == "" {
+			continue
+		}
+
+		_, err = db.Exec(ctx, `
+			INSERT INTO work_type_token (work_type_id, token_hash, is_active)
+			SELECT wt.id, $2::text, true
+			FROM work_type wt
+			WHERE wt.code = $1
+			ON CONFLICT (work_type_id) DO NOTHING
+		`, wt.Code, wt.TokenHash)
+		if err != nil {
+			return fmt.Errorf("seed work type token %s: %w", wt.Code, err)
 		}
 	}
 	return nil

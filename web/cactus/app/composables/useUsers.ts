@@ -3,14 +3,25 @@ import type { ApiResponse, PaginationMeta } from '~/utils/api-types'
 export interface User {
   id: number
   email: string
-  name: string
+  last_name: string
+  first_name: string
+  patronymic?: string
   created_at: string
   roles?: { id: number; name: string }[]
 }
 
-export interface CreateUserRequest {
+export interface UpdateUserData {
+  last_name: string
+  first_name: string
+  patronymic?: string
   email: string
-  name: string
+}
+
+export interface CreateUserRequest {
+  last_name: string
+  first_name: string
+  patronymic?: string
+  email: string
   password: string
   role_id?: number
 }
@@ -42,7 +53,7 @@ export function useUsers() {
     return resp.data
   }
 
-  async function updateUser(userId: number, data: Partial<{ name: string; email: string }>) {
+  async function updateUser(userId: number, data: UpdateUserData) {
     const resp = await api<ApiResponse<User>>(`/users/${userId}`, {
       method: 'PUT',
       body: data,

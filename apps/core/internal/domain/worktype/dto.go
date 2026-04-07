@@ -20,9 +20,19 @@ const (
 
 // CreateWorkTypeRequest — запрос на создание типа работы.
 type CreateWorkTypeRequest struct {
-	Name        string `json:"name" binding:"required,min=2,max=255"`
-	Code        string `json:"code" binding:"required,min=2,max=255"`
-	Description string `json:"description"`
+	Name        string          `json:"name" binding:"required,min=2,max=255"`
+	Code        string          `json:"code" binding:"required,min=2,max=255"`
+	Description string          `json:"description"`
+	Meta        json.RawMessage `json:"meta"`
+}
+
+// WorkTypeResponse — DTO для API, meta как json.RawMessage (не base64).
+type WorkTypeResponse struct {
+	ID          int32           `json:"id"`
+	Name        string          `json:"name"`
+	Code        string          `json:"code"`
+	Description string          `json:"description,omitempty"`
+	Meta        json.RawMessage `json:"meta,omitempty"`
 }
 
 // CreateWorkTypeResponse — ответ с типом работы и bootstrap-токеном.
@@ -68,10 +78,16 @@ type UpdateSystemRequest struct {
 
 // --- System Token DTOs ---
 
+// CreateSystemTokenRequest — запрос на создание токена системы.
+type CreateSystemTokenRequest struct {
+	Name string `json:"name" binding:"required,min=1,max=255"`
+}
+
 // CreateSystemTokenResponse — ответ с токенами системы (возвращается ОДИН раз).
 type CreateSystemTokenResponse struct {
 	ID           int32  `json:"id"`
 	SystemID     int32  `json:"system_id"`
+	Name         string `json:"name"`
 	PublicToken  string `json:"public_token"`
 	PrivateToken string `json:"private_token"`
 }

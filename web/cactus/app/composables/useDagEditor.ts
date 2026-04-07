@@ -1,43 +1,29 @@
 import type { Node, Edge, Connection } from '@vue-flow/core'
 import type { Step, Dependency } from '~/composables/useVersions'
+import type { WorkTypeMeta } from '~/composables/useWorkers'
 
 export interface StepData {
   label: string
   stepType: string
   workTypeId?: number
   workTypeName?: string
+  workTypeCode?: string
+  workTypeMeta?: WorkTypeMeta
+  controlKind?: string
   config?: Record<string, unknown>
+  controlSettings?: Record<string, unknown>
   inputMapping?: Record<string, string>
+  settingsSchema?: Record<string, unknown>
+  inputSchema?: Record<string, unknown>
+  outputSchema?: Record<string, unknown>
   status: string
 }
 
-interface PositionStore {
-  [stepId: string]: { x: number; y: number }
-}
+let positionTimer: ReturnType<typeof setTimeout> | null = null
+const GRID_SIZE = 20
 
-function getPositionStorageKey(versionId: number): string {
-  return `dag-positions-v${versionId}`
-}
-
-function loadPositions(versionId: number): PositionStore {
-  if (!import.meta.client) return {}
-  try {
-    const raw = localStorage.getItem(getPositionStorageKey(versionId))
-    return raw ? JSON.parse(raw) : {}
-  }
-  catch {
-    return {}
-  }
-}
-
-function savePositions(versionId: number, positions: PositionStore): void {
-  if (!import.meta.client) return
-  try {
-    localStorage.setItem(getPositionStorageKey(versionId), JSON.stringify(positions))
-  }
-  catch {
-    // localStorage full or unavailable
-  }
+function snapToGrid(val: number): number {
+  return Math.round(val / GRID_SIZE) * GRID_SIZE
 }
 
 export function useDagEditor(
@@ -48,11 +34,11 @@ export function useDagEditor(
     fetchSteps,
     createStep,
     updateStep,
+    updateStepPosition,
     deleteStep: apiDeleteStep,
     createDependency,
     deleteDependency,
   } = useVersions()
-
 
   const nodes = ref<Node[]>([])
   const edges = ref<Edge[]>([])
@@ -66,18 +52,29 @@ export function useDagEditor(
     return nodes.value.find(n => n.id === selectedNodeId.value) ?? null
   })
 
-  function stepToNode(step: Step, position: { x: number; y: number }): Node {
+  function stepToNode(step: Step, fallbackIndex: number): Node {
+    const pos = step.canvas_position ?? {
+      x: fallbackIndex * 300,
+      y: 200,
+    }
     return {
       id: String(step.id),
       type: 'step',
-      position,
+      position: pos,
       data: {
-        label: step.name,
+        label: step.work_type_name ?? step.control_kind ?? `Step ${step.id}`,
         stepType: step.step_type,
         workTypeId: step.work_type_id,
         workTypeName: step.work_type_name,
+        workTypeCode: step.work_type_code,
+        workTypeMeta: step.work_type_meta,
+        controlKind: step.control_kind,
         config: step.config,
+        controlSettings: step.control_settings,
         inputMapping: step.input_mapping,
+        settingsSchema: step.settings_schema,
+        inputSchema: step.input_schema,
+        outputSchema: step.output_schema,
         status: 'pending',
       } satisfies StepData,
     }
@@ -98,17 +95,7 @@ export function useDagEditor(
     isLoading.value = true
     try {
       const result = await fetchSteps(vid)
-      const positions = loadPositions(vid)
-
-      nodes.value = result.steps.map((step, index) => {
-        const stored = positions[String(step.id)]
-        const pos = stored ?? {
-          x: step.position_x ?? (index % 4) * 250,
-          y: step.position_y ?? Math.floor(index / 4) * 150,
-        }
-        return stepToNode(step, pos)
-      })
-
+      nodes.value = result.steps.map((step, index) => stepToNode(step, index))
       edges.value = result.dependencies.map(dependencyToEdge)
       isDirty.value = false
       validationErrors.value = []
@@ -121,6 +108,7 @@ export function useDagEditor(
   async function addStep(
     stepType: string,
     workTypeId: number | undefined,
+    workTypeCode: string | undefined,
     position: { x: number; y: number },
     name?: string,
   ): Promise<void> {
@@ -131,32 +119,26 @@ export function useDagEditor(
     const step = await createStep(vid, {
       name: stepName,
       step_type: stepType,
-      work_type_id: workTypeId,
+      work_type_id: stepType === 'task' ? workTypeId : undefined,
+      control_kind: stepType === 'control' ? workTypeCode : undefined,
+      canvas_position: position,
     })
 
-    const node = stepToNode(step, position)
+    const node = stepToNode(step, nodes.value.length)
+    node.position = position
     nodes.value = [...nodes.value, node]
-
-    // Save position immediately
-    const positions = loadPositions(vid)
-    positions[String(step.id)] = position
-    savePositions(vid, positions)
-
     isDirty.value = true
   }
 
   async function removeStep(stepId: string): Promise<void> {
     await apiDeleteStep(Number(stepId))
-
     nodes.value = nodes.value.filter(n => n.id !== stepId)
     edges.value = edges.value.filter(
       e => e.source !== stepId && e.target !== stepId,
     )
-
     if (selectedNodeId.value === stepId) {
       selectedNodeId.value = null
     }
-
     isDirty.value = true
   }
 
@@ -179,7 +161,6 @@ export function useDagEditor(
       label: outcome,
       type: 'step',
     }
-
     edges.value = [...edges.value, edge]
     isDirty.value = true
   }
@@ -222,12 +203,14 @@ export function useDagEditor(
   }
 
   function onNodeDragStop(nodeId: string, position: { x: number; y: number }): void {
-    const vid = versionId.value
-    if (!vid) return
-
-    const positions = loadPositions(vid)
-    positions[nodeId] = position
-    savePositions(vid, positions)
+    const snapped = {
+      x: snapToGrid(position.x),
+      y: snapToGrid(position.y),
+    }
+    if (positionTimer) clearTimeout(positionTimer)
+    positionTimer = setTimeout(() => {
+      updateStepPosition(Number(nodeId), snapped).catch(() => {})
+    }, 300)
   }
 
   function selectNode(nodeId: string | null): void {

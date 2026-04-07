@@ -51,8 +51,8 @@ const userSchema = toTypedSchema(
 )
 
 const initialValues = computed(() => ({
-  last_name: user.value?.name?.split(' ')[0] ?? '',
-  first_name: user.value?.name?.split(' ').slice(1).join(' ') ?? '',
+  last_name: user.value?.last_name ?? '',
+  first_name: user.value?.first_name ?? '',
   email: user.value?.email ?? '',
 }))
 
@@ -84,7 +84,8 @@ async function onSave(values: Record<string, unknown>) {
   saving.value = true
   try {
     await updateUser(userId.value, {
-      name: `${values.last_name} ${values.first_name}`.trim(),
+      last_name: values.last_name as string,
+      first_name: values.first_name as string,
       email: values.email as string,
     })
     toast({ title: t('users.updated') })

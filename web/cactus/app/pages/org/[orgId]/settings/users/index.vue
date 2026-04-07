@@ -45,6 +45,7 @@ import { toast } from '~/components/ui/toast/use-toast'
 
 const { t } = useI18n()
 const route = useRoute()
+const router = useRouter()
 const orgId = computed(() => Number(route.params.orgId))
 
 const { fetchUsers, createUser, deleteUser } = useUsers()
@@ -67,7 +68,8 @@ let searchTimeout: ReturnType<typeof setTimeout> | null = null
 const inviteSchema = toTypedSchema(
   z.object({
     email: z.string().email(t('users.validation.emailInvalid')),
-    name: z.string().min(1, t('users.validation.nameRequired')),
+    last_name: z.string().min(1, t('users.validation.nameRequired')),
+    first_name: z.string().min(1, t('users.validation.nameRequired')),
     password: z.string().min(6, t('users.validation.passwordMin')),
     role_id: z.string().optional(),
   }),
@@ -75,9 +77,9 @@ const inviteSchema = toTypedSchema(
 
 const columns: ColumnDef<User>[] = [
   {
-    accessorKey: 'name',
+    id: 'name',
     header: ({ column }) => h(DataTableColumnHeader, { column: column as any, title: t('users.name') }),
-    cell: ({ row }) => h('span', { class: 'font-medium' }, row.getValue('name')),
+    cell: ({ row }) => h('span', { class: 'font-medium' }, `${row.original.last_name} ${row.original.first_name}`),
   },
   {
     accessorKey: 'email',
@@ -196,7 +198,8 @@ async function onInvite(values: Record<string, unknown>) {
   try {
     await createUser(orgId.value, {
       email: values.email as string,
-      name: values.name as string,
+      last_name: values.last_name as string,
+      first_name: values.first_name as string,
       password: values.password as string,
       role_id: values.role_id ? Number(values.role_id) : undefined,
     })
@@ -290,18 +293,27 @@ watch(page, () => loadUsers())
                 </FormItem>
               </FormField>
 
-              <FormField v-slot="{ componentField }" name="name">
-                <FormItem>
-                  <FormLabel>{{ t('users.name') }}</FormLabel>
-                  <FormControl>
-                    <Input
-                      :placeholder="t('users.namePlaceholder')"
-                      v-bind="componentField"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              </FormField>
+              <div class="grid grid-cols-2 gap-4">
+                <FormField v-slot="{ componentField }" name="last_name">
+                  <FormItem>
+                    <FormLabel>{{ t('users.lastName') }}</FormLabel>
+                    <FormControl>
+                      <Input v-bind="componentField" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                </FormField>
+
+                <FormField v-slot="{ componentField }" name="first_name">
+                  <FormItem>
+                    <FormLabel>{{ t('users.firstName') }}</FormLabel>
+                    <FormControl>
+                      <Input v-bind="componentField" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                </FormField>
+              </div>
 
               <FormField v-slot="{ componentField }" name="password">
                 <FormItem>
