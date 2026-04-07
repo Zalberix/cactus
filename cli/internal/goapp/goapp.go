@@ -27,6 +27,15 @@ type GoApp struct {
 	AppDir       string
 	Watcher      *watcher.Watcher
 	debugEnabled bool
+
+	// IsWorker — true для worker-сервисов, которые масштабируются через cactus-services.yaml.
+	IsWorker bool
+	// WorkerUUID — UUID инстанса из lock-файла. Заполняется при expansion.
+	WorkerUUID string
+	// BaseName — оригинальное имя приложения (например "smtp") до expansion в "smtp-1".
+	BaseName string
+	// ExtraArgs — дополнительные аргументы для бинарника (передаются после -- в dlv).
+	ExtraArgs []string
 }
 
 func NewApplication(name string, enableDebug bool, appDir string, port *int, debugPort int, onPortReady func(), dependsOn []string) (
@@ -61,15 +70,27 @@ func NewApplication(name string, enableDebug bool, appDir string, port *int, deb
 }
 
 func (g *GoApp) getBinAppPath() string {
-	return filepath.Join(g.GetAppPath(), ".out", "cactus-"+g.Name)
+	name := g.Name
+	if g.BaseName != "" {
+		name = g.BaseName
+	}
+	return filepath.Join(g.GetAppPath(), ".out", "cactus-"+name)
 }
 
 func (g *GoApp) GetAppPath() string {
-	return filepath.Join(g.CorePath, g.AppDir, g.Name)
+	name := g.Name
+	if g.BaseName != "" {
+		name = g.BaseName
+	}
+	return filepath.Join(g.CorePath, g.AppDir, name)
 }
 
 func (g *GoApp) getConfigPath() string {
-	return filepath.Join(g.CorePath, "configs", g.AppDir, g.Name+".yaml")
+	name := g.Name
+	if g.BaseName != "" {
+		name = g.BaseName
+	}
+	return filepath.Join(g.CorePath, "configs", g.AppDir, name+".yaml")
 }
 
 // Build compiles the binary for this service.
@@ -185,18 +206,25 @@ func (g *GoApp) signalReady() {
 }
 
 func (g *GoApp) CreateAppCommand() (*exec.Cmd, error) {
-	// dlv exec .out/twir-emotes-cacher --headless=true --api-version=2 --check-go-version=false --only-same-user=false --listen=:2345 --log
+	command := fmt.Sprintf(
+		"dlv exec %s --headless=true --api-version=2 --check-go-version=false --only-same-user=false --listen=:%d --log --continue --accept-multiclient",
+		g.getBinAppPath(),
+		g.DebugPort,
+	)
+
+	if len(g.ExtraArgs) > 0 {
+		command += " --"
+		for _, arg := range g.ExtraArgs {
+			command += " " + arg
+		}
+	}
 
 	cmd, err := shell.CreateCommand(
 		shell.ExecCommandOpts{
-			Command: fmt.Sprintf(
-				"dlv exec %s --headless=true --api-version=2 --check-go-version=false --only-same-user=false --listen=:%d --log --continue --accept-multiclient",
-				g.getBinAppPath(),
-				g.DebugPort,
-			),
-			Pwd:    g.CorePath,
-			Stdout: os.Stdout,
-			Stderr: os.Stderr,
+			Command: command,
+			Pwd:     g.CorePath,
+			Stdout:  os.Stdout,
+			Stderr:  os.Stderr,
 		},
 	)
 

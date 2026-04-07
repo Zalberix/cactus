@@ -7,7 +7,6 @@ type Config struct {
 	BootstrapToken string `yaml:"bootstrap_token" env-required:"true"`
 	WorkTypeID     int32  `yaml:"work_type_id" env-required:"true"`
 	RevisionID     int32  `yaml:"revision_id" env-required:"true"`
-	WorkerIDFile   string `yaml:"worker_id_file" env-default:".worker_id"`
 	SMTP           SMTP   `yaml:"smtp"`
 }
 

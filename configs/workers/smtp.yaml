@@ -3,7 +3,6 @@ manager_url: "http://localhost:3009"
 bootstrap_token: "dev-smtp-bootstrap-token"
 work_type_id: 1
 revision_id: 1
-worker_id_file: ".smtp_worker_id"
 
 smtp:
   host: "localhost"

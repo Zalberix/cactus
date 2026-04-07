@@ -3,9 +3,11 @@ package golang
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	"github.com/pterm/pterm"
 	"github.com/zalberix/cactus/cli/internal/goapp"
+	"github.com/zalberix/cactus/cli/internal/services"
 )
 
 type GoApps struct {
@@ -15,13 +17,19 @@ type GoApps struct {
 }
 
 func New(enableDebug bool) (*GoApps, error) {
+	// Развернуть worker-шаблоны в N инстансов через cactus-services.yaml
+	apps, err := expandWorkers(goapp.Apps)
+	if err != nil {
+		return nil, err
+	}
+
 	ga := &GoApps{
 		debugEnabled: enableDebug,
-		appsByName:   make(map[string]*goapp.GoApp, len(goapp.Apps)),
+		appsByName:   make(map[string]*goapp.GoApp, len(apps)),
 	}
 
 	// Валидация уникальности имён
-	for _, app := range goapp.Apps {
+	for _, app := range apps {
 		if _, exists := ga.appsByName[app.Name]; exists {
 			return nil, fmt.Errorf("duplicate app name: %q", app.Name)
 		}
@@ -29,7 +37,7 @@ func New(enableDebug bool) (*GoApps, error) {
 	}
 
 	// Валидация DependsOn — все имена должны существовать
-	for _, app := range goapp.Apps {
+	for _, app := range apps {
 		for _, dep := range app.DependsOn {
 			if _, exists := ga.appsByName[dep]; !exists {
 				return nil, fmt.Errorf("app %q depends on unknown app %q", app.Name, dep)
@@ -38,12 +46,12 @@ func New(enableDebug bool) (*GoApps, error) {
 	}
 
 	// Проверка циклических зависимостей
-	if err := detectCycles(goapp.Apps); err != nil {
+	if err := detectCycles(apps); err != nil {
 		return nil, err
 	}
 
 	// Топологическая сортировка
-	sorted, err := topoSort(goapp.Apps)
+	sorted, err := topoSort(apps)
 	if err != nil {
 		return nil, err
 	}
@@ -62,11 +70,73 @@ func New(enableDebug bool) (*GoApps, error) {
 		if err != nil {
 			return nil, err
 		}
+		application.IsWorker = app.IsWorker
+		application.WorkerUUID = app.WorkerUUID
+		application.BaseName = app.BaseName
+		application.ExtraArgs = app.ExtraArgs
 		ga.apps = append(ga.apps, application)
 		ga.appsByName[app.Name] = application
 	}
 
 	return ga, nil
+}
+
+const (
+	servicesConfigPath = "configs/cactus-services.yaml"
+	servicesLockPath   = "configs/cactus-services-lock.yaml"
+	workerIDDir        = ".worker_id"
+)
+
+// expandWorkers загружает cactus-services.yaml, выполняет reconciliation
+// и разворачивает worker-шаблоны из goapp.Apps в N инстансов с UUID.
+func expandWorkers(templates []goapp.GoApp) ([]goapp.GoApp, error) {
+	instances, err := services.Reconcile(servicesConfigPath, servicesLockPath, workerIDDir)
+	if err != nil {
+		pterm.Warning.Printfln("services reconcile: %v (workers will run with default count)", err)
+		return templates, nil
+	}
+
+	// Индексируем инстансы по типу
+	byType := make(map[string][]services.WorkerInstance)
+	for _, inst := range instances {
+		byType[inst.Type] = append(byType[inst.Type], inst)
+	}
+
+	var result []goapp.GoApp
+	for _, tmpl := range templates {
+		if !tmpl.IsWorker {
+			result = append(result, tmpl)
+			continue
+		}
+
+		workerInstances, ok := byType[tmpl.Name]
+		if !ok || len(workerInstances) == 0 {
+			// Тип не указан в services.yaml — пропускаем
+			pterm.Info.Printfln("Worker %q not in cactus-services.yaml, skipping", tmpl.Name)
+			continue
+		}
+
+		for i, inst := range workerInstances {
+			expanded := tmpl
+			expanded.BaseName = tmpl.Name
+			expanded.WorkerUUID = inst.UUID
+			expanded.IsWorker = true
+
+			if len(workerInstances) > 1 {
+				expanded.Name = fmt.Sprintf("%s-%d", tmpl.Name, i+1)
+				expanded.DebugPort = tmpl.DebugPort + i
+			}
+
+			absPath, _ := filepath.Abs(inst.IDPath)
+			expanded.ExtraArgs = []string{
+				"--worker-id-path", absPath,
+			}
+
+			result = append(result, expanded)
+		}
+	}
+
+	return result, nil
 }
 
 func (c *GoApps) Start(ctx context.Context) error {

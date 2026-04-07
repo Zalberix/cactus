@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
@@ -17,6 +18,9 @@ import (
 )
 
 func main() {
+	workerIDPath := flag.String("worker-id-path", "", "path to worker ID file (.worker_id/{type}/{uuid})")
+	flag.Parse()
+
 	cfg := cfgloader.MustLoad[config.Config]("configs/workers/smtp.yaml")
 	logger := slog.Default()
 
@@ -34,7 +38,7 @@ func main() {
 		BootstrapToken: cfg.BootstrapToken,
 		WorkTypeID:     cfg.WorkTypeID,
 		RevisionID:     cfg.RevisionID,
-		WorkerIDFile:   cfg.WorkerIDFile,
+		WorkerIDPath:   *workerIDPath,
 		WorkerName:     "smtp-worker",
 		Manifest: worker.Manifest{
 			Kind:        "smtp",

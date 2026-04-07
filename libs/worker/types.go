@@ -39,7 +39,7 @@ type Config struct {
 	BootstrapToken    string        `json:"bootstrap_token"`
 	WorkTypeID        int32         `json:"work_type_id"`
 	RevisionID        int32         `json:"revision_id"`
-	WorkerIDFile      string        `json:"worker_id_file"`
+	WorkerIDPath      string        `json:"worker_id_file"`
 	WorkerName        string        `json:"worker_name"`
 	HeartbeatInterval time.Duration `json:"heartbeat_interval"`
 	Manifest          Manifest      `json:"manifest"`

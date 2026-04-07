@@ -37,3 +37,5 @@
 .playwright-mcp/
 /.claude/
 /docs/plans/
+/.worker_id/
+/configs/cactus-services-lock.yaml

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -38,13 +39,13 @@ type registerResponse struct {
 // Сохраняет workerID в файл.
 func (w *Worker) loadOrRegister(ctx context.Context) error {
 	// Попытка загрузить workerID из файла
-	if w.cfg.WorkerIDFile != "" {
+	if w.cfg.WorkerIDPath != "" {
 		id, err := w.loadWorkerID()
 		if err == nil && id > 0 {
 			w.workerID = id
 			w.logger.Info("loaded worker ID from file",
 				slog.Int("worker_id", int(id)),
-				slog.String("file", w.cfg.WorkerIDFile),
+				slog.String("file", w.cfg.WorkerIDPath),
 			)
 			// Отправляем heartbeat для подтверждения
 			if err := w.sendRegistration(ctx); err != nil {
@@ -68,11 +69,11 @@ func (w *Worker) register(ctx context.Context) error {
 	}
 
 	// Сохраняем workerID в файл
-	if w.cfg.WorkerIDFile != "" && w.workerID > 0 {
+	if w.cfg.WorkerIDPath != "" && w.workerID > 0 {
 		if err := w.saveWorkerID(w.workerID); err != nil {
 			w.logger.Warn("failed to save worker ID to file",
 				slog.String("error", err.Error()),
-				slog.String("file", w.cfg.WorkerIDFile),
+				slog.String("file", w.cfg.WorkerIDPath),
 			)
 		}
 	}
@@ -156,7 +157,7 @@ func (w *Worker) heartbeatLoop(ctx context.Context) {
 
 // loadWorkerID читает workerID из файла.
 func (w *Worker) loadWorkerID() (int32, error) {
-	data, err := os.ReadFile(w.cfg.WorkerIDFile)
+	data, err := os.ReadFile(w.cfg.WorkerIDPath)
 	if err != nil {
 		return 0, err
 	}
@@ -168,6 +169,11 @@ func (w *Worker) loadWorkerID() (int32, error) {
 }
 
 // saveWorkerID записывает workerID в файл.
+// Создаёт директорию если она не существует.
 func (w *Worker) saveWorkerID(id int32) error {
-	return os.WriteFile(w.cfg.WorkerIDFile, []byte(strconv.Itoa(int(id))), 0644)
+	dir := filepath.Dir(w.cfg.WorkerIDPath)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create worker ID dir %s: %w", dir, err)
+	}
+	return os.WriteFile(w.cfg.WorkerIDPath, []byte(strconv.Itoa(int(id))), 0644)
 }
