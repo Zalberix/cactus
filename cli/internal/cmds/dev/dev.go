@@ -23,8 +23,12 @@ var Cmd = &cli.Command{
 	Usage: "Start the development environment",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
-			Name:  "skip-deps",
-			Usage: "Skip `npm install`",
+			Name:  "deps",
+			Usage: "Run `npm install` before starting",
+		},
+		&cli.BoolFlag{
+			Name:  "migrate",
+			Usage: "Run database migrations before starting",
 		},
 		&cli.BoolFlag{
 			Name:  "debug",
@@ -40,7 +44,8 @@ var Cmd = &cli.Command{
 			return err
 		}
 		pterm.Info.Printf("Приложение запущено из: %s\n", wd)
-		skipDeps := c.Bool("skip-deps")
+		installDeps := c.Bool("deps")
+		runMigrations := c.Bool("migrate")
 		isDebugEnabled := c.Bool("debug")
 
 		if isDebugEnabled {
@@ -62,14 +67,16 @@ var Cmd = &cli.Command{
 		// wait proxy to up
 		<-proxyStartedChan
 
-		if !skipDeps {
+		if installDeps {
 			if err := dependencies.Cmd.Run(c); err != nil {
 				return fmt.Errorf("install deps: %w", err)
 			}
 		}
 
-		if err := migrations.UpMigrationCmd.Run(c); err != nil {
-			pterm.Warning.Printfln("Migrations failed: %v (continuing anyway)", err)
+		if runMigrations {
+			if err := migrations.UpMigrationCmd.Run(c); err != nil {
+				pterm.Warning.Printfln("Migrations failed: %v (continuing anyway)", err)
+			}
 		}
 
 		golangApps, err := devgolang.New(isDebugEnabled)

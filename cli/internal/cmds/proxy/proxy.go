@@ -34,7 +34,7 @@ func StartProxy(debug bool) (<-chan struct{}, error) {
 	}()
 
 	commandOpts := shell.ExecCommandOpts{
-		Command: "go run github.com/caddyserver/caddy/v2/cmd/caddy@latest run --watch --config Caddyfile",
+		Command: "go tool caddy run --watch --config Caddyfile",
 		Stdout:  os.Stdout,
 		Stderr:  os.Stderr,
 		Pwd:     wd,
