@@ -74,7 +74,11 @@ func (g *GoApp) getBinAppPath() string {
 	if g.BaseName != "" {
 		name = g.BaseName
 	}
-	return filepath.Join(g.GetAppPath(), ".out", "cactus-"+name)
+	binName := "cactus-" + name
+	if runtime.GOOS == "windows" {
+		binName += ".exe"
+	}
+	return filepath.Join(g.GetAppPath(), ".out", binName)
 }
 
 func (g *GoApp) GetAppPath() string {
@@ -206,6 +210,14 @@ func (g *GoApp) signalReady() {
 }
 
 func (g *GoApp) CreateAppCommand() (*exec.Cmd, error) {
+	if !g.debugEnabled {
+		cmd := exec.Command(g.getBinAppPath(), g.ExtraArgs...)
+		cmd.Dir = g.CorePath
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd, nil
+	}
+
 	command := fmt.Sprintf(
 		"dlv exec %s --headless=true --api-version=2 --check-go-version=false --only-same-user=false --listen=:%d --log --continue --accept-multiclient",
 		g.getBinAppPath(),
@@ -234,4 +246,3 @@ func (g *GoApp) CreateAppCommand() (*exec.Cmd, error) {
 
 	return cmd, nil
 }
-
