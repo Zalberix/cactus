@@ -1,6 +1,7 @@
 package rbac
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -193,7 +194,7 @@ func (h *Handler) ListUsers(c *gin.Context) {
 // POST /api/v1/organizations/:orgId/users
 // Per D-02: only admin can create users.
 func (h *Handler) CreateUser(c *gin.Context) {
-	_, ok := parseID(c, "orgId")
+	orgID, ok := parseID(c, "orgId")
 	if !ok {
 		return
 	}
@@ -203,8 +204,12 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	user, err := h.service.CreateUser(c.Request.Context(), req)
+	user, err := h.service.CreateUser(c.Request.Context(), orgID, req)
 	if err != nil {
+		if errors.Is(err, ErrOrganizationNotFound) {
+			response.NotFound(c, "Организация не найдена")
+			return
+		}
 		response.Fail(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Ошибка создания пользователя")
 		return
 	}

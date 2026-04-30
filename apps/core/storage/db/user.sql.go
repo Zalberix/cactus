@@ -27,17 +27,19 @@ func (q *Queries) CountUsersByOrgID(ctx context.Context, organizationID pgtype.I
 
 const createUser = `-- name: CreateUser :one
 INSERT INTO "user" (
+    organization_id,
     last_name,
     first_name,
     patronymic,
     email,
     "password",
     reset_password_after_login
-) VALUES ($1, $2, $3, $4, $5, $6)
+) VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING id, organization_id, last_name, first_name, patronymic, email, password, reset_password_after_login, created_at, updated_at, deleted_at
 `
 
 type CreateUserParams struct {
+	OrganizationID          pgtype.Int4 `json:"organization_id"`
 	LastName                string      `json:"last_name"`
 	FirstName               string      `json:"first_name"`
 	Patronymic              pgtype.Text `json:"patronymic"`
@@ -48,6 +50,7 @@ type CreateUserParams struct {
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
 	row := q.db.QueryRow(ctx, createUser,
+		arg.OrganizationID,
 		arg.LastName,
 		arg.FirstName,
 		arg.Patronymic,
@@ -124,9 +127,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id int32) (User, error) {
 
 const listUsersByOrgID = `-- name: ListUsersByOrgID :many
 SELECT DISTINCT u.id, u.organization_id, u.last_name, u.first_name, u.patronymic, u.email, u.password, u.reset_password_after_login, u.created_at, u.updated_at, u.deleted_at FROM "user" u
-JOIN "role_user" ru ON ru.user_id = u.id
-JOIN "role" r ON r.id = ru.role_id
-WHERE r.organization_id = $1 AND u.deleted_at IS NULL
+WHERE u.organization_id = $1 AND u.deleted_at IS NULL
 ORDER BY u.last_name, u.first_name
 LIMIT $2 OFFSET $3
 `

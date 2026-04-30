@@ -2,12 +2,16 @@ package rbac
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	db "github.com/zalberix/cactus/apps/core/storage/db"
+	"github.com/zalberix/cactus/apps/core/storage/db"
 )
+
+var ErrOrganizationNotFound = errors.New("organization not found")
 
 // AuthService — интерфейс для хеширования паролей (реализует auth.Service).
 type AuthService interface {
@@ -75,14 +79,25 @@ func (s *Service) DeleteOrg(ctx context.Context, id int32) error {
 
 // CreateUser создаёт нового пользователя (только для admin, D-02).
 // Пароль хешируется через bcrypt.
-func (s *Service) CreateUser(ctx context.Context, req CreateUserRequest) (db.User, error) {
+func (s *Service) CreateUser(ctx context.Context, orgID int32, req CreateUserRequest) (db.User, error) {
+	if orgID <= 0 {
+		return db.User{}, ErrOrganizationNotFound
+	}
+	if _, err := s.store.GetOrganizationByID(ctx, orgID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.User{}, ErrOrganizationNotFound
+		}
+		return db.User{}, fmt.Errorf("get organization: %w", err)
+	}
+
 	hashed, err := s.authService.HashPassword(req.Password)
 	if err != nil {
 		return db.User{}, fmt.Errorf("hash password: %w", err)
 	}
 	return s.store.CreateUser(ctx, db.CreateUserParams{
-		LastName:  req.LastName,
-		FirstName: req.FirstName,
+		OrganizationID: pgtype.Int4{Int32: orgID, Valid: true},
+		LastName:       req.LastName,
+		FirstName:      req.FirstName,
 		Patronymic: pgtype.Text{
 			String: req.Patronymic,
 			Valid:  req.Patronymic != "",
