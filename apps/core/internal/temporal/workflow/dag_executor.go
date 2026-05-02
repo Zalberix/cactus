@@ -60,7 +60,7 @@ func DAGExecutorWorkflow(ctx workflow.Context, input temporaltypes.DAGInput) err
 	selector := workflow.NewSelector(ctx)
 
 	// Функция для запуска шага
-	launchStep := func(step temporaltypes.StepDef) {
+	launchTaskStep := func(step temporaltypes.StepDef) {
 		f := workflow.ExecuteActivity(ctx, "RunTaskStep", temporaltypes.RunTaskStepInput{
 			WorkflowRunID: input.WorkflowRunID,
 			MessageID:     input.MessageID,
@@ -74,12 +74,44 @@ func DAGExecutorWorkflow(ctx workflow.Context, input temporaltypes.DAGInput) err
 		selector.AddFuture(f, func(f workflow.Future) {})
 	}
 
+	var processReadyStep func(stepID int32)
+	processReadyStep = func(stepID int32) {
+		step, ok := stepMap[stepID]
+		if !ok {
+			return
+		}
+		if !isStartStep(step) {
+			launchTaskStep(step)
+			return
+		}
+
+		_ = workflow.ExecuteActivity(ctx, "RecordStep", temporaltypes.RecordStepInput{
+			WorkflowRunID: input.WorkflowRunID,
+			MessageID:     input.MessageID,
+			StepID:        step.ID,
+			Status:        temporaltypes.StepStatusCompleted,
+			Outcome:       "success",
+		}).Get(ctx, nil)
+
+		stepResults[step.ID] = temporaltypes.StepResult{
+			StepID:  step.ID,
+			Success: true,
+			Outcome: "success",
+		}
+		delete(remaining, step.ID)
+
+		for _, childID := range children[step.ID] {
+			inDegree[childID]--
+			if inDegree[childID] == 0 {
+				processReadyStep(childID)
+			}
+		}
+	}
+
 	// Находим и запускаем корневые шаги (без зависимостей)
 	roots := findRoots(inDegree)
 	for _, rootID := range roots {
-		if step, ok := stepMap[rootID]; ok {
-			launchStep(step)
-		}
+		processReadyStep(rootID)
 	}
 
 	// Переменная для хранения ошибки провала шага
@@ -123,9 +155,7 @@ func DAGExecutorWorkflow(ctx workflow.Context, input temporaltypes.DAGInput) err
 			for _, childID := range children[sf.stepID] {
 				inDegree[childID]--
 				if inDegree[childID] == 0 {
-					if childStep, ok := stepMap[childID]; ok {
-						launchStep(childStep)
-					}
+					processReadyStep(childID)
 				}
 			}
 		}
@@ -151,6 +181,10 @@ func DAGExecutorWorkflow(ctx workflow.Context, input temporaltypes.DAGInput) err
 	_ = workflow.ExecuteActivity(ctx, "UpdateRunStatus", input.WorkflowRunID, input.MessageID, temporaltypes.RunStatusCompleted, "").Get(ctx, nil)
 
 	return nil
+}
+
+func isStartStep(step temporaltypes.StepDef) bool {
+	return step.StepType == "control" && step.ControlKind == "start"
 }
 
 // buildGraph строит структуры данных для обхода DAG.

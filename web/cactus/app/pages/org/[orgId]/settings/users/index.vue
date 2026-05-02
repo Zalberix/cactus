@@ -141,8 +141,8 @@ async function loadUsers() {
     users.value = result.data
     pageCount.value = result.meta.total_pages
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
   finally {
     loading.value = false
@@ -186,8 +186,8 @@ async function onDelete() {
     toast({ title: t('users.deleted') })
     await loadUsers()
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
   finally {
     submitting.value = false
@@ -208,8 +208,8 @@ async function onInvite(values: Record<string, unknown>) {
     toast({ title: t('users.invited') })
     await loadUsers()
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
   finally {
     submitting.value = false

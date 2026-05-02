@@ -73,6 +73,7 @@ watch(
 )
 
 function onNameBlur() {
+  if (isStart.value) return
   if (stepName.value === props.node.data.label) return
   emit('updateData', props.node.id, { label: stepName.value })
   emit('updateStep', props.node.id, { name: stepName.value })
@@ -88,6 +89,7 @@ function onWorkTypeChange(workTypeId: string) {
 }
 
 function onConfigBlur() {
+  if (isStart.value) return
   try {
     const parsed = JSON.parse(configText.value)
     emit('updateData', props.node.id, { config: parsed })
@@ -99,15 +101,18 @@ function onConfigBlur() {
 }
 
 function addMappingPair() {
+  if (isStart.value) return
   mappingPairs.value.push({ key: '', value: '' })
 }
 
 function removeMappingPair(index: number) {
+  if (isStart.value) return
   mappingPairs.value.splice(index, 1)
   syncMappings()
 }
 
 function syncMappings() {
+  if (isStart.value) return
   const mapping: Record<string, string> = {}
   for (const pair of mappingPairs.value) {
     if (pair.key.trim()) {
@@ -119,8 +124,11 @@ function syncMappings() {
 }
 
 function onDelete() {
+  if (isStart.value) return
   emit('deleteStep', props.node.id)
 }
+
+const isStart = computed(() => props.node.data.controlKind === 'start')
 </script>
 
 <template>
@@ -129,6 +137,7 @@ function onDelete() {
     <div class="flex items-center justify-between border-b px-4 py-3">
       <Input
         v-model="stepName"
+        :readonly="isStart"
         class="h-8 border-0 p-0 text-sm font-semibold shadow-none focus-visible:ring-0"
         @blur="onNameBlur"
         @keydown.enter="($event.target as HTMLInputElement)?.blur()"
@@ -147,6 +156,7 @@ function onDelete() {
       <div class="space-y-4 p-4">
         <!-- Configure button -->
         <Button
+          v-if="!isStart"
           variant="outline"
           class="w-full"
           @click="emit('openEditor', node.id)"
@@ -162,7 +172,7 @@ function onDelete() {
           <Label class="text-xs text-muted-foreground">{{ t('editor.stepType') }}</Label>
           <div class="mt-1">
             <Badge variant="secondary">
-              {{ node.data.stepType === 'control' ? t('editor.control') : t('editor.task') }}
+              {{ isStart ? 'Start' : node.data.stepType === 'control' ? t('editor.control') : t('editor.task') }}
             </Badge>
           </div>
         </div>
@@ -194,7 +204,7 @@ function onDelete() {
         <Separator />
 
         <!-- Input Mapping -->
-        <div>
+        <div v-if="!isStart">
           <div class="flex items-center justify-between">
             <Label class="text-xs text-muted-foreground">{{ t('editor.inputMapping') }}</Label>
             <Button
@@ -243,10 +253,10 @@ function onDelete() {
           </div>
         </div>
 
-        <Separator />
+        <Separator v-if="!isStart" />
 
         <!-- Config -->
-        <div>
+        <div v-if="!isStart">
           <Label class="text-xs text-muted-foreground">{{ t('editor.config') }}</Label>
           <textarea
             v-model="configText"
@@ -259,7 +269,7 @@ function onDelete() {
     </ScrollArea>
 
     <!-- Delete step -->
-    <div class="border-t p-4">
+    <div v-if="!isStart" class="border-t p-4">
       <Button
         variant="destructive"
         class="w-full"

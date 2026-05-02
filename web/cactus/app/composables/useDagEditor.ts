@@ -17,6 +17,7 @@ export interface StepData {
   inputSchema?: Record<string, unknown>
   outputSchema?: Record<string, unknown>
   status: string
+  locked?: boolean
 }
 
 let positionTimer: ReturnType<typeof setTimeout> | null = null
@@ -43,6 +44,7 @@ export function useDagEditor(
   const nodes = ref<Node[]>([])
   const edges = ref<Edge[]>([])
   const selectedNodeId = ref<string | null>(null)
+  const selectedEdgeId = ref<string | null>(null)
   const isDirty = ref(false)
   const validationErrors = ref<string[]>([])
   const isLoading = ref(false)
@@ -50,6 +52,11 @@ export function useDagEditor(
   const selectedNode = computed(() => {
     if (!selectedNodeId.value) return null
     return nodes.value.find(n => n.id === selectedNodeId.value) ?? null
+  })
+
+  const selectedEdge = computed(() => {
+    if (!selectedEdgeId.value) return null
+    return edges.value.find(e => e.id === selectedEdgeId.value) ?? null
   })
 
   function stepToNode(step: Step, fallbackIndex: number): Node {
@@ -61,8 +68,11 @@ export function useDagEditor(
       id: String(step.id),
       type: 'step',
       position: pos,
+      draggable: step.control_kind !== 'start',
       data: {
-        label: step.work_type_name ?? step.control_kind ?? `Step ${step.id}`,
+        label: step.control_kind === 'start'
+          ? 'System Trigger'
+          : step.work_type_name ?? step.control_kind ?? `Step ${step.id}`,
         stepType: step.step_type,
         workTypeId: step.work_type_id,
         workTypeName: step.work_type_name,
@@ -76,6 +86,7 @@ export function useDagEditor(
         inputSchema: step.input_schema,
         outputSchema: step.output_schema,
         status: 'pending',
+        locked: step.control_kind === 'start',
       } satisfies StepData,
     }
   }
@@ -95,8 +106,13 @@ export function useDagEditor(
     isLoading.value = true
     try {
       const result = await fetchSteps(vid)
-      nodes.value = result.steps.map((step, index) => stepToNode(step, index))
-      edges.value = result.dependencies.map(dependencyToEdge)
+      const stepList = Array.isArray(result.steps) ? result.steps : []
+      const dependencyList = Array.isArray(result.dependencies) ? result.dependencies : []
+
+      nodes.value = stepList.map((step, index) => stepToNode(step, index))
+      edges.value = dependencyList.map(dependencyToEdge)
+      selectedNodeId.value = null
+      selectedEdgeId.value = null
       isDirty.value = false
       validationErrors.value = []
     }
@@ -124,13 +140,29 @@ export function useDagEditor(
       canvas_position: position,
     })
 
-    const node = stepToNode(step, nodes.value.length)
+    let hydratedStep = step
+    try {
+      const result = await fetchSteps(vid)
+      hydratedStep = result.steps.find(s => s.id === step.id) ?? step
+    }
+    catch {
+      hydratedStep = {
+        ...step,
+        work_type_name: step.work_type_name ?? name,
+        work_type_code: step.work_type_code ?? workTypeCode,
+      }
+    }
+
+    const node = stepToNode(hydratedStep, nodes.value.length)
     node.position = position
     nodes.value = [...nodes.value, node]
     isDirty.value = true
   }
 
   async function removeStep(stepId: string): Promise<void> {
+    const node = nodes.value.find(n => n.id === stepId)
+    if (node?.data.controlKind === 'start') return
+
     await apiDeleteStep(Number(stepId))
     nodes.value = nodes.value.filter(n => n.id !== stepId)
     edges.value = edges.value.filter(
@@ -139,11 +171,16 @@ export function useDagEditor(
     if (selectedNodeId.value === stepId) {
       selectedNodeId.value = null
     }
+    if (selectedEdgeId.value && !edges.value.some(e => e.id === selectedEdgeId.value)) {
+      selectedEdgeId.value = null
+    }
     isDirty.value = true
   }
 
   async function connectSteps(params: Connection): Promise<void> {
     if (!params.source || !params.target) return
+    const target = nodes.value.find(n => n.id === params.target)
+    if (target?.data.controlKind === 'start') return
 
     const outcome = params.sourceHandle ?? 'success'
 
@@ -171,6 +208,9 @@ export function useDagEditor(
 
     await deleteDependency(Number(edge.target), Number(edge.source))
     edges.value = edges.value.filter(e => e.id !== edgeId)
+    if (selectedEdgeId.value === edgeId) {
+      selectedEdgeId.value = null
+    }
     isDirty.value = true
   }
 
@@ -207,6 +247,15 @@ export function useDagEditor(
       x: snapToGrid(position.x),
       y: snapToGrid(position.y),
     }
+
+    nodes.value = nodes.value.map((node) => {
+      if (node.id !== nodeId) return node
+      return {
+        ...node,
+        position: snapped,
+      }
+    })
+
     if (positionTimer) clearTimeout(positionTimer)
     positionTimer = setTimeout(() => {
       updateStepPosition(Number(nodeId), snapped).catch(() => {})
@@ -215,9 +264,18 @@ export function useDagEditor(
 
   function selectNode(nodeId: string | null): void {
     selectedNodeId.value = nodeId
+    if (nodeId) selectedEdgeId.value = null
+  }
+
+  function selectEdge(edgeId: string | null): void {
+    selectedEdgeId.value = edgeId
+    if (edgeId) selectedNodeId.value = null
   }
 
   async function updateStepOnServer(stepId: string, data: Partial<Step>): Promise<void> {
+    const node = nodes.value.find(n => n.id === stepId)
+    if (node?.data.controlKind === 'start') return
+
     await updateStep(Number(stepId), data)
     isDirty.value = true
   }
@@ -226,7 +284,9 @@ export function useDagEditor(
     nodes,
     edges,
     selectedNodeId,
+    selectedEdgeId,
     selectedNode,
+    selectedEdge,
     isDirty,
     validationErrors,
     isLoading,
@@ -239,6 +299,7 @@ export function useDagEditor(
     saveVersion,
     onNodeDragStop,
     selectNode,
+    selectEdge,
     updateStepOnServer,
   }
 }

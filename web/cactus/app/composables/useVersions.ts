@@ -51,7 +51,7 @@ export function useVersions() {
     if (!resp.success || !resp.data) {
       throw new Error(resp.error?.message ?? 'Failed to fetch versions')
     }
-    return resp.data
+    return Array.isArray(resp.data) ? resp.data : []
   }
 
   async function createVersion(workflowId: number): Promise<Version> {
@@ -102,6 +102,16 @@ export function useVersions() {
     }
   }
 
+  async function deleteVersion(versionId: number): Promise<void> {
+    const resp = await api<ApiResponse<null>>(
+      `/versions/${versionId}`,
+      { method: 'DELETE' },
+    )
+    if (!resp.success) {
+      throw new Error(resp.error?.message ?? 'Failed to delete version')
+    }
+  }
+
   async function fetchSteps(versionId: number): Promise<{ steps: Step[]; dependencies: Dependency[] }> {
     const resp = await api<ApiResponse<{ steps: Step[]; dependencies: Dependency[] }>>(
       `/versions/${versionId}/steps`,
@@ -109,7 +119,10 @@ export function useVersions() {
     if (!resp.success || !resp.data) {
       throw new Error(resp.error?.message ?? 'Failed to fetch steps')
     }
-    return resp.data
+    return {
+      steps: Array.isArray(resp.data.steps) ? resp.data.steps : [],
+      dependencies: Array.isArray(resp.data.dependencies) ? resp.data.dependencies : [],
+    }
   }
 
   async function createStep(
@@ -206,7 +219,7 @@ export function useVersions() {
     if (!resp.success || !resp.data) {
       throw new Error(resp.error?.message ?? 'Failed to fetch work types')
     }
-    return resp.data
+    return Array.isArray(resp.data) ? resp.data : []
   }
 
   return {
@@ -215,6 +228,7 @@ export function useVersions() {
     validateVersion,
     activateVersion,
     deactivateVersion,
+    deleteVersion,
     fetchSteps,
     createStep,
     updateStep,

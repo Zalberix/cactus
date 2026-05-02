@@ -32,6 +32,10 @@ type mockStorage struct {
 	lastUpdateSchemaArg db.UpdateWorkflowInputValidationParams
 }
 
+func (m *mockStorage) WithTx(_ context.Context, _ func(q *db.Queries) error) error {
+	return nil
+}
+
 func (m *mockStorage) CreateWorkflow(_ context.Context, _ db.CreateWorkflowParams) (db.Workflow, error) {
 	return db.Workflow{}, nil
 }
@@ -72,6 +76,7 @@ func (m *mockStorage) UpdateWorkflowVersionActive(_ context.Context, arg db.Upda
 	m.lastUpdateActiveArg = arg
 	return db.WorkflowVersion{IsActive: arg.IsActive}, m.activateErr
 }
+func (m *mockStorage) SoftDeleteWorkflowVersion(_ context.Context, _ int32) error { return nil }
 func (m *mockStorage) CreateWorkflowStep(_ context.Context, _ db.CreateWorkflowStepParams) (db.WorkflowStep, error) {
 	return db.WorkflowStep{}, nil
 }
@@ -84,7 +89,8 @@ func (m *mockStorage) ListWorkflowStepsByVersionID(_ context.Context, _ int32) (
 func (m *mockStorage) UpdateWorkflowStep(_ context.Context, _ db.UpdateWorkflowStepParams) (db.WorkflowStep, error) {
 	return db.WorkflowStep{}, nil
 }
-func (m *mockStorage) SoftDeleteWorkflowStep(_ context.Context, _ int32) error { return nil }
+func (m *mockStorage) DeleteWorkflowStepsByVersionID(_ context.Context, _ int32) error { return nil }
+func (m *mockStorage) SoftDeleteWorkflowStep(_ context.Context, _ int32) error         { return nil }
 func (m *mockStorage) CreateWorkflowStepDependency(_ context.Context, _ db.CreateWorkflowStepDependencyParams) error {
 	return nil
 }
@@ -208,7 +214,7 @@ func TestRegenerateInputValidation_NoActiveVersions(t *testing.T) {
 func TestValidateVersion_CycleReturnsErrors(t *testing.T) {
 	store := &mockStorage{
 		steps: []db.WorkflowStep{
-			{ID: 1, WorkflowVersionID: 10, StepType: "task"},
+			{ID: 1, WorkflowVersionID: 10, StepType: "control", ControlKind: pgtype.Text{String: "start", Valid: true}},
 			{ID: 2, WorkflowVersionID: 10, StepType: "task"},
 		},
 		deps: []db.WorkflowStepDependency{
@@ -228,7 +234,7 @@ func TestValidateVersion_CycleReturnsErrors(t *testing.T) {
 func TestValidateVersion_ValidDAGSetsIsValid(t *testing.T) {
 	store := &mockStorage{
 		steps: []db.WorkflowStep{
-			{ID: 1, WorkflowVersionID: 20, StepType: "task"},
+			{ID: 1, WorkflowVersionID: 20, StepType: "control", ControlKind: pgtype.Text{String: "start", Valid: true}},
 			{ID: 2, WorkflowVersionID: 20, StepType: "task"},
 		},
 		deps: []db.WorkflowStepDependency{

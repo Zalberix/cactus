@@ -35,7 +35,7 @@ const edgeTypes = {
   step: StepEdge,
 }
 
-const { project, fitView } = useVueFlow()
+const { screenToFlowCoordinate, fitView } = useVueFlow()
 
 const isEdit = computed(() => props.mode === 'edit')
 
@@ -93,7 +93,7 @@ function onDrop(event: DragEvent) {
     name?: string
   }
 
-  const projected = project({
+  const projected = screenToFlowCoordinate({
     x: event.clientX,
     y: event.clientY,
   })

@@ -48,7 +48,7 @@ async function loadWorkers() {
   }
   catch (err) {
     toast({
-      title: t('error.server'),
+      title: getErrorMessage(err, t('error.server')),
       variant: 'destructive',
     })
   }
@@ -104,8 +104,8 @@ async function onSubmitRevision() {
     formData.value = {}
     revisions.value = await fetchRevisions(selectedWorker.value.schema_id)
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
   finally {
     submitting.value = false

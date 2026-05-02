@@ -115,8 +115,8 @@ async function loadRoles() {
   try {
     roles.value = await fetchRoles(orgId.value)
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
   finally {
     loading.value = false
@@ -142,8 +142,8 @@ async function onDelete() {
     toast({ title: t('roles.deleted') })
     await loadRoles()
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
   finally {
     submitting.value = false
@@ -162,8 +162,8 @@ async function onCreate(values: Record<string, unknown>) {
     toast({ title: t('roles.created') })
     await loadRoles()
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
   finally {
     submitting.value = false

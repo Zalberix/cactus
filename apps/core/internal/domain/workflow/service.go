@@ -16,6 +16,8 @@ import (
 // ErrValidationRequired — версия не прошла валидацию DAG.
 var ErrValidationRequired = errors.New("VALIDATION_REQUIRED: версия должна пройти валидацию DAG перед активацией")
 
+var ErrStartStepProtected = errors.New("START_STEP_PROTECTED: start step is managed by the system")
+
 // Service — бизнес-логика управления workflow.
 type Service struct {
 	store Storage
@@ -68,20 +70,44 @@ func (s *Service) DeleteWorkflow(ctx context.Context, id int32) error {
 // CreateVersion создаёт новую версию workflow (WF-02).
 // Номер версии автоматически инкрементируется.
 func (s *Service) CreateVersion(ctx context.Context, workflowID, userID int32) (db.WorkflowVersion, error) {
-	maxVersion, err := s.store.GetMaxVersionNumberByWorkflowID(ctx, workflowID)
-	if err != nil {
-		return db.WorkflowVersion{}, fmt.Errorf("get max version number: %w", err)
-	}
+	var version db.WorkflowVersion
+	err := s.store.WithTx(ctx, func(q *db.Queries) error {
+		maxVersion, err := q.GetMaxVersionNumberByWorkflowID(ctx, workflowID)
+		if err != nil {
+			return fmt.Errorf("get max version number: %w", err)
+		}
 
-	return s.store.CreateWorkflowVersion(ctx, db.CreateWorkflowVersionParams{
-		WorkflowID:      workflowID,
-		CreatedByUserID: pgtype.Int4{Int32: userID, Valid: true},
-		VersionNumber:   maxVersion + 1,
-		IsValid:         false,
-		IsActive:        false,
-		TrafficWeight:   100,
-		IsControlGroup:  false,
+		var createErr error
+		version, createErr = q.CreateWorkflowVersion(ctx, db.CreateWorkflowVersionParams{
+			WorkflowID:      workflowID,
+			CreatedByUserID: pgtype.Int4{Int32: userID, Valid: true},
+			VersionNumber:   maxVersion + 1,
+			IsValid:         false,
+			IsActive:        false,
+			TrafficWeight:   100,
+			IsControlGroup:  false,
+		})
+		if createErr != nil {
+			return fmt.Errorf("create workflow version: %w", createErr)
+		}
+
+		_, createErr = q.CreateWorkflowStep(ctx, db.CreateWorkflowStepParams{
+			WorkflowVersionID: version.ID,
+			StepType:          string(dagpkg.StepTypeControl),
+			ControlKind:       pgtype.Text{String: dagpkg.ControlKindStart, Valid: true},
+			ControlSettings:   []byte(`{"trigger":"system_message"}`),
+			CanvasPosition:    []byte(`{"x":80,"y":200}`),
+		})
+		if createErr != nil {
+			return fmt.Errorf("create start step: %w", createErr)
+		}
+
+		return nil
 	})
+	if err != nil {
+		return db.WorkflowVersion{}, err
+	}
+	return version, nil
 }
 
 // ListVersions возвращает все версии workflow.
@@ -95,6 +121,10 @@ func (s *Service) ListVersions(ctx context.Context, workflowID int32) ([]db.Work
 // Если step_type=task и work_type_id указан, но worker_settings_revision_id нет —
 // автоматически находит последнюю ревизию для данного work_type.
 func (s *Service) CreateStep(ctx context.Context, versionID int32, req CreateStepRequest) (db.WorkflowStep, error) {
+	if isStartStepRequest(req.StepType, req.ControlKind) {
+		return db.WorkflowStep{}, ErrStartStepProtected
+	}
+
 	params := db.CreateWorkflowStepParams{
 		WorkflowVersionID: versionID,
 		StepType:          req.StepType,
@@ -150,6 +180,17 @@ func (s *Service) ListSteps(ctx context.Context, versionID int32) ([]db.Workflow
 
 // UpdateStep обновляет шаг (включая input_mapping — WF-05).
 func (s *Service) UpdateStep(ctx context.Context, stepID int32, req UpdateStepRequest) (db.WorkflowStep, error) {
+	current, err := s.store.GetWorkflowStepByID(ctx, stepID)
+	if err != nil {
+		return db.WorkflowStep{}, fmt.Errorf("get step: %w", err)
+	}
+	if isStartWorkflowStep(current) {
+		return db.WorkflowStep{}, ErrStartStepProtected
+	}
+	if isStartStepRequest(req.StepType, req.ControlKind) {
+		return db.WorkflowStep{}, ErrStartStepProtected
+	}
+
 	params := db.UpdateWorkflowStepParams{
 		ID:              stepID,
 		StepType:        req.StepType,
@@ -171,6 +212,14 @@ func (s *Service) UpdateStep(ctx context.Context, stepID int32, req UpdateStepRe
 
 // DeleteStep мягко удаляет шаг и каскадно удаляет его зависимости.
 func (s *Service) DeleteStep(ctx context.Context, stepID int32) error {
+	current, err := s.store.GetWorkflowStepByID(ctx, stepID)
+	if err != nil {
+		return fmt.Errorf("get step: %w", err)
+	}
+	if isStartWorkflowStep(current) {
+		return ErrStartStepProtected
+	}
+
 	// Удаляем зависимости шага перед его удалением
 	if err := s.store.DeleteDependenciesByStepID(ctx, stepID); err != nil {
 		return fmt.Errorf("delete step dependencies: %w", err)
@@ -255,6 +304,18 @@ func toRawMessage(b []byte) json.RawMessage {
 	return json.RawMessage(b)
 }
 
+func isStartWorkflowStep(step db.WorkflowStep) bool {
+	return step.StepType == string(dagpkg.StepTypeControl) &&
+		step.ControlKind.Valid &&
+		step.ControlKind.String == dagpkg.ControlKindStart
+}
+
+func isStartStepRequest(stepType string, controlKind *string) bool {
+	return stepType == string(dagpkg.StepTypeControl) &&
+		controlKind != nil &&
+		*controlKind == dagpkg.ControlKindStart
+}
+
 // DeleteDependency удаляет зависимость между шагами.
 func (s *Service) DeleteDependency(ctx context.Context, stepID, dependsOnStepID int32) error {
 	return s.store.DeleteWorkflowStepDependency(ctx, db.DeleteWorkflowStepDependencyParams{
@@ -286,6 +347,9 @@ func (s *Service) ValidateVersion(ctx context.Context, versionID int32) (Validat
 		dagStep := dagpkg.Step{
 			ID:       step.ID,
 			StepType: dagpkg.StepType(step.StepType),
+		}
+		if step.ControlKind.Valid {
+			dagStep.ControlKind = step.ControlKind.String
 		}
 		// Парсим input_mapping из JSONB
 		if len(step.InputMapping) > 0 {
@@ -370,6 +434,31 @@ func (s *Service) DeactivateVersion(ctx context.Context, versionID int32) error 
 
 	// WF-09: пересчитываем input_validation
 	return s.regenerateInputValidation(ctx, version.WorkflowID)
+}
+
+// DeleteVersion soft-deletes a workflow version and its steps.
+func (s *Service) DeleteVersion(ctx context.Context, versionID int32) error {
+	version, err := s.store.GetWorkflowVersionByID(ctx, versionID)
+	if err != nil {
+		return fmt.Errorf("get version: %w", err)
+	}
+
+	if err := s.store.WithTx(ctx, func(q *db.Queries) error {
+		if err := q.DeleteWorkflowStepsByVersionID(ctx, versionID); err != nil {
+			return fmt.Errorf("delete version steps: %w", err)
+		}
+		if err := q.SoftDeleteWorkflowVersion(ctx, versionID); err != nil {
+			return fmt.Errorf("delete version: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	if version.IsActive {
+		return s.regenerateInputValidation(ctx, version.WorkflowID)
+	}
+	return nil
 }
 
 // regenerateInputValidation пересчитывает input_validation workflow (WF-09).

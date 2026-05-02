@@ -72,8 +72,8 @@ async function loadData() {
     user.value = usersResp.data.find(u => u.id === userId.value) ?? null
     allRoles.value = rolesResp
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
   finally {
     loading.value = false
@@ -90,8 +90,8 @@ async function onSave(values: Record<string, unknown>) {
     })
     toast({ title: t('users.updated') })
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
   finally {
     saving.value = false
@@ -107,8 +107,8 @@ async function onAssignRole() {
     toast({ title: t('users.roleAssigned') })
     await loadData()
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
   finally {
     assigningRole.value = false
@@ -121,8 +121,8 @@ async function onRemoveRole(roleId: number) {
     toast({ title: t('users.roleRemoved') })
     await loadData()
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
 }
 

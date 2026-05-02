@@ -8,6 +8,8 @@ import (
 
 // Storage — интерфейс хранилища для workflow домена.
 type Storage interface {
+	WithTx(ctx context.Context, fn func(q *db.Queries) error) error
+
 	// Workflow
 	CreateWorkflow(ctx context.Context, arg db.CreateWorkflowParams) (db.Workflow, error)
 	GetWorkflowByID(ctx context.Context, id int32) (db.Workflow, error)
@@ -24,12 +26,14 @@ type Storage interface {
 	ListActiveWorkflowVersions(ctx context.Context, workflowID int32) ([]db.WorkflowVersion, error)
 	UpdateWorkflowVersionValid(ctx context.Context, arg db.UpdateWorkflowVersionValidParams) (db.WorkflowVersion, error)
 	UpdateWorkflowVersionActive(ctx context.Context, arg db.UpdateWorkflowVersionActiveParams) (db.WorkflowVersion, error)
+	SoftDeleteWorkflowVersion(ctx context.Context, id int32) error
 
 	// WorkflowStep
 	CreateWorkflowStep(ctx context.Context, arg db.CreateWorkflowStepParams) (db.WorkflowStep, error)
 	GetWorkflowStepByID(ctx context.Context, id int32) (db.WorkflowStep, error)
 	ListWorkflowStepsByVersionID(ctx context.Context, workflowVersionID int32) ([]db.WorkflowStep, error)
 	UpdateWorkflowStep(ctx context.Context, arg db.UpdateWorkflowStepParams) (db.WorkflowStep, error)
+	DeleteWorkflowStepsByVersionID(ctx context.Context, workflowVersionID int32) error
 	SoftDeleteWorkflowStep(ctx context.Context, id int32) error
 
 	// Worker settings (for auto-resolving revision in CreateStep)

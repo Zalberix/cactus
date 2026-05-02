@@ -62,8 +62,8 @@ async function loadRole() {
       }
     }
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
   finally {
     loading.value = false
@@ -80,8 +80,8 @@ async function onSave(values: Record<string, unknown>) {
     })
     toast({ title: t('roles.updated') })
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
   finally {
     saving.value = false

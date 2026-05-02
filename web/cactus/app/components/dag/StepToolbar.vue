@@ -15,7 +15,13 @@ import {
 } from '~/components/ui/collapsible'
 
 const emit = defineEmits<{
-  addStep: [stepType: string, workTypeId: number | undefined, position: { x: number; y: number }]
+  addStep: [
+    stepType: string,
+    workTypeId: number | undefined,
+    workTypeCode: string | undefined,
+    position: { x: number; y: number },
+    name: string | undefined,
+  ]
 }>()
 
 const { t } = useI18n()
@@ -92,7 +98,7 @@ function onDragStart(event: DragEvent, item: ToolbarItem) {
 }
 
 function onDoubleClick(item: ToolbarItem) {
-  emit('addStep', item.stepType, item.workTypeId, { x: 300, y: 200 })
+  emit('addStep', item.stepType, item.workTypeId, item.workTypeCode, { x: 300, y: 200 }, item.name)
 }
 
 onMounted(async () => {

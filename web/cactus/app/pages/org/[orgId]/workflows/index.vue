@@ -192,8 +192,8 @@ async function loadData() {
     workflows.value = wfs
     systems.value = sys
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
   finally {
     loading.value = false
@@ -219,8 +219,8 @@ async function onDelete() {
     toast({ title: t('workflows.deleted') })
     await loadData()
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
   finally {
     submitting.value = false
@@ -241,8 +241,8 @@ async function onCreate(values: Record<string, unknown>) {
     toast({ title: t('workflows.created') })
     router.push(`/org/${orgId.value}/workflows/${wf.id}/edit`)
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
   finally {
     submitting.value = false

@@ -46,8 +46,8 @@ async function loadData() {
     const systems = await fetchSystems(orgId.value)
     system.value = systems.find(s => s.id === systemId.value) ?? null
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
   finally {
     loading.value = false
@@ -60,8 +60,8 @@ async function onSave(values: Record<string, unknown>) {
     await updateSystem(systemId.value, values.name as string, values.description as string)
     toast({ title: t('systems.updated') })
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
   finally {
     saving.value = false

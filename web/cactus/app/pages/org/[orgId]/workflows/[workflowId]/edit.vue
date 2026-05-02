@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import '@vue-flow/core/dist/style.css'
-import { Save, Play, Pause, AlertCircle, X } from 'lucide-vue-next'
+import { Save, Play, Pause, AlertCircle, X, Trash2 } from 'lucide-vue-next'
 import type { Connection } from '@vue-flow/core'
 import type { Version, WorkType } from '~/composables/useVersions'
 import type { StepData } from '~/composables/useDagEditor'
@@ -34,6 +34,7 @@ const {
   createVersion,
   activateVersion,
   deactivateVersion,
+  deleteVersion,
   fetchWorkTypes,
 } = useVersions()
 
@@ -45,12 +46,21 @@ const workTypes = ref<WorkType[]>([])
 const pageLoading = ref(true)
 const saving = ref(false)
 const deactivateOpen = ref(false)
+const deleteVersionOpen = ref(false)
+const deletingVersion = ref(false)
 
 // DAG editor composable
 const dagEditor = useDagEditor(workflowId, selectedVersionId)
 
 // Node editor composable
 const nodeEditor = useNodeEditor()
+
+const canvasEdges = computed(() =>
+  dagEditor.edges.value.map(edge => ({
+    ...edge,
+    selected: edge.id === dagEditor.selectedEdgeId.value,
+  })),
+)
 
 const currentVersion = computed(() =>
   versions.value.find(v => v.id === selectedVersionId.value),
@@ -79,8 +89,8 @@ async function loadAll() {
       selectedVersionId.value = (active ?? latest).id
     }
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
   finally {
     pageLoading.value = false
@@ -93,8 +103,8 @@ watch(selectedVersionId, async (vid) => {
     try {
       await dagEditor.loadSteps(vid)
     }
-    catch {
-      toast({ title: t('error.server'), variant: 'destructive' })
+    catch (err) {
+      toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
     }
   }
 })
@@ -111,8 +121,8 @@ async function onSave() {
       toast({ title: t('error.dagValidation'), variant: 'destructive' })
     }
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
   finally {
     saving.value = false
@@ -126,8 +136,8 @@ async function onActivate() {
     toast({ title: t('editor.activateVersion') })
     versions.value = await fetchVersions(workflowId.value)
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
 }
 
@@ -139,8 +149,8 @@ async function onDeactivate() {
     toast({ title: t('editor.deactivateVersion') })
     versions.value = await fetchVersions(workflowId.value)
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
 }
 
@@ -151,8 +161,43 @@ async function onCreateVersion() {
     selectedVersionId.value = ver.id
     toast({ title: t('editor.createVersion') })
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
+  }
+}
+
+async function onDeleteVersion() {
+  const versionId = selectedVersionId.value
+  if (!versionId) return
+
+  deletingVersion.value = true
+  try {
+    await deleteVersion(versionId)
+    deleteVersionOpen.value = false
+
+    const nextVersions = await fetchVersions(workflowId.value)
+    versions.value = nextVersions
+
+    if (nextVersions.length > 0) {
+      const active = nextVersions.find(v => v.is_active)
+      const latest = nextVersions[nextVersions.length - 1]
+      selectedVersionId.value = (active ?? latest).id
+    }
+    else {
+      selectedVersionId.value = null
+      dagEditor.nodes.value = []
+      dagEditor.edges.value = []
+      dagEditor.selectNode(null)
+      dagEditor.selectEdge(null)
+    }
+
+    toast({ title: t('editor.deleteVersion') })
+  }
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
+  }
+  finally {
+    deletingVersion.value = false
   }
 }
 
@@ -178,11 +223,13 @@ function onNodeClick(nodeId: string) {
 }
 
 function onNodeDoubleClick(nodeId: string) {
+  const node = dagEditor.nodes.value.find(n => n.id === nodeId)
+  if (node?.data.controlKind === 'start') return
   nodeEditor.open(nodeId)
 }
 
-function onEdgeClick(_edgeId: string) {
-  // Select edge for potential deletion
+function onEdgeClick(edgeId: string) {
+  dagEditor.selectEdge(edgeId)
 }
 
 function onRemoveEdge(edgeId: string) {
@@ -202,12 +249,19 @@ function onDrop(
 function onToolbarAddStep(
   stepType: string,
   workTypeId: number | undefined,
+  workTypeCode: string | undefined,
   position: { x: number; y: number },
+  name: string | undefined,
 ) {
-  dagEditor.addStep(stepType, workTypeId, undefined, position)
+  dagEditor.addStep(stepType, workTypeId, workTypeCode, position, name)
 }
 
 function onDeleteSelected() {
+  if (dagEditor.selectedEdgeId.value) {
+    dagEditor.removeEdge(dagEditor.selectedEdgeId.value)
+    return
+  }
+
   if (dagEditor.selectedNodeId.value) {
     dagEditor.removeStep(dagEditor.selectedNodeId.value)
   }
@@ -226,6 +280,8 @@ function onPanelDeleteStep(stepId: string) {
 }
 
 function onPanelOpenEditor(nodeId: string) {
+  const node = dagEditor.nodes.value.find(n => n.id === nodeId)
+  if (node?.data.controlKind === 'start') return
   nodeEditor.open(nodeId)
 }
 
@@ -265,6 +321,17 @@ onMounted(() => {
         @click="onCreateVersion"
       >
         {{ t('editor.createVersion') }}
+      </Button>
+
+      <Button
+        variant="outline"
+        size="icon"
+        class="h-8 w-8 text-destructive hover:text-destructive"
+        :disabled="!selectedVersionId || deletingVersion"
+        :title="t('editor.deleteVersion')"
+        @click="deleteVersionOpen = true"
+      >
+        <Trash2 class="h-4 w-4" />
       </Button>
 
       <div class="flex-1" />
@@ -343,7 +410,7 @@ onMounted(() => {
         <DagCanvas
           mode="edit"
           :nodes="dagEditor.nodes.value"
-          :edges="dagEditor.edges.value"
+          :edges="canvasEdges"
           @connect="onConnect"
           @node-drag-stop="onNodeDragStop"
           @node-click="onNodeClick"
@@ -410,6 +477,30 @@ onMounted(() => {
             @click="onDeactivate"
           >
             {{ t('destructive.deactivateVersion.confirm') }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <!-- Delete Version Confirmation Dialog -->
+    <Dialog v-model:open="deleteVersionOpen">
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{{ t('destructive.deleteVersion.title') }}</DialogTitle>
+          <DialogDescription>
+            {{ t('destructive.deleteVersion.body', { number: currentVersion?.version_number ?? '' }) }}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button type="button" variant="outline" @click="deleteVersionOpen = false">
+            {{ t('destructive.cancel') }}
+          </Button>
+          <Button
+            variant="destructive"
+            :disabled="deletingVersion"
+            @click="onDeleteVersion"
+          >
+            {{ t('destructive.deleteVersion.confirm') }}
           </Button>
         </DialogFooter>
       </DialogContent>

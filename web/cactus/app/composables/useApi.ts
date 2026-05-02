@@ -41,7 +41,7 @@ export function useApi() {
 
       if (response.status === 403) {
         toast({
-          title: t('error.forbidden'),
+          title: getErrorMessage(response._data, t('error.forbidden')),
           variant: 'destructive',
         })
         return
@@ -49,7 +49,7 @@ export function useApi() {
 
       if (response.status >= 500) {
         toast({
-          title: t('error.server'),
+          title: getErrorMessage(response._data, t('error.server')),
           variant: 'destructive',
         })
       }

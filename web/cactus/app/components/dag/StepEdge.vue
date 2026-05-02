@@ -11,6 +11,8 @@ const isHovered = ref(false)
 const outcome = computed(() => props.sourceHandleId ?? 'success')
 
 const edgeColor = computed(() => {
+  if (props.selected) return '#2563eb'
+
   const colors: Record<string, string> = {
     success: '#94a3b8',
     true: '#22c55e',
@@ -42,7 +44,8 @@ const labelY = computed(() => pathParams.value[2])
   <BaseEdge
     :id="id"
     :path="edgePath"
-    :style="{ stroke: edgeColor, strokeWidth: 2 }"
+    :interaction-width="24"
+    :style="{ stroke: edgeColor, strokeWidth: props.selected ? 3 : 2 }"
     @mouseenter="isHovered = true"
     @mouseleave="isHovered = false"
   />
@@ -57,7 +60,10 @@ const labelY = computed(() => pathParams.value[2])
       @mouseleave="isHovered = false"
     >
       <button
-        v-if="isHovered"
+        v-if="isHovered || selected"
+        type="button"
+        aria-label="Remove connection"
+        title="Remove connection"
         class="flex h-5 w-5 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-sm hover:bg-destructive hover:text-destructive-foreground hover:border-destructive transition-colors"
         @click.stop="emit('remove')"
       >

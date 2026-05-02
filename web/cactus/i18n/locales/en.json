@@ -37,6 +37,7 @@
     "activateVersion": "Activate Version",
     "deactivateVersion": "Deactivate Version",
     "createVersion": "Create Version",
+    "deleteVersion": "Delete Version",
     "versions": "Versions",
     "steps": "Steps",
     "activeVersion": "Active",
@@ -318,6 +319,11 @@
       "title": "Deactivate Version",
       "body": "Deactivate version {number}? New messages will not use this version.",
       "confirm": "Deactivate"
+    },
+    "deleteVersion": {
+      "title": "Delete Version",
+      "body": "Delete version {number}? All steps and connections in this version will be removed.",
+      "confirm": "Delete Version"
     },
     "cancel": "Cancel"
   },

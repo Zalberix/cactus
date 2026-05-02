@@ -64,6 +64,9 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc) {
 	// PATCH /api/v1/versions/:versionId/deactivate
 	v1.PATCH("/versions/:versionId/deactivate",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.DeactivateVersion)
+	// DELETE /api/v1/versions/:versionId
+	v1.DELETE("/versions/:versionId",
+		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.DeleteVersion)
 
 	// --- Steps ---
 	// GET /api/v1/versions/:versionId/steps
@@ -286,6 +289,20 @@ func (h *Handler) DeactivateVersion(c *gin.Context) {
 	response.OK(c, gin.H{"message": "Версия деактивирована"})
 }
 
+// DeleteVersion godoc
+// DELETE /api/v1/versions/:versionId
+func (h *Handler) DeleteVersion(c *gin.Context) {
+	versionID, ok := parseID(c, "versionId")
+	if !ok {
+		return
+	}
+	if err := h.service.DeleteVersion(c.Request.Context(), versionID); err != nil {
+		response.InternalError(c, "Ошибка удаления версии")
+		return
+	}
+	response.OK(c, gin.H{"message": "Версия удалена"})
+}
+
 // --- Step handlers ---
 
 // ListSteps godoc
@@ -345,6 +362,10 @@ func (h *Handler) CreateStep(c *gin.Context) {
 	}
 	step, err := h.service.CreateStep(c.Request.Context(), versionID, req)
 	if err != nil {
+		if errors.Is(err, ErrStartStepProtected) {
+			response.Fail(c, http.StatusUnprocessableEntity, "START_STEP_PROTECTED", "Стартовый блок управляется системой")
+			return
+		}
 		fmt.Printf("[CreateStep ERROR] versionID=%d stepType=%s workTypeID=%v controlKind=%v err=%v\n",
 			versionID, req.StepType, req.WorkTypeID, req.ControlKind, err)
 		response.InternalError(c, "Ошибка создания шага: "+err.Error())
@@ -367,6 +388,10 @@ func (h *Handler) UpdateStep(c *gin.Context) {
 	}
 	step, err := h.service.UpdateStep(c.Request.Context(), stepID, req)
 	if err != nil {
+		if errors.Is(err, ErrStartStepProtected) {
+			response.Fail(c, http.StatusUnprocessableEntity, "START_STEP_PROTECTED", "Стартовый блок управляется системой")
+			return
+		}
 		response.InternalError(c, "Ошибка обновления шага")
 		return
 	}
@@ -381,6 +406,10 @@ func (h *Handler) DeleteStep(c *gin.Context) {
 		return
 	}
 	if err := h.service.DeleteStep(c.Request.Context(), stepID); err != nil {
+		if errors.Is(err, ErrStartStepProtected) {
+			response.Fail(c, http.StatusUnprocessableEntity, "START_STEP_PROTECTED", "Стартовый блок управляется системой")
+			return
+		}
 		response.InternalError(c, "Ошибка удаления шага")
 		return
 	}

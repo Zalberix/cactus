@@ -2,7 +2,7 @@
 import { Handle, Position, useNode } from '@vue-flow/core'
 import {
   Mail, MessageSquare, Bell, Workflow, GitBranch,
-  Clock, Split, Zap,
+  Clock, Split, Zap, Radio,
 } from 'lucide-vue-next'
 import type { Component } from 'vue'
 
@@ -38,15 +38,23 @@ const controlHandles: Record<string, Array<{ id: string; label: string; color: s
 const icon = computed(() => {
   const metaIcon = node.data.workTypeMeta?.icon
   if (metaIcon && iconMap[metaIcon]) return iconMap[metaIcon]
+  if (isStart.value) return Radio
   if (node.data.stepType === 'control') return GitBranch
   return Workflow
 })
 
-const accentColor = computed(() => node.data.workTypeMeta?.color ?? '#607d8b')
+const accentColor = computed(() => {
+  if (isStart.value) return '#0f766e'
+  return node.data.workTypeMeta?.color ?? '#607d8b'
+})
 
 const isControl = computed(() => node.data.stepType === 'control')
+const isStart = computed(() => node.data.controlKind === 'start')
 
 const outputHandles = computed(() => {
+  if (isStart.value) {
+    return [{ id: 'success', label: '', color: '#22c55e' }]
+  }
   if (isControl.value && node.data.controlKind) {
     return controlHandles[node.data.controlKind] ?? [{ id: 'success', label: '', color: '#22c55e' }]
   }
@@ -65,7 +73,10 @@ const statusIndicator = computed(() => {
 })
 
 const label = computed(() => node.data.label ?? 'Step')
-const subtitle = computed(() => node.data.workTypeCode ?? node.data.controlKind ?? '')
+const subtitle = computed(() => {
+  if (isStart.value) return 'system_message'
+  return node.data.workTypeCode ?? node.data.controlKind ?? ''
+})
 </script>
 
 <template>
@@ -82,6 +93,7 @@ const subtitle = computed(() => node.data.workTypeCode ?? node.data.controlKind 
 
     <!-- Input handle (left side) -->
     <Handle
+      v-if="!isStart"
       type="target"
       :position="Position.Left"
       class="!w-3 !h-3 !border-2 !border-background !bg-gray-400 !-left-1.5"

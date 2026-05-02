@@ -60,11 +60,15 @@ const nodeIcon = computed(() => {
   if (!stepData.value) return Workflow
   const metaIcon = stepData.value.workTypeMeta?.icon
   if (metaIcon && iconMap[metaIcon]) return iconMap[metaIcon]
+  if (stepData.value.controlKind === 'start') return Zap
   if (stepData.value.stepType === 'control') return GitBranch
   return Workflow
 })
 
-const accentColor = computed(() => stepData.value?.workTypeMeta?.color ?? '#607d8b')
+const accentColor = computed(() => {
+  if (stepData.value?.controlKind === 'start') return '#0f766e'
+  return stepData.value?.workTypeMeta?.color ?? '#607d8b'
+})
 
 function onSave(config: Record<string, unknown>, inputMapping: Record<string, string>) {
   if (!props.nodeId) return
@@ -95,7 +99,7 @@ function onInsertExpression(expression: string) {
           </div>
           <div class="flex items-center gap-1.5">
             <Badge variant="secondary" class="h-5 px-1.5 text-[10px]">
-              {{ stepData?.stepType === 'control' ? 'Control' : 'Task' }}
+              {{ stepData?.controlKind === 'start' ? 'Start' : stepData?.stepType === 'control' ? 'Control' : 'Task' }}
             </Badge>
             <Badge
               v-if="stepData?.workTypeCode"

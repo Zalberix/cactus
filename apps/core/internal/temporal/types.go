@@ -15,6 +15,7 @@ type DAGInput struct {
 type StepDef struct {
 	ID                       int32          `json:"id"`        // workflow_step.id
 	StepType                 string         `json:"step_type"` // "task" или "control"
+	ControlKind              string         `json:"control_kind,omitempty"`
 	WorkTypeID               int32          `json:"work_type_id,omitempty"`
 	WorkerSettingsRevisionID int32          `json:"worker_settings_revision_id,omitempty"`
 	InputMapping             []MappingEntry `json:"input_mapping,omitempty"`

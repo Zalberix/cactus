@@ -278,6 +278,30 @@ func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordS
 				break
 			}
 		}
+	case temporaltypes.StepStatusCompleted:
+		steps, err := a.store.ListWorkflowRunStepsByRunID(ctx, input.WorkflowRunID)
+		if err != nil {
+			return fmt.Errorf("list run steps for complete: %w", err)
+		}
+		now := pgtype.Timestamp{Time: time.Now(), Valid: true}
+		for _, s := range steps {
+			if s.WorkflowStepID == input.StepID {
+				_, _ = a.store.UpdateWorkflowRunStepStatus(ctx, db.UpdateWorkflowRunStepStatusParams{
+					ID:          s.ID,
+					Status:      temporaltypes.StepStatusCompleted,
+					Outcome:     pgtype.Text{String: input.Outcome, Valid: input.Outcome != ""},
+					CompletedAt: now,
+				})
+
+				a.publishWorkflowEvent(ctx, input.MessageID, temporaltypes.WorkflowEvent{
+					Type:     "step_update",
+					StepID:   input.StepID,
+					Status:   temporaltypes.StepStatusCompleted,
+					StepType: "control",
+				})
+				break
+			}
+		}
 	}
 	return nil
 }

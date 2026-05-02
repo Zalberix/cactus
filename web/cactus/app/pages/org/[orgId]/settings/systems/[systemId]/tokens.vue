@@ -110,8 +110,8 @@ async function loadData() {
     systemName.value = system?.name ?? ''
     tokens.value = await fetchTokens(systemId.value)
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
   finally {
     loading.value = false
@@ -133,8 +133,8 @@ async function onCreateToken() {
     showOnce.value = true
     fetchTokens(systemId.value).then(data => tokens.value = data).catch(() => {})
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
   finally {
     submitting.value = false
@@ -184,8 +184,8 @@ async function onExecuteAction() {
     tokenToAction.value = null
     tokens.value = await fetchTokens(systemId.value)
   }
-  catch {
-    toast({ title: t('error.server'), variant: 'destructive' })
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
   finally {
     submitting.value = false

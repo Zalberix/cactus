@@ -153,6 +153,9 @@ func (s *Service) buildDAGInput(ctx context.Context, versionID, messageID int32,
 			ID:       step.ID,
 			StepType: step.StepType,
 		}
+		if step.ControlKind.Valid {
+			sd.ControlKind = step.ControlKind.String
+		}
 		if step.WorkTypeID.Valid {
 			sd.WorkTypeID = step.WorkTypeID.Int32
 		}

@@ -14,10 +14,13 @@ const (
 	StepTypeControl StepType = "control"
 )
 
+const ControlKindStart = "start"
+
 // Step — шаг workflow для валидации DAG.
 type Step struct {
 	ID           int32
 	StepType     StepType
+	ControlKind  string
 	InputMapping []MappingEntry
 }
 
@@ -36,7 +39,7 @@ type Dependency struct {
 
 // ValidationError — ошибка валидации DAG.
 type ValidationError struct {
-	Type    string `json:"type"`              // "cycle", "invalid_outcome", "invalid_mapping"
+	Type    string `json:"type"` // "cycle", "invalid_outcome", "invalid_mapping"
 	StepID  int32  `json:"step_id,omitempty"`
 	Message string `json:"message"`
 }
@@ -70,6 +73,70 @@ func ValidateDAG(steps []Step, deps []Dependency) []ValidationError {
 	for _, d := range deps {
 		inDegree[d.StepID]++
 		adj[d.DependsOnStepID] = append(adj[d.DependsOnStepID], d.StepID)
+	}
+
+	startIDs := make([]int32, 0, 1)
+	for _, s := range steps {
+		if isStartStep(s) {
+			startIDs = append(startIDs, s.ID)
+		}
+	}
+	if len(startIDs) == 0 {
+		errors = append(errors, ValidationError{
+			Type:    "missing_start",
+			Message: "DAG должен содержать один стартовый системный блок",
+		})
+	}
+	if len(startIDs) > 1 {
+		for _, id := range startIDs {
+			errors = append(errors, ValidationError{
+				Type:    "multiple_start",
+				StepID:  id,
+				Message: "DAG может содержать только один стартовый системный блок",
+			})
+		}
+	}
+	if len(startIDs) == 1 {
+		startID := startIDs[0]
+		if inDegree[startID] > 0 {
+			errors = append(errors, ValidationError{
+				Type:    "start_has_input",
+				StepID:  startID,
+				Message: fmt.Sprintf("Стартовый блок %d не может иметь входящие связи", startID),
+			})
+		}
+		for _, s := range steps {
+			if s.ID != startID && inDegree[s.ID] == 0 {
+				errors = append(errors, ValidationError{
+					Type:    "unreachable_from_start",
+					StepID:  s.ID,
+					Message: fmt.Sprintf("Шаг %d должен быть достижим от стартового блока", s.ID),
+				})
+			}
+		}
+
+		visited := map[int32]struct{}{startID: {}}
+		queueFromStart := []int32{startID}
+		for len(queueFromStart) > 0 {
+			node := queueFromStart[0]
+			queueFromStart = queueFromStart[1:]
+			for _, child := range adj[node] {
+				if _, ok := visited[child]; ok {
+					continue
+				}
+				visited[child] = struct{}{}
+				queueFromStart = append(queueFromStart, child)
+			}
+		}
+		for _, s := range steps {
+			if _, ok := visited[s.ID]; !ok {
+				errors = append(errors, ValidationError{
+					Type:    "unreachable_from_start",
+					StepID:  s.ID,
+					Message: fmt.Sprintf("Шаг %d должен быть достижим от стартового блока", s.ID),
+				})
+			}
+		}
 	}
 
 	// Алгоритм Кана: обнаружение циклов
@@ -120,6 +187,13 @@ func ValidateDAG(steps []Step, deps []Dependency) []ValidationError {
 				Message: fmt.Sprintf("Шаг %d: task-шаг (id=%d) поддерживает только исход 'success', получено '%s'", d.StepID, d.DependsOnStepID, d.Outcome),
 			})
 		}
+		if isStartStep(dependsOnStep) && d.Outcome != "success" {
+			errors = append(errors, ValidationError{
+				Type:    "invalid_outcome",
+				StepID:  d.StepID,
+				Message: fmt.Sprintf("Шаг %d: start-шаг (id=%d) поддерживает только исход 'success', получено '%s'", d.StepID, d.DependsOnStepID, d.Outcome),
+			})
+		}
 		// Control-шаги могут иметь любой непустой исход
 		if dependsOnStep.StepType == StepTypeControl && d.Outcome == "" {
 			errors = append(errors, ValidationError{
@@ -150,6 +224,10 @@ func ValidateDAG(steps []Step, deps []Dependency) []ValidationError {
 	}
 
 	return errors
+}
+
+func isStartStep(step Step) bool {
+	return step.StepType == StepTypeControl && step.ControlKind == ControlKindStart
 }
 
 // validateMappingSource проверяет источник маппинга.
