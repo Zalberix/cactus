@@ -15,6 +15,21 @@ env:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - apps/core
+          - apps/workers/smtp
+          - apps/workers/telegram
+          - cli
+          - libs/bus
+          - libs/config
+          - libs/logger
+          - libs/migrations
+          - libs/permissions
+          - libs/pipeline
+          - libs/worker
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -28,9 +43,25 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.62.2
+          working-directory: ${{ matrix.module }}
           args: '--timeout 3m'
   tests:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - apps/core
+          - apps/workers/smtp
+          - apps/workers/telegram
+          - cli
+          - libs/bus
+          - libs/config
+          - libs/logger
+          - libs/migrations
+          - libs/permissions
+          - libs/pipeline
+          - libs/worker
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -41,4 +72,5 @@ jobs:
           go-version: '1.25'
 
       - name: Unit tests
-        run: go test -v -race -count=100 -timeout=1m ./...    
+        working-directory: ${{ matrix.module }}
+        run: go test -v -race -count=100 -timeout=1m ./...
