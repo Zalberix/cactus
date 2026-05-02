@@ -55,6 +55,7 @@ const users = ref<User[]>([])
 const loading = ref(true)
 const page = ref(1)
 const pageCount = ref(1)
+const pageSize = ref(20)
 const search = ref('')
 const roles = ref<Role[]>([])
 
@@ -136,7 +137,7 @@ const columns: ColumnDef<User>[] = [
 async function loadUsers() {
   loading.value = true
   try {
-    const result = await fetchUsers(orgId.value, page.value)
+    const result = await fetchUsers(orgId.value, page.value, pageSize.value)
     users.value = result.data
     pageCount.value = result.meta.total_pages
   }
@@ -220,7 +221,7 @@ onMounted(() => {
   loadRoles()
 })
 
-watch(page, () => loadUsers())
+watch([page, pageSize], () => loadUsers())
 </script>
 
 <template>
@@ -244,6 +245,8 @@ watch(page, () => loadUsers())
       :columns="columns"
       :data="users"
       :loading="loading"
+      v-model:page="page"
+      v-model:page-size="pageSize"
       :page-count="pageCount"
     >
       <template #empty>

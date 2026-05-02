@@ -153,15 +153,14 @@ async function onDelete() {
 async function onCreate(values: Record<string, unknown>) {
   submitting.value = true
   try {
-    const role = await createRole(orgId.value, {
+    await createRole(orgId.value, {
       name: values.name as string,
       description: (values.description as string) || undefined,
       permissions: [],
     })
     createOpen.value = false
     toast({ title: t('roles.created') })
-    // Navigate to role detail to set permissions
-    router.push(`/org/${orgId.value}/settings/roles/${role.id}`)
+    await loadRoles()
   }
   catch {
     toast({ title: t('error.server'), variant: 'destructive' })

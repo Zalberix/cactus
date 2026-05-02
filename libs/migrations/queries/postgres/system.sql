@@ -30,6 +30,20 @@ FROM "system" s
 WHERE s.organization_id = $1 AND s.deleted_at IS NULL
 ORDER BY s.id;
 
+-- name: ListSystemsByOrganizationIDPaginated :many
+SELECT s.*,
+  (SELECT COUNT(*) FROM system_token st
+   WHERE st.system_id = s.id AND st.is_active = TRUE AND st.deleted_at IS NULL
+  )::int AS active_tokens_count
+FROM "system" s
+WHERE s.organization_id = $1 AND s.deleted_at IS NULL
+ORDER BY s.id
+LIMIT $2 OFFSET $3;
+
+-- name: CountSystemsByOrganizationID :one
+SELECT COUNT(*)::bigint FROM "system" s
+WHERE s.organization_id = $1 AND s.deleted_at IS NULL;
+
 -- name: UpdateSystem :one
 UPDATE "system"
 SET "name" = $2, description = $3, is_active = $4, updated_at = CURRENT_TIMESTAMP

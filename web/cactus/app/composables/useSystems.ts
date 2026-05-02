@@ -1,4 +1,4 @@
-import type { ApiResponse } from '~/utils/api-types'
+import type { ApiResponse, PaginationMeta } from '~/utils/api-types'
 
 export interface System {
   id: number
@@ -34,6 +34,22 @@ export function useSystems() {
       throw new Error(resp.error?.message ?? 'Failed to fetch systems')
     }
     return resp.data
+  }
+
+  async function fetchSystemsPage(orgId: number, page: number, perPage = 20) {
+    const resp = await api<ApiResponse<System[]>>(
+      `/organizations/${orgId}/systems`,
+      {
+        params: { page, per_page: perPage },
+      },
+    )
+    if (!resp.success || !resp.data) {
+      throw new Error(resp.error?.message ?? 'Failed to fetch systems')
+    }
+    return {
+      data: resp.data,
+      meta: resp.meta ?? { total: 0, page, per_page: perPage, total_pages: 0 },
+    } satisfies { data: System[]; meta: PaginationMeta }
   }
 
   async function createSystem(orgId: number, name: string, description?: string) {
@@ -114,6 +130,7 @@ export function useSystems() {
 
   return {
     fetchSystems,
+    fetchSystemsPage,
     createSystem,
     updateSystem,
     deleteSystem,

@@ -28,9 +28,7 @@ LIMIT $2 OFFSET $3;
 
 -- name: CountUsersByOrgID :one
 SELECT COUNT(DISTINCT u.id)::bigint FROM "user" u
-JOIN "role_user" ru ON ru.user_id = u.id
-JOIN "role" r ON r.id = ru.role_id
-WHERE r.organization_id = $1 AND u.deleted_at IS NULL;
+WHERE u.organization_id = $1 AND u.deleted_at IS NULL;
 
 -- name: UpdateUser :one
 UPDATE "user"

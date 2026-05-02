@@ -14,9 +14,16 @@ const props = defineProps<{
   pageSizes?: number[]
 }>()
 
-const sizes = computed(() => props.pageSizes ?? [10, 20, 50, 100])
+const sizes = computed(() => props.pageSizes ?? [1, 10, 20, 50, 100])
 
 const { t } = useI18n()
+
+function updatePageSize(value: unknown) {
+  const nextSize = Number(value)
+  if (!Number.isFinite(nextSize)) return
+
+  props.table.setPageSize(nextSize)
+}
 </script>
 
 <template>
@@ -27,7 +34,7 @@ const { t } = useI18n()
       </p>
       <Select
         :model-value="String(table.getState().pagination.pageSize)"
-        @update:model-value="(val: string) => table.setPageSize(Number(val))"
+        @update:model-value="updatePageSize"
       >
         <SelectTrigger class="h-8 w-[70px]">
           <SelectValue :placeholder="String(table.getState().pagination.pageSize)" />

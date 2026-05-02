@@ -98,6 +98,19 @@ func (h *Handler) ListSystems(c *gin.Context) {
 		return
 	}
 
+	if c.Query("page") != "" || c.Query("per_page") != "" {
+		page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+		perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "20"))
+
+		systems, total, err := h.service.ListSystemsPaginated(c.Request.Context(), orgID, page, perPage)
+		if err != nil {
+			response.InternalError(c, "РћС€РёР±РєР° РїРѕР»СѓС‡РµРЅРёСЏ СЃРёСЃС‚РµРј")
+			return
+		}
+		response.OKPaginated(c, systems, total, page, perPage)
+		return
+	}
+
 	systems, err := h.service.ListSystems(c.Request.Context(), orgID)
 	if err != nil {
 		response.InternalError(c, "Ошибка получения систем")

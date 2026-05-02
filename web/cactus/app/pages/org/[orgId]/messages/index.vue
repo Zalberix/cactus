@@ -20,12 +20,15 @@ const { fetchMessages } = useMessages()
 const messages = ref<MessageListItem[]>([])
 const loading = ref(true)
 const page = ref(1)
+const pageCount = ref(1)
+const pageSize = ref(20)
 const pollingInterval = ref(15000)
 
 async function loadMessages() {
   try {
-    const result = await fetchMessages(orgId.value, page.value)
+    const result = await fetchMessages(orgId.value, page.value, pageSize.value)
     messages.value = result.data
+    pageCount.value = result.meta.total_pages
   }
   catch {
     // Silent fail for polling -- initial load handles error display
@@ -97,6 +100,8 @@ const columns: ColumnDef<MessageListItem>[] = [
 ]
 
 onMounted(loadMessages)
+
+watch([page, pageSize], () => loadMessages())
 </script>
 
 <template>
@@ -141,6 +146,9 @@ onMounted(loadMessages)
       v-else
       :columns="columns"
       :data="messages"
+      v-model:page="page"
+      v-model:page-size="pageSize"
+      :page-count="pageCount"
     />
   </div>
 </template>

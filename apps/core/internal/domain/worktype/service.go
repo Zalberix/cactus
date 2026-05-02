@@ -283,6 +283,33 @@ func (s *Service) ListSystems(ctx context.Context, orgID int32) ([]db.ListSystem
 	return s.store.ListSystemsByOrganizationID(ctx, pgtype.Int4{Int32: orgID, Valid: true})
 }
 
+// ListSystemsPaginated возвращает страницу систем организации с количеством активных токенов.
+func (s *Service) ListSystemsPaginated(ctx context.Context, orgID int32, page, perPage int) ([]db.ListSystemsByOrganizationIDRow, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if perPage < 1 || perPage > 100 {
+		perPage = 20
+	}
+
+	orgPg := pgtype.Int4{Int32: orgID, Valid: true}
+	systems, err := s.store.ListSystemsByOrganizationIDPaginated(ctx, db.ListSystemsByOrganizationIDPaginatedParams{
+		OrganizationID: orgPg,
+		Limit:          int64(perPage),
+		Offset:         int64((page - 1) * perPage),
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("list systems: %w", err)
+	}
+
+	total, err := s.store.CountSystemsByOrganizationID(ctx, orgPg)
+	if err != nil {
+		return nil, 0, fmt.Errorf("count systems: %w", err)
+	}
+
+	return systems, total, nil
+}
+
 // --- System Token methods ---
 
 // CreateSystemToken генерирует public + private токен, хранит хэш private токена.

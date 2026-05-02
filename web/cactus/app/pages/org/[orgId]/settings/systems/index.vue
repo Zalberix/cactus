@@ -40,10 +40,13 @@ const route = useRoute()
 const router = useRouter()
 const orgId = computed(() => Number(route.params.orgId))
 
-const { fetchSystems, createSystem, deleteSystem } = useSystems()
+const { fetchSystemsPage, createSystem, deleteSystem } = useSystems()
 
 const systems = ref<System[]>([])
 const loading = ref(true)
+const page = ref(1)
+const pageCount = ref(1)
+const pageSize = ref(20)
 const createOpen = ref(false)
 const deleteOpen = ref(false)
 const systemToDelete = ref<System | null>(null)
@@ -119,7 +122,9 @@ const columns: ColumnDef<System>[] = [
 async function loadSystems() {
   loading.value = true
   try {
-    systems.value = await fetchSystems(orgId.value)
+    const result = await fetchSystemsPage(orgId.value, page.value, pageSize.value)
+    systems.value = result.data
+    pageCount.value = result.meta.total_pages
   }
   catch {
     toast({ title: t('error.server'), variant: 'destructive' })
@@ -183,6 +188,8 @@ async function onCreate(values: Record<string, unknown>) {
 onMounted(() => {
   loadSystems()
 })
+
+watch([page, pageSize], () => loadSystems())
 </script>
 
 <template>
@@ -200,6 +207,9 @@ onMounted(() => {
       :columns="columns"
       :data="systems"
       :loading="loading"
+      v-model:page="page"
+      v-model:page-size="pageSize"
+      :page-count="pageCount"
     >
       <template #empty>
         <EmptyState

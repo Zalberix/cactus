@@ -6,7 +6,7 @@ import {
   getPaginationRowModel,
   useVueTable,
 } from '@tanstack/vue-table'
-import type { ColumnDef, SortingState } from '@tanstack/vue-table'
+import type { ColumnDef, PaginationState, SortingState } from '@tanstack/vue-table'
 import {
   Table,
   TableBody,
@@ -22,19 +22,42 @@ const props = withDefaults(defineProps<{
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
   loading?: boolean
+  page?: number
   pageCount?: number
   pageSize?: number
 }>(), {
   loading: false,
+  page: 1,
   pageCount: undefined,
   pageSize: 20,
 })
 
+const emit = defineEmits<{
+  'update:page': [page: number]
+  'update:pageSize': [pageSize: number]
+}>()
+
 const sorting = ref<SortingState>([])
+const pagination = ref<PaginationState>({
+  pageIndex: props.page - 1,
+  pageSize: props.pageSize,
+})
+
+watch(
+  () => [props.page, props.pageSize] as const,
+  ([page, pageSize]) => {
+    pagination.value = {
+      pageIndex: page - 1,
+      pageSize,
+    }
+  },
+)
 
 const table = useVueTable({
   get data() { return props.data },
   get columns() { return props.columns },
+  get pageCount() { return props.pageCount },
+  get manualPagination() { return props.pageCount !== undefined },
   getCoreRowModel: getCoreRowModel(),
   getSortedRowModel: getSortedRowModel(),
   getPaginationRowModel: getPaginationRowModel(),
@@ -43,13 +66,23 @@ const table = useVueTable({
       ? updaterOrValue(sorting.value)
       : updaterOrValue
   },
+  onPaginationChange: (updaterOrValue) => {
+    const next = typeof updaterOrValue === 'function'
+      ? updaterOrValue(pagination.value)
+      : updaterOrValue
+
+    const normalized = {
+      ...next,
+      pageIndex: next.pageSize !== pagination.value.pageSize ? 0 : next.pageIndex,
+    }
+
+    pagination.value = normalized
+    emit('update:page', normalized.pageIndex + 1)
+    emit('update:pageSize', normalized.pageSize)
+  },
   state: {
     get sorting() { return sorting.value },
-  },
-  initialState: {
-    pagination: {
-      pageSize: props.pageSize,
-    },
+    get pagination() { return pagination.value },
   },
 })
 

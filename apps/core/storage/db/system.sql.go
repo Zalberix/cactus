@@ -11,6 +11,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countSystemsByOrganizationID = `-- name: CountSystemsByOrganizationID :one
+SELECT COUNT(*)::bigint FROM "system" s
+WHERE s.organization_id = $1 AND s.deleted_at IS NULL
+`
+
+func (q *Queries) CountSystemsByOrganizationID(ctx context.Context, organizationID pgtype.Int4) (int64, error) {
+	row := q.db.QueryRow(ctx, countSystemsByOrganizationID, organizationID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createSystem = `-- name: CreateSystem :one
 INSERT INTO "system" (
     organization_id,
@@ -145,6 +157,57 @@ type ListSystemsByOrganizationIDRow struct {
 
 func (q *Queries) ListSystemsByOrganizationID(ctx context.Context, organizationID pgtype.Int4) ([]ListSystemsByOrganizationIDRow, error) {
 	rows, err := q.db.Query(ctx, listSystemsByOrganizationID, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSystemsByOrganizationIDRow
+	for rows.Next() {
+		var i ListSystemsByOrganizationIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.UserCreatorID,
+			&i.Name,
+			&i.Description,
+			&i.IsActive,
+			&i.Priority,
+			&i.PublicToken,
+			&i.PrivateToken,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.ActiveTokensCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSystemsByOrganizationIDPaginated = `-- name: ListSystemsByOrganizationIDPaginated :many
+SELECT s.id, s.organization_id, s.user_creator_id, s.name, s.description, s.is_active, s.priority, s.public_token, s.private_token, s.created_at, s.updated_at, s.deleted_at,
+  (SELECT COUNT(*) FROM system_token st
+   WHERE st.system_id = s.id AND st.is_active = TRUE AND st.deleted_at IS NULL
+  )::int AS active_tokens_count
+FROM "system" s
+WHERE s.organization_id = $1 AND s.deleted_at IS NULL
+ORDER BY s.id
+LIMIT $2 OFFSET $3
+`
+
+type ListSystemsByOrganizationIDPaginatedParams struct {
+	OrganizationID pgtype.Int4 `json:"organization_id"`
+	Limit          int64       `json:"limit"`
+	Offset         int64       `json:"offset"`
+}
+
+func (q *Queries) ListSystemsByOrganizationIDPaginated(ctx context.Context, arg ListSystemsByOrganizationIDPaginatedParams) ([]ListSystemsByOrganizationIDRow, error) {
+	rows, err := q.db.Query(ctx, listSystemsByOrganizationIDPaginated, arg.OrganizationID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}

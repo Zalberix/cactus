@@ -43,7 +43,9 @@ type Storage interface {
 	// System CRUD
 	CreateSystem(ctx context.Context, arg db.CreateSystemParams) (db.System, error)
 	GetSystemByID(ctx context.Context, id int32) (db.System, error)
+	CountSystemsByOrganizationID(ctx context.Context, organizationID pgtype.Int4) (int64, error)
 	ListSystemsByOrganizationID(ctx context.Context, organizationID pgtype.Int4) ([]db.ListSystemsByOrganizationIDRow, error)
+	ListSystemsByOrganizationIDPaginated(ctx context.Context, arg db.ListSystemsByOrganizationIDPaginatedParams) ([]db.ListSystemsByOrganizationIDRow, error)
 	UpdateSystem(ctx context.Context, arg db.UpdateSystemParams) (db.System, error)
 	SoftDeleteSystem(ctx context.Context, id int32) error
 
