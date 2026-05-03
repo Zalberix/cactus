@@ -2,7 +2,6 @@ package rbac
 
 import (
 	"errors"
-	"math"
 	"net/http"
 	"strconv"
 
@@ -56,8 +55,8 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc, permChec
 // parseID извлекает int32 ID из параметра URL.
 func parseID(c *gin.Context, param string) (int32, bool) {
 	raw := c.Param(param)
-	id, err := strconv.Atoi(raw)
-	if err != nil || id <= 0 || id > math.MaxInt32 {
+	id, err := strconv.ParseInt(raw, 10, 32)
+	if err != nil || id <= 0 {
 		response.BadRequest(c, "INVALID_PARAM", "Неверный формат ID: "+param)
 		return 0, false
 	}

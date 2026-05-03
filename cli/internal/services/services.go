@@ -13,11 +13,11 @@ type WorkerDef struct {
 	Count int `yaml:"count"`
 }
 
-type ServicesConfig struct {
+type Config struct {
 	Workers map[string]WorkerDef `yaml:"workers"`
 }
 
-type ServicesLock struct {
+type Lock struct {
 	Workers map[string][]string `yaml:"workers"`
 }
 
@@ -30,13 +30,13 @@ type WorkerInstance struct {
 }
 
 // LoadServices читает cactus-services.yaml.
-func LoadServices(path string) (*ServicesConfig, error) {
+func LoadServices(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read services config %s: %w", path, err)
 	}
 
-	var cfg ServicesConfig
+	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parse services config: %w", err)
 	}
@@ -51,7 +51,7 @@ func LoadServices(path string) (*ServicesConfig, error) {
 // Reconcile загружает (или создаёт) lock-файл, сверяет с services config,
 // добавляет/удаляет UUID, чистит runtime-файлы в workerIDDir.
 // Возвращает итоговый список WorkerInstance.
-func Reconcile(cfgPath, lockPath, workerIDDir string) ([]WorkerInstance, error) {
+func Reconcile(cfgPath, lockPath, workerIDDir string) ([]WorkerInstance, error) { //nolint:gocognit // Reconciliation keeps create/remove decisions in one pass over config and lock state.
 	cfg, err := LoadServices(cfgPath)
 	if err != nil {
 		return nil, err
@@ -62,7 +62,7 @@ func Reconcile(cfgPath, lockPath, workerIDDir string) ([]WorkerInstance, error) 
 		return nil, fmt.Errorf("read lock %s: %w", lockPath, err)
 	}
 	if lock == nil {
-		lock = &ServicesLock{Workers: make(map[string][]string)}
+		lock = &Lock{Workers: make(map[string][]string)}
 	}
 
 	changed := false
@@ -129,13 +129,13 @@ func Reconcile(cfgPath, lockPath, workerIDDir string) ([]WorkerInstance, error) 
 	return instances, nil
 }
 
-func loadLock(path string) (*ServicesLock, error) {
+func loadLock(path string) (*Lock, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 
-	var lock ServicesLock
+	var lock Lock
 	if err := yaml.Unmarshal(data, &lock); err != nil {
 		return nil, fmt.Errorf("parse lock file: %w", err)
 	}
@@ -147,7 +147,7 @@ func loadLock(path string) (*ServicesLock, error) {
 	return &lock, nil
 }
 
-func saveLock(path string, lock *ServicesLock) error {
+func saveLock(path string, lock *Lock) error {
 	data, err := yaml.Marshal(lock)
 	if err != nil {
 		return fmt.Errorf("marshal lock: %w", err)
@@ -157,7 +157,7 @@ func saveLock(path string, lock *ServicesLock) error {
 		return fmt.Errorf("create lock dir: %w", err)
 	}
 
-	return os.WriteFile(path, data, 0o644)
+	return os.WriteFile(path, data, 0o600)
 }
 
 func removeWorkerIDFile(workerIDDir, workerType, uuid string) {

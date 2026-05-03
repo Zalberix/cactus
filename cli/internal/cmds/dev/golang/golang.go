@@ -18,10 +18,7 @@ type GoApps struct {
 
 func New(enableDebug bool) (*GoApps, error) {
 	// Развернуть worker-шаблоны в N инстансов через cactus-services.yaml
-	apps, err := expandWorkers(goapp.Apps)
-	if err != nil {
-		return nil, err
-	}
+	apps := expandWorkers(goapp.Apps)
 
 	ga := &GoApps{
 		debugEnabled: enableDebug,
@@ -51,10 +48,7 @@ func New(enableDebug bool) (*GoApps, error) {
 	}
 
 	// Топологическая сортировка
-	sorted, err := topoSort(apps)
-	if err != nil {
-		return nil, err
-	}
+	sorted := topoSort(apps)
 
 	// Создание экземпляров в отсортированном порядке
 	for _, app := range sorted {
@@ -89,11 +83,11 @@ const (
 
 // expandWorkers загружает cactus-services.yaml, выполняет reconciliation
 // и разворачивает worker-шаблоны из goapp.Apps в N инстансов с UUID.
-func expandWorkers(templates []goapp.GoApp) ([]goapp.GoApp, error) {
+func expandWorkers(templates []goapp.GoApp) []goapp.GoApp {
 	instances, err := services.Reconcile(servicesConfigPath, servicesLockPath, workerIDDir)
 	if err != nil {
 		pterm.Warning.Printfln("services reconcile: %v (workers will run with default count)", err)
-		return templates, nil
+		return templates
 	}
 
 	// Индексируем инстансы по типу
@@ -136,7 +130,7 @@ func expandWorkers(templates []goapp.GoApp) ([]goapp.GoApp, error) {
 		}
 	}
 
-	return result, nil
+	return result
 }
 
 func (c *GoApps) Start(ctx context.Context) error {
@@ -241,7 +235,7 @@ func formatCycle(path []string) string {
 
 // topoSort выполняет топологическую сортировку приложений по зависимостям.
 // Зависимости идут первыми.
-func topoSort(apps []goapp.GoApp) ([]goapp.GoApp, error) {
+func topoSort(apps []goapp.GoApp) []goapp.GoApp {
 	byName := make(map[string]goapp.GoApp, len(apps))
 	for _, app := range apps {
 		byName[app.Name] = app
@@ -268,5 +262,5 @@ func topoSort(apps []goapp.GoApp) ([]goapp.GoApp, error) {
 		visit(app.Name)
 	}
 
-	return result, nil
+	return result
 }

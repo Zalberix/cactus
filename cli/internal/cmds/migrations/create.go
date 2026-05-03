@@ -94,7 +94,7 @@ var CreateMigrationCmd = &cli.Command{
 					fmt.Sprintf("package %s", db),
 					1,
 				)
-				err = os.WriteFile(migrationFilePath, []byte(fixedContent), 0o644)
+				err = os.WriteFile(migrationFilePath, []byte(fixedContent), 0o600)
 				if err != nil {
 					return fmt.Errorf("cannot write fixed migration file: %w", err)
 				}

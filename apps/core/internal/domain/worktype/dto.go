@@ -26,8 +26,8 @@ type CreateWorkTypeRequest struct {
 	Meta        json.RawMessage `json:"meta"`
 }
 
-// WorkTypeResponse — DTO для API, meta как json.RawMessage (не base64).
-type WorkTypeResponse struct {
+// Response — DTO для API, meta как json.RawMessage (не base64).
+type Response struct {
 	ID          int32           `json:"id"`
 	Name        string          `json:"name"`
 	Code        string          `json:"code"`

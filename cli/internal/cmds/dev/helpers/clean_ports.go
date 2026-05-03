@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"runtime"
@@ -15,7 +16,7 @@ import (
 var CleanPortsCmd = &cli.Command{
 	Name:  "clean-ports",
 	Usage: "Kill all processes listening on development ports",
-	Action: func(c *cli.Context) error {
+	Action: func(_ *cli.Context) error {
 		// Главное не задеть порты docker, тк он зависает
 		ports := []int{80, 3010, 3009}
 		for _, app := range goapp.Apps {
@@ -42,14 +43,14 @@ func killPort(port int) error {
 }
 
 func killPortUnix(port int) error {
-	out, err := exec.Command("lsof", "-ti", fmt.Sprintf(":%d", port)).Output()
+	out, err := exec.CommandContext(context.Background(), "lsof", "-ti", fmt.Sprintf(":%d", port)).Output() // #nosec G204 -- port is selected by the CLI from known dev ports.
 	if err != nil {
 		// no process on this port — not an error
 		return nil //nolint:nilerr
 	}
 	pids := strings.Fields(strings.TrimSpace(string(out)))
 	for _, pid := range pids {
-		_ = exec.Command("kill", "-9", pid).Run()
+		_ = exec.CommandContext(context.Background(), "kill", "-9", pid).Run()
 	}
 	return nil
 }
@@ -60,5 +61,5 @@ func killPortWindows(port int) error {
 			`if ($c) { Stop-Process -Id $c.OwningProcess -Force }`,
 		port,
 	)
-	return exec.Command("powershell", "-c", script).Run()
+	return exec.CommandContext(context.Background(), "powershell", "-c", script).Run()
 }

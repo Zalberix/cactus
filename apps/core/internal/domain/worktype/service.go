@@ -116,14 +116,14 @@ func (s *Service) CreateWorkType(ctx context.Context, req CreateWorkTypeRequest)
 }
 
 // ListWorkTypes возвращает все типы работ.
-func (s *Service) ListWorkTypes(ctx context.Context) ([]WorkTypeResponse, error) {
+func (s *Service) ListWorkTypes(ctx context.Context) ([]Response, error) {
 	rows, err := s.store.ListWorkTypes(ctx)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]WorkTypeResponse, 0, len(rows))
+	result := make([]Response, 0, len(rows))
 	for _, r := range rows {
-		wt := WorkTypeResponse{
+		wt := Response{
 			ID:   r.ID,
 			Name: r.Name,
 			Code: r.Code,

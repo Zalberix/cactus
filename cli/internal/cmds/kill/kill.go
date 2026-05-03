@@ -8,7 +8,7 @@ import (
 var Cmd = &cli.Command{
 	Name:  "kill",
 	Usage: "Kill all cactus-* processes",
-	Action: func(c *cli.Context) error {
+	Action: func(_ *cli.Context) error {
 		pterm.Info.Println("Killing all cactus-* processes...")
 		if err := killProcesses(); err != nil {
 			pterm.Warning.Printfln("Kill returned error: %v", err)

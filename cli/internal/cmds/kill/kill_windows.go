@@ -2,10 +2,14 @@
 
 package kill
 
-import "os/exec"
+import (
+	"context"
+	"os/exec"
+)
 
 func killProcesses() error {
-	return exec.Command(
+	return exec.CommandContext(
+		context.Background(),
 		"powershell", "-c",
 		`Get-Process | Where-Object {$_.ProcessName -like 'twir-*'} | Stop-Process -Force`,
 	).Run()

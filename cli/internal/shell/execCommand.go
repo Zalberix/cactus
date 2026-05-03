@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -10,6 +11,7 @@ import (
 )
 
 type ExecCommandOpts struct {
+	Context context.Context
 	Command string
 	Pwd     string
 
@@ -22,7 +24,13 @@ func CreateCommand(opts ExecCommandOpts) (*exec.Cmd, error) {
 		return nil, fmt.Errorf("command not specified")
 	}
 
-	cmd := exec.Command(
+	ctx := opts.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	cmd := exec.CommandContext( // #nosec G204 -- CLI intentionally executes configured shell commands.
+		ctx,
 		GetShell(),
 		GetShellOption(),
 		opts.Command,

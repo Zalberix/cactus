@@ -12,7 +12,7 @@ import (
 var Cmd = &cli.Command{
 	Name:  "sqlc-generate",
 	Usage: "Generate Go code from SQL queries via sqlc",
-	Action: func(c *cli.Context) error {
+	Action: func(_ *cli.Context) error {
 		pterm.Info.Println("Running sqlc generate...")
 
 		wd, err := os.Getwd()

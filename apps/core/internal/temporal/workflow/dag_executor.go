@@ -14,7 +14,7 @@ import (
 // При провале любого шага все оставшиеся помечаются skipped (fail-fast, D-18).
 //
 // КРИТИЧНО — весь код детерминистичен: нет time.Now, нет go func, нет IO.
-func DAGExecutorWorkflow(ctx workflow.Context, input temporaltypes.DAGInput) error {
+func DAGExecutorWorkflow(ctx workflow.Context, input temporaltypes.DAGInput) error { //nolint:gocognit // Temporal workflow logic must remain deterministic and linear.
 	// Настройки retry и activity options
 	retryPolicy := &temporal.RetryPolicy{
 		InitialInterval:    5 * time.Second,
@@ -71,7 +71,7 @@ func DAGExecutorWorkflow(ctx workflow.Context, input temporaltypes.DAGInput) err
 		})
 		sf := stepFuture{stepID: step.ID, future: f}
 		futures = append(futures, sf)
-		selector.AddFuture(f, func(f workflow.Future) {})
+		selector.AddFuture(f, func(_ workflow.Future) {})
 	}
 
 	var processReadyStep func(stepID int32)
@@ -166,7 +166,7 @@ func DAGExecutorWorkflow(ctx workflow.Context, input temporaltypes.DAGInput) err
 			selector = workflow.NewSelector(ctx)
 			for _, sf := range futures {
 				sfCopy := sf
-				selector.AddFuture(sfCopy.future, func(f workflow.Future) {})
+				selector.AddFuture(sfCopy.future, func(_ workflow.Future) {})
 			}
 		}
 	}

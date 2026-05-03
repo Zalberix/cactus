@@ -61,7 +61,7 @@ func New(b *bus.Bus, msgSvc *message.Service, authSvc *auth.Service, s *store.St
 //  6. If workflow already done/failed, send terminal event and close (per D-18).
 //  7. Subscribe to NATS event.workflow.{messageID} and forward delta events.
 //  8. Ping/pong heartbeat every 30s (per D-19).
-func (h *Hub) HandleWS(c *gin.Context) {
+func (h *Hub) HandleWS(c *gin.Context) { //nolint:gocognit // WS lifecycle keeps auth, snapshot, subscription, and ping handling together.
 	// 1. Extract and validate messageID (pre-upgrade).
 	messageIDStr := c.Param("messageID")
 	messageID, err := strconv.ParseInt(messageIDStr, 10, 32)
@@ -226,7 +226,7 @@ func (h *Hub) HandleWS(c *gin.Context) {
 }
 
 // buildSnapshot constructs a SnapshotEvent from the DB status response.
-func (h *Hub) buildSnapshot(status *message.MessageStatusResponse) SnapshotEvent {
+func (h *Hub) buildSnapshot(status *message.StatusResponse) SnapshotEvent {
 	workflowStatus := "pending"
 	if status.WorkflowRun != nil {
 		workflowStatus = status.WorkflowRun.Status
@@ -258,7 +258,7 @@ func (h *Hub) buildSnapshot(status *message.MessageStatusResponse) SnapshotEvent
 }
 
 // sendTerminalEvent sends the appropriate terminal event based on workflow status.
-func (h *Hub) sendTerminalEvent(ctx context.Context, conn *websocket.Conn, status string, msgStatus *message.MessageStatusResponse) {
+func (h *Hub) sendTerminalEvent(ctx context.Context, conn *websocket.Conn, status string, msgStatus *message.StatusResponse) {
 	now := time.Now().UTC().Format(time.RFC3339)
 
 	switch status {

@@ -10,4 +10,3 @@ type Config struct {
 	Token     string `yaml:"token"`
 	ServerURL string `yaml:"server_url" env-default:"http://localhost:8080"`
 }
-

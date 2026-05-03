@@ -161,12 +161,9 @@ func (w *Worker) loadWorkerID() (int32, error) {
 	if err != nil {
 		return 0, err
 	}
-	id, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	id, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 32)
 	if err != nil {
 		return 0, fmt.Errorf("parse worker ID from file: %w", err)
-	}
-	if id > int(^uint32(0)>>1) {
-		return 0, fmt.Errorf("worker ID %d overflows int32", id)
 	}
 	return int32(id), nil
 }

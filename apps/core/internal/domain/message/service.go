@@ -198,7 +198,7 @@ func (s *Service) buildDAGInput(ctx context.Context, versionID, messageID int32,
 }
 
 // ListMessages возвращает пагинированный список сообщений организации (per UI-12).
-func (s *Service) ListMessages(ctx context.Context, orgID int32, page, perPage int) ([]MessageListItem, int64, error) {
+func (s *Service) ListMessages(ctx context.Context, orgID int32, page, perPage int) ([]ListItem, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -223,9 +223,9 @@ func (s *Service) ListMessages(ctx context.Context, orgID int32, page, perPage i
 		return nil, 0, fmt.Errorf("list messages: %w", err)
 	}
 
-	items := make([]MessageListItem, 0, len(rows))
+	items := make([]ListItem, 0, len(rows))
 	for _, r := range rows {
-		items = append(items, MessageListItem{
+		items = append(items, ListItem{
 			ID:           r.ID,
 			WorkflowID:   r.WorkflowID,
 			WorkflowName: r.WorkflowName,
@@ -239,65 +239,64 @@ func (s *Service) ListMessages(ctx context.Context, orgID int32, page, perPage i
 }
 
 // GetMessageStatus returns message status with workflow run and step statuses (per EXEC-09, D-20, D-21).
-func (s *Service) GetMessageStatus(ctx context.Context, messageID int32) (*MessageStatusResponse, error) {
+func (s *Service) GetMessageStatus(ctx context.Context, messageID int32) (*StatusResponse, error) {
 	// 1. Query message + workflow_run
 	row, err := s.store.GetMessageStatusByID(ctx, messageID)
 	if err != nil {
 		return nil, fmt.Errorf("message not found: %w", err)
 	}
 
-	resp := &MessageStatusResponse{
+	resp := &StatusResponse{
 		MessageID:     row.ID,
 		MessageStatus: row.MessageStatus,
 		CreatedAt:     row.CreatedAt.Time,
 		Steps:         []StepStatusDTO{},
 	}
 
-	// 2. If workflow_run exists, add its status and query steps
-	if row.WorkflowRunID.Valid {
-		wrs := &WorkflowRunStatus{
-			ID:     row.WorkflowRunID.Int32,
-			Status: row.WorkflowStatus.String,
-		}
-		if row.RunStartedAt.Valid {
-			t := row.RunStartedAt.Time
-			wrs.StartedAt = &t
-		}
-		if row.RunCompletedAt.Valid {
-			t := row.RunCompletedAt.Time
-			wrs.CompletedAt = &t
-		}
-		if row.RunErrorMessage.Valid {
-			wrs.ErrorMessage = &row.RunErrorMessage.String
-		}
-		resp.WorkflowRun = wrs
+	if !row.WorkflowRunID.Valid {
+		return resp, nil
+	}
 
-		// 3. Query step statuses (no input/output per D-21)
-		steps, err := s.store.ListWorkflowRunStepStatusesByRunID(ctx, row.WorkflowRunID.Int32)
-		if err == nil {
-			for _, step := range steps {
-				dto := StepStatusDTO{
-					ID:       step.ID,
-					StepID:   step.WorkflowStepID,
-					StepType: step.StepType,
-					Status:   step.Status,
-				}
-				if step.Outcome.Valid {
-					dto.Outcome = &step.Outcome.String
-				}
-				if step.StartedAt.Valid {
-					t := step.StartedAt.Time
-					dto.StartedAt = &t
-				}
-				if step.CompletedAt.Valid {
-					t := step.CompletedAt.Time
-					dto.CompletedAt = &t
-				}
-				if step.ErrorMessage.Valid {
-					dto.ErrorMessage = &step.ErrorMessage.String
-				}
-				resp.Steps = append(resp.Steps, dto)
+	wrs := &WorkflowRunStatus{
+		ID:     row.WorkflowRunID.Int32,
+		Status: row.WorkflowStatus.String,
+	}
+	if row.RunStartedAt.Valid {
+		t := row.RunStartedAt.Time
+		wrs.StartedAt = &t
+	}
+	if row.RunCompletedAt.Valid {
+		t := row.RunCompletedAt.Time
+		wrs.CompletedAt = &t
+	}
+	if row.RunErrorMessage.Valid {
+		wrs.ErrorMessage = &row.RunErrorMessage.String
+	}
+	resp.WorkflowRun = wrs
+
+	if steps, err := s.store.ListWorkflowRunStepStatusesByRunID(ctx, row.WorkflowRunID.Int32); err == nil {
+		for _, step := range steps {
+			dto := StepStatusDTO{
+				ID:       step.ID,
+				StepID:   step.WorkflowStepID,
+				StepType: step.StepType,
+				Status:   step.Status,
 			}
+			if step.Outcome.Valid {
+				dto.Outcome = &step.Outcome.String
+			}
+			if step.StartedAt.Valid {
+				t := step.StartedAt.Time
+				dto.StartedAt = &t
+			}
+			if step.CompletedAt.Valid {
+				t := step.CompletedAt.Time
+				dto.CompletedAt = &t
+			}
+			if step.ErrorMessage.Valid {
+				dto.ErrorMessage = &step.ErrorMessage.String
+			}
+			resp.Steps = append(resp.Steps, dto)
 		}
 	}
 

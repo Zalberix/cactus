@@ -124,17 +124,18 @@ func TestSendRegistration(t *testing.T) {
 		manifest, ok := m["manifest"]
 		if !ok {
 			t.Error("missing key 'manifest'")
-		} else {
-			// manifest must be a JSON object (map)
-			mf, isMap := manifest.(map[string]any)
-			if !isMap {
-				t.Errorf("expected manifest to be an object, got %T", manifest)
-			} else {
-				for _, key := range []string{"kind", "name_kind", "type", "name_type", "input_schema"} {
-					if _, exists := mf[key]; !exists {
-						t.Errorf("manifest missing key %q", key)
-					}
-				}
+			return
+		}
+
+		// manifest must be a JSON object (map)
+		mf, isMap := manifest.(map[string]any)
+		if !isMap {
+			t.Errorf("expected manifest to be an object, got %T", manifest)
+			return
+		}
+		for _, key := range []string{"kind", "name_kind", "type", "name_type", "input_schema"} {
+			if _, exists := mf[key]; !exists {
+				t.Errorf("manifest missing key %q", key)
 			}
 		}
 

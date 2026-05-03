@@ -12,7 +12,7 @@ import (
 var LintCmd = &cli.Command{
 	Name:  "lint",
 	Usage: "Run golangci-lint on all modules",
-	Action: func(c *cli.Context) error {
+	Action: func(_ *cli.Context) error {
 		pterm.Info.Println("Running golangci-lint...")
 
 		wd, err := os.Getwd()
@@ -39,7 +39,7 @@ var LintCmd = &cli.Command{
 var TestCmd = &cli.Command{
 	Name:  "test",
 	Usage: "Run go test on all modules",
-	Action: func(c *cli.Context) error {
+	Action: func(_ *cli.Context) error {
 		pterm.Info.Println("Running tests...")
 
 		wd, err := os.Getwd()

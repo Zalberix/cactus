@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -32,6 +33,9 @@ func NewService(store Storage) *Service {
 
 // CreateWorkflow создаёт новый workflow в системе (WF-01).
 func (s *Service) CreateWorkflow(ctx context.Context, systemID int32, req CreateWorkflowRequest) (db.Workflow, error) {
+	if req.Priority > math.MaxInt32 || req.Priority < math.MinInt32 {
+		return db.Workflow{}, fmt.Errorf("priority %d overflows int32", req.Priority)
+	}
 	return s.store.CreateWorkflow(ctx, db.CreateWorkflowParams{
 		SystemID:    systemID,
 		Name:        req.Name,

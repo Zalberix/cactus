@@ -17,8 +17,8 @@ type SendMessageResponse struct {
 	Status        string `json:"status"` // "running"
 }
 
-// MessageStatusResponse — ответ Status API. Envelope format.
-type MessageStatusResponse struct {
+// StatusResponse is the Status API envelope.
+type StatusResponse struct {
 	MessageID     int32              `json:"message_id"`
 	MessageStatus string             `json:"message_status"`
 	CreatedAt     time.Time          `json:"created_at"`
@@ -47,8 +47,8 @@ type StepStatusDTO struct {
 	ErrorMessage *string    `json:"error_message"`
 }
 
-// MessageListItem -- single message in organization listing.
-type MessageListItem struct {
+// ListItem is a single message in organization listing.
+type ListItem struct {
 	ID           int32  `json:"id"`
 	WorkflowID   int32  `json:"workflow_id"`
 	WorkflowName string `json:"workflow_name"`
