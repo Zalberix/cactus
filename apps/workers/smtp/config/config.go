@@ -1,16 +1,16 @@
 package config
 
-// Config --- конфигурация SMTP воркера.
+import cfgloader "github.com/zalberix/cactus/libs/config"
+
+// Config describes SMTP worker configuration.
 type Config struct {
-	NatsURL        string `yaml:"nats_url" env-default:"nats://localhost:4222"`
-	ManagerURL     string `yaml:"manager_url" env-default:"http://localhost:8080"`
-	BootstrapToken string `yaml:"bootstrap_token" env-required:"true"`
-	WorkTypeID     int32  `yaml:"work_type_id" env-required:"true"`
-	RevisionID     int32  `yaml:"revision_id" env-required:"true"`
-	SMTP           SMTP   `yaml:"smtp"`
+	cfgloader.Worker `yaml:",inline"`
+
+	NatsURL string `yaml:"nats_url" env-default:"nats://localhost:4222"`
+	SMTP    SMTP   `yaml:"smtp"`
 }
 
-// SMTP --- параметры SMTP-сервера.
+// SMTP contains SMTP server settings.
 type SMTP struct {
 	Host string `yaml:"host" env-default:"localhost"`
 	Port int    `yaml:"port" env-default:"1025"`

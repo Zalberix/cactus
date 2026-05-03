@@ -25,7 +25,7 @@ const (
 )
 
 // PipelineMessage отправляется воркером в event.pipeline
-type PipelineMessage struct {
+type Message struct {
 	Status    Status `json:"status"`
 	Step      int32  `json:"step"`
 	WorkeUUID string `json:"worker_uuid"`
@@ -52,7 +52,7 @@ type SystemInQueue struct {
 	Name string `json:"name"`
 }
 
-type PipelineInQueue struct {
+type InQueue struct {
 	Step int32 `json:"step"`
 }
 

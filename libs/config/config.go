@@ -23,7 +23,7 @@ func MustLoad[T any](configFileName string) *T {
 	fullPath := filepath.Clean(filepath.Join(configDir, configFileName))
 
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-		log.Fatalf("config file does not exist: %q", fullPath)
+		log.Fatalf("config file does not exist: %q", fullPath) // #nosec G706 -- fatal startup diagnostic.
 	}
 
 	var cfg T
