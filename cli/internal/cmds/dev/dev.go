@@ -2,11 +2,12 @@ package dev
 
 import (
 	"fmt"
-	"github.com/zalberix/cactus/cli/internal/cmds/dependencies"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+
+	"github.com/zalberix/cactus/cli/internal/cmds/dependencies"
 
 	devgolang "github.com/zalberix/cactus/cli/internal/cmds/dev/golang"
 	"github.com/zalberix/cactus/cli/internal/cmds/dev/helpers"

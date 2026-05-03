@@ -1,9 +1,10 @@
 package watcher
 
 import (
-	"github.com/pterm/pterm"
 	"strings"
 	"time"
+
+	"github.com/pterm/pterm"
 
 	"github.com/rjeczalik/notify"
 	"github.com/samber/lo"

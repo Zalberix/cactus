@@ -2,6 +2,7 @@ package message
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -44,7 +45,8 @@ func ValidatePayload(schemaJSON []byte, payload map[string]any) []response.Error
 
 	if err := sch.Validate(payload); err != nil {
 		// Извлекаем детали ошибок
-		if ve, ok := err.(*jsonschema.ValidationError); ok {
+		var ve *jsonschema.ValidationError
+		if errors.As(err, &ve) {
 			return extractValidationErrors(ve)
 		}
 		return []response.ErrorDetail{{

@@ -4,8 +4,10 @@ import (
 	"runtime"
 )
 
+const windowsOS = "windows"
+
 func GetShell() string {
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == windowsOS {
 		return "cmd"
 	} else {
 		return "sh"
@@ -13,7 +15,7 @@ func GetShell() string {
 }
 
 func GetShellOption() string {
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == windowsOS {
 		return "/C"
 	} else {
 		return "-c"

@@ -56,7 +56,8 @@ func main() {
 
 	if err := w.Run(ctx); err != nil {
 		slog.Error("worker stopped", slog.String("error", err.Error()))
-		os.Exit(1)
+		cancel()
+		return
 	}
 
 	slog.Info("SMTP worker stopped")

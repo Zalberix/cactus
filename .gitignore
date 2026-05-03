@@ -30,6 +30,7 @@
 /tmp/
 /app/*
 .env
+.cache/
 /docker/assets/
 /node_modules/
 /storages/

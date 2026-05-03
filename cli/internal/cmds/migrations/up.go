@@ -1,11 +1,12 @@
 package migrations
 
 import (
+	"os"
+	"path/filepath"
+
 	"github.com/pressly/goose/v3"
 	"github.com/pterm/pterm"
 	"github.com/urfave/cli/v2"
-	"os"
-	"path/filepath"
 )
 
 var UpMigrationCmd = &cli.Command{

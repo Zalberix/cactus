@@ -41,7 +41,7 @@ func waitForResult(ctx context.Context, js jetstream.JetStream, replySubject str
 		return temporaltypes.WorkerResult{}, fmt.Errorf("fetch result from %s: %w", replySubject, err)
 	}
 
-	for msg := range msgs.Messages() {
+	if msg, ok := <-msgs.Messages(); ok {
 		var result temporaltypes.WorkerResult
 		if err := json.Unmarshal(msg.Data(), &result); err != nil {
 			_ = msg.Nak()

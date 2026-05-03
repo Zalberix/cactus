@@ -50,4 +50,3 @@ type Temporal struct {
 func (c *Config) NatsURL() string {
 	return c.Nats.URL
 }
-

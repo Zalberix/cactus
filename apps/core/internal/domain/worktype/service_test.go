@@ -133,7 +133,7 @@ func TestGenerateBootstrapToken(t *testing.T) {
 func isHex(s string) bool {
 	s = strings.ToLower(s)
 	for _, c := range s {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
 			return false
 		}
 	}

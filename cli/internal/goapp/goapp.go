@@ -1,6 +1,7 @@
 package goapp
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -139,7 +140,8 @@ func (g *GoApp) Stop() error {
 		killCmd := exec.Command("taskkill", "/F", "/T", "/PID", fmt.Sprint(g.Cmd.Process.Pid))
 		if err := killCmd.Run(); err != nil {
 			// Exit code 128 — процесс уже завершён, не ошибка
-			if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 128 {
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) && exitErr.ExitCode() == 128 {
 				return nil
 			}
 			return fmt.Errorf("taskkill failed: %w", err)
@@ -153,16 +155,16 @@ func (g *GoApp) Stop() error {
 
 func (g *GoApp) Start() error {
 	if err := g.Stop(); err != nil {
-		return fmt.Errorf("stoping error: %v", err)
+		return fmt.Errorf("stoping error: %w", err)
 	}
 
 	if err := g.Build(); err != nil {
-		return fmt.Errorf("building error: %v", err)
+		return fmt.Errorf("building error: %w", err)
 	}
 
 	newCmd, err := g.CreateAppCommand()
 	if err != nil {
-		return fmt.Errorf("create app command: %v", err)
+		return fmt.Errorf("create app command: %w", err)
 	}
 
 	g.Cmd = newCmd
@@ -239,7 +241,6 @@ func (g *GoApp) CreateAppCommand() (*exec.Cmd, error) {
 			Stderr:  os.Stderr,
 		},
 	)
-
 	if err != nil {
 		return nil, err
 	}

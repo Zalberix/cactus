@@ -76,6 +76,6 @@ type EnrichedStepResponse struct {
 
 // ValidateVersionResponse — ответ на запрос валидации версии.
 type ValidateVersionResponse struct {
-	IsValid bool                    `json:"is_valid"`
+	IsValid bool                     `json:"is_valid"`
 	Errors  []dagpkg.ValidationError `json:"errors,omitempty"`
 }

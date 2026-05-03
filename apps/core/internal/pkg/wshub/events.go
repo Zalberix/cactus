@@ -33,7 +33,7 @@ type SnapshotStep struct {
 // StepUpdateEvent -- delta event for step status change (per D-15).
 // Same shape as WorkflowEvent from NATS -- Hub forwards without transformation.
 type StepUpdateEvent struct {
-	Type      string `json:"type"`      // "step_update"
+	Type      string `json:"type"` // "step_update"
 	StepID    int32  `json:"step_id"`
 	StepType  string `json:"step_type"`
 	Status    string `json:"status"`
@@ -42,13 +42,13 @@ type StepUpdateEvent struct {
 
 // WorkflowDoneEvent -- terminal event (per D-15, D-18).
 type WorkflowDoneEvent struct {
-	Type      string `json:"type"`      // "workflow_done"
+	Type      string `json:"type"` // "workflow_done"
 	Timestamp string `json:"timestamp"`
 }
 
 // WorkflowFailedEvent -- terminal event (per D-15, D-18).
 type WorkflowFailedEvent struct {
-	Type      string `json:"type"`      // "workflow_failed"
+	Type      string `json:"type"` // "workflow_failed"
 	Error     string `json:"error"`
 	Timestamp string `json:"timestamp"`
 }

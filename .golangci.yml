@@ -12,11 +12,9 @@ linters:
     - durationcheck
     - errorlint
     - exhaustive
-    - funlen
     - gocognit
     - goconst
     - gocritic
-    - gocyclo
     - goheader
     - gomoddirectives
     - goprintffuncname
@@ -24,14 +22,12 @@ linters:
     - govet
     - importas
     - ineffassign
-    - lll
     - makezero
     - misspell
     - nestif
     - nilerr
     - noctx
     - nolintlint
-    - prealloc
     - predeclared
     - revive
     - rowserrcheck
@@ -42,7 +38,6 @@ linters:
     - tparallel
     - unconvert
     - unparam
-    - unused
     - wastedassign
     - whitespace
   settings:

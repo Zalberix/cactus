@@ -3,12 +3,13 @@ package seed
 import (
 	"context"
 	"fmt"
+
 	"github.com/pterm/pterm"
 	"github.com/urfave/cli/v2"
 
 	"github.com/zalberix/cactus/apps/core/config"
-	cfgloader "github.com/zalberix/cactus/libs/config"
 	pkgdb "github.com/zalberix/cactus/apps/core/pkg/db"
+	cfgloader "github.com/zalberix/cactus/libs/config"
 	"github.com/zalberix/cactus/libs/migrations/seeds"
 )
 

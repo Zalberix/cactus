@@ -20,11 +20,10 @@ func MustLoad[T any](configFileName string) *T {
 		}
 		configDir = wd
 	}
-
-	fullPath := filepath.Join(configDir, configFileName)
+	fullPath := filepath.Clean(filepath.Join(configDir, configFileName))
 
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-		log.Fatalf("config file does not exist: %s", fullPath)
+		log.Fatalf("config file does not exist: %q", fullPath)
 	}
 
 	var cfg T

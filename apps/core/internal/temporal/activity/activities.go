@@ -67,7 +67,7 @@ func (a *Activities) publishWorkflowEvent(ctx context.Context, messageID int32, 
 //  8. Вернуть StepResult
 func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTaskStepInput) (temporaltypes.StepResult, error) {
 	info := activity.GetInfo(ctx)
-	attempt := int32(info.Attempt) + 1 // Temporal attempts 0-based, мы 1-based
+	attempt := info.Attempt + 1 // Temporal attempts 0-based, мы 1-based
 
 	a.logger.Info("RunTaskStep starting",
 		slog.Int("workflow_run_id", int(input.WorkflowRunID)),

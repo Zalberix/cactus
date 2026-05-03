@@ -88,7 +88,7 @@ func (s *Service) IssueTokens(userID int32) (*LoginResponse, error) {
 func (s *Service) ParseToken(tokenStr string) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+			return nil, fmt.Errorf("unexpected signing method: %w", ErrInvalidToken)
 		}
 		return []byte(s.cfg.Secret), nil
 	})
@@ -96,7 +96,7 @@ func (s *Service) ParseToken(tokenStr string) (*Claims, error) {
 		if errors.Is(err, jwt.ErrTokenExpired) {
 			return nil, ErrTokenExpired
 		}
-		return nil, fmt.Errorf("%w: %s", ErrInvalidToken, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidToken, err)
 	}
 
 	claims, ok := token.Claims.(*Claims)
@@ -139,7 +139,7 @@ func (s *Service) Login(ctx context.Context, req LoginRequest) (*LoginResponse, 
 func (s *Service) Refresh(_ context.Context, refreshToken string) (*LoginResponse, error) {
 	token, err := jwt.ParseWithClaims(refreshToken, &Claims{}, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+			return nil, fmt.Errorf("unexpected signing method: %w", ErrInvalidToken)
 		}
 		return []byte(s.cfg.Secret), nil
 	})
@@ -147,7 +147,7 @@ func (s *Service) Refresh(_ context.Context, refreshToken string) (*LoginRespons
 		if errors.Is(err, jwt.ErrTokenExpired) {
 			return nil, ErrTokenExpired
 		}
-		return nil, fmt.Errorf("%w: %s", ErrInvalidToken, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidToken, err)
 	}
 
 	claims, ok := token.Claims.(*Claims)

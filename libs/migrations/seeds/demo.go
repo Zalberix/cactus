@@ -67,7 +67,9 @@ func SeedDemo(ctx context.Context, db *pgxpool.Pool) error {
 
 	// 3. Активная версия
 	_, err = db.Exec(ctx, `
-		INSERT INTO workflow_version (workflow_id, created_by_user_id, version_number, is_valid, is_active, traffic_weight, is_control_group)
+		INSERT INTO workflow_version (
+			workflow_id, created_by_user_id, version_number, is_valid, is_active, traffic_weight, is_control_group
+		)
 		VALUES (
 			(SELECT id FROM workflow WHERE name = 'Demo Email Notification'),
 			(SELECT id FROM "user" WHERE email = 'admin@test.local'),
@@ -91,7 +93,14 @@ func SeedDemo(ctx context.Context, db *pgxpool.Pool) error {
 				(SELECT id FROM work_type WHERE code = 'smtp'),
 				'v1',
 				'{"type": "object", "properties": {"host": {"type": "string"}, "port": {"type": "integer"}}}'::jsonb,
-				'{"type": "object", "properties": {"to": {"type": "string"}, "subject": {"type": "string"}, "body": {"type": "string"}}}'::jsonb,
+				'{
+					"type": "object",
+					"properties": {
+						"to": {"type": "string"},
+						"subject": {"type": "string"},
+						"body": {"type": "string"}
+					}
+				}'::jsonb,
 				'{"type": "object", "properties": {"message_id": {"type": "string"}}}'::jsonb
 			),
 			(

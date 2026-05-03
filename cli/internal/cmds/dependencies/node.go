@@ -1,8 +1,9 @@
 package dependencies
 
 import (
-	"github.com/zalberix/cactus/cli/internal/shell"
 	"os"
+
+	"github.com/zalberix/cactus/cli/internal/shell"
 )
 
 func installNodeDeps() error {
@@ -19,7 +20,6 @@ func installNodeDeps() error {
 			Stdout:  os.Stdout,
 		},
 	)
-
 	if err != nil {
 		return err
 	}

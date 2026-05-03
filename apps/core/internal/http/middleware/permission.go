@@ -5,8 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	db "github.com/zalberix/cactus/apps/core/storage/db"
 	"github.com/zalberix/cactus/apps/core/internal/http/response"
+	"github.com/zalberix/cactus/apps/core/storage/db"
 	"github.com/zalberix/cactus/libs/permissions"
 )
 

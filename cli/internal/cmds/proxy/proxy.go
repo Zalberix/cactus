@@ -2,10 +2,11 @@ package proxy
 
 import (
 	"fmt"
-	"github.com/zalberix/cactus/cli/internal/shell"
 	"net"
 	"os"
 	"time"
+
+	"github.com/zalberix/cactus/cli/internal/shell"
 
 	"github.com/pterm/pterm"
 )

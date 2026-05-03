@@ -1,6 +1,7 @@
 package middleware_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -41,7 +42,7 @@ func TestAuth_ValidToken(t *testing.T) {
 	resp, err := svc.IssueTokens(42)
 	require.NoError(t, err)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	req.Header.Set("Authorization", "Bearer "+resp.AccessToken)
 
 	w := httptest.NewRecorder()
@@ -54,7 +55,7 @@ func TestAuth_MissingHeader(t *testing.T) {
 	svc := testAuthService()
 	r := setupRouter(svc)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -76,7 +77,7 @@ func TestAuth_ExpiredToken(t *testing.T) {
 	svc2 := testAuthService()
 	r := setupRouter(svc2)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	req.Header.Set("Authorization", "Bearer "+resp.AccessToken)
 
 	w := httptest.NewRecorder()
@@ -89,7 +90,7 @@ func TestAuth_MalformedToken(t *testing.T) {
 	svc := testAuthService()
 	r := setupRouter(svc)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	req.Header.Set("Authorization", "Bearer this.is.not.a.valid.jwt")
 
 	w := httptest.NewRecorder()
@@ -114,7 +115,7 @@ func TestGetClaims(t *testing.T) {
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 	req.Header.Set("Authorization", "Bearer "+resp.AccessToken)
 
 	w := httptest.NewRecorder()

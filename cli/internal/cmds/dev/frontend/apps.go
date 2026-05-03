@@ -1,10 +1,11 @@
 package frontend
 
 import (
-	"github.com/zalberix/cactus/cli/internal/shell"
 	"os"
 	"os/exec"
 	"syscall"
+
+	"github.com/zalberix/cactus/cli/internal/shell"
 )
 
 type app struct {
@@ -48,7 +49,6 @@ func (c *app) createAppCommand() (*exec.Cmd, error) {
 			Stderr:  os.Stderr,
 		},
 	)
-
 	if err != nil {
 		return nil, err
 	}

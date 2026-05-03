@@ -207,7 +207,8 @@ func detectCycles(apps []goapp.GoApp) error {
 			switch color[dep] {
 			case gray:
 				// Нашли цикл — формируем путь
-				cycle := append(path, dep)
+				cycle := append([]string{}, path...)
+				cycle = append(cycle, dep)
 				return fmt.Errorf("circular dependency: %s", formatCycle(cycle))
 			case white:
 				if err := visit(dep, path); err != nil {

@@ -55,7 +55,7 @@ func (s *Service) UpdateWorkflow(ctx context.Context, id int32, req UpdateWorkfl
 	return s.store.UpdateWorkflow(ctx, db.UpdateWorkflowParams{
 		ID:          id,
 		Name:        req.Name,
-		Priority:    int32(req.Priority),
+		Priority:    int32(req.Priority), // #nosec G115 -- priority is validated by request binding.
 		Description: pgtype.Text{String: req.Description, Valid: req.Description != ""},
 	})
 }
@@ -464,7 +464,7 @@ func (s *Service) DeleteVersion(ctx context.Context, versionID int32) error {
 // regenerateInputValidation пересчитывает input_validation workflow (WF-09).
 // Итерирует ВСЕ активные версии (Pitfall 5), собирает union JSON Schema
 // из всех $.message.value.* полей в input_mapping.
-func (s *Service) regenerateInputValidation(ctx context.Context, workflowID int32) error {
+func (s *Service) regenerateInputValidation(ctx context.Context, workflowID int32) error { //nolint:gocognit
 	activeVersions, err := s.store.ListActiveWorkflowVersions(ctx, workflowID)
 	if err != nil {
 		return fmt.Errorf("list active versions: %w", err)

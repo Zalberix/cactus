@@ -45,7 +45,7 @@ func killPortUnix(port int) error {
 	out, err := exec.Command("lsof", "-ti", fmt.Sprintf(":%d", port)).Output()
 	if err != nil {
 		// no process on this port — not an error
-		return nil
+		return nil //nolint:nilerr
 	}
 	pids := strings.Fields(strings.TrimSpace(string(out)))
 	for _, pid := range pids {

@@ -2,12 +2,13 @@ package migrations
 
 import (
 	"fmt"
-	"github.com/pressly/goose/v3"
-	"github.com/pterm/pterm"
-	"github.com/urfave/cli/v2"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/pressly/goose/v3"
+	"github.com/pterm/pterm"
+	"github.com/urfave/cli/v2"
 )
 
 var CreateMigrationCmd = &cli.Command{
@@ -93,7 +94,7 @@ var CreateMigrationCmd = &cli.Command{
 					fmt.Sprintf("package %s", db),
 					1,
 				)
-				err = os.WriteFile(migrationFilePath, []byte(fixedContent), 0644)
+				err = os.WriteFile(migrationFilePath, []byte(fixedContent), 0o644)
 				if err != nil {
 					return fmt.Errorf("cannot write fixed migration file: %w", err)
 				}

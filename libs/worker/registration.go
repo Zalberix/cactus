@@ -165,6 +165,9 @@ func (w *Worker) loadWorkerID() (int32, error) {
 	if err != nil {
 		return 0, fmt.Errorf("parse worker ID from file: %w", err)
 	}
+	if id > int(^uint32(0)>>1) {
+		return 0, fmt.Errorf("worker ID %d overflows int32", id)
+	}
 	return int32(id), nil
 }
 
@@ -175,5 +178,5 @@ func (w *Worker) saveWorkerID(id int32) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create worker ID dir %s: %w", dir, err)
 	}
-	return os.WriteFile(w.cfg.WorkerIDPath, []byte(strconv.Itoa(int(id))), 0644)
+	return os.WriteFile(w.cfg.WorkerIDPath, []byte(strconv.Itoa(int(id))), 0o600)
 }

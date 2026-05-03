@@ -20,8 +20,8 @@ import (
 	"github.com/zalberix/cactus/apps/core/internal/domain/auth"
 	"github.com/zalberix/cactus/apps/core/internal/domain/message"
 	"github.com/zalberix/cactus/apps/core/internal/http/response"
-	temporaltypes "github.com/zalberix/cactus/apps/core/internal/temporal"
 	"github.com/zalberix/cactus/apps/core/internal/store"
+	temporaltypes "github.com/zalberix/cactus/apps/core/internal/temporal"
 	"github.com/zalberix/cactus/libs/bus"
 )
 

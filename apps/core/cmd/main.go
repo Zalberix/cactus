@@ -67,7 +67,7 @@ func main() {
 			temporalworker.RegisterTemporalWorker,
 			registerHTTPServer,
 		),
-		//fx.NopLogger,
+		// fx.NopLogger,
 	)
 
 	app.Run()

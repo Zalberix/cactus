@@ -2,6 +2,7 @@ package worktype
 
 import (
 	"errors"
+	"math"
 	"net/http"
 	"strconv"
 
@@ -28,7 +29,7 @@ func NewHandler(service *Service, permChecker middleware.PermissionChecker) *Han
 }
 
 // RegisterRoutes регистрирует все маршруты worktype домена.
-func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc, store middleware.SystemTokenStore) {
+func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc, _ middleware.SystemTokenStore) {
 	v1 := r.Group("/api/v1", authMw)
 
 	// Systems (под организацией)
@@ -81,7 +82,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc, store mi
 func parseID(c *gin.Context, param string) (int32, bool) {
 	raw := c.Param(param)
 	id, err := strconv.Atoi(raw)
-	if err != nil || id <= 0 {
+	if err != nil || id <= 0 || id > math.MaxInt32 {
 		response.BadRequest(c, "INVALID_PARAM", "Неверный формат ID: "+param)
 		return 0, false
 	}

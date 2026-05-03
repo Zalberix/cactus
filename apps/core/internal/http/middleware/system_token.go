@@ -8,8 +8,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	db "github.com/zalberix/cactus/apps/core/storage/db"
 	"github.com/zalberix/cactus/apps/core/internal/http/response"
+	db "github.com/zalberix/cactus/apps/core/storage/db"
 )
 
 const (

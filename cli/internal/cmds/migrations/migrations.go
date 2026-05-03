@@ -11,13 +11,13 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/zalberix/cactus/apps/core/config"
-	cfgloader "github.com/zalberix/cactus/libs/config"
 	pkgdb "github.com/zalberix/cactus/apps/core/pkg/db"
+	cfgloader "github.com/zalberix/cactus/libs/config"
 
 	_ "github.com/zalberix/cactus/libs/migrations/postgres"
 )
 
-//const migrationsDir = "./libs/migrations/postgres"
+// const migrationsDir = "./libs/migrations/postgres"
 
 func Command() *cli.Command {
 	return &cli.Command{

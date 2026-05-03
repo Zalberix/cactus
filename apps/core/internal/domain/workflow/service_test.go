@@ -20,7 +20,6 @@ type mockStorage struct {
 	getVersionErr    error
 	activateErr      error
 	updateValidErr   error
-	updateActiveErr  error
 	updateSchemaErr  error
 	steps            []db.WorkflowStep
 	deps             []db.WorkflowStepDependency
@@ -39,15 +38,19 @@ func (m *mockStorage) WithTx(_ context.Context, _ func(q *db.Queries) error) err
 func (m *mockStorage) CreateWorkflow(_ context.Context, _ db.CreateWorkflowParams) (db.Workflow, error) {
 	return db.Workflow{}, nil
 }
+
 func (m *mockStorage) GetWorkflowByID(_ context.Context, _ int32) (db.Workflow, error) {
 	return db.Workflow{}, nil
 }
+
 func (m *mockStorage) ListWorkflowsBySystemID(_ context.Context, _ int32) ([]db.Workflow, error) {
 	return nil, nil
 }
+
 func (m *mockStorage) UpdateWorkflow(_ context.Context, _ db.UpdateWorkflowParams) (db.Workflow, error) {
 	return db.Workflow{}, nil
 }
+
 func (m *mockStorage) UpdateWorkflowInputValidation(_ context.Context, arg db.UpdateWorkflowInputValidationParams) (db.Workflow, error) {
 	m.lastUpdateSchemaArg = arg
 	return db.Workflow{}, m.updateSchemaErr
@@ -56,22 +59,28 @@ func (m *mockStorage) SoftDeleteWorkflow(_ context.Context, _ int32) error { ret
 func (m *mockStorage) CreateWorkflowVersion(_ context.Context, _ db.CreateWorkflowVersionParams) (db.WorkflowVersion, error) {
 	return db.WorkflowVersion{}, nil
 }
+
 func (m *mockStorage) GetWorkflowVersionByID(_ context.Context, _ int32) (db.WorkflowVersion, error) {
 	return m.version, m.getVersionErr
 }
+
 func (m *mockStorage) GetMaxVersionNumberByWorkflowID(_ context.Context, _ int32) (int32, error) {
 	return m.maxVersionNumber, nil
 }
+
 func (m *mockStorage) ListWorkflowVersionsByWorkflowID(_ context.Context, _ int32) ([]db.WorkflowVersion, error) {
 	return nil, nil
 }
+
 func (m *mockStorage) ListActiveWorkflowVersions(_ context.Context, _ int32) ([]db.WorkflowVersion, error) {
 	return m.activeVersions, nil
 }
+
 func (m *mockStorage) UpdateWorkflowVersionValid(_ context.Context, arg db.UpdateWorkflowVersionValidParams) (db.WorkflowVersion, error) {
 	m.lastUpdateValidArg = arg
 	return db.WorkflowVersion{IsValid: arg.IsValid}, m.updateValidErr
 }
+
 func (m *mockStorage) UpdateWorkflowVersionActive(_ context.Context, arg db.UpdateWorkflowVersionActiveParams) (db.WorkflowVersion, error) {
 	m.lastUpdateActiveArg = arg
 	return db.WorkflowVersion{IsActive: arg.IsActive}, m.activateErr
@@ -80,12 +89,15 @@ func (m *mockStorage) SoftDeleteWorkflowVersion(_ context.Context, _ int32) erro
 func (m *mockStorage) CreateWorkflowStep(_ context.Context, _ db.CreateWorkflowStepParams) (db.WorkflowStep, error) {
 	return db.WorkflowStep{}, nil
 }
+
 func (m *mockStorage) GetWorkflowStepByID(_ context.Context, _ int32) (db.WorkflowStep, error) {
 	return db.WorkflowStep{}, nil
 }
+
 func (m *mockStorage) ListWorkflowStepsByVersionID(_ context.Context, _ int32) ([]db.WorkflowStep, error) {
 	return m.steps, nil
 }
+
 func (m *mockStorage) UpdateWorkflowStep(_ context.Context, _ db.UpdateWorkflowStepParams) (db.WorkflowStep, error) {
 	return db.WorkflowStep{}, nil
 }
@@ -94,6 +106,7 @@ func (m *mockStorage) SoftDeleteWorkflowStep(_ context.Context, _ int32) error  
 func (m *mockStorage) CreateWorkflowStepDependency(_ context.Context, _ db.CreateWorkflowStepDependencyParams) error {
 	return nil
 }
+
 func (m *mockStorage) ListDependenciesByVersionID(_ context.Context, _ int32) ([]db.WorkflowStepDependency, error) {
 	return m.deps, nil
 }
@@ -101,15 +114,19 @@ func (m *mockStorage) DeleteDependenciesByStepID(_ context.Context, _ int32) err
 func (m *mockStorage) DeleteWorkflowStepDependency(_ context.Context, _ db.DeleteWorkflowStepDependencyParams) error {
 	return nil
 }
+
 func (m *mockStorage) ListWorkerSettingsSchemasByWorkTypeID(_ context.Context, _ int32) ([]db.WorkerSettingsSchema, error) {
 	return nil, nil
 }
+
 func (m *mockStorage) ListWorkerSettingsRevisionsBySchemaID(_ context.Context, _ int32) ([]db.WorkerSettingsRevision, error) {
 	return nil, nil
 }
+
 func (m *mockStorage) UpdateWorkflowStepPosition(_ context.Context, _ db.UpdateWorkflowStepPositionParams) error {
 	return nil
 }
+
 func (m *mockStorage) ListEnrichedStepsByVersionID(_ context.Context, _ int32) ([]db.ListEnrichedStepsByVersionIDRow, error) {
 	return nil, nil
 }

@@ -201,16 +201,14 @@ func (s *Service) RegisterWorker(ctx context.Context, req RegisterWorkerRequest)
 		if err != nil {
 			return db.Worker{}, fmt.Errorf("create worker: %w", err)
 		}
-	} else {
+	} else if worker.WorkerSettingsSchemaID != schema.ID {
 		// Обновляем схему если манифест изменился
-		if worker.WorkerSettingsSchemaID != schema.ID {
-			worker, err = s.store.UpdateNewWorkerSchema(ctx, db.UpdateNewWorkerSchemaParams{
-				ID:                     worker.ID,
-				WorkerSettingsSchemaID: schema.ID,
-			})
-			if err != nil {
-				return db.Worker{}, fmt.Errorf("update worker schema: %w", err)
-			}
+		worker, err = s.store.UpdateNewWorkerSchema(ctx, db.UpdateNewWorkerSchemaParams{
+			ID:                     worker.ID,
+			WorkerSettingsSchemaID: schema.ID,
+		})
+		if err != nil {
+			return db.Worker{}, fmt.Errorf("update worker schema: %w", err)
 		}
 	}
 

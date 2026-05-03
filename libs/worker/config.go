@@ -62,7 +62,7 @@ func (w *Worker) fetchConfig(ctx context.Context) (map[string]any, error) {
 func (w *Worker) subscribeConfigReload(ctx context.Context) error {
 	subject := "event.config." + w.cfg.Manifest.Kind
 
-	_, err := w.nc.Subscribe(subject, func(msg *nats.Msg) {
+	_, err := w.nc.Subscribe(subject, func(_ *nats.Msg) {
 		w.logger.Info("config reload notification received",
 			slog.String("subject", subject),
 		)

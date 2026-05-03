@@ -1,8 +1,9 @@
 package dependencies
 
 import (
-	"github.com/zalberix/cactus/cli/internal/shell"
 	"os"
+
+	"github.com/zalberix/cactus/cli/internal/shell"
 )
 
 func installGolangDeps() error {
