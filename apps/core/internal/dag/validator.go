@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// StepType представляет тип шага workflow.
+// StepType represents a workflow step type.
 type StepType string
 
 const (
@@ -16,7 +16,7 @@ const (
 
 const ControlKindStart = "start"
 
-// Step — шаг workflow для валидации DAG.
+// Step is a workflow DAG validation step.
 type Step struct {
 	ID           int32
 	StepType     StepType
@@ -24,63 +24,80 @@ type Step struct {
 	InputMapping []MappingEntry
 }
 
-// MappingEntry — одна запись маппинга входных данных.
+// MappingEntry is an input mapping entry.
 type MappingEntry struct {
-	Target string // поле назначения
-	Source string // источник: $.message.value.* или $.steps.{id}.output.*
+	Target string
+	Source string
 }
 
-// Dependency — зависимость между шагами.
+// Dependency is a dependency between workflow steps.
 type Dependency struct {
 	StepID          int32
 	DependsOnStepID int32
 	Outcome         string
 }
 
-// ValidationError — ошибка валидации DAG.
+// ValidationError is a DAG validation error.
 type ValidationError struct {
-	Type    string `json:"type"` // "cycle", "invalid_outcome", "invalid_mapping"
+	Type    string `json:"type"`
 	StepID  int32  `json:"step_id,omitempty"`
 	Message string `json:"message"`
 }
 
-// ValidateDAG валидирует направленный ациклический граф workflow.
-// Проверяет: отсутствие циклов (алгоритм Кана), корректность исходов,
-// корректность ссылок в input_mapping.
-// Возвращает все ошибки сразу (не останавливается на первой).
+// ValidateDAG validates a directed acyclic workflow graph.
 func ValidateDAG(steps []Step, deps []Dependency) []ValidationError {
 	if len(steps) == 0 {
 		return nil
 	}
 
-	var errors []ValidationError
+	stepMap := buildStepMap(steps)
+	inDegree, adj := buildGraph(steps, deps)
+	directDeps := buildDirectDeps(steps, deps)
 
-	// Строим карту шагов для быстрого поиска
+	errors := validateStart(steps, inDegree, adj)
+	errors = append(errors, validateCycles(steps, inDegree, adj)...)
+	errors = append(errors, validateOutcomes(deps, stepMap)...)
+	errors = append(errors, validateMappings(steps, directDeps)...)
+
+	return errors
+}
+
+func buildStepMap(steps []Step) map[int32]Step {
 	stepMap := make(map[int32]Step, len(steps))
-	for _, s := range steps {
-		stepMap[s.ID] = s
+	for _, step := range steps {
+		stepMap[step.ID] = step
 	}
+	return stepMap
+}
 
-	// Строим граф для алгоритма Кана:
-	// adj[dependsOn] -> [stepID] (ребро: dependsOn должен выполниться до stepID)
-	// inDegree[stepID] = количество шагов, от которых зависит stepID
+func buildGraph(steps []Step, deps []Dependency) (map[int32]int, map[int32][]int32) {
 	inDegree := make(map[int32]int, len(steps))
 	adj := make(map[int32][]int32, len(steps))
-	// Инициализируем нулевыми входными степенями
-	for _, s := range steps {
-		inDegree[s.ID] = 0
+	for _, step := range steps {
+		inDegree[step.ID] = 0
 	}
-	for _, d := range deps {
-		inDegree[d.StepID]++
-		adj[d.DependsOnStepID] = append(adj[d.DependsOnStepID], d.StepID)
+	for _, dep := range deps {
+		inDegree[dep.StepID]++
+		adj[dep.DependsOnStepID] = append(adj[dep.DependsOnStepID], dep.StepID)
 	}
+	return inDegree, adj
+}
 
-	startIDs := make([]int32, 0, 1)
-	for _, s := range steps {
-		if isStartStep(s) {
-			startIDs = append(startIDs, s.ID)
+func buildDirectDeps(steps []Step, deps []Dependency) map[int32]map[int32]struct{} {
+	directDeps := make(map[int32]map[int32]struct{}, len(steps))
+	for _, dep := range deps {
+		if directDeps[dep.StepID] == nil {
+			directDeps[dep.StepID] = make(map[int32]struct{})
 		}
+		directDeps[dep.StepID][dep.DependsOnStepID] = struct{}{}
 	}
+	return directDeps
+}
+
+func validateStart(steps []Step, inDegree map[int32]int, adj map[int32][]int32) []ValidationError {
+	var errors []ValidationError
+
+	startIDs := findStartIDs(steps)
 	if len(startIDs) == 0 {
 		errors = append(errors, ValidationError{
 			Type:    "missing_start",
@@ -96,54 +113,85 @@ func ValidateDAG(steps []Step, deps []Dependency) []ValidationError {
 			})
 		}
 	}
-	if len(startIDs) == 1 {
-		startID := startIDs[0]
-		if inDegree[startID] > 0 {
-			errors = append(errors, ValidationError{
-				Type:    "start_has_input",
-				StepID:  startID,
-				Message: fmt.Sprintf("Стартовый блок %d не может иметь входящие связи", startID),
-			})
-		}
-		for _, s := range steps {
-			if s.ID != startID && inDegree[s.ID] == 0 {
-				errors = append(errors, ValidationError{
-					Type:    "unreachable_from_start",
-					StepID:  s.ID,
-					Message: fmt.Sprintf("Шаг %d должен быть достижим от стартового блока", s.ID),
-				})
-			}
-		}
+	if len(startIDs) != 1 {
+		return errors
+	}
 
-		visited := map[int32]struct{}{startID: {}}
-		queueFromStart := []int32{startID}
-		for len(queueFromStart) > 0 {
-			node := queueFromStart[0]
-			queueFromStart = queueFromStart[1:]
-			for _, child := range adj[node] {
-				if _, ok := visited[child]; ok {
-					continue
-				}
-				visited[child] = struct{}{}
-				queueFromStart = append(queueFromStart, child)
-			}
+	startID := startIDs[0]
+	if inDegree[startID] > 0 {
+		errors = append(errors, ValidationError{
+			Type:    "start_has_input",
+			StepID:  startID,
+			Message: fmt.Sprintf("Стартовый блок %d не может иметь входящие связи", startID),
+		})
+	}
+	errors = append(errors, validateStartReachability(steps, startID, inDegree, adj)...)
+	return errors
+}
+
+func findStartIDs(steps []Step) []int32 {
+	startIDs := make([]int32, 0, 1)
+	for _, step := range steps {
+		if isStartStep(step) {
+			startIDs = append(startIDs, step.ID)
 		}
-		for _, s := range steps {
-			if _, ok := visited[s.ID]; !ok {
-				errors = append(errors, ValidationError{
-					Type:    "unreachable_from_start",
-					StepID:  s.ID,
-					Message: fmt.Sprintf("Шаг %d должен быть достижим от стартового блока", s.ID),
-				})
-			}
+	}
+	return startIDs
+}
+
+func validateStartReachability(
+	steps []Step,
+	startID int32,
+	inDegree map[int32]int,
+	adj map[int32][]int32,
+) []ValidationError {
+	var errors []ValidationError
+	for _, step := range steps {
+		if step.ID != startID && inDegree[step.ID] == 0 {
+			errors = append(errors, unreachableFromStartError(step.ID))
 		}
 	}
 
-	// Алгоритм Кана: обнаружение циклов
+	visited := reachableFrom(startID, adj)
+	for _, step := range steps {
+		if _, ok := visited[step.ID]; !ok {
+			errors = append(errors, unreachableFromStartError(step.ID))
+		}
+	}
+	return errors
+}
+
+func reachableFrom(startID int32, adj map[int32][]int32) map[int32]struct{} {
+	visited := map[int32]struct{}{startID: {}}
+	queue := []int32{startID}
+	for len(queue) > 0 {
+		node := queue[0]
+		queue = queue[1:]
+		for _, child := range adj[node] {
+			if _, ok := visited[child]; ok {
+				continue
+			}
+			visited[child] = struct{}{}
+			queue = append(queue, child)
+		}
+	}
+	return visited
+}
+
+func unreachableFromStartError(stepID int32) ValidationError {
+	return ValidationError{
+		Type:    "unreachable_from_start",
+		StepID:  stepID,
+		Message: fmt.Sprintf("Шаг %d должен быть достижим от стартового блока", stepID),
+	}
+}
+
+func validateCycles(steps []Step, inDegree map[int32]int, adj map[int32][]int32) []ValidationError {
+	degrees := copyInDegree(inDegree)
 	queue := make([]int32, 0, len(steps))
-	for _, s := range steps {
-		if inDegree[s.ID] == 0 {
-			queue = append(queue, s.ID)
+	for _, step := range steps {
+		if degrees[step.ID] == 0 {
+			queue = append(queue, step.ID)
 		}
 	}
 
@@ -153,76 +201,85 @@ func ValidateDAG(steps []Step, deps []Dependency) []ValidationError {
 		queue = queue[1:]
 		processed++
 		for _, neighbor := range adj[node] {
-			inDegree[neighbor]--
-			if inDegree[neighbor] == 0 {
+			degrees[neighbor]--
+			if degrees[neighbor] == 0 {
 				queue = append(queue, neighbor)
 			}
 		}
 	}
 
-	// Если обработано меньше шагов, чем существует — есть цикл
-	if processed < len(steps) {
-		for _, s := range steps {
-			if inDegree[s.ID] > 0 {
-				errors = append(errors, ValidationError{
-					Type:    "cycle",
-					StepID:  s.ID,
-					Message: fmt.Sprintf("Шаг %d участвует в цикле", s.ID),
-				})
-			}
-		}
+	if processed == len(steps) {
+		return nil
 	}
 
-	// Проверка исходов зависимостей
-	for _, d := range deps {
-		dependsOnStep, ok := stepMap[d.DependsOnStepID]
+	var errors []ValidationError
+	for _, step := range steps {
+		if degrees[step.ID] > 0 {
+			errors = append(errors, ValidationError{
+				Type:    "cycle",
+				StepID:  step.ID,
+				Message: fmt.Sprintf("Шаг %d участвует в цикле", step.ID),
+			})
+		}
+	}
+	return errors
+}
+
+func copyInDegree(inDegree map[int32]int) map[int32]int {
+	degrees := make(map[int32]int, len(inDegree))
+	for stepID, degree := range inDegree {
+		degrees[stepID] = degree
+	}
+	return degrees
+}
+
+func validateOutcomes(deps []Dependency, stepMap map[int32]Step) []ValidationError {
+	var errors []ValidationError
+	for _, dep := range deps {
+		dependsOnStep, ok := stepMap[dep.DependsOnStepID]
 		if !ok {
 			continue
 		}
-		// Task-шаги поддерживают только исход "success"
-		if dependsOnStep.StepType == StepTypeTask && d.Outcome != "success" {
-			errors = append(errors, ValidationError{
-				Type:    "invalid_outcome",
-				StepID:  d.StepID,
-				Message: fmt.Sprintf("Шаг %d: task-шаг (id=%d) поддерживает только исход 'success', получено '%s'", d.StepID, d.DependsOnStepID, d.Outcome),
-			})
-		}
-		if isStartStep(dependsOnStep) && d.Outcome != "success" {
-			errors = append(errors, ValidationError{
-				Type:    "invalid_outcome",
-				StepID:  d.StepID,
-				Message: fmt.Sprintf("Шаг %d: start-шаг (id=%d) поддерживает только исход 'success', получено '%s'", d.StepID, d.DependsOnStepID, d.Outcome),
-			})
-		}
-		// Control-шаги могут иметь любой непустой исход
-		if dependsOnStep.StepType == StepTypeControl && d.Outcome == "" {
-			errors = append(errors, ValidationError{
-				Type:    "invalid_outcome",
-				StepID:  d.StepID,
-				Message: fmt.Sprintf("Шаг %d: исход зависимости от control-шага (id=%d) не может быть пустым", d.StepID, d.DependsOnStepID),
-			})
-		}
+		errors = append(errors, validateDependencyOutcome(dep, dependsOnStep)...)
 	}
+	return errors
+}
 
-	// Строим множество прямых зависимостей для каждого шага
-	// directDeps[stepID] = set of dependsOnStepID
-	directDeps := make(map[int32]map[int32]struct{}, len(steps))
-	for _, d := range deps {
-		if directDeps[d.StepID] == nil {
-			directDeps[d.StepID] = make(map[int32]struct{})
-		}
-		directDeps[d.StepID][d.DependsOnStepID] = struct{}{}
+func validateDependencyOutcome(dep Dependency, dependsOnStep Step) []ValidationError {
+	var errors []ValidationError
+	if dependsOnStep.StepType == StepTypeTask && dep.Outcome != "success" {
+		errors = append(errors, ValidationError{
+			Type:    "invalid_outcome",
+			StepID:  dep.StepID,
+			Message: fmt.Sprintf("Шаг %d: task-шаг (id=%d) поддерживает только исход 'success', получено '%s'", dep.StepID, dep.DependsOnStepID, dep.Outcome),
+		})
 	}
+	if isStartStep(dependsOnStep) && dep.Outcome != "success" {
+		errors = append(errors, ValidationError{
+			Type:    "invalid_outcome",
+			StepID:  dep.StepID,
+			Message: fmt.Sprintf("Шаг %d: start-шаг (id=%d) поддерживает только исход 'success', получено '%s'", dep.StepID, dep.DependsOnStepID, dep.Outcome),
+		})
+	}
+	if dependsOnStep.StepType == StepTypeControl && dep.Outcome == "" {
+		errors = append(errors, ValidationError{
+			Type:    "invalid_outcome",
+			StepID:  dep.StepID,
+			Message: fmt.Sprintf("Шаг %d: исход зависимости от control-шага (id=%d) не может быть пустым", dep.StepID, dep.DependsOnStepID),
+		})
+	}
+	return errors
+}
 
-	// Проверка input_mapping
-	for _, s := range steps {
-		for _, mapping := range s.InputMapping {
-			if err := validateMappingSource(s.ID, mapping.Source, directDeps[s.ID]); err != nil {
+func validateMappings(steps []Step, directDeps map[int32]map[int32]struct{}) []ValidationError {
+	var errors []ValidationError
+	for _, step := range steps {
+		for _, mapping := range step.InputMapping {
+			if err := validateMappingSource(step.ID, mapping.Source, directDeps[step.ID]); err != nil {
 				errors = append(errors, *err)
 			}
 		}
 	}
-
 	return errors
 }
 
@@ -230,53 +287,49 @@ func isStartStep(step Step) bool {
 	return step.StepType == StepTypeControl && step.ControlKind == ControlKindStart
 }
 
-// validateMappingSource проверяет источник маппинга.
-// Допустимые форматы:
-//   - $.message.value.{field} — всегда валиден
-//   - $.steps.{id}.output.{field} — id должен быть прямой зависимостью шага
 func validateMappingSource(stepID int32, source string, directDeps map[int32]struct{}) *ValidationError {
 	if strings.HasPrefix(source, "$.message.value.") {
-		// Всегда валидный источник
 		return nil
 	}
 
 	if strings.HasPrefix(source, "$.steps.") {
-		// Формат: $.steps.{id}.output.{field}
-		rest := strings.TrimPrefix(source, "$.steps.")
-		parts := strings.SplitN(rest, ".", 2)
-		if len(parts) < 1 {
-			return &ValidationError{
-				Type:    "invalid_mapping",
-				StepID:  stepID,
-				Message: fmt.Sprintf("Шаг %d: некорректный формат источника маппинга: %s", stepID, source),
-			}
-		}
-		refIDStr := parts[0]
-		refID64, err := strconv.ParseInt(refIDStr, 10, 32)
-		if err != nil {
-			return &ValidationError{
-				Type:    "invalid_mapping",
-				StepID:  stepID,
-				Message: fmt.Sprintf("Шаг %d: некорректный ID шага в маппинге: %s", stepID, source),
-			}
-		}
-		refID := int32(refID64)
-
-		// Проверяем, что referenced шаг является прямой зависимостью
-		if _, ok := directDeps[refID]; !ok {
-			return &ValidationError{
-				Type:    "invalid_mapping",
-				StepID:  stepID,
-				Message: fmt.Sprintf("Шаг %d: маппинг ссылается на шаг %d, который не является прямой зависимостью", stepID, refID),
-			}
-		}
-		return nil
+		return validateStepMappingSource(stepID, source, directDeps)
 	}
 
-	// Неизвестный формат источника
 	return &ValidationError{
 		Type:    "invalid_mapping",
 		StepID:  stepID,
 		Message: fmt.Sprintf("Шаг %d: неизвестный формат источника маппинга: %s", stepID, source),
 	}
+}
+
+func validateStepMappingSource(stepID int32, source string, directDeps map[int32]struct{}) *ValidationError {
+	rest := strings.TrimPrefix(source, "$.steps.")
+	parts := strings.SplitN(rest, ".", 2)
+	if len(parts) < 1 {
+		return &ValidationError{
+			Type:    "invalid_mapping",
+			StepID:  stepID,
+			Message: fmt.Sprintf("Шаг %d: некорректный формат источника маппинга: %s", stepID, source),
+		}
+	}
+
+	refID64, err := strconv.ParseInt(parts[0], 10, 32)
+	if err != nil {
+		return &ValidationError{
+			Type:    "invalid_mapping",
+			StepID:  stepID,
+			Message: fmt.Sprintf("Шаг %d: некорректный ID шага в маппинге: %s", stepID, source),
+		}
+	}
+
+	refID := int32(refID64)
+	if _, ok := directDeps[refID]; !ok {
+		return &ValidationError{
+			Type:    "invalid_mapping",
+			StepID:  stepID,
+			Message: fmt.Sprintf("Шаг %d: маппинг ссылается на шаг %d, который не является прямой зависимостью", stepID, refID),
+		}
+	}
+	return nil
 }

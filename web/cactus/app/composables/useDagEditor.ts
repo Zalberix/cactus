@@ -39,6 +39,7 @@ export function useDagEditor(
     deleteStep: apiDeleteStep,
     createDependency,
     deleteDependency,
+    validateVersion,
   } = useVersions()
 
   const nodes = ref<Node[]>([])
@@ -229,7 +230,6 @@ export function useDagEditor(
     const vid = versionId.value
     if (!vid) return false
 
-    const { validateVersion } = useVersions()
     const result = await validateVersion(vid)
 
     if (!result.valid && result.errors?.length) {
