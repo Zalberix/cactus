@@ -10,15 +10,25 @@ export interface System {
 
 export interface Token {
   id: number
+  system_id?: number
   public_token: string
   private_token?: string
   created_at: string
+  updated_at?: string
   is_active: boolean
   name?: string
 }
 
+export interface WorkflowTokenLink {
+  system_token_id: number
+  workflow_id: number
+  granted_at: string
+}
+
 export interface CreateTokenResponse {
   id: number
+  system_id?: number
+  name?: string
   public_token: string
   private_token: string
 }
@@ -128,6 +138,46 @@ export function useSystems() {
     }
   }
 
+  async function fetchTokenWorkflows(tokenId: number) {
+    const resp = await api<ApiResponse<WorkflowTokenLink[]>>(
+      `/tokens/${tokenId}/workflows`,
+    )
+    if (!resp.success || !resp.data) {
+      throw new Error(resp.error?.message ?? 'Failed to fetch token workflows')
+    }
+    return Array.isArray(resp.data) ? resp.data : []
+  }
+
+  async function fetchWorkflowTokens(workflowId: number) {
+    const resp = await api<ApiResponse<WorkflowTokenLink[]>>(
+      `/workflows/${workflowId}/tokens`,
+    )
+    if (!resp.success || !resp.data) {
+      throw new Error(resp.error?.message ?? 'Failed to fetch workflow tokens')
+    }
+    return Array.isArray(resp.data) ? resp.data : []
+  }
+
+  async function bindTokenWorkflow(tokenId: number, workflowId: number) {
+    const resp = await api<ApiResponse<null>>(
+      `/tokens/${tokenId}/workflows/${workflowId}`,
+      { method: 'POST' },
+    )
+    if (!resp.success) {
+      throw new Error(resp.error?.message ?? 'Failed to bind token workflow')
+    }
+  }
+
+  async function unbindTokenWorkflow(tokenId: number, workflowId: number) {
+    const resp = await api<ApiResponse<null>>(
+      `/tokens/${tokenId}/workflows/${workflowId}`,
+      { method: 'DELETE' },
+    )
+    if (!resp.success) {
+      throw new Error(resp.error?.message ?? 'Failed to unbind token workflow')
+    }
+  }
+
   return {
     fetchSystems,
     fetchSystemsPage,
@@ -138,5 +188,9 @@ export function useSystems() {
     createToken,
     revokeToken,
     activateToken,
+    fetchTokenWorkflows,
+    fetchWorkflowTokens,
+    bindTokenWorkflow,
+    unbindTokenWorkflow,
   }
 }

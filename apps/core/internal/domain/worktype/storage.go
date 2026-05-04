@@ -58,6 +58,9 @@ type Storage interface {
 	ActivateSystemToken(ctx context.Context, id int32) error
 
 	// Workflow Token
+	GetWorkflowByID(ctx context.Context, id int32) (db.Workflow, error)
 	GrantWorkflowToken(ctx context.Context, arg db.GrantWorkflowTokenParams) error
 	RevokeWorkflowToken(ctx context.Context, arg db.RevokeWorkflowTokenParams) error
+	ListWorkflowTokensBySystemTokenID(ctx context.Context, systemTokenID int32) ([]db.WorkflowToken, error)
+	ListWorkflowTokensByWorkflowID(ctx context.Context, workflowID int32) ([]db.WorkflowToken, error)
 }

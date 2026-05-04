@@ -34,6 +34,7 @@ func (q *Queries) CheckWorkflowAccess(ctx context.Context, arg CheckWorkflowAcce
 const grantWorkflowToken = `-- name: GrantWorkflowToken :exec
 INSERT INTO "workflow_token" (system_token_id, workflow_id)
 VALUES ($1, $2)
+ON CONFLICT (system_token_id, workflow_id) DO NOTHING
 `
 
 type GrantWorkflowTokenParams struct {

@@ -50,6 +50,10 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc, _ middle
 		middleware.RequirePermission(h.permChecker, permissions.SystemWrite), h.DeactivateToken)
 	v1.POST("/tokens/:tokenId/activate",
 		middleware.RequirePermission(h.permChecker, permissions.SystemWrite), h.ActivateToken)
+	v1.GET("/tokens/:tokenId/workflows",
+		middleware.RequirePermission(h.permChecker, permissions.SystemRead), h.ListTokenWorkflows)
+	v1.GET("/workflows/:workflowId/tokens",
+		middleware.RequirePermission(h.permChecker, permissions.SystemRead), h.ListWorkflowTokens)
 	v1.POST("/tokens/:tokenId/workflows/:workflowId",
 		middleware.RequirePermission(h.permChecker, permissions.SystemWrite), h.BindWorkflow)
 	v1.DELETE("/tokens/:tokenId/workflows/:workflowId",
@@ -208,7 +212,7 @@ func (h *Handler) ListTokens(c *gin.Context) {
 		return
 	}
 
-	tokens, err := h.service.store.ListSystemTokensBySystemID(c.Request.Context(), systemID)
+	tokens, err := h.service.ListSystemTokens(c.Request.Context(), systemID)
 	if err != nil {
 		response.InternalError(c, "Ошибка получения токенов")
 		return
@@ -259,6 +263,10 @@ func (h *Handler) BindWorkflow(c *gin.Context) {
 	}
 
 	if err := h.service.BindWorkflowToToken(c.Request.Context(), tokenID, workflowID); err != nil {
+		if errors.Is(err, ErrWorkflowTokenSystemMismatch) {
+			response.BadRequest(c, "SYSTEM_MISMATCH", "System token and workflow must belong to the same system")
+			return
+		}
 		response.InternalError(c, "Ошибка привязки workflow к токену")
 		return
 	}
@@ -278,10 +286,46 @@ func (h *Handler) UnbindWorkflow(c *gin.Context) {
 	}
 
 	if err := h.service.UnbindWorkflowFromToken(c.Request.Context(), tokenID, workflowID); err != nil {
+		if errors.Is(err, ErrWorkflowTokenSystemMismatch) {
+			response.BadRequest(c, "SYSTEM_MISMATCH", "System token and workflow must belong to the same system")
+			return
+		}
 		response.InternalError(c, "Ошибка отвязки workflow от токена")
 		return
 	}
 	response.OK(c, gin.H{"message": "Workflow отвязан от токена"})
+}
+
+// ListTokenWorkflows godoc
+// GET /api/v1/tokens/:tokenId/workflows
+func (h *Handler) ListTokenWorkflows(c *gin.Context) {
+	tokenID, ok := parseID(c, "tokenId")
+	if !ok {
+		return
+	}
+
+	links, err := h.service.ListTokenWorkflows(c.Request.Context(), tokenID)
+	if err != nil {
+		response.InternalError(c, "Error fetching token workflows")
+		return
+	}
+	response.OK(c, links)
+}
+
+// ListWorkflowTokens godoc
+// GET /api/v1/workflows/:workflowId/tokens
+func (h *Handler) ListWorkflowTokens(c *gin.Context) {
+	workflowID, ok := parseID(c, "workflowId")
+	if !ok {
+		return
+	}
+
+	links, err := h.service.ListWorkflowTokens(c.Request.Context(), workflowID)
+	if err != nil {
+		response.InternalError(c, "Error fetching workflow tokens")
+		return
+	}
+	response.OK(c, links)
 }
 
 // --- Work Type handlers ---

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import '@vue-flow/core/dist/style.css'
-import { Save, Play, Pause, AlertCircle, X, Trash2 } from 'lucide-vue-next'
+import { Save, Play, Pause, AlertCircle, X, Trash2, Key, Download } from 'lucide-vue-next'
 import type { Connection } from '@vue-flow/core'
 import type { Version, WorkType } from '~/composables/useVersions'
 import type { StepData } from '~/composables/useDagEditor'
+import type { Token, CreateTokenResponse } from '~/composables/useSystems'
 import DagCanvas from '~/components/dag/DagCanvas.vue'
 import StepToolbar from '~/components/dag/StepToolbar.vue'
 import StepPanel from '~/components/dag/StepPanel.vue'
@@ -11,7 +12,9 @@ import VersionSelector from '~/components/dag/VersionSelector.vue'
 import NodeEditor from '~/components/dag/node-editor/NodeEditor.vue'
 import EmptyState from '~/components/feedback/EmptyState.vue'
 import { Button } from '~/components/ui/button'
+import { Checkbox } from '~/components/ui/checkbox'
 import { Input } from '~/components/ui/input'
+import { Label } from '~/components/ui/label'
 import {
   Dialog,
   DialogContent,
@@ -30,6 +33,13 @@ const workflowId = computed(() => Number(route.params.workflowId))
 
 const { fetchWorkflow, updateWorkflow } = useWorkflows()
 const {
+  fetchTokens,
+  createToken,
+  fetchWorkflowTokens,
+  bindTokenWorkflow,
+  unbindTokenWorkflow,
+} = useSystems()
+const {
   fetchVersions,
   createVersion,
   activateVersion,
@@ -40,6 +50,7 @@ const {
 
 // Workflow state
 const workflowName = ref('')
+const workflowSystemId = ref<number | null>(null)
 const versions = ref<Version[]>([])
 const selectedVersionId = ref<number | null>(null)
 const workTypes = ref<WorkType[]>([])
@@ -48,6 +59,15 @@ const saving = ref(false)
 const deactivateOpen = ref(false)
 const deleteVersionOpen = ref(false)
 const deletingVersion = ref(false)
+const tokensOpen = ref(false)
+const workflowTokens = ref<Token[]>([])
+const originalTokenIds = ref<Set<number>>(new Set())
+const selectedTokenIds = ref<Set<number>>(new Set())
+const tokensLoading = ref(false)
+const tokensSaving = ref(false)
+const tokenCreateName = ref('')
+const tokenCreating = ref(false)
+const createdToken = ref<CreateTokenResponse | null>(null)
 
 // DAG editor composable
 const dagEditor = useDagEditor(workflowId, selectedVersionId)
@@ -79,6 +99,7 @@ async function loadAll() {
     ])
 
     workflowName.value = wf.name
+    workflowSystemId.value = wf.system_id
     versions.value = vers
     workTypes.value = wts
 
@@ -267,6 +288,105 @@ function onDeleteSelected() {
   }
 }
 
+async function openTokensDialog() {
+  if (!workflowSystemId.value) return
+  tokensOpen.value = true
+  tokensLoading.value = true
+  createdToken.value = null
+  tokenCreateName.value = ''
+  try {
+    const [tokens, links] = await Promise.all([
+      fetchTokens(workflowSystemId.value),
+      fetchWorkflowTokens(workflowId.value),
+    ])
+    workflowTokens.value = tokens
+    const linkedIds = new Set(links.map(link => link.system_token_id))
+    originalTokenIds.value = new Set(linkedIds)
+    selectedTokenIds.value = new Set(linkedIds)
+  }
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
+  }
+  finally {
+    tokensLoading.value = false
+  }
+}
+
+function isTokenSelected(tokenId: number) {
+  return selectedTokenIds.value.has(tokenId)
+}
+
+function toggleToken(tokenId: number) {
+  const next = new Set(selectedTokenIds.value)
+  if (next.has(tokenId)) {
+    next.delete(tokenId)
+  }
+  else {
+    next.add(tokenId)
+  }
+  selectedTokenIds.value = next
+}
+
+async function saveWorkflowTokenAccess() {
+  tokensSaving.value = true
+  try {
+    const selected = selectedTokenIds.value
+    const original = originalTokenIds.value
+    const toBind = [...selected].filter(id => !original.has(id))
+    const toUnbind = [...original].filter(id => !selected.has(id))
+
+    await Promise.all([
+      ...toBind.map(tokenId => bindTokenWorkflow(tokenId, workflowId.value)),
+      ...toUnbind.map(tokenId => unbindTokenWorkflow(tokenId, workflowId.value)),
+    ])
+
+    tokensOpen.value = false
+    toast({ title: t('tokens.workflowAccessSaved') })
+  }
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
+  }
+  finally {
+    tokensSaving.value = false
+  }
+}
+
+async function createTokenForWorkflow() {
+  if (!workflowSystemId.value || !tokenCreateName.value.trim()) return
+  tokenCreating.value = true
+  try {
+    const token = await createToken(workflowSystemId.value, tokenCreateName.value.trim())
+    await bindTokenWorkflow(token.id, workflowId.value)
+    createdToken.value = token
+    workflowTokens.value = await fetchTokens(workflowSystemId.value)
+    originalTokenIds.value = new Set([...originalTokenIds.value, token.id])
+    selectedTokenIds.value = new Set([...selectedTokenIds.value, token.id])
+    tokenCreateName.value = ''
+    toast({ title: t('tokens.created') })
+  }
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
+  }
+  finally {
+    tokenCreating.value = false
+  }
+}
+
+function downloadTokenJson() {
+  if (!createdToken.value) return
+  const data = {
+    public_token: createdToken.value.public_token,
+    private_token: createdToken.value.private_token,
+  }
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `token-${createdToken.value.public_token.slice(0, 8)}.json`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 function onPanelUpdateData(nodeId: string, data: Partial<StepData>) {
   dagEditor.updateNodeData(nodeId, data)
 }
@@ -335,6 +455,17 @@ onMounted(() => {
       </Button>
 
       <div class="flex-1" />
+
+      <Button
+        size="sm"
+        variant="outline"
+        class="gap-2"
+        :disabled="!workflowSystemId"
+        @click="openTokensDialog"
+      >
+        <Key class="h-4 w-4" />
+        {{ t('tokens.title') }}
+      </Button>
 
       <Button
         size="sm"
@@ -458,6 +589,98 @@ onMounted(() => {
       :all-edges="dagEditor.edges.value"
       @save="onNodeEditorSave"
     />
+
+    <!-- Workflow Tokens Dialog -->
+    <Dialog v-model:open="tokensOpen">
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{{ t('tokens.workflowDialogTitle') }}</DialogTitle>
+          <DialogDescription>{{ t('tokens.workflowDialogDescription') }}</DialogDescription>
+        </DialogHeader>
+
+        <div class="space-y-4">
+          <div class="space-y-2">
+            <Label>{{ t('tokens.createForWorkflow') }}</Label>
+            <div class="flex gap-2">
+              <Input
+                v-model="tokenCreateName"
+                :placeholder="t('tokens.namePlaceholder')"
+                :disabled="tokenCreating"
+              />
+              <Button
+                :disabled="tokenCreating || !tokenCreateName.trim()"
+                @click="createTokenForWorkflow"
+              >
+                {{ t('common.create') }}
+              </Button>
+            </div>
+          </div>
+
+          <div
+            v-if="createdToken"
+            class="space-y-3 rounded-md border border-yellow-500/50 bg-yellow-500/10 p-3"
+          >
+            <p class="text-sm font-medium">{{ t('tokenShowOnce.heading') }}</p>
+            <code class="block rounded-md border bg-background px-3 py-2 text-xs font-mono break-all">
+              {{ createdToken.public_token }}
+            </code>
+            <code class="block rounded-md border bg-background px-3 py-2 text-xs font-mono break-all">
+              {{ createdToken.private_token }}
+            </code>
+            <Button variant="outline" size="sm" class="gap-2" @click="downloadTokenJson">
+              <Download class="h-4 w-4" />
+              {{ t('tokens.downloadJson') }}
+            </Button>
+          </div>
+
+          <div class="max-h-[320px] space-y-2 overflow-y-auto pr-1">
+            <p v-if="tokensLoading" class="text-sm text-muted-foreground">
+              {{ t('common.loading') }}
+            </p>
+            <p
+              v-else-if="workflowTokens.length === 0"
+              class="text-sm text-muted-foreground"
+            >
+              {{ t('tokens.noTokens') }}
+            </p>
+            <template v-else>
+              <label
+                v-for="token in workflowTokens"
+                :key="token.id"
+                class="flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2 text-sm hover:bg-muted/50"
+              >
+                <Checkbox
+                  :checked="isTokenSelected(token.id)"
+                  @update:checked="toggleToken(token.id)"
+                />
+                <span class="min-w-0 flex-1">
+                  <span class="block font-medium">{{ token.name || token.public_token }}</span>
+                  <span class="block truncate text-xs text-muted-foreground">{{ token.public_token }}</span>
+                </span>
+                <span
+                  class="text-xs"
+                  :class="token.is_active ? 'text-green-600' : 'text-muted-foreground'"
+                >
+                  {{ token.is_active ? t('status.active') : t('status.inactive') }}
+                </span>
+              </label>
+            </template>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" @click="tokensOpen = false">
+            {{ t('common.cancel') }}
+          </Button>
+          <Button
+            :disabled="tokensLoading || tokensSaving"
+            @click="saveWorkflowTokenAccess"
+          >
+            {{ t('common.save') }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <!-- Deactivate Confirmation Dialog -->
     <Dialog v-model:open="deactivateOpen">

@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import type { ColumnDef } from '@tanstack/vue-table'
 import { h } from 'vue'
-import { Key, ArrowLeft, Download, ShieldCheck, ShieldOff } from 'lucide-vue-next'
+import { Key, ArrowLeft, Download, Settings2 } from 'lucide-vue-next'
 import type { Token, CreateTokenResponse } from '~/composables/useSystems'
+import type { Workflow } from '~/composables/useWorkflows'
 import DataTable from '~/components/tables/DataTable.vue'
 import DataTableColumnHeader from '~/components/tables/DataTableColumnHeader.vue'
 import EmptyState from '~/components/feedback/EmptyState.vue'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
+import { Checkbox } from '~/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -27,6 +29,12 @@ const orgId = computed(() => Number(route.params.orgId))
 const systemId = computed(() => Number(route.params.systemId))
 
 const { fetchSystems, fetchTokens, createToken, revokeToken, activateToken } = useSystems()
+const {
+  fetchTokenWorkflows,
+  bindTokenWorkflow,
+  unbindTokenWorkflow,
+} = useSystems()
+const { fetchWorkflowsForSystem } = useWorkflows()
 
 const tokens = ref<Token[]>([])
 const systemName = ref('')
@@ -45,6 +53,14 @@ const createdToken = ref<CreateTokenResponse | null>(null)
 const confirmOpen = ref(false)
 const confirmAction = ref<'revoke' | 'activate'>('revoke')
 const tokenToAction = ref<Token | null>(null)
+
+const workflowAccessOpen = ref(false)
+const workflowAccessToken = ref<Token | null>(null)
+const systemWorkflows = ref<Workflow[]>([])
+const originalWorkflowIds = ref<Set<number>>(new Set())
+const selectedWorkflowIds = ref<Set<number>>(new Set())
+const workflowAccessLoading = ref(false)
+const workflowAccessSaving = ref(false)
 
 const columns: ColumnDef<Token>[] = [
   {
@@ -82,22 +98,30 @@ const columns: ColumnDef<Token>[] = [
   {
     id: 'actions',
     header: '',
-    size: 120,
+    size: 240,
     cell: ({ row }) => {
       const token = row.original
-      if (token.is_active) {
-        return h(Button, {
+      const statusButton = token.is_active
+        ? h(Button, {
           variant: 'ghost',
           size: 'sm',
           class: 'text-destructive hover:text-destructive',
           onClick: () => onConfirmAction(token, 'revoke'),
         }, () => t('tokens.revoke'))
-      }
-      return h(Button, {
+        : h(Button, {
         variant: 'ghost',
         size: 'sm',
         onClick: () => onConfirmAction(token, 'activate'),
       }, () => t('tokens.activate'))
+      return h('div', { class: 'flex items-center justify-end gap-1' }, [
+        h(Button, {
+          variant: 'ghost',
+          size: 'sm',
+          class: 'gap-2',
+          onClick: () => openWorkflowAccess(token),
+        }, () => [h(Settings2, { class: 'h-4 w-4' }), t('tokens.manageWorkflows')]),
+        statusButton,
+      ])
     },
   },
 ]
@@ -189,6 +213,70 @@ async function onExecuteAction() {
   }
   finally {
     submitting.value = false
+  }
+}
+
+async function openWorkflowAccess(token: Token) {
+  workflowAccessToken.value = token
+  workflowAccessOpen.value = true
+  workflowAccessLoading.value = true
+  try {
+    const [workflows, links] = await Promise.all([
+      fetchWorkflowsForSystem(systemId.value),
+      fetchTokenWorkflows(token.id),
+    ])
+    systemWorkflows.value = workflows
+    const linkedIds = new Set(links.map(link => link.workflow_id))
+    originalWorkflowIds.value = new Set(linkedIds)
+    selectedWorkflowIds.value = new Set(linkedIds)
+  }
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
+  }
+  finally {
+    workflowAccessLoading.value = false
+  }
+}
+
+function isWorkflowSelected(workflowId: number) {
+  return selectedWorkflowIds.value.has(workflowId)
+}
+
+function toggleWorkflow(workflowId: number) {
+  const next = new Set(selectedWorkflowIds.value)
+  if (next.has(workflowId)) {
+    next.delete(workflowId)
+  }
+  else {
+    next.add(workflowId)
+  }
+  selectedWorkflowIds.value = next
+}
+
+async function saveWorkflowAccess() {
+  const token = workflowAccessToken.value
+  if (!token) return
+
+  workflowAccessSaving.value = true
+  try {
+    const selected = selectedWorkflowIds.value
+    const original = originalWorkflowIds.value
+    const toBind = [...selected].filter(id => !original.has(id))
+    const toUnbind = [...original].filter(id => !selected.has(id))
+
+    await Promise.all([
+      ...toBind.map(workflowId => bindTokenWorkflow(token.id, workflowId)),
+      ...toUnbind.map(workflowId => unbindTokenWorkflow(token.id, workflowId)),
+    ])
+
+    workflowAccessOpen.value = false
+    toast({ title: t('tokens.workflowAccessSaved') })
+  }
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
+  }
+  finally {
+    workflowAccessSaving.value = false
   }
 }
 
@@ -311,6 +399,55 @@ onMounted(() => {
             </Button>
           </DialogFooter>
         </template>
+      </DialogContent>
+    </Dialog>
+
+    <!-- Workflow Access Dialog -->
+    <Dialog v-model:open="workflowAccessOpen">
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{{ t('tokens.manageWorkflows') }}</DialogTitle>
+          <DialogDescription>
+            {{ t('tokens.manageWorkflowsDescription') }}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div class="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+          <p v-if="workflowAccessLoading" class="text-sm text-muted-foreground">
+            {{ t('common.loading') }}
+          </p>
+          <p
+            v-else-if="systemWorkflows.length === 0"
+            class="text-sm text-muted-foreground"
+          >
+            {{ t('tokens.noWorkflows') }}
+          </p>
+          <template v-else>
+            <label
+              v-for="workflow in systemWorkflows"
+              :key="workflow.id"
+              class="flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2 text-sm hover:bg-muted/50"
+            >
+              <Checkbox
+                :checked="isWorkflowSelected(workflow.id)"
+                @update:checked="toggleWorkflow(workflow.id)"
+              />
+              <span class="font-medium">{{ workflow.name }}</span>
+            </label>
+          </template>
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" @click="workflowAccessOpen = false">
+            {{ t('common.cancel') }}
+          </Button>
+          <Button
+            :disabled="workflowAccessLoading || workflowAccessSaving"
+            @click="saveWorkflowAccess"
+          >
+            {{ t('common.save') }}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
 

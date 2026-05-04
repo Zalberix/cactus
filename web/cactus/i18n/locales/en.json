@@ -178,6 +178,13 @@
     "privateWarning": "This private token will only be shown once.",
     "closeWarning": "Make sure you've saved the token credentials.",
     "downloadJson": "Download JSON",
+    "manageWorkflows": "Processes",
+    "manageWorkflowsDescription": "Choose which workflows this token can access.",
+    "workflowAccessSaved": "Token access updated",
+    "noWorkflows": "No workflows in this system.",
+    "workflowDialogTitle": "Workflow Tokens",
+    "workflowDialogDescription": "Link existing tokens or create a new token for this workflow.",
+    "createForWorkflow": "Create and link token",
     "validation": {
       "nameRequired": "Token name is required"
     }

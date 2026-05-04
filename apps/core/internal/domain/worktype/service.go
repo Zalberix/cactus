@@ -17,6 +17,8 @@ import (
 	db "github.com/zalberix/cactus/apps/core/storage/db"
 )
 
+var ErrWorkflowTokenSystemMismatch = errors.New("system token and workflow belong to different systems")
+
 // HeartbeatTimeout — таймаут для определения offline-статуса воркера.
 const HeartbeatTimeout = 90 * time.Second
 
@@ -313,6 +315,26 @@ func (s *Service) ListSystemsPaginated(ctx context.Context, orgID int32, page, p
 // CreateSystemToken генерирует public + private токен, хранит хэш private токена.
 // Возвращает plaintext public + private ОДИН раз.
 // Per D-05/D-18: вся криптологическая логика в сервисе.
+func (s *Service) ListSystemTokens(ctx context.Context, systemID int32) ([]SystemTokenResponse, error) {
+	tokens, err := s.store.ListSystemTokensBySystemID(ctx, systemID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]SystemTokenResponse, 0, len(tokens))
+	for _, token := range tokens {
+		result = append(result, SystemTokenResponse{
+			ID:          token.ID,
+			SystemID:    token.SystemID,
+			Name:        token.Name,
+			PublicToken: token.PublicToken,
+			IsActive:    token.IsActive,
+			CreatedAt:   token.CreatedAt,
+			UpdatedAt:   token.UpdatedAt,
+		})
+	}
+	return result, nil
+}
+
 func (s *Service) CreateSystemToken(ctx context.Context, systemID int32, name string) (CreateSystemTokenResponse, error) {
 	// Генерируем public token (16 random bytes → hex)
 	pubBytes := make([]byte, 16)
@@ -363,6 +385,9 @@ func (s *Service) ActivateSystemToken(ctx context.Context, tokenID int32) error 
 
 // BindWorkflowToToken привязывает workflow к токену (RBAC-08).
 func (s *Service) BindWorkflowToToken(ctx context.Context, tokenID, workflowID int32) error {
+	if err := s.ensureTokenWorkflowSameSystem(ctx, tokenID, workflowID); err != nil {
+		return err
+	}
 	return s.store.GrantWorkflowToken(ctx, db.GrantWorkflowTokenParams{
 		SystemTokenID: tokenID,
 		WorkflowID:    workflowID,
@@ -371,10 +396,50 @@ func (s *Service) BindWorkflowToToken(ctx context.Context, tokenID, workflowID i
 
 // UnbindWorkflowFromToken отвязывает workflow от токена.
 func (s *Service) UnbindWorkflowFromToken(ctx context.Context, tokenID, workflowID int32) error {
+	if err := s.ensureTokenWorkflowSameSystem(ctx, tokenID, workflowID); err != nil {
+		return err
+	}
 	return s.store.RevokeWorkflowToken(ctx, db.RevokeWorkflowTokenParams{
 		SystemTokenID: tokenID,
 		WorkflowID:    workflowID,
 	})
+}
+
+func (s *Service) ListTokenWorkflows(ctx context.Context, tokenID int32) ([]db.WorkflowToken, error) {
+	links, err := s.store.ListWorkflowTokensBySystemTokenID(ctx, tokenID)
+	if err != nil {
+		return nil, err
+	}
+	if links == nil {
+		return []db.WorkflowToken{}, nil
+	}
+	return links, nil
+}
+
+func (s *Service) ListWorkflowTokens(ctx context.Context, workflowID int32) ([]db.WorkflowToken, error) {
+	links, err := s.store.ListWorkflowTokensByWorkflowID(ctx, workflowID)
+	if err != nil {
+		return nil, err
+	}
+	if links == nil {
+		return []db.WorkflowToken{}, nil
+	}
+	return links, nil
+}
+
+func (s *Service) ensureTokenWorkflowSameSystem(ctx context.Context, tokenID, workflowID int32) error {
+	token, err := s.store.GetSystemTokenByID(ctx, tokenID)
+	if err != nil {
+		return fmt.Errorf("get system token: %w", err)
+	}
+	workflow, err := s.store.GetWorkflowByID(ctx, workflowID)
+	if err != nil {
+		return fmt.Errorf("get workflow: %w", err)
+	}
+	if token.SystemID != workflow.SystemID {
+		return ErrWorkflowTokenSystemMismatch
+	}
+	return nil
 }
 
 // --- Settings Schema methods ---

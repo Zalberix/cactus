@@ -60,6 +60,16 @@ export function useWorkflows() {
     return resp.data
   }
 
+  async function fetchWorkflowsForSystem(systemId: number): Promise<Workflow[]> {
+    const resp = await api<ApiResponse<Workflow[]>>(
+      `/systems/${systemId}/workflows`,
+    )
+    if (!resp.success || !resp.data) {
+      throw new Error(resp.error?.message ?? 'Failed to fetch workflows')
+    }
+    return Array.isArray(resp.data) ? resp.data : []
+  }
+
   async function createWorkflow(systemId: number, data: CreateWorkflowRequest): Promise<Workflow> {
     const resp = await api<ApiResponse<Workflow>>(
       `/systems/${systemId}/workflows`,
@@ -102,6 +112,7 @@ export function useWorkflows() {
 
   return {
     fetchWorkflowsForOrg,
+    fetchWorkflowsForSystem,
     fetchWorkflow,
     createWorkflow,
     updateWorkflow,

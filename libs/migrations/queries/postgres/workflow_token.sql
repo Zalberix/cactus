@@ -1,6 +1,7 @@
 -- name: GrantWorkflowToken :exec
 INSERT INTO "workflow_token" (system_token_id, workflow_id)
-VALUES ($1, $2);
+VALUES ($1, $2)
+ON CONFLICT (system_token_id, workflow_id) DO NOTHING;
 
 -- name: RevokeWorkflowToken :exec
 DELETE FROM "workflow_token"

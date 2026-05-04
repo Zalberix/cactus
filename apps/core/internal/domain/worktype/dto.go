@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	db "github.com/zalberix/cactus/apps/core/storage/db"
 )
 
@@ -90,6 +92,16 @@ type CreateSystemTokenResponse struct {
 	Name         string `json:"name"`
 	PublicToken  string `json:"public_token"`
 	PrivateToken string `json:"private_token"`
+}
+
+type SystemTokenResponse struct {
+	ID          int32            `json:"id"`
+	SystemID    int32            `json:"system_id"`
+	Name        string           `json:"name"`
+	PublicToken string           `json:"public_token"`
+	IsActive    bool             `json:"is_active"`
+	CreatedAt   pgtype.Timestamp `json:"created_at"`
+	UpdatedAt   pgtype.Timestamp `json:"updated_at"`
 }
 
 // --- Settings Revision DTOs ---
