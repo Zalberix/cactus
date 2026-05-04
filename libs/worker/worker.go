@@ -87,6 +87,15 @@ func (w *Worker) Run(ctx context.Context) error {
 	return w.consumeLoop(ctx)
 }
 
+func (w *Worker) refreshLoggerAfterWorkerID() {
+	if w.workerID <= 0 || w.cfg.OnWorkerID == nil {
+		return
+	}
+	if logger := w.cfg.OnWorkerID(w.workerID); logger != nil {
+		w.logger = logger
+	}
+}
+
 // registerWithRetry пытается зарегистрироваться с экспоненциальным backoff.
 // Не сдаётся до отмены ctx.
 func (w *Worker) registerWithRetry(ctx context.Context) error {

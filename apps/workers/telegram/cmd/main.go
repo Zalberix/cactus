@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -66,8 +67,11 @@ func (h *TelegramHandler) Handle(ctx context.Context, task worker.TaskMessage) (
 }
 
 func main() {
+	workerIDPath := flag.String("worker-id-path", "", "path to worker ID file (.worker_id/{type}/{uuid})")
+	flag.Parse()
+
 	conf := cfgloader.MustLoad[config.Config]("configs/apps/workers/telegram.yaml")
-	slog.SetDefault(logger.SetupLogger(conf.Env))
+	slog.SetDefault(logger.SetupLogger(conf.Env, logger.WorkerSource("telegram", 0)))
 
 	bootstrapToken := conf.BootstrapToken
 	if bootstrapToken == "" {
@@ -85,7 +89,11 @@ func main() {
 		BootstrapToken: bootstrapToken,
 		WorkTypeID:     conf.WorkTypeID,
 		RevisionID:     conf.RevisionID,
+		WorkerIDPath:   *workerIDPath,
 		WorkerName:     "telegram-worker",
+		OnWorkerID: func(workerID int32) *slog.Logger {
+			return logger.SetupLogger(conf.Env, logger.WorkerSource("telegram", workerID))
+		},
 		Manifest: worker.Manifest{
 			Kind:        "telegram",
 			NameKind:    "Telegram Bot",

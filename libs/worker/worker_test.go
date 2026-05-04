@@ -170,3 +170,27 @@ func TestSendRegistration(t *testing.T) {
 		t.Errorf("expected workerID == 7, got %d", wk.workerID)
 	}
 }
+
+func TestRefreshLoggerAfterWorkerIDUsesCallback(t *testing.T) {
+	callbackCalled := false
+	expectedLogger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	w := New(Config{
+		OnWorkerID: func(workerID int32) *slog.Logger {
+			callbackCalled = true
+			if workerID != 42 {
+				t.Fatalf("OnWorkerID workerID = %d, want 42", workerID)
+			}
+			return expectedLogger
+		},
+	}, nil, slog.Default())
+	w.workerID = 42
+
+	w.refreshLoggerAfterWorkerID()
+
+	if !callbackCalled {
+		t.Fatal("expected OnWorkerID callback to be called")
+	}
+	if w.logger != expectedLogger {
+		t.Fatal("expected worker logger to be replaced with callback logger")
+	}
+}

@@ -32,7 +32,7 @@ import (
 
 func main() {
 	cfg := cfgloader.MustLoad[config.Config]("configs/apps/core.yaml")
-	slog.SetDefault(logger.SetupLogger(cfg.Env))
+	slog.SetDefault(logger.SetupLogger(cfg.Env, "core"))
 
 	app := fx.New(
 		fx.Supply(cfg),

@@ -14,6 +14,7 @@ import (
 
 	"github.com/zalberix/cactus/apps/workers/smtp/config"
 	cfgloader "github.com/zalberix/cactus/libs/config"
+	"github.com/zalberix/cactus/libs/logger"
 	"github.com/zalberix/cactus/libs/worker"
 )
 
@@ -22,7 +23,8 @@ func main() {
 	flag.Parse()
 
 	cfg := cfgloader.MustLoad[config.Config]("configs/workers/smtp.yaml")
-	logger := slog.Default()
+	slog.SetDefault(logger.SetupLogger(cfg.Env, logger.WorkerSource("smtp", 0)))
+	log := slog.Default()
 
 	handler := &SMTPHandler{
 		smtpHost: cfg.SMTP.Host,
@@ -40,6 +42,9 @@ func main() {
 		RevisionID:     cfg.RevisionID,
 		WorkerIDPath:   *workerIDPath,
 		WorkerName:     "smtp-worker",
+		OnWorkerID: func(workerID int32) *slog.Logger {
+			return logger.SetupLogger(cfg.Env, logger.WorkerSource("smtp", workerID))
+		},
 		Manifest: worker.Manifest{
 			Kind:        "smtp",
 			NameKind:    "SMTP Email",
@@ -47,7 +52,7 @@ func main() {
 			NameType:    "Email Delivery",
 			InputSchema: []byte(`{"to":"string","subject":"string","body":"string"}`),
 		},
-	}, handler, logger)
+	}, handler, log)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()

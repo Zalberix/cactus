@@ -43,6 +43,7 @@ func (w *Worker) loadOrRegister(ctx context.Context) error {
 		id, err := w.loadWorkerID()
 		if err == nil && id > 0 {
 			w.workerID = id
+			w.refreshLoggerAfterWorkerID()
 			w.logger.Info("loaded worker ID from file",
 				slog.Int("worker_id", int(id)),
 				slog.String("file", w.cfg.WorkerIDPath),
@@ -132,6 +133,7 @@ func (w *Worker) sendRegistration(ctx context.Context) error {
 
 	if regResp.Data.ID > 0 {
 		w.workerID = regResp.Data.ID
+		w.refreshLoggerAfterWorkerID()
 	}
 
 	return nil
