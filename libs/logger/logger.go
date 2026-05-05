@@ -215,6 +215,10 @@ func formatValue(value slog.Value, truncated *bool) string {
 		raw = value.Time().Format(time.RFC3339Nano)
 	case slog.KindAny:
 		raw = formatAny(value.Any())
+	case slog.KindGroup:
+		raw = formatGroup(value.Group())
+	case slog.KindLogValuer:
+		raw = value.String()
 	default:
 		raw = value.String()
 	}
@@ -225,6 +229,14 @@ func formatValue(value slog.Value, truncated *bool) string {
 	}
 
 	return quoteIfNeeded(raw)
+}
+
+func formatGroup(attrs []slog.Attr) string {
+	values := make(map[string]any, len(attrs))
+	for _, attr := range attrs {
+		values[attr.Key] = attr.Value.Resolve().Any()
+	}
+	return formatAny(values)
 }
 
 func formatAny(v any) string {

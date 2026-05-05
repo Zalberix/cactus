@@ -2,7 +2,6 @@
 import type { StepData } from '~/composables/useDagEditor'
 import { Button } from '~/components/ui/button'
 import { ScrollArea } from '~/components/ui/scroll-area'
-import { Separator } from '~/components/ui/separator'
 import { Label } from '~/components/ui/label'
 import {
   Tabs,

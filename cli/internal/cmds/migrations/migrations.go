@@ -14,6 +14,7 @@ import (
 	pkgdb "github.com/zalberix/cactus/apps/core/pkg/db"
 	cfgloader "github.com/zalberix/cactus/libs/config"
 
+	// Register embedded postgres migrations for goose.
 	_ "github.com/zalberix/cactus/libs/migrations/postgres"
 )
 

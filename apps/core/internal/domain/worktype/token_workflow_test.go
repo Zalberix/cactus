@@ -7,7 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
-	db "github.com/zalberix/cactus/apps/core/storage/db"
+	"github.com/zalberix/cactus/apps/core/storage/db"
 )
 
 type tokenWorkflowStore struct {
@@ -21,6 +21,7 @@ type tokenWorkflowStore struct {
 func (s *tokenWorkflowStore) CreateWorkType(context.Context, db.CreateWorkTypeParams) (db.WorkType, error) {
 	return db.WorkType{}, nil
 }
+
 func (s *tokenWorkflowStore) GetWorkTypeByID(context.Context, int32) (db.WorkType, error) {
 	return db.WorkType{}, nil
 }
@@ -29,18 +30,23 @@ func (s *tokenWorkflowStore) SoftDeleteWorkType(context.Context, int32) error   
 func (s *tokenWorkflowStore) CreateWorkTypeToken(context.Context, db.CreateWorkTypeTokenParams) (db.WorkTypeToken, error) {
 	return db.WorkTypeToken{}, nil
 }
+
 func (s *tokenWorkflowStore) GetActiveWorkTypeTokenByHash(context.Context, string) (db.WorkTypeToken, error) {
 	return db.WorkTypeToken{}, nil
 }
+
 func (s *tokenWorkflowStore) CreateNewWorker(context.Context, db.CreateNewWorkerParams) (db.Worker, error) {
 	return db.Worker{}, nil
 }
+
 func (s *tokenWorkflowStore) GetNewWorkerByID(context.Context, int32) (db.Worker, error) {
 	return db.Worker{}, nil
 }
+
 func (s *tokenWorkflowStore) GetWorkerByWorkTypeAndName(context.Context, db.GetWorkerByWorkTypeAndNameParams) (db.Worker, error) {
 	return db.Worker{}, nil
 }
+
 func (s *tokenWorkflowStore) ListNewWorkersByWorkTypeID(context.Context, int32) ([]db.Worker, error) {
 	return nil, nil
 }
@@ -48,42 +54,55 @@ func (s *tokenWorkflowStore) UpdateNewWorkerHeartbeat(context.Context, int32) er
 func (s *tokenWorkflowStore) UpdateNewWorkerSchema(context.Context, db.UpdateNewWorkerSchemaParams) (db.Worker, error) {
 	return db.Worker{}, nil
 }
+
 func (s *tokenWorkflowStore) CreateWorkerSettingsSchema(context.Context, db.CreateWorkerSettingsSchemaParams) (db.WorkerSettingsSchema, error) {
 	return db.WorkerSettingsSchema{}, nil
 }
+
 func (s *tokenWorkflowStore) GetWorkerSettingsSchemaByID(context.Context, int32) (db.WorkerSettingsSchema, error) {
 	return db.WorkerSettingsSchema{}, nil
 }
+
 func (s *tokenWorkflowStore) GetWorkerSettingsSchemaByVersion(context.Context, db.GetWorkerSettingsSchemaByVersionParams) (db.WorkerSettingsSchema, error) {
 	return db.WorkerSettingsSchema{}, nil
 }
+
 func (s *tokenWorkflowStore) ListWorkerSettingsSchemasByWorkTypeID(context.Context, int32) ([]db.WorkerSettingsSchema, error) {
 	return nil, nil
 }
+
 func (s *tokenWorkflowStore) CreateWorkerSettingsRevision(context.Context, db.CreateWorkerSettingsRevisionParams) (db.WorkerSettingsRevision, error) {
 	return db.WorkerSettingsRevision{}, nil
 }
+
 func (s *tokenWorkflowStore) GetWorkerSettingsRevisionByID(context.Context, int32) (db.WorkerSettingsRevision, error) {
 	return db.WorkerSettingsRevision{}, nil
 }
+
 func (s *tokenWorkflowStore) ListWorkerSettingsRevisionsBySchemaID(context.Context, int32) ([]db.WorkerSettingsRevision, error) {
 	return nil, nil
 }
+
 func (s *tokenWorkflowStore) CreateSystem(context.Context, db.CreateSystemParams) (db.System, error) {
 	return db.System{}, nil
 }
+
 func (s *tokenWorkflowStore) GetSystemByID(context.Context, int32) (db.System, error) {
 	return db.System{}, nil
 }
+
 func (s *tokenWorkflowStore) CountSystemsByOrganizationID(context.Context, pgtype.Int4) (int64, error) {
 	return 0, nil
 }
+
 func (s *tokenWorkflowStore) ListSystemsByOrganizationID(context.Context, pgtype.Int4) ([]db.ListSystemsByOrganizationIDRow, error) {
 	return nil, nil
 }
+
 func (s *tokenWorkflowStore) ListSystemsByOrganizationIDPaginated(context.Context, db.ListSystemsByOrganizationIDPaginatedParams) ([]db.ListSystemsByOrganizationIDRow, error) {
 	return nil, nil
 }
+
 func (s *tokenWorkflowStore) UpdateSystem(context.Context, db.UpdateSystemParams) (db.System, error) {
 	return db.System{}, nil
 }
@@ -91,13 +110,16 @@ func (s *tokenWorkflowStore) SoftDeleteSystem(context.Context, int32) error { re
 func (s *tokenWorkflowStore) CreateSystemToken(context.Context, db.CreateSystemTokenParams) (db.SystemToken, error) {
 	return db.SystemToken{}, nil
 }
+
 func (s *tokenWorkflowStore) GetSystemTokenByID(_ context.Context, id int32) (db.SystemToken, error) {
 	s.token.ID = id
 	return s.token, nil
 }
+
 func (s *tokenWorkflowStore) GetSystemTokenByPublicToken(context.Context, string) (db.SystemToken, error) {
 	return db.SystemToken{}, nil
 }
+
 func (s *tokenWorkflowStore) ListSystemTokensBySystemID(context.Context, int32) ([]db.SystemToken, error) {
 	return nil, nil
 }
@@ -107,18 +129,22 @@ func (s *tokenWorkflowStore) GetWorkflowByID(_ context.Context, id int32) (db.Wo
 	s.workflow.ID = id
 	return s.workflow, nil
 }
+
 func (s *tokenWorkflowStore) GrantWorkflowToken(_ context.Context, arg db.GrantWorkflowTokenParams) error {
 	s.grantCalled = true
 	s.grantArg = arg
 	return nil
 }
+
 func (s *tokenWorkflowStore) RevokeWorkflowToken(_ context.Context, arg db.RevokeWorkflowTokenParams) error {
 	s.revokeArg = arg
 	return nil
 }
+
 func (s *tokenWorkflowStore) ListWorkflowTokensBySystemTokenID(context.Context, int32) ([]db.WorkflowToken, error) {
 	return nil, nil
 }
+
 func (s *tokenWorkflowStore) ListWorkflowTokensByWorkflowID(context.Context, int32) ([]db.WorkflowToken, error) {
 	return nil, nil
 }
@@ -148,7 +174,6 @@ func TestBindWorkflowToTokenGrantsWhenSystemsMatch(t *testing.T) {
 	service := NewService(store)
 
 	err := service.BindWorkflowToToken(context.Background(), 7, 8)
-
 	if err != nil {
 		t.Fatalf("BindWorkflowToToken error: %v", err)
 	}
@@ -161,7 +186,6 @@ func TestListTokenWorkflowsReturnsEmptySliceWhenNoLinks(t *testing.T) {
 	service := NewService(&tokenWorkflowStore{})
 
 	links, err := service.ListTokenWorkflows(context.Background(), 1)
-
 	if err != nil {
 		t.Fatalf("ListTokenWorkflows error: %v", err)
 	}
@@ -174,7 +198,6 @@ func TestListWorkflowTokensReturnsEmptySliceWhenNoLinks(t *testing.T) {
 	service := NewService(&tokenWorkflowStore{})
 
 	links, err := service.ListWorkflowTokens(context.Background(), 1)
-
 	if err != nil {
 		t.Fatalf("ListWorkflowTokens error: %v", err)
 	}

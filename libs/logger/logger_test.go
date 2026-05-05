@@ -83,6 +83,48 @@ func TestTextHandlerWithAttrsIncludesInheritedAttrs(t *testing.T) {
 	}
 }
 
+func TestTextHandlerFlattensGroups(t *testing.T) {
+	var buf bytes.Buffer
+	h := newTextHandler(&buf, slog.LevelDebug, "core", false).WithGroup("request").WithAttrs([]slog.Attr{
+		slog.String("id", "abc"),
+	})
+
+	record := slog.NewRecord(time.Date(2026, 5, 3, 12, 34, 56, 0, time.UTC), slog.LevelInfo, "handled", 0)
+	record.AddAttrs(slog.Group("user", slog.Int("id", 42)))
+
+	if err := h.Handle(context.Background(), record); err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+
+	got := strings.TrimSpace(buf.String())
+	if !strings.Contains(got, "request.id=abc") || !strings.Contains(got, "request.user.id=42") {
+		t.Fatalf("expected flattened group attrs, got %q", got)
+	}
+}
+
+type testLogValuer struct{}
+
+func (testLogValuer) LogValue() slog.Value {
+	return slog.StringValue("resolved")
+}
+
+func TestTextHandlerResolvesLogValuer(t *testing.T) {
+	var buf bytes.Buffer
+	h := newTextHandler(&buf, slog.LevelDebug, "core", false)
+
+	record := slog.NewRecord(time.Date(2026, 5, 3, 12, 34, 56, 0, time.UTC), slog.LevelInfo, "handled", 0)
+	record.AddAttrs(slog.Any("value", testLogValuer{}))
+
+	if err := h.Handle(context.Background(), record); err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+
+	got := strings.TrimSpace(buf.String())
+	if !strings.Contains(got, "value=resolved") {
+		t.Fatalf("expected log valuer to resolve, got %q", got)
+	}
+}
+
 func TestWorkerSourceUsesWorkerID(t *testing.T) {
 	got := WorkerSource("smtp", 42)
 	want := "worker/smtp-42"
