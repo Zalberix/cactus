@@ -209,6 +209,15 @@ func TestRegenerateInputValidation_Schema(t *testing.T) {
 	require.True(t, ok, "properties должны быть map")
 	assert.Contains(t, props, "email")
 	assert.Contains(t, props, "name")
+	if _, exists := schema["required"]; exists {
+		t.Fatalf("schema must not contain top-level required: %#v", schema["required"])
+	}
+	email, ok := props["email"].(map[string]interface{})
+	require.True(t, ok, "email property must be a map")
+	assert.Equal(t, true, email["required"])
+	name, ok := props["name"].(map[string]interface{})
+	require.True(t, ok, "name property must be a map")
+	assert.Equal(t, true, name["required"])
 }
 
 // TestRegenerateInputValidation_NoActiveVersions — если нет активных версий, input_validation=nil.

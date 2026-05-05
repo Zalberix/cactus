@@ -27,20 +27,18 @@ const controlSchemas: Record<string, Record<string, unknown>> = {
   condition: {
     type: 'object',
     properties: {
-      left: { type: 'string', description: 'Value 1' },
-      operator: { type: 'string', enum: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'contains', 'not_contains', 'exists', 'not_exists'] },
-      right: { type: 'string', description: 'Value 2' },
+      left: { type: 'string', description: 'Value 1', required: true },
+      operator: { type: 'string', enum: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'contains', 'not_contains', 'exists', 'not_exists'], required: true },
+      right: { type: 'string', description: 'Value 2', required: true },
       combine: { type: 'string', enum: ['AND', 'OR'], default: 'AND' },
     },
-    required: ['left', 'operator', 'right'],
   },
   delay: {
     type: 'object',
     properties: {
-      duration: { type: 'integer', description: 'Duration', default: 1 },
-      unit: { type: 'string', enum: ['seconds', 'minutes', 'hours'], default: 'seconds' },
+      duration: { type: 'integer', description: 'Duration', default: 1, required: true },
+      unit: { type: 'string', enum: ['seconds', 'minutes', 'hours'], default: 'seconds', required: true },
     },
-    required: ['duration', 'unit'],
   },
   switch: {
     type: 'object',

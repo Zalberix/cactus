@@ -51,12 +51,11 @@ func SeedDemo(ctx context.Context, db *pgxpool.Pool) error {
 			'{
 				"type": "object",
 				"properties": {
-					"to": {"type": "string", "format": "email"},
-					"subject": {"type": "string", "minLength": 1, "maxLength": 200},
-					"body": {"type": "string"},
+					"to": {"type": "string", "format": "email", "required": true},
+					"subject": {"type": "string", "minLength": 1, "maxLength": 200, "required": true},
+					"body": {"type": "string", "required": true},
 					"telegram_chat_id": {"type": "string"}
-				},
-				"required": ["to", "subject", "body"]
+				}
 			}'::jsonb
 		)
 		ON CONFLICT DO NOTHING
@@ -92,12 +91,12 @@ func SeedDemo(ctx context.Context, db *pgxpool.Pool) error {
 			(
 				(SELECT id FROM work_type WHERE code = 'smtp'),
 				'v1',
-				'{"type": "object", "properties": {"host": {"type": "string"}, "port": {"type": "integer"}}}'::jsonb,
+				'{"type": "object", "properties": {"host": {"type": "string", "required": true}, "port": {"type": "integer", "required": true}}}'::jsonb,
 				'{
 					"type": "object",
 					"properties": {
-						"to": {"type": "string"},
-						"subject": {"type": "string"},
+						"to": {"type": "string", "required": true},
+						"subject": {"type": "string", "required": true},
 						"body": {"type": "string"}
 					}
 				}'::jsonb,
@@ -106,8 +105,8 @@ func SeedDemo(ctx context.Context, db *pgxpool.Pool) error {
 			(
 				(SELECT id FROM work_type WHERE code = 'telegram'),
 				'v1',
-				'{"type": "object", "properties": {"bot_token": {"type": "string"}}}'::jsonb,
-				'{"type": "object", "properties": {"chat_id": {"type": "string"}, "text": {"type": "string"}}}'::jsonb,
+				'{"type": "object", "properties": {"bot_token": {"type": "string", "required": true}}}'::jsonb,
+				'{"type": "object", "properties": {"chat_id": {"type": "string", "required": true}, "text": {"type": "string", "required": true}}}'::jsonb,
 				'{"type": "object", "properties": {"ok": {"type": "boolean"}}}'::jsonb
 			)
 		ON CONFLICT DO NOTHING

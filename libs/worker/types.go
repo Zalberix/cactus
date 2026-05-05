@@ -49,9 +49,11 @@ type Config struct {
 
 // Manifest --- возможности воркера, объявляемые при регистрации (per D-03).
 type Manifest struct {
-	Kind        string          `json:"kind"`
-	NameKind    string          `json:"name_kind"`
-	Type        string          `json:"type"`
-	NameType    string          `json:"name_type"`
-	InputSchema json.RawMessage `json:"input_schema"`
+	Kind           string          `json:"kind"`
+	NameKind       string          `json:"name_kind"`
+	Type           string          `json:"type"`
+	NameType       string          `json:"name_type"`
+	SettingsSchema json.RawMessage `json:"settings_schema"`
+	InputSchema    json.RawMessage `json:"input_schema"`
+	OutputSchema   json.RawMessage `json:"output_schema"`
 }

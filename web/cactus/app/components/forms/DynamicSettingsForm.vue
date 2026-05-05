@@ -13,7 +13,6 @@ import {
 interface JsonSchema {
   type?: string
   properties?: Record<string, JsonSchemaProperty>
-  required?: string[]
 }
 
 interface JsonSchemaProperty {
@@ -21,6 +20,7 @@ interface JsonSchemaProperty {
   description?: string
   default?: unknown
   enum?: string[]
+  required?: boolean
   'x-ui-widget'?: string
   'x-ui-order'?: number
   'x-ui-placeholder'?: string
@@ -46,7 +46,7 @@ const properties = computed(() => {
     .map(([key, prop]) => ({
       key,
       ...prop,
-      isRequired: parsedSchema.value.required?.includes(key) ?? false,
+      isRequired: prop.required === true,
     }))
     .sort((a, b) => (a['x-ui-order'] ?? 999) - (b['x-ui-order'] ?? 999))
 })

@@ -515,16 +515,16 @@ func (s *Service) regenerateInputValidation(ctx context.Context, workflowID int3
 
 	// Строим JSON Schema
 	properties := make(map[string]interface{}, len(fieldSet))
-	required := make([]string, 0, len(fieldSet))
 	for field := range fieldSet {
-		properties[field] = map[string]string{"type": "string"}
-		required = append(required, field)
+		properties[field] = map[string]interface{}{
+			"type":     "string",
+			"required": true,
+		}
 	}
 
 	schema := map[string]interface{}{
 		"type":       "object",
 		"properties": properties,
-		"required":   required,
 	}
 	schemaJSON, err := json.Marshal(schema)
 	if err != nil {

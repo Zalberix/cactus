@@ -194,3 +194,39 @@ func TestRefreshLoggerAfterWorkerIDUsesCallback(t *testing.T) {
 		t.Fatal("expected worker logger to be replaced with callback logger")
 	}
 }
+
+func TestSchemaBuilderStoresRequiredOnProperties(t *testing.T) {
+	schema := ObjectSchema(
+		Field("to", StringField(Required(), Description("Recipient email"))),
+		Field("subject", StringField(Required())),
+		Field("count", IntegerField()),
+	)
+
+	data, err := json.Marshal(schema)
+	if err != nil {
+		t.Fatalf("marshal schema: %v", err)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal schema: %v", err)
+	}
+
+	if _, exists := got["required"]; exists {
+		t.Fatalf("schema must not contain top-level required: %s", data)
+	}
+
+	props := got["properties"].(map[string]any)
+	to := props["to"].(map[string]any)
+	if to["required"] != true {
+		t.Fatalf("expected to.required=true, got %#v", to["required"])
+	}
+	if to["description"] != "Recipient email" {
+		t.Fatalf("expected description to be preserved, got %#v", to["description"])
+	}
+
+	count := props["count"].(map[string]any)
+	if _, exists := count["required"]; exists {
+		t.Fatalf("optional field must not contain required: %#v", count)
+	}
+}

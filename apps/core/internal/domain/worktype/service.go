@@ -27,6 +27,16 @@ type Service struct {
 	store Storage
 }
 
+type workerManifest struct {
+	Kind           string          `json:"kind"`
+	NameKind       string          `json:"name_kind"`
+	Type           string          `json:"type"`
+	NameType       string          `json:"name_type"`
+	SettingsSchema json.RawMessage `json:"settings_schema"`
+	InputSchema    json.RawMessage `json:"input_schema"`
+	OutputSchema   json.RawMessage `json:"output_schema"`
+}
+
 // NewService создаёт новый worktype.Service.
 func NewService(store Storage) *Service {
 	return &Service{store: store}
@@ -52,6 +62,40 @@ func GenerateBootstrapToken() (plaintext, hash string, err error) {
 func ManifestHash(manifest json.RawMessage) (string, error) {
 	h := sha256.Sum256(manifest)
 	return hex.EncodeToString(h[:]), nil
+}
+
+func parseWorkerManifest(manifest json.RawMessage) (workerManifest, error) {
+	var parsed workerManifest
+	if err := json.Unmarshal(manifest, &parsed); err != nil {
+		return workerManifest{}, fmt.Errorf("parse manifest: %w", err)
+	}
+	for name, schema := range map[string]json.RawMessage{
+		"settings_schema": parsed.SettingsSchema,
+		"input_schema":    parsed.InputSchema,
+		"output_schema":   parsed.OutputSchema,
+	} {
+		if err := validateObjectSchema(name, schema); err != nil {
+			return workerManifest{}, err
+		}
+	}
+	return parsed, nil
+}
+
+func validateObjectSchema(name string, schema json.RawMessage) error {
+	if len(schema) == 0 {
+		return fmt.Errorf("manifest.%s is required", name)
+	}
+	var object map[string]any
+	if err := json.Unmarshal(schema, &object); err != nil {
+		return fmt.Errorf("manifest.%s must be a JSON object: %w", name, err)
+	}
+	if object["type"] != "object" {
+		return fmt.Errorf("manifest.%s must have type=object", name)
+	}
+	if _, ok := object["properties"].(map[string]any); !ok {
+		return fmt.Errorf("manifest.%s must have properties object", name)
+	}
+	return nil
 }
 
 // ComputeWorkerStatus вычисляет статус воркера на лету.
@@ -156,6 +200,11 @@ func (s *Service) RegisterWorker(ctx context.Context, req RegisterWorkerRequest)
 		return db.Worker{}, fmt.Errorf("invalid bootstrap token: %w", err)
 	}
 
+	manifest, err := parseWorkerManifest(req.Manifest)
+	if err != nil {
+		return db.Worker{}, err
+	}
+
 	// 2. Вычисляем манифест хэш (используется как version)
 	manifestHash, err := ManifestHash(req.Manifest)
 	if err != nil {
@@ -175,9 +224,9 @@ func (s *Service) RegisterWorker(ctx context.Context, req RegisterWorkerRequest)
 		schema, err = s.store.CreateWorkerSettingsSchema(ctx, db.CreateWorkerSettingsSchemaParams{
 			WorkTypeID:     wtt.WorkTypeID,
 			Version:        manifestHash,
-			SettingsSchema: req.Manifest,
-			InputSchema:    []byte("{}"),
-			OutputSchema:   []byte("{}"),
+			SettingsSchema: manifest.SettingsSchema,
+			InputSchema:    manifest.InputSchema,
+			OutputSchema:   manifest.OutputSchema,
 		})
 		if err != nil {
 			return db.Worker{}, fmt.Errorf("create worker settings schema: %w", err)

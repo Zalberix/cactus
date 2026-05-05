@@ -1,7 +1,6 @@
 package message
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -9,6 +8,7 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
 	"github.com/zalberix/cactus/apps/core/internal/http/response"
+	schemadialect "github.com/zalberix/cactus/apps/core/internal/schema"
 )
 
 // ValidatePayload валидирует payload по JSON Schema из workflow.input_validation.
@@ -22,8 +22,8 @@ func ValidatePayload(schemaJSON []byte, payload map[string]any) []response.Error
 	}
 
 	// Десериализуем JSON Schema из JSONB
-	var schemaAny any
-	if err := json.Unmarshal(schemaJSON, &schemaAny); err != nil {
+	schemaAny, err := schemadialect.NormalizeRequired(schemaJSON)
+	if err != nil {
 		return []response.ErrorDetail{{
 			Message: fmt.Sprintf("invalid input_validation schema: %v", err),
 		}}

@@ -95,11 +95,19 @@ func main() {
 			return logger.SetupLogger(conf.Env, logger.WorkerSource("telegram", workerID))
 		},
 		Manifest: worker.Manifest{
-			Kind:        "telegram",
-			NameKind:    "Telegram Bot",
-			Type:        "social",
-			NameType:    "Social Delivery",
-			InputSchema: json.RawMessage(`{"message":"string"}`),
+			Kind:     "telegram",
+			NameKind: "Telegram Bot",
+			Type:     "social",
+			NameType: "Social Delivery",
+			SettingsSchema: worker.ObjectSchema(
+				worker.Field("server_url", worker.StringField(worker.Required())),
+			),
+			InputSchema: worker.ObjectSchema(
+				worker.Field("message", worker.StringField(worker.Required())),
+			),
+			OutputSchema: worker.ObjectSchema(
+				worker.Field("sent_at", worker.StringField()),
+			),
 		},
 	}, handler, slog.Default())
 

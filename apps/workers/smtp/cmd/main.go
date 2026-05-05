@@ -46,11 +46,27 @@ func main() {
 			return logger.SetupLogger(cfg.Env, logger.WorkerSource("smtp", workerID))
 		},
 		Manifest: worker.Manifest{
-			Kind:        "smtp",
-			NameKind:    "SMTP Email",
-			Type:        "email",
-			NameType:    "Email Delivery",
-			InputSchema: []byte(`{"to":"string","subject":"string","body":"string"}`),
+			Kind:     "smtp",
+			NameKind: "SMTP Email",
+			Type:     "email",
+			NameType: "Email Delivery",
+			SettingsSchema: worker.ObjectSchema(
+				worker.Field("host", worker.StringField(worker.Required())),
+				worker.Field("port", worker.IntegerField(worker.Required())),
+				worker.Field("from", worker.StringField(worker.Required())),
+				worker.Field("auth", worker.StringField(worker.Enum("none", "plain", "login"))),
+				worker.Field("tls", worker.StringField(worker.Enum("none", "tls", "starttls"))),
+			),
+			InputSchema: worker.ObjectSchema(
+				worker.Field("to", worker.StringField(worker.Required())),
+				worker.Field("subject", worker.StringField(worker.Required())),
+				worker.Field("body", worker.StringField()),
+			),
+			OutputSchema: worker.ObjectSchema(
+				worker.Field("message_id", worker.StringField()),
+				worker.Field("sent_at", worker.StringField()),
+				worker.Field("recipients_count", worker.IntegerField()),
+			),
 		},
 	}, handler, log)
 
