@@ -2,8 +2,11 @@
 
 package kill
 
-import "os/exec"
+import (
+	"context"
+	"os/exec"
+)
 
 func killProcesses() error {
-	return exec.Command("pkill", "-9", "-f", "twir-").Run()
+	return exec.CommandContext(context.Background(), "pkill", "-9", "-f", "cactus-").Run()
 }
