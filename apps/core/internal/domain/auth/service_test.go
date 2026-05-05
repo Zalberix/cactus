@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/zalberix/cactus/apps/core/config"
 	"github.com/zalberix/cactus/apps/core/internal/domain/auth"
@@ -93,7 +94,7 @@ func TestParseToken_WrongKey(t *testing.T) {
 }
 
 func TestHashPassword_CheckPassword(t *testing.T) {
-	svc := auth.NewService(testJWTCfg(), &mockStorage{})
+	svc := auth.NewServiceWithPasswordCost(testJWTCfg(), &mockStorage{}, bcrypt.MinCost)
 
 	hashed, err := svc.HashPassword("mypassword123")
 	require.NoError(t, err)

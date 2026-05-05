@@ -34,13 +34,18 @@ type Storage interface {
 
 // Service реализует JWT аутентификацию и bcrypt хеширование паролей.
 type Service struct {
-	cfg   config.JWT
-	store Storage
+	cfg        config.JWT
+	store      Storage
+	bcryptCost int
 }
 
 // NewService создаёт новый auth.Service.
 func NewService(cfg config.JWT, store Storage) *Service {
-	return &Service{cfg: cfg, store: store}
+	return NewServiceWithPasswordCost(cfg, store, bcrypt.DefaultCost)
+}
+
+func NewServiceWithPasswordCost(cfg config.JWT, store Storage, bcryptCost int) *Service {
+	return &Service{cfg: cfg, store: store, bcryptCost: bcryptCost}
 }
 
 // IssueTokens выдаёт пару access + refresh JWT токенов для указанного userID.
@@ -109,7 +114,7 @@ func (s *Service) ParseToken(tokenStr string) (*Claims, error) {
 
 // HashPassword хеширует пароль с bcrypt DefaultCost.
 func (s *Service) HashPassword(password string) (string, error) {
-	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hashed, err := bcrypt.GenerateFromPassword([]byte(password), s.bcryptCost)
 	if err != nil {
 		return "", fmt.Errorf("hash password: %w", err)
 	}
