@@ -45,29 +45,27 @@ func main() {
 		OnWorkerID: func(workerID int32) *slog.Logger {
 			return logger.SetupLogger(cfg.Env, logger.WorkerSource("smtp", workerID))
 		},
-		Manifest: worker.Manifest{
-			Kind:     "smtp",
-			NameKind: "SMTP Email",
-			Type:     "email",
-			NameType: "Email Delivery",
-			SettingsSchema: worker.ObjectSchema(
-				worker.Field("host", worker.StringField(worker.Required())),
-				worker.Field("port", worker.IntegerField(worker.Required())),
-				worker.Field("from", worker.StringField(worker.Required())),
-				worker.Field("auth", worker.StringField(worker.Enum("none", "plain", "login"))),
-				worker.Field("tls", worker.StringField(worker.Enum("none", "tls", "starttls"))),
-			),
-			InputSchema: worker.ObjectSchema(
-				worker.Field("to", worker.StringField(worker.Required())),
-				worker.Field("subject", worker.StringField(worker.Required())),
-				worker.Field("body", worker.StringField()),
-			),
-			OutputSchema: worker.ObjectSchema(
-				worker.Field("message_id", worker.StringField()),
-				worker.Field("sent_at", worker.StringField()),
-				worker.Field("recipients_count", worker.IntegerField()),
-			),
-		},
+		Manifest: worker.Manifest().
+			Kind("smtp", "SMTP Email").
+			Type("email", "Email Delivery").
+			SettingsSchema(func(sb *worker.SchemaBuilder) {
+				sb.String("host").Required()
+				sb.Integer("port").Required()
+				sb.String("from").Required()
+				sb.String("auth").Enum("none", "plain", "login")
+				sb.String("tls").Enum("none", "tls", "starttls")
+			}).
+			InputSchema(func(sb *worker.SchemaBuilder) {
+				sb.String("to").Required()
+				sb.String("subject").Required()
+				sb.String("body")
+			}).
+			OutputSchema(func(sb *worker.SchemaBuilder) {
+				sb.String("message_id")
+				sb.String("sent_at")
+				sb.Integer("recipients_count")
+			}).
+			Build(),
 	}, handler, log)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

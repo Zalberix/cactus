@@ -43,12 +43,12 @@ type Config struct {
 	WorkerIDPath      string                            `json:"worker_id_file"`
 	WorkerName        string                            `json:"worker_name"`
 	HeartbeatInterval time.Duration                     `json:"heartbeat_interval"`
-	Manifest          Manifest                          `json:"manifest"`
+	Manifest          ManifestSpec                      `json:"manifest"`
 	OnWorkerID        func(workerID int32) *slog.Logger `json:"-"`
 }
 
-// Manifest --- возможности воркера, объявляемые при регистрации (per D-03).
-type Manifest struct {
+// ManifestSpec --- возможности воркера, объявляемые при регистрации (per D-03).
+type ManifestSpec struct {
 	Kind           string          `json:"kind"`
 	NameKind       string          `json:"name_kind"`
 	Type           string          `json:"type"`

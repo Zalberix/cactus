@@ -94,21 +94,19 @@ func main() {
 		OnWorkerID: func(workerID int32) *slog.Logger {
 			return logger.SetupLogger(conf.Env, logger.WorkerSource("telegram", workerID))
 		},
-		Manifest: worker.Manifest{
-			Kind:     "telegram",
-			NameKind: "Telegram Bot",
-			Type:     "social",
-			NameType: "Social Delivery",
-			SettingsSchema: worker.ObjectSchema(
-				worker.Field("server_url", worker.StringField(worker.Required())),
-			),
-			InputSchema: worker.ObjectSchema(
-				worker.Field("message", worker.StringField(worker.Required())),
-			),
-			OutputSchema: worker.ObjectSchema(
-				worker.Field("sent_at", worker.StringField()),
-			),
-		},
+		Manifest: worker.Manifest().
+			Kind("telegram", "Telegram Bot").
+			Type("social", "Social Delivery").
+			SettingsSchema(func(sb *worker.SchemaBuilder) {
+				sb.String("server_url").Required()
+			}).
+			InputSchema(func(sb *worker.SchemaBuilder) {
+				sb.String("message").Required()
+			}).
+			OutputSchema(func(sb *worker.SchemaBuilder) {
+				sb.String("sent_at")
+			}).
+			Build(),
 	}, handler, slog.Default())
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

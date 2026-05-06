@@ -151,13 +151,11 @@ func TestSendRegistration(t *testing.T) {
 			ManagerURL:     srv.URL,
 			BootstrapToken: "test-token",
 			WorkerName:     "test-worker",
-			Manifest: Manifest{
-				Kind:        "email",
-				NameKind:    "Email",
-				Type:        "smtp",
-				NameType:    "SMTP",
-				InputSchema: json.RawMessage(`{}`),
-			},
+			Manifest: Manifest().
+				Kind("email", "Email").
+				Type("smtp", "SMTP").
+				InputSchema(func(*SchemaBuilder) {}).
+				Build(),
 		},
 		logger: slog.Default(),
 	}
@@ -196,11 +194,12 @@ func TestRefreshLoggerAfterWorkerIDUsesCallback(t *testing.T) {
 }
 
 func TestSchemaBuilderStoresRequiredOnProperties(t *testing.T) {
-	schema := ObjectSchema(
-		Field("to", StringField(Required(), Description("Recipient email"))),
-		Field("subject", StringField(Required())),
-		Field("count", IntegerField()),
-	)
+	schema := SettingsSchema(func(ss *SchemaBuilder) {
+		ss.String("to").Required().Description("Recipient email")
+		ss.String("subject").Required()
+		ss.Integer("count")
+		ss.String("delivery").Enum("smtp", "telegram")
+	})
 
 	data, err := json.Marshal(schema)
 	if err != nil {
@@ -228,5 +227,54 @@ func TestSchemaBuilderStoresRequiredOnProperties(t *testing.T) {
 	count := props["count"].(map[string]any)
 	if _, exists := count["required"]; exists {
 		t.Fatalf("optional field must not contain required: %#v", count)
+	}
+
+	delivery := props["delivery"].(map[string]any)
+	enumValues := delivery["enum"].([]any)
+	if len(enumValues) != 2 || enumValues[0] != "smtp" || enumValues[1] != "telegram" {
+		t.Fatalf("expected enum to be preserved, got %#v", enumValues)
+	}
+}
+
+func TestManifestBuilderBuildsManifest(t *testing.T) {
+	manifest := Manifest().
+		Kind("telegram", "Telegram Bot").
+		Type("social", "Social Delivery").
+		SettingsSchema(func(ss *SchemaBuilder) {
+			ss.String("server_url").Required()
+		}).
+		InputSchema(func(ss *SchemaBuilder) {
+			ss.String("message").Required()
+		}).
+		OutputSchema(func(ss *SchemaBuilder) {
+			ss.String("sent_at")
+		}).
+		Build()
+
+	if manifest.Kind != "telegram" {
+		t.Fatalf("expected kind telegram, got %q", manifest.Kind)
+	}
+	if manifest.NameKind != "Telegram Bot" {
+		t.Fatalf("expected name kind Telegram Bot, got %q", manifest.NameKind)
+	}
+	if manifest.Type != "social" {
+		t.Fatalf("expected type social, got %q", manifest.Type)
+	}
+	if manifest.NameType != "Social Delivery" {
+		t.Fatalf("expected name type Social Delivery, got %q", manifest.NameType)
+	}
+
+	var settings map[string]any
+	if err := json.Unmarshal(manifest.SettingsSchema, &settings); err != nil {
+		t.Fatalf("unmarshal settings schema: %v", err)
+	}
+
+	properties := settings["properties"].(map[string]any)
+	serverURL := properties["server_url"].(map[string]any)
+	if serverURL["type"] != "string" {
+		t.Fatalf("expected server_url type string, got %#v", serverURL["type"])
+	}
+	if serverURL["required"] != true {
+		t.Fatalf("expected server_url required true, got %#v", serverURL["required"])
 	}
 }

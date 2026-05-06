@@ -16,8 +16,99 @@ type SchemaProperty struct {
 	Field SchemaField
 }
 
+// SchemaBuilder collects object schema properties through a fluent API.
+type SchemaBuilder struct {
+	fields []SchemaProperty
+}
+
+// FieldBuilder modifies a field created by SchemaBuilder.
+type FieldBuilder struct {
+	builder *SchemaBuilder
+	index   int
+}
+
+// SettingsSchema builds a worker settings object schema.
+func SettingsSchema(build func(*SchemaBuilder)) json.RawMessage {
+	return buildObjectSchema(build)
+}
+
+// InputSchema builds a worker input object schema.
+func InputSchema(build func(*SchemaBuilder)) json.RawMessage {
+	return buildObjectSchema(build)
+}
+
+// OutputSchema builds a worker output object schema.
+func OutputSchema(build func(*SchemaBuilder)) json.RawMessage {
+	return buildObjectSchema(build)
+}
+
 // ObjectSchema builds an object schema with property-level required flags.
 func ObjectSchema(fields ...SchemaProperty) json.RawMessage {
+	return marshalObjectSchema(fields)
+}
+
+// String creates a string property.
+func (builder *SchemaBuilder) String(name string) *FieldBuilder {
+	return builder.field(name, "string")
+}
+
+// Integer creates an integer property.
+func (builder *SchemaBuilder) Integer(name string) *FieldBuilder {
+	return builder.field(name, "integer")
+}
+
+// Number creates a number property.
+func (builder *SchemaBuilder) Number(name string) *FieldBuilder {
+	return builder.field(name, "number")
+}
+
+// Boolean creates a boolean property.
+func (builder *SchemaBuilder) Boolean(name string) *FieldBuilder {
+	return builder.field(name, "boolean")
+}
+
+// Required marks a property as required in the worker schema dialect.
+func (builder *FieldBuilder) Required() *FieldBuilder {
+	builder.field().Required = true
+	return builder
+}
+
+// Description adds help text to a property.
+func (builder *FieldBuilder) Description(description string) *FieldBuilder {
+	builder.field().Description = description
+	return builder
+}
+
+// Enum constrains a string-like property to a known option set.
+func (builder *FieldBuilder) Enum(values ...string) *FieldBuilder {
+	builder.field().Enum = append([]string(nil), values...)
+	return builder
+}
+
+func (builder *SchemaBuilder) field(name string, fieldType string) *FieldBuilder {
+	builder.fields = append(builder.fields, SchemaProperty{
+		Name: name,
+		Field: SchemaField{
+			Type: fieldType,
+		},
+	})
+	return &FieldBuilder{
+		builder: builder,
+		index:   len(builder.fields) - 1,
+	}
+}
+
+func (builder *FieldBuilder) field() *SchemaField {
+	return &builder.builder.fields[builder.index].Field
+}
+
+func buildObjectSchema(build func(*SchemaBuilder)) json.RawMessage {
+	builder := &SchemaBuilder{}
+	build(builder)
+	return marshalObjectSchema(builder.fields)
+}
+
+func marshalObjectSchema(fields []SchemaProperty) json.RawMessage {
 	properties := make(map[string]SchemaField, len(fields))
 	for _, field := range fields {
 		properties[field.Name] = field.Field
