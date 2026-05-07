@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"crypto/rand"
 	"fmt"
 	"os"
@@ -10,26 +11,28 @@ import (
 )
 
 type WorkerDef struct {
-	Count int `yaml:"count"`
+	Name    string `yaml:"name"`
+	App     string `yaml:"app"`
+	Variant string `yaml:"variant"`
+	Count   int    `yaml:"count"`
 }
 
 type Config struct {
-	Workers map[string]WorkerDef `yaml:"workers"`
+	Workers []WorkerDef `yaml:"workers"`
 }
 
 type Lock struct {
 	Workers map[string][]string `yaml:"workers"`
 }
 
-// WorkerInstance — один инстанс воркера после reconciliation.
 type WorkerInstance struct {
-	Type string
-	UUID string
-	// IDPath — полный путь к runtime-файлу (.worker_id/{type}/{uuid}).
-	IDPath string
+	Name    string
+	App     string
+	Variant string
+	UUID    string
+	IDPath  string
 }
 
-// LoadServices читает cactus-services.yaml.
 func LoadServices(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -37,20 +40,45 @@ func LoadServices(path string) (*Config, error) {
 	}
 
 	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&cfg); err != nil {
 		return nil, fmt.Errorf("parse services config: %w", err)
 	}
 
 	if cfg.Workers == nil {
-		cfg.Workers = make(map[string]WorkerDef)
+		cfg.Workers = make([]WorkerDef, 0)
+	}
+	if err := validateConfig(cfg); err != nil {
+		return nil, err
 	}
 
 	return &cfg, nil
 }
 
-// Reconcile загружает (или создаёт) lock-файл, сверяет с services config,
-// добавляет/удаляет UUID, чистит runtime-файлы в workerIDDir.
-// Возвращает итоговый список WorkerInstance.
+func validateConfig(cfg Config) error {
+	seen := make(map[string]struct{}, len(cfg.Workers))
+	for i, worker := range cfg.Workers {
+		if worker.Name == "" {
+			return fmt.Errorf("workers[%d].name is required", i)
+		}
+		if worker.App == "" {
+			return fmt.Errorf("workers[%d].app is required", i)
+		}
+		if worker.Variant == "" {
+			return fmt.Errorf("workers[%d].variant is required", i)
+		}
+		if worker.Count < 0 {
+			return fmt.Errorf("workers[%d].count must be >= 0", i)
+		}
+		if _, exists := seen[worker.Name]; exists {
+			return fmt.Errorf("duplicate worker name %q", worker.Name)
+		}
+		seen[worker.Name] = struct{}{}
+	}
+	return nil
+}
+
 func Reconcile(cfgPath, lockPath, workerIDDir string) ([]WorkerInstance, error) { //nolint:gocognit // Reconciliation keeps create/remove decisions in one pass over config and lock state.
 	cfg, err := LoadServices(cfgPath)
 	if err != nil {
@@ -66,17 +94,15 @@ func Reconcile(cfgPath, lockPath, workerIDDir string) ([]WorkerInstance, error) 
 	}
 
 	changed := false
+	configured := make(map[string]WorkerDef, len(cfg.Workers))
 
-	// Добавляем / убираем UUID по каждому типу из services config
-	for workerType, def := range cfg.Workers {
-		current := lock.Workers[workerType]
+	for _, def := range cfg.Workers {
+		configured[def.Name] = def
+
+		current := lock.Workers[def.Name]
 		desired := def.Count
-		if desired < 0 {
-			desired = 0
-		}
 
 		if len(current) < desired {
-			// Нужно добавить инстансы
 			for len(current) < desired {
 				id, err := generateUUID()
 				if err != nil {
@@ -84,26 +110,24 @@ func Reconcile(cfgPath, lockPath, workerIDDir string) ([]WorkerInstance, error) 
 				}
 				current = append(current, id)
 			}
-			lock.Workers[workerType] = current
+			lock.Workers[def.Name] = current
 			changed = true
 		} else if len(current) > desired {
-			// Нужно удалить лишние инстансы (с конца)
 			toRemove := current[desired:]
 			for _, uuid := range toRemove {
-				removeWorkerIDFile(workerIDDir, workerType, uuid)
+				removeWorkerIDFile(workerIDDir, def.Name, uuid)
 			}
-			lock.Workers[workerType] = current[:desired]
+			lock.Workers[def.Name] = current[:desired]
 			changed = true
 		}
 	}
 
-	// Удаляем типы, которых больше нет в services config
-	for workerType, uuids := range lock.Workers {
-		if _, exists := cfg.Workers[workerType]; !exists {
+	for workerName, uuids := range lock.Workers {
+		if _, exists := configured[workerName]; !exists {
 			for _, uuid := range uuids {
-				removeWorkerIDFile(workerIDDir, workerType, uuid)
+				removeWorkerIDFile(workerIDDir, workerName, uuid)
 			}
-			delete(lock.Workers, workerType)
+			delete(lock.Workers, workerName)
 			changed = true
 		}
 	}
@@ -114,14 +138,15 @@ func Reconcile(cfgPath, lockPath, workerIDDir string) ([]WorkerInstance, error) 
 		}
 	}
 
-	// Собираем итоговый список инстансов
-	var instances []WorkerInstance
-	for workerType, uuids := range lock.Workers {
-		for _, uuid := range uuids {
+	instances := make([]WorkerInstance, 0)
+	for _, def := range cfg.Workers {
+		for _, uuid := range lock.Workers[def.Name] {
 			instances = append(instances, WorkerInstance{
-				Type:   workerType,
-				UUID:   uuid,
-				IDPath: filepath.Join(workerIDDir, workerType, uuid),
+				Name:    def.Name,
+				App:     def.App,
+				Variant: def.Variant,
+				UUID:    uuid,
+				IDPath:  filepath.Join(workerIDDir, def.Name, uuid),
 			})
 		}
 	}
@@ -160,15 +185,14 @@ func saveLock(path string, lock *Lock) error {
 	return os.WriteFile(path, data, 0o600)
 }
 
-func removeWorkerIDFile(workerIDDir, workerType, uuid string) {
-	path := filepath.Join(workerIDDir, workerType, uuid)
+func removeWorkerIDFile(workerIDDir, workerName, uuid string) {
+	path := filepath.Join(workerIDDir, workerName, uuid)
 	_ = os.Remove(path)
 
-	// Попробуем удалить директорию типа если она пустая
-	typeDir := filepath.Join(workerIDDir, workerType)
-	entries, err := os.ReadDir(typeDir)
+	groupDir := filepath.Join(workerIDDir, workerName)
+	entries, err := os.ReadDir(groupDir)
 	if err == nil && len(entries) == 0 {
-		_ = os.Remove(typeDir)
+		_ = os.Remove(groupDir)
 	}
 }
 
@@ -177,7 +201,6 @@ func generateUUID() (string, error) {
 	if _, err := rand.Read(buf[:]); err != nil {
 		return "", err
 	}
-	// UUID v4
 	buf[6] = (buf[6] & 0x0f) | 0x40
 	buf[8] = (buf[8] & 0x3f) | 0x80
 	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",

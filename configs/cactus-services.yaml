@@ -1,3 +1,10 @@
 workers:
-  smtp:
+  - name: smtp-basic
+    app: smtp
+    variant: basic
+    count: 1
+
+  - name: smtp-auth
+    app: smtp
+    variant: auth
     count: 1

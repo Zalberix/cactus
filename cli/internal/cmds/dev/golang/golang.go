@@ -91,9 +91,9 @@ func expandWorkers(templates []goapp.GoApp) []goapp.GoApp {
 	}
 
 	// Индексируем инстансы по типу
-	byType := make(map[string][]services.WorkerInstance)
+	byApp := make(map[string][]services.WorkerInstance)
 	for _, inst := range instances {
-		byType[inst.Type] = append(byType[inst.Type], inst)
+		byApp[inst.App] = append(byApp[inst.App], inst)
 	}
 
 	var result []goapp.GoApp
@@ -103,27 +103,34 @@ func expandWorkers(templates []goapp.GoApp) []goapp.GoApp {
 			continue
 		}
 
-		workerInstances, ok := byType[tmpl.Name]
+		workerInstances, ok := byApp[tmpl.Name]
 		if !ok || len(workerInstances) == 0 {
 			// Тип не указан в services.yaml — пропускаем
 			pterm.Info.Printfln("Worker %q not in cactus-services.yaml, skipping", tmpl.Name)
 			continue
 		}
 
+		groupCounts := make(map[string]int)
 		for i, inst := range workerInstances {
 			expanded := tmpl
 			expanded.BaseName = tmpl.Name
 			expanded.WorkerUUID = inst.UUID
+			expanded.WorkerGroupName = inst.Name
+			expanded.WorkerVariant = inst.Variant
 			expanded.IsWorker = true
+			expanded.DebugPort = tmpl.DebugPort + i
 
-			if len(workerInstances) > 1 {
-				expanded.Name = fmt.Sprintf("%s-%d", tmpl.Name, i+1)
-				expanded.DebugPort = tmpl.DebugPort + i
+			groupCounts[inst.Name]++
+			if countInstancesForGroup(workerInstances, inst.Name) > 1 {
+				expanded.Name = fmt.Sprintf("%s-%d", inst.Name, groupCounts[inst.Name])
+			} else {
+				expanded.Name = inst.Name
 			}
 
 			absPath, _ := filepath.Abs(inst.IDPath)
 			expanded.ExtraArgs = []string{
 				"--worker-id-path", absPath,
+				"--worker-variant", inst.Variant,
 			}
 
 			result = append(result, expanded)
@@ -131,6 +138,65 @@ func expandWorkers(templates []goapp.GoApp) []goapp.GoApp {
 	}
 
 	return result
+}
+
+func expandWorkerTemplates(templates []goapp.GoApp, instances []services.WorkerInstance) []goapp.GoApp {
+	byApp := make(map[string][]services.WorkerInstance)
+	for _, inst := range instances {
+		byApp[inst.App] = append(byApp[inst.App], inst)
+	}
+
+	var result []goapp.GoApp
+	for _, tmpl := range templates {
+		if !tmpl.IsWorker {
+			result = append(result, tmpl)
+			continue
+		}
+
+		workerInstances, ok := byApp[tmpl.Name]
+		if !ok || len(workerInstances) == 0 {
+			pterm.Info.Printfln("Worker app %q not in cactus-services.yaml, skipping", tmpl.Name)
+			continue
+		}
+
+		groupCounts := make(map[string]int)
+		for i, inst := range workerInstances {
+			expanded := tmpl
+			expanded.BaseName = tmpl.Name
+			expanded.WorkerUUID = inst.UUID
+			expanded.WorkerGroupName = inst.Name
+			expanded.WorkerVariant = inst.Variant
+			expanded.IsWorker = true
+			expanded.DebugPort = tmpl.DebugPort + i
+
+			groupCounts[inst.Name]++
+			if countInstancesForGroup(workerInstances, inst.Name) > 1 {
+				expanded.Name = fmt.Sprintf("%s-%d", inst.Name, groupCounts[inst.Name])
+			} else {
+				expanded.Name = inst.Name
+			}
+
+			absPath, _ := filepath.Abs(inst.IDPath)
+			expanded.ExtraArgs = []string{
+				"--worker-id-path", absPath,
+				"--worker-variant", inst.Variant,
+			}
+
+			result = append(result, expanded)
+		}
+	}
+
+	return result
+}
+
+func countInstancesForGroup(instances []services.WorkerInstance, name string) int {
+	count := 0
+	for _, inst := range instances {
+		if inst.Name == name {
+			count++
+		}
+	}
+	return count
 }
 
 func (c *GoApps) Start(ctx context.Context) error {

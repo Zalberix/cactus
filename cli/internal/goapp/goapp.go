@@ -34,6 +34,10 @@ type GoApp struct {
 	IsWorker bool
 	// WorkerUUID — UUID инстанса из lock-файла. Заполняется при expansion.
 	WorkerUUID string
+	// WorkerGroupName identifies the launch group from cactus-services.yaml.
+	WorkerGroupName string
+	// WorkerVariant identifies the code-defined manifest/handler variant.
+	WorkerVariant string
 	// BaseName — оригинальное имя приложения (например "smtp") до expansion в "smtp-1".
 	BaseName string
 	// ExtraArgs — дополнительные аргументы для бинарника (передаются после -- в dlv).
@@ -99,6 +103,16 @@ func (g *GoApp) getConfigPath() string {
 	return filepath.Join(g.CorePath, "configs", g.AppDir, name+".yaml")
 }
 
+func (g *GoApp) buildArgs() []string {
+	args := []string{"build"}
+	if g.debugEnabled {
+		args = append(args, `-gcflags=all=-N -l`)
+	} else {
+		args = append(args, `-ldflags=-s -w`)
+	}
+	return append(args, "-o", g.getBinAppPath(), filepath.Join(g.GetAppPath(), "cmd"))
+}
+
 // Build compiles the binary for this service.
 func (g *GoApp) Build() error {
 	pterm.Info.Printfln("[%s] Building...", g.Name)
@@ -106,13 +120,7 @@ func (g *GoApp) Build() error {
 	if err := os.MkdirAll(filepath.Dir(g.getBinAppPath()), 0o755); err != nil {
 		return fmt.Errorf("create bin dir: %w", err)
 	}
-	args := []string{"build"}
-	if g.debugEnabled {
-		args = append(args, `-gcflags=all=-N -l`)
-	} else {
-		args = append(args, `-ldflags=-s -w`)
-	}
-	args = append(args, "-o", g.getBinAppPath(), g.GetAppPath()+"/cmd/main.go")
+	args := g.buildArgs()
 
 	pterm.Info.Println("args for build:", args)
 

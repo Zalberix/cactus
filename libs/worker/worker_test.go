@@ -278,3 +278,36 @@ func TestManifestBuilderBuildsManifest(t *testing.T) {
 		t.Fatalf("expected server_url required true, got %#v", serverURL["required"])
 	}
 }
+
+func TestSelectVariantReturnsKnownVariant(t *testing.T) {
+	handler := TaskHandler(nil)
+	manifest := Manifest().Kind("smtp", "SMTP").Type("email", "Email").Build()
+	variants := map[string]Variant{
+		"basic": {
+			Name:     "basic",
+			Manifest: manifest,
+			Handler:  handler,
+		},
+	}
+
+	got, err := SelectVariant(variants, "basic")
+	if err != nil {
+		t.Fatalf("SelectVariant returned error: %v", err)
+	}
+	if got.Name != "basic" {
+		t.Fatalf("expected basic, got %#v", got)
+	}
+	if got.Manifest.Kind != "smtp" {
+		t.Fatalf("expected smtp manifest, got %#v", got.Manifest)
+	}
+}
+
+func TestSelectVariantRejectsUnknownVariant(t *testing.T) {
+	_, err := SelectVariant(map[string]Variant{"basic": {Name: "basic"}}, "rich")
+	if err == nil {
+		t.Fatal("expected unknown variant error")
+	}
+	if !strings.Contains(err.Error(), `unknown worker variant "rich"`) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
