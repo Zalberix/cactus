@@ -5,6 +5,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu'
@@ -13,7 +16,7 @@ import AppSidebar from '~/components/layout/AppSidebar.vue'
 import AppBreadcrumbs from '~/components/layout/AppBreadcrumbs.vue'
 import ThemeToggle from '~/components/layout/ThemeToggle.vue'
 
-const { t } = useI18n()
+const { locale, setLocale, t } = useI18n()
 const authStore = useAuthStore()
 const orgStore = useOrgStore()
 
@@ -69,11 +72,21 @@ onMounted(async () => {
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" class="w-48">
+              <DropdownMenuContent align="end" class="w-56">
                 <div class="px-2 py-1.5">
                   <p class="text-sm font-medium">{{ authStore.user?.name ?? 'User' }}</p>
                   <p class="text-xs text-muted-foreground">{{ authStore.user?.email ?? '' }}</p>
                 </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>{{ t('common.language') }}</DropdownMenuLabel>
+                <DropdownMenuRadioGroup :model-value="locale" @update:model-value="setLocale">
+                  <DropdownMenuRadioItem value="ru">
+                    {{ t('language.ru') }}
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="en">
+                    {{ t('language.en') }}
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem class="cursor-pointer gap-2" @click="authStore.logout()">
                   <LogOut class="size-4" />

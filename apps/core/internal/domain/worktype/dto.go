@@ -62,6 +62,32 @@ type WorkerResponse struct {
 	LastHeartbeatAt time.Time    `json:"last_heartbeat_at"`
 }
 
+type DeleteWorkerResult string
+
+const (
+	DeleteWorkerResultDeleted  DeleteWorkerResult = "deleted"
+	DeleteWorkerResultOnline   DeleteWorkerResult = "online"
+	DeleteWorkerResultInUse    DeleteWorkerResult = "in_use"
+	DeleteWorkerResultNotFound DeleteWorkerResult = "not_found"
+)
+
+type WorkerWorkflowUsage struct {
+	WorkflowID            int32  `json:"workflow_id"`
+	WorkflowName          string `json:"workflow_name"`
+	SystemID              int32  `json:"system_id"`
+	WorkflowVersionID     int32  `json:"workflow_version_id"`
+	WorkflowVersionNumber int32  `json:"workflow_version_number"`
+}
+
+type DeleteWorkerResponse struct {
+	Result   DeleteWorkerResult    `json:"result"`
+	Deleted  bool                  `json:"deleted"`
+	Message  string                `json:"message"`
+	Usages   []WorkerWorkflowUsage `json:"usages,omitempty"`
+	WorkerID int32                 `json:"worker_id,omitempty"`
+	Status   WorkerStatus          `json:"status,omitempty"`
+}
+
 // --- System DTOs ---
 
 // CreateSystemRequest — запрос на создание системы.

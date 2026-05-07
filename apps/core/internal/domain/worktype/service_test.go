@@ -1,10 +1,16 @@
 package worktype
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	db "github.com/zalberix/cactus/apps/core/storage/db"
 )
 
 // TestManifestHash проверяет детерминированность хэша манифеста.
@@ -138,4 +144,99 @@ func isHex(s string) bool {
 		}
 	}
 	return true
+}
+
+type deleteWorkerStore struct {
+	registerWorkerStore
+	worker       db.Worker
+	getWorkerErr error
+	usages       []db.ListWorkflowUsagesByWorkerIDRow
+	deleteCalled bool
+}
+
+func (s *deleteWorkerStore) GetNewWorkerByID(context.Context, int32) (db.Worker, error) {
+	return s.worker, s.getWorkerErr
+}
+
+func (s *deleteWorkerStore) ListWorkflowUsagesByWorkerID(context.Context, int32) ([]db.ListWorkflowUsagesByWorkerIDRow, error) {
+	return s.usages, nil
+}
+
+func (s *deleteWorkerStore) DeleteWorker(context.Context, int32) error {
+	s.deleteCalled = true
+	return nil
+}
+
+func TestDeleteWorkerDeletesOfflineUnusedWorker(t *testing.T) {
+	store := &deleteWorkerStore{
+		worker: db.Worker{
+			ID:              10,
+			LastHeartbeatAt: pgtype.Timestamp{Time: time.Now().Add(-2 * time.Minute), Valid: true},
+		},
+	}
+	resp, err := NewService(store).DeleteWorker(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("DeleteWorker error: %v", err)
+	}
+	if resp.Result != DeleteWorkerResultDeleted || !resp.Deleted {
+		t.Fatalf("expected deleted response, got %#v", resp)
+	}
+	if !store.deleteCalled {
+		t.Fatal("expected DeleteWorker to be called")
+	}
+}
+
+func TestDeleteWorkerKeepsOnlineWorker(t *testing.T) {
+	store := &deleteWorkerStore{
+		worker: db.Worker{
+			ID:              11,
+			LastHeartbeatAt: pgtype.Timestamp{Time: time.Now(), Valid: true},
+		},
+	}
+	resp, err := NewService(store).DeleteWorker(context.Background(), 11)
+	if err != nil {
+		t.Fatalf("DeleteWorker error: %v", err)
+	}
+	if resp.Result != DeleteWorkerResultOnline || resp.Deleted {
+		t.Fatalf("expected online response, got %#v", resp)
+	}
+	if store.deleteCalled {
+		t.Fatal("DeleteWorker must not be called for online worker")
+	}
+}
+
+func TestDeleteWorkerReturnsWorkflowUsages(t *testing.T) {
+	store := &deleteWorkerStore{
+		worker: db.Worker{
+			ID:              12,
+			LastHeartbeatAt: pgtype.Timestamp{Time: time.Now().Add(-2 * time.Minute), Valid: true},
+		},
+		usages: []db.ListWorkflowUsagesByWorkerIDRow{
+			{WorkflowID: 101, WorkflowName: "Welcome", SystemID: 7, WorkflowVersionID: 201, WorkflowVersionNumber: 3},
+		},
+	}
+	resp, err := NewService(store).DeleteWorker(context.Background(), 12)
+	if err != nil {
+		t.Fatalf("DeleteWorker error: %v", err)
+	}
+	if resp.Result != DeleteWorkerResultInUse || resp.Deleted {
+		t.Fatalf("expected in_use response, got %#v", resp)
+	}
+	if len(resp.Usages) != 1 || resp.Usages[0].WorkflowID != 101 {
+		t.Fatalf("expected workflow usage in response, got %#v", resp.Usages)
+	}
+	if store.deleteCalled {
+		t.Fatal("DeleteWorker must not be called when worker is used by workflow definitions")
+	}
+}
+
+func TestDeleteWorkerReturnsNotFoundBody(t *testing.T) {
+	store := &deleteWorkerStore{getWorkerErr: pgx.ErrNoRows}
+	resp, err := NewService(store).DeleteWorker(context.Background(), 99)
+	if err != nil {
+		t.Fatalf("DeleteWorker error: %v", err)
+	}
+	if resp.Result != DeleteWorkerResultNotFound || resp.Deleted {
+		t.Fatalf("expected not_found response, got %#v", resp)
+	}
 }

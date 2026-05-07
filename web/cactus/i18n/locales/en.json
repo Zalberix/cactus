@@ -202,7 +202,14 @@
     "noRevisions": "No revisions created yet.",
     "createRevision": "Create Revision",
     "revisionCreated": "Revision created successfully",
-    "settingsJson": "Settings (JSON)"
+    "settingsJson": "Settings (JSON)",
+    "delete": "Delete worker",
+    "deleteOfflineOnly": "Only offline workers can be deleted",
+    "deleted": "Worker deleted",
+    "inUse": "Worker is used by workflows",
+    "onlineDeleteBlocked": "Worker is online and cannot be deleted",
+    "notFound": "Worker was not found",
+    "usedByWorkflows": "\"{name}\" is used by these workflows:"
   },
   "messages": {
     "title": "Messages",
@@ -357,7 +364,12 @@
     "selectAll": "Select all",
     "deselectAll": "Deselect all",
     "page": "Page {page} of {total}",
-    "rowsPerPage": "Rows per page"
+    "rowsPerPage": "Rows per page",
+    "language": "Language"
+  },
+  "language": {
+    "ru": "Russian",
+    "en": "English"
   },
   "layout": {
     "desktopRequired": "Desktop Required",

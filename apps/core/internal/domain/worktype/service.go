@@ -296,6 +296,72 @@ func (s *Service) ListWorkers(ctx context.Context, workTypeID int32) ([]WorkerRe
 	return result, nil
 }
 
+func (s *Service) DeleteWorker(ctx context.Context, workerID int32) (DeleteWorkerResponse, error) {
+	worker, err := s.store.GetNewWorkerByID(ctx, workerID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return DeleteWorkerResponse{
+				Result:   DeleteWorkerResultNotFound,
+				Deleted:  false,
+				Message:  "Worker not found",
+				WorkerID: workerID,
+			}, nil
+		}
+		return DeleteWorkerResponse{}, fmt.Errorf("get worker: %w", err)
+	}
+
+	var lastHB time.Time
+	if worker.LastHeartbeatAt.Valid {
+		lastHB = worker.LastHeartbeatAt.Time
+	}
+	status := ComputeWorkerStatus(lastHB, false)
+	if status != WorkerStatusOffline {
+		return DeleteWorkerResponse{
+			Result:   DeleteWorkerResultOnline,
+			Deleted:  false,
+			Message:  "Worker is online",
+			WorkerID: worker.ID,
+			Status:   status,
+		}, nil
+	}
+
+	rows, err := s.store.ListWorkflowUsagesByWorkerID(ctx, worker.ID)
+	if err != nil {
+		return DeleteWorkerResponse{}, fmt.Errorf("list worker workflow usages: %w", err)
+	}
+	if len(rows) > 0 {
+		usages := make([]WorkerWorkflowUsage, 0, len(rows))
+		for _, row := range rows {
+			usages = append(usages, WorkerWorkflowUsage{
+				WorkflowID:            row.WorkflowID,
+				WorkflowName:          row.WorkflowName,
+				SystemID:              row.SystemID,
+				WorkflowVersionID:     row.WorkflowVersionID,
+				WorkflowVersionNumber: row.WorkflowVersionNumber,
+			})
+		}
+		return DeleteWorkerResponse{
+			Result:   DeleteWorkerResultInUse,
+			Deleted:  false,
+			Message:  "Worker is used by workflow definitions",
+			WorkerID: worker.ID,
+			Status:   status,
+			Usages:   usages,
+		}, nil
+	}
+
+	if err := s.store.DeleteWorker(ctx, worker.ID); err != nil {
+		return DeleteWorkerResponse{}, fmt.Errorf("delete worker: %w", err)
+	}
+	return DeleteWorkerResponse{
+		Result:   DeleteWorkerResultDeleted,
+		Deleted:  true,
+		Message:  "Worker deleted",
+		WorkerID: worker.ID,
+		Status:   status,
+	}, nil
+}
+
 // --- System methods ---
 
 // CreateSystem создаёт систему в организации.
@@ -333,7 +399,7 @@ func (s *Service) ListSystems(ctx context.Context, orgID int32) ([]db.ListSystem
 }
 
 // ListSystemsPaginated возвращает страницу систем организации с количеством активных токенов.
-func (s *Service) ListSystemsPaginated(ctx context.Context, orgID int32, page, perPage int) ([]db.ListSystemsByOrganizationIDRow, int64, error) {
+func (s *Service) ListSystemsPaginated(ctx context.Context, orgID int32, page, perPage int) ([]db.ListSystemsByOrganizationIDPaginatedRow, int64, error) {
 	if page < 1 {
 		page = 1
 	}

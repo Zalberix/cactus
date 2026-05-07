@@ -28,6 +28,8 @@ type Storage interface {
 	ListNewWorkersByWorkTypeID(ctx context.Context, workTypeID int32) ([]db.Worker, error)
 	UpdateNewWorkerHeartbeat(ctx context.Context, id int32) error
 	UpdateNewWorkerSchema(ctx context.Context, arg db.UpdateNewWorkerSchemaParams) (db.Worker, error)
+	DeleteWorker(ctx context.Context, id int32) error
+	ListWorkflowUsagesByWorkerID(ctx context.Context, id int32) ([]db.ListWorkflowUsagesByWorkerIDRow, error)
 
 	// Worker Settings Schema
 	CreateWorkerSettingsSchema(ctx context.Context, arg db.CreateWorkerSettingsSchemaParams) (db.WorkerSettingsSchema, error)
@@ -45,7 +47,7 @@ type Storage interface {
 	GetSystemByID(ctx context.Context, id int32) (db.System, error)
 	CountSystemsByOrganizationID(ctx context.Context, organizationID pgtype.Int4) (int64, error)
 	ListSystemsByOrganizationID(ctx context.Context, organizationID pgtype.Int4) ([]db.ListSystemsByOrganizationIDRow, error)
-	ListSystemsByOrganizationIDPaginated(ctx context.Context, arg db.ListSystemsByOrganizationIDPaginatedParams) ([]db.ListSystemsByOrganizationIDRow, error)
+	ListSystemsByOrganizationIDPaginated(ctx context.Context, arg db.ListSystemsByOrganizationIDPaginatedParams) ([]db.ListSystemsByOrganizationIDPaginatedRow, error)
 	UpdateSystem(ctx context.Context, arg db.UpdateSystemParams) (db.System, error)
 	SoftDeleteSystem(ctx context.Context, id int32) error
 

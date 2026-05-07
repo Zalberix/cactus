@@ -27,6 +27,25 @@ export interface Worker {
   work_type_name?: string
 }
 
+export interface WorkerWorkflowUsage {
+  workflow_id: number
+  workflow_name: string
+  system_id: number
+  workflow_version_id: number
+  workflow_version_number: number
+}
+
+export type DeleteWorkerResult = 'deleted' | 'online' | 'in_use' | 'not_found'
+
+export interface DeleteWorkerResponse {
+  result: DeleteWorkerResult
+  deleted: boolean
+  message: string
+  worker_id?: number
+  status?: Worker['status']
+  usages?: WorkerWorkflowUsage[]
+}
+
 export interface SettingsRevision {
   id: number
   schema_id: number
@@ -87,6 +106,17 @@ export function useWorkers() {
     return allWorkers
   }
 
+  async function deleteWorker(workerId: number): Promise<DeleteWorkerResponse> {
+    const resp = await api<ApiResponse<DeleteWorkerResponse>>(
+      `/workers/${workerId}`,
+      { method: 'DELETE' },
+    )
+    if (!resp.success || !resp.data) {
+      throw new Error(resp.error?.message ?? 'Failed to delete worker')
+    }
+    return resp.data
+  }
+
   async function fetchRevisions(schemaId: number) {
     const resp = await api<ApiResponse<SettingsRevision[]>>(
       `/worker-settings-schemas/${schemaId}/revisions`,
@@ -125,6 +155,7 @@ export function useWorkers() {
     fetchWorkTypes,
     fetchWorkers,
     fetchWorkersForOrg,
+    deleteWorker,
     fetchRevisions,
     createRevision,
     fetchSchema,

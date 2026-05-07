@@ -66,6 +66,8 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc, _ middle
 		middleware.RequirePermission(h.permChecker, permissions.WorkerWrite), h.CreateWorkType)
 	v1.GET("/work-types/:workTypeId/workers",
 		middleware.RequirePermission(h.permChecker, permissions.WorkerRead), h.ListWorkers)
+	v1.DELETE("/workers/:workerId",
+		middleware.RequirePermission(h.permChecker, permissions.WorkerWrite), h.DeleteWorker)
 
 	// Settings Schemas
 	v1.GET("/worker-settings-schemas/:schemaId",
@@ -373,6 +375,22 @@ func (h *Handler) ListWorkers(c *gin.Context) {
 		return
 	}
 	response.OK(c, workers)
+}
+
+// DeleteWorker godoc
+// DELETE /api/v1/workers/:workerId
+func (h *Handler) DeleteWorker(c *gin.Context) {
+	workerID, ok := parseID(c, "workerId")
+	if !ok {
+		return
+	}
+
+	result, err := h.service.DeleteWorker(c.Request.Context(), workerID)
+	if err != nil {
+		response.InternalError(c, "Worker deletion failed")
+		return
+	}
+	response.OK(c, result)
 }
 
 // --- Worker Registration handler ---

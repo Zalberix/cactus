@@ -6,7 +6,8 @@
     "emailPlaceholder": "name{'@'}example.com",
     "passwordPlaceholder": "Введите пароль",
     "forgotPassword": "Забыли пароль?",
-    "sessionExpired": "Ваша сессия истекла."
+    "sessionExpired": "Ваша сессия истекла.",
+    "logout": "Выйти"
   },
   "nav": {
     "workflows": "Рабочие процессы",
@@ -31,10 +32,28 @@
   "editor": {
     "saveVersion": "Сохранить версию",
     "activateVersion": "Активировать версию",
+    "deactivateVersion": "Деактивировать версию",
+    "createVersion": "Создать версию",
     "deleteVersion": "Удалить версию",
     "versions": "Версии",
     "steps": "Шаги",
     "activeVersion": "Активная",
+    "validated": "Версия сохранена и проверена",
+    "validationErrors": "Ошибки валидации",
+    "stepName": "Название шага",
+    "stepType": "Тип",
+    "workType": "Тип работы",
+    "inputMapping": "Маппинг входа",
+    "config": "Конфигурация",
+    "addMapping": "Добавить маппинг",
+    "key": "Ключ",
+    "value": "Значение",
+    "deleteStep": "Удалить шаг",
+    "versionNumber": "Версия {number}",
+    "valid": "Валидна",
+    "invalid": "Невалидна",
+    "task": "Задача",
+    "control": "Управление",
     "configure": "Настроить"
   },
   "nodeEditor": {
@@ -124,7 +143,14 @@
     "noRevisions": "Ревизии ещё не созданы.",
     "createRevision": "Создать ревизию",
     "revisionCreated": "Ревизия создана",
-    "settingsJson": "Настройки (JSON)"
+    "settingsJson": "Настройки (JSON)",
+    "delete": "Удалить воркер",
+    "deleteOfflineOnly": "Можно удалять только offline-воркеры",
+    "deleted": "Воркер удалён",
+    "inUse": "Воркер используется в workflow",
+    "onlineDeleteBlocked": "Воркер online и не может быть удалён",
+    "notFound": "Воркер не найден",
+    "usedByWorkflows": "\"{name}\" используется в этих workflow:"
   },
   "messages": {
     "title": "Сообщения",
@@ -277,7 +303,14 @@
     "showing": "Показано с {from} по {to} из {total}",
     "perPage": "На странице",
     "selectAll": "Выбрать все",
-    "deselectAll": "Снять выбор"
+    "deselectAll": "Снять выбор",
+    "page": "Страница {page} из {total}",
+    "rowsPerPage": "Строк на странице",
+    "language": "Язык"
+  },
+  "language": {
+    "ru": "Русский",
+    "en": "English"
   },
   "org": {
     "switch": "Сменить организацию",

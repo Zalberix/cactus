@@ -53,6 +53,12 @@ func (s *registerWorkerStore) UpdateNewWorkerSchema(context.Context, db.UpdateNe
 	return db.Worker{}, nil
 }
 
+func (s *registerWorkerStore) DeleteWorker(context.Context, int32) error { return nil }
+
+func (s *registerWorkerStore) ListWorkflowUsagesByWorkerID(context.Context, int32) ([]db.ListWorkflowUsagesByWorkerIDRow, error) {
+	return nil, nil
+}
+
 func (s *registerWorkerStore) CreateWorkerSettingsSchema(_ context.Context, arg db.CreateWorkerSettingsSchemaParams) (db.WorkerSettingsSchema, error) {
 	s.createdSchemaArg = arg
 	return db.WorkerSettingsSchema{ID: 55, WorkTypeID: arg.WorkTypeID, SettingsSchema: arg.SettingsSchema, InputSchema: arg.InputSchema, OutputSchema: arg.OutputSchema}, nil
@@ -98,7 +104,7 @@ func (s *registerWorkerStore) ListSystemsByOrganizationID(context.Context, pgtyp
 	return nil, nil
 }
 
-func (s *registerWorkerStore) ListSystemsByOrganizationIDPaginated(context.Context, db.ListSystemsByOrganizationIDPaginatedParams) ([]db.ListSystemsByOrganizationIDRow, error) {
+func (s *registerWorkerStore) ListSystemsByOrganizationIDPaginated(context.Context, db.ListSystemsByOrganizationIDPaginatedParams) ([]db.ListSystemsByOrganizationIDPaginatedRow, error) {
 	return nil, nil
 }
 

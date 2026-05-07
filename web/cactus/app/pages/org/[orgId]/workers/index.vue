@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { ColumnDef } from '@tanstack/vue-table'
 import { h } from 'vue'
-import { Server, Eye } from 'lucide-vue-next'
-import type { Worker, SettingsRevision } from '~/composables/useWorkers'
+import { Server, Eye, MoreHorizontal, Trash2 } from 'lucide-vue-next'
+import type { Worker, SettingsRevision, WorkerWorkflowUsage } from '~/composables/useWorkers'
 import DataTable from '~/components/tables/DataTable.vue'
 import DataTableColumnHeader from '~/components/tables/DataTableColumnHeader.vue'
 import EmptyState from '~/components/feedback/EmptyState.vue'
@@ -20,15 +20,23 @@ import { Skeleton } from '~/components/ui/skeleton'
 import { Badge } from '~/components/ui/badge'
 import { Separator } from '~/components/ui/separator'
 import { toast } from '~/components/ui/toast/use-toast'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '~/components/ui/dropdown-menu'
 
 const { t } = useI18n()
 const route = useRoute()
 const orgId = computed(() => Number(route.params.orgId))
 
-const { fetchWorkersForOrg, fetchRevisions, createRevision, fetchSchema } = useWorkers()
+const { fetchWorkersForOrg, fetchRevisions, createRevision, fetchSchema, deleteWorker } = useWorkers()
 
 const workers = ref<Worker[]>([])
 const loading = ref(true)
+const deletingWorkerId = ref<number | null>(null)
+const blockedUsages = ref<Record<number, WorkerWorkflowUsage[]>>({})
 
 const sheetOpen = ref(false)
 const selectedWorker = ref<Worker | null>(null)
@@ -112,6 +120,47 @@ async function onSubmitRevision() {
   }
 }
 
+async function onDeleteWorker(worker: Worker) {
+  deletingWorkerId.value = worker.id
+  try {
+    const result = await deleteWorker(worker.id)
+    if (result.result === 'deleted') {
+      toast({ title: t('workers.deleted') })
+      blockedUsages.value = { ...blockedUsages.value, [worker.id]: [] }
+      await loadWorkers()
+      return
+    }
+
+    if (result.result === 'in_use') {
+      blockedUsages.value = {
+        ...blockedUsages.value,
+        [worker.id]: result.usages ?? [],
+      }
+      toast({ title: t('workers.inUse'), variant: 'destructive' })
+      return
+    }
+
+    if (result.result === 'online') {
+      toast({ title: t('workers.onlineDeleteBlocked'), variant: 'destructive' })
+      await loadWorkers()
+      return
+    }
+
+    toast({ title: t('workers.notFound'), variant: 'destructive' })
+    await loadWorkers()
+  }
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
+  }
+  finally {
+    deletingWorkerId.value = null
+  }
+}
+
+function workflowHref(usage: WorkerWorkflowUsage): string {
+  return `/org/${orgId.value}/workflows/${usage.workflow_id}`
+}
+
 function formatRelativeTime(dateStr: string): string {
   const now = Date.now()
   const then = new Date(dateStr).getTime()
@@ -154,16 +203,29 @@ const columns: ColumnDef<Worker>[] = [
     id: 'actions',
     header: () => h('span', { class: 'sr-only' }, t('common.actions')),
     cell: ({ row }) => {
-      return h(Button, {
-        variant: 'ghost',
-        size: 'sm',
-        onClick: () => openRevisions(row.original),
-      }, () => [
-        h(Eye, { class: 'size-4 mr-1' }),
-        t('workers.viewRevisions'),
-      ])
+      const worker = row.original
+      const canDelete = worker.status === 'offline'
+      return h(DropdownMenu, {}, {
+        default: () => [
+          h(DropdownMenuTrigger, { asChild: true }, () =>
+            h(Button, { variant: 'ghost', size: 'icon', title: t('common.actions') }, () =>
+              h(MoreHorizontal, { class: 'h-4 w-4' }),
+            ),
+          ),
+          h(DropdownMenuContent, { align: 'end' }, () => [
+            h(DropdownMenuItem, {
+              onClick: () => openRevisions(worker),
+            }, () => [h(Eye, { class: 'mr-2 h-4 w-4' }), t('workers.viewRevisions')]),
+            h(DropdownMenuItem, {
+              disabled: !canDelete || deletingWorkerId.value === worker.id,
+              title: canDelete ? t('workers.delete') : t('workers.deleteOfflineOnly'),
+              onClick: () => onDeleteWorker(worker),
+            }, () => [h(Trash2, { class: 'mr-2 h-4 w-4 text-destructive' }), t('workers.delete')]),
+          ]),
+        ],
+      })
     },
-    size: 160,
+    size: 64,
   },
 ]
 
@@ -199,6 +261,31 @@ onMounted(loadWorkers)
       :columns="columns"
       :data="workers"
     />
+
+    <div
+      v-for="worker in workers"
+      :key="`usage-${worker.id}`"
+      class="space-y-2"
+    >
+      <div
+        v-if="blockedUsages[worker.id]?.length"
+        class="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm"
+      >
+        <div class="font-medium">
+          {{ t('workers.usedByWorkflows', { name: worker.name }) }}
+        </div>
+        <div class="mt-2 flex flex-wrap gap-2">
+          <NuxtLink
+            v-for="usage in blockedUsages[worker.id]"
+            :key="`${usage.workflow_id}-${usage.workflow_version_id}`"
+            :to="workflowHref(usage)"
+            class="text-primary underline-offset-4 hover:underline"
+          >
+            {{ usage.workflow_name }} v{{ usage.workflow_version_number }}
+          </NuxtLink>
+        </div>
+      </div>
+    </div>
 
     <!-- Settings Revisions Sheet -->
     <Sheet v-model:open="sheetOpen">

@@ -18,9 +18,9 @@ WHERE s.organization_id = $1 AND s.deleted_at IS NULL
 
 func (q *Queries) CountSystemsByOrganizationID(ctx context.Context, organizationID pgtype.Int4) (int64, error) {
 	row := q.db.QueryRow(ctx, countSystemsByOrganizationID, organizationID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const createSystem = `-- name: CreateSystem :one
@@ -206,15 +206,31 @@ type ListSystemsByOrganizationIDPaginatedParams struct {
 	Offset         int64       `json:"offset"`
 }
 
-func (q *Queries) ListSystemsByOrganizationIDPaginated(ctx context.Context, arg ListSystemsByOrganizationIDPaginatedParams) ([]ListSystemsByOrganizationIDRow, error) {
+type ListSystemsByOrganizationIDPaginatedRow struct {
+	ID                int32            `json:"id"`
+	OrganizationID    pgtype.Int4      `json:"organization_id"`
+	UserCreatorID     pgtype.Int4      `json:"user_creator_id"`
+	Name              string           `json:"name"`
+	Description       pgtype.Text      `json:"description"`
+	IsActive          bool             `json:"is_active"`
+	Priority          int32            `json:"priority"`
+	PublicToken       pgtype.Text      `json:"public_token"`
+	PrivateToken      pgtype.Text      `json:"private_token"`
+	CreatedAt         pgtype.Timestamp `json:"created_at"`
+	UpdatedAt         pgtype.Timestamp `json:"updated_at"`
+	DeletedAt         pgtype.Timestamp `json:"deleted_at"`
+	ActiveTokensCount int32            `json:"active_tokens_count"`
+}
+
+func (q *Queries) ListSystemsByOrganizationIDPaginated(ctx context.Context, arg ListSystemsByOrganizationIDPaginatedParams) ([]ListSystemsByOrganizationIDPaginatedRow, error) {
 	rows, err := q.db.Query(ctx, listSystemsByOrganizationIDPaginated, arg.OrganizationID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListSystemsByOrganizationIDRow
+	var items []ListSystemsByOrganizationIDPaginatedRow
 	for rows.Next() {
-		var i ListSystemsByOrganizationIDRow
+		var i ListSystemsByOrganizationIDPaginatedRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationID,

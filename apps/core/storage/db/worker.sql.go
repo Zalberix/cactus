@@ -42,6 +42,16 @@ func (q *Queries) CreateNewWorker(ctx context.Context, arg CreateNewWorkerParams
 	return i, err
 }
 
+const deleteWorker = `-- name: DeleteWorker :exec
+DELETE FROM "worker"
+WHERE id = $1
+`
+
+func (q *Queries) DeleteWorker(ctx context.Context, id int32) error {
+	_, err := q.db.Exec(ctx, deleteWorker, id)
+	return err
+}
+
 const getNewWorkerByID = `-- name: GetNewWorkerByID :one
 SELECT id, work_type_id, worker_settings_schema_id, name, metadata, registered_at, last_heartbeat_at FROM "worker"
 WHERE id = $1
@@ -111,6 +121,63 @@ func (q *Queries) ListNewWorkersByWorkTypeID(ctx context.Context, workTypeID int
 			&i.Metadata,
 			&i.RegisteredAt,
 			&i.LastHeartbeatAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkflowUsagesByWorkerID = `-- name: ListWorkflowUsagesByWorkerID :many
+SELECT DISTINCT
+    w.id AS workflow_id,
+    w.name AS workflow_name,
+    w.system_id AS system_id,
+    wv.id AS workflow_version_id,
+    wv.version_number AS workflow_version_number
+FROM "worker" worker_row
+JOIN "worker_settings_revision" wsr
+    ON wsr.worker_settings_schema_id = worker_row.worker_settings_schema_id
+JOIN "workflow_step" ws
+    ON ws.worker_settings_revision_id = wsr.id
+    AND ws.deleted_at IS NULL
+JOIN "workflow_version" wv
+    ON wv.id = ws.workflow_version_id
+    AND wv.deleted_at IS NULL
+JOIN "workflow" w
+    ON w.id = wv.workflow_id
+    AND w.deleted_at IS NULL
+WHERE worker_row.id = $1
+ORDER BY w.id, wv.version_number
+`
+
+type ListWorkflowUsagesByWorkerIDRow struct {
+	WorkflowID            int32  `json:"workflow_id"`
+	WorkflowName          string `json:"workflow_name"`
+	SystemID              int32  `json:"system_id"`
+	WorkflowVersionID     int32  `json:"workflow_version_id"`
+	WorkflowVersionNumber int32  `json:"workflow_version_number"`
+}
+
+func (q *Queries) ListWorkflowUsagesByWorkerID(ctx context.Context, id int32) ([]ListWorkflowUsagesByWorkerIDRow, error) {
+	rows, err := q.db.Query(ctx, listWorkflowUsagesByWorkerID, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListWorkflowUsagesByWorkerIDRow
+	for rows.Next() {
+		var i ListWorkflowUsagesByWorkerIDRow
+		if err := rows.Scan(
+			&i.WorkflowID,
+			&i.WorkflowName,
+			&i.SystemID,
+			&i.WorkflowVersionID,
+			&i.WorkflowVersionNumber,
 		); err != nil {
 			return nil, err
 		}

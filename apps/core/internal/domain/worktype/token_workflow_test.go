@@ -55,6 +55,12 @@ func (s *tokenWorkflowStore) UpdateNewWorkerSchema(context.Context, db.UpdateNew
 	return db.Worker{}, nil
 }
 
+func (s *tokenWorkflowStore) DeleteWorker(context.Context, int32) error { return nil }
+
+func (s *tokenWorkflowStore) ListWorkflowUsagesByWorkerID(context.Context, int32) ([]db.ListWorkflowUsagesByWorkerIDRow, error) {
+	return nil, nil
+}
+
 func (s *tokenWorkflowStore) CreateWorkerSettingsSchema(context.Context, db.CreateWorkerSettingsSchemaParams) (db.WorkerSettingsSchema, error) {
 	return db.WorkerSettingsSchema{}, nil
 }
@@ -99,7 +105,7 @@ func (s *tokenWorkflowStore) ListSystemsByOrganizationID(context.Context, pgtype
 	return nil, nil
 }
 
-func (s *tokenWorkflowStore) ListSystemsByOrganizationIDPaginated(context.Context, db.ListSystemsByOrganizationIDPaginatedParams) ([]db.ListSystemsByOrganizationIDRow, error) {
+func (s *tokenWorkflowStore) ListSystemsByOrganizationIDPaginated(context.Context, db.ListSystemsByOrganizationIDPaginatedParams) ([]db.ListSystemsByOrganizationIDPaginatedRow, error) {
 	return nil, nil
 }
 
