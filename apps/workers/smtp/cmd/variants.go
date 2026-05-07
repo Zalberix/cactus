@@ -194,7 +194,7 @@ func basicSMTPManifest() worker.ManifestSpec {
 
 func authSMTPManifest() worker.ManifestSpec {
 	return worker.Manifest().
-		Kind("smtp-auth", "SMTP Rich Email").
+		Kind("smtp-auth", "SMTP Auth Email").
 		Type("email", "Email Delivery").
 		SettingsSchema(func(sb *worker.SchemaBuilder) {
 			sb.String("host").Required()

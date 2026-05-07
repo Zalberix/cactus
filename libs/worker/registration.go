@@ -56,6 +56,14 @@ func (w *Worker) loadOrRegister(ctx context.Context) error {
 				// Если heartbeat не прошёл, регистрируемся заново
 				return w.register(ctx)
 			}
+			if w.workerID > 0 && w.workerID != id {
+				if err := w.saveWorkerID(w.workerID); err != nil {
+					w.logger.Warn("failed to update worker ID file",
+						slog.String("error", err.Error()),
+						slog.String("file", w.cfg.WorkerIDPath),
+					)
+				}
+			}
 			return nil
 		}
 	}

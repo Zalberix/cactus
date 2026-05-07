@@ -40,3 +40,19 @@ func TestTelegramWorkerSourceIncludesVariantAndWorkerID(t *testing.T) {
 		t.Fatalf("telegramWorkerSource() = %q, want %q", got, want)
 	}
 }
+
+func TestTelegramWorkerNameUsesOverrideWhenProvided(t *testing.T) {
+	got := telegramWorkerName("basic", "telegram-basic-2")
+	want := "telegram-basic-2"
+	if got != want {
+		t.Fatalf("telegramWorkerName() = %q, want %q", got, want)
+	}
+}
+
+func TestTelegramWorkerNameFallsBackToVariantName(t *testing.T) {
+	got := telegramWorkerName("basic", "")
+	want := "telegram-basic-worker"
+	if got != want {
+		t.Fatalf("telegramWorkerName() = %q, want %q", got, want)
+	}
+}

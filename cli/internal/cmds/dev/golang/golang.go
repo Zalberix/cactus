@@ -131,6 +131,7 @@ func expandWorkers(templates []goapp.GoApp) []goapp.GoApp {
 			expanded.ExtraArgs = []string{
 				"--worker-id-path", absPath,
 				"--worker-variant", inst.Variant,
+				"--worker-name", expanded.Name,
 			}
 
 			result = append(result, expanded)
@@ -180,6 +181,7 @@ func expandWorkerTemplates(templates []goapp.GoApp, instances []services.WorkerI
 			expanded.ExtraArgs = []string{
 				"--worker-id-path", absPath,
 				"--worker-variant", inst.Variant,
+				"--worker-name", expanded.Name,
 			}
 
 			result = append(result, expanded)

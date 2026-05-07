@@ -17,6 +17,7 @@ import (
 func main() {
 	workerIDPath := flag.String("worker-id-path", "", "path to worker ID file (.worker_id/{type}/{uuid})")
 	workerVariant := flag.String("worker-variant", "basic", "worker manifest and handler variant")
+	workerName := flag.String("worker-name", "", "runtime worker name for registration")
 	flag.Parse()
 
 	conf := cfgloader.MustLoad[config.Config]("configs/apps/workers/telegram.yaml")
@@ -44,7 +45,7 @@ func main() {
 		WorkTypeID:     conf.WorkTypeID,
 		RevisionID:     conf.RevisionID,
 		WorkerIDPath:   *workerIDPath,
-		WorkerName:     "telegram-" + selectedVariant.Name + "-worker",
+		WorkerName:     telegramWorkerName(selectedVariant.Name, *workerName),
 		OnWorkerID: func(workerID int32) *slog.Logger {
 			return logger.SetupLogger(conf.Env, telegramWorkerSource(selectedVariant.Name, workerID))
 		},
@@ -65,4 +66,11 @@ func main() {
 
 func telegramWorkerSource(variant string, workerID int32) string {
 	return logger.WorkerSource("telegram-"+variant, workerID)
+}
+
+func telegramWorkerName(variant, override string) string {
+	if override != "" {
+		return override
+	}
+	return "telegram-" + variant + "-worker"
 }

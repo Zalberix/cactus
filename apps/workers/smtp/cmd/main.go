@@ -17,6 +17,7 @@ import (
 func main() {
 	workerIDPath := flag.String("worker-id-path", "", "path to worker ID file (.worker_id/{name}/{uuid})")
 	workerVariant := flag.String("worker-variant", "basic", "worker manifest and handler variant")
+	workerName := flag.String("worker-name", "", "runtime worker name for registration")
 	flag.Parse()
 
 	cfg := cfgloader.MustLoad[config.Config]("configs/workers/smtp.yaml")
@@ -36,7 +37,7 @@ func main() {
 		WorkTypeID:     cfg.WorkTypeID,
 		RevisionID:     cfg.RevisionID,
 		WorkerIDPath:   *workerIDPath,
-		WorkerName:     "smtp-" + selectedVariant.Name + "-worker",
+		WorkerName:     smtpWorkerName(selectedVariant.Name, *workerName),
 		OnWorkerID: func(workerID int32) *slog.Logger {
 			return logger.SetupLogger(cfg.Env, smtpWorkerSource(selectedVariant.Name, workerID))
 		},
@@ -59,4 +60,11 @@ func main() {
 
 func smtpWorkerSource(variant string, workerID int32) string {
 	return logger.WorkerSource("smtp-"+variant, workerID)
+}
+
+func smtpWorkerName(variant, override string) string {
+	if override != "" {
+		return override
+	}
+	return "smtp-" + variant + "-worker"
 }

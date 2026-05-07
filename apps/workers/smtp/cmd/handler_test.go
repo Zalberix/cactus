@@ -29,40 +29,40 @@ func TestSMTPVariantsExposeDifferentManifests(t *testing.T) {
 	if err != nil {
 		t.Fatalf("select basic: %v", err)
 	}
-	rich, err := worker.SelectVariant(variants, "rich")
+	auth, err := worker.SelectVariant(variants, "auth")
 	if err != nil {
-		t.Fatalf("select rich: %v", err)
+		t.Fatalf("select auth: %v", err)
 	}
 
 	if basic.Manifest.Kind != "smtp-basic" {
 		t.Fatalf("expected basic kind smtp-basic, got %q", basic.Manifest.Kind)
 	}
-	if rich.Manifest.Kind != "smtp-rich" {
-		t.Fatalf("expected rich kind smtp-rich, got %q", rich.Manifest.Kind)
+	if auth.Manifest.Kind != "smtp-auth" {
+		t.Fatalf("expected auth kind smtp-auth, got %q", auth.Manifest.Kind)
 	}
-	if basic.Manifest.Type != rich.Manifest.Type || basic.Manifest.Type != "email" {
-		t.Fatalf("expected both variants to share email type, got %q and %q", basic.Manifest.Type, rich.Manifest.Type)
+	if basic.Manifest.Type != auth.Manifest.Type || basic.Manifest.Type != "email" {
+		t.Fatalf("expected both variants to share email type, got %q and %q", basic.Manifest.Type, auth.Manifest.Type)
 	}
 
-	var richInput map[string]any
-	if err := json.Unmarshal(rich.Manifest.InputSchema, &richInput); err != nil {
-		t.Fatalf("unmarshal rich input schema: %v", err)
+	var authInput map[string]any
+	if err := json.Unmarshal(auth.Manifest.InputSchema, &authInput); err != nil {
+		t.Fatalf("unmarshal auth input schema: %v", err)
 	}
-	props := richInput["properties"].(map[string]any)
+	props := authInput["properties"].(map[string]any)
 	if _, ok := props["cc"]; !ok {
-		t.Fatalf("expected rich input schema to contain cc, got %#v", props)
+		t.Fatalf("expected auth input schema to contain cc, got %#v", props)
 	}
 }
 
 func TestRichSMTPHandlerUsesCCRecipients(t *testing.T) {
 	sender := &recordingSender{}
 	variants := smtpVariants(config.Config{}, sender)
-	rich, err := worker.SelectVariant(variants, "rich")
+	auth, err := worker.SelectVariant(variants, "auth")
 	if err != nil {
-		t.Fatalf("select rich: %v", err)
+		t.Fatalf("select auth: %v", err)
 	}
 
-	result, err := rich.Handler.Handle(context.Background(), worker.TaskMessage{
+	result, err := auth.Handler.Handle(context.Background(), worker.TaskMessage{
 		Input: map[string]any{
 			"to":      "a@example.test",
 			"cc":      []any{"b@example.test", "c@example.test"},

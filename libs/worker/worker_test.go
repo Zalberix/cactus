@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -169,6 +171,47 @@ func TestSendRegistration(t *testing.T) {
 	}
 }
 
+func TestLoadOrRegisterUpdatesWorkerIDFileWhenManagerReturnsDifferentID(t *testing.T) {
+	idPath := filepath.Join(t.TempDir(), "worker-id")
+	if err := os.WriteFile(idPath, []byte("7"), 0o600); err != nil {
+		t.Fatalf("write existing worker id: %v", err)
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"success":true,"data":{"id":99,"work_type_id":1,"name":"test-worker"}}`))
+	}))
+	defer srv.Close()
+
+	wk := &Worker{
+		cfg: Config{
+			ManagerURL:     srv.URL,
+			BootstrapToken: "test-token",
+			WorkerName:     "test-worker",
+			WorkerIDPath:   idPath,
+			Manifest: Manifest().
+				Kind("email", "Email").
+				Type("smtp", "SMTP").
+				InputSchema(func(*SchemaBuilder) {}).
+				Build(),
+		},
+		logger: slog.Default(),
+	}
+
+	if err := wk.loadOrRegister(context.Background()); err != nil {
+		t.Fatalf("loadOrRegister returned error: %v", err)
+	}
+
+	data, err := os.ReadFile(idPath)
+	if err != nil {
+		t.Fatalf("read worker id file: %v", err)
+	}
+	if strings.TrimSpace(string(data)) != "99" {
+		t.Fatalf("expected worker id file to be updated to 99, got %q", string(data))
+	}
+}
+
 func TestRefreshLoggerAfterWorkerIDUsesCallback(t *testing.T) {
 	callbackCalled := false
 	expectedLogger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -303,11 +346,11 @@ func TestSelectVariantReturnsKnownVariant(t *testing.T) {
 }
 
 func TestSelectVariantRejectsUnknownVariant(t *testing.T) {
-	_, err := SelectVariant(map[string]Variant{"basic": {Name: "basic"}}, "rich")
+	_, err := SelectVariant(map[string]Variant{"basic": {Name: "basic"}}, "auth")
 	if err == nil {
 		t.Fatal("expected unknown variant error")
 	}
-	if !strings.Contains(err.Error(), `unknown worker variant "rich"`) {
+	if !strings.Contains(err.Error(), `unknown worker variant "auth"`) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

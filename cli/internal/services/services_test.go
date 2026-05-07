@@ -24,9 +24,9 @@ workers:
     app: smtp
     variant: basic
     count: 1
-  - name: smtp-rich
+  - name: smtp-auth
     app: smtp
-    variant: rich
+    variant: auth
     count: 2
 `)
 
@@ -45,7 +45,7 @@ workers:
 	}
 
 	second := cfg.Workers[1]
-	if second.Name != "smtp-rich" || second.App != "smtp" || second.Variant != "rich" || second.Count != 2 {
+	if second.Name != "smtp-auth" || second.App != "smtp" || second.Variant != "auth" || second.Count != 2 {
 		t.Fatalf("unexpected second worker: %#v", second)
 	}
 }
@@ -126,7 +126,7 @@ workers:
     count: 1
   - name: smtp-basic
     app: smtp
-    variant: rich
+    variant: auth
     count: 1
 `,
 			want: `duplicate worker name "smtp-basic"`,
@@ -160,9 +160,9 @@ workers:
     app: smtp
     variant: basic
     count: 1
-  - name: smtp-rich
+  - name: smtp-auth
     app: smtp
-    variant: rich
+    variant: auth
     count: 2
 `), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -185,14 +185,14 @@ workers:
 		if inst.Name == "smtp-basic" && inst.Variant != "basic" {
 			t.Fatalf("expected smtp-basic variant basic, got %#v", inst)
 		}
-		if inst.Name == "smtp-rich" && inst.Variant != "rich" {
-			t.Fatalf("expected smtp-rich variant rich, got %#v", inst)
+		if inst.Name == "smtp-auth" && inst.Variant != "auth" {
+			t.Fatalf("expected smtp-auth variant auth, got %#v", inst)
 		}
 		if !strings.Contains(filepath.ToSlash(inst.IDPath), "/.worker_id/"+inst.Name+"/") {
 			t.Fatalf("expected IDPath to include group name, got %q", inst.IDPath)
 		}
 	}
-	if counts["smtp-basic"] != 1 || counts["smtp-rich"] != 2 {
+	if counts["smtp-basic"] != 1 || counts["smtp-auth"] != 2 {
 		t.Fatalf("unexpected counts: %#v", counts)
 	}
 
@@ -201,7 +201,7 @@ workers:
 		t.Fatalf("read lock: %v", err)
 	}
 	lockText := string(lockData)
-	if !strings.Contains(lockText, "smtp-basic:") || !strings.Contains(lockText, "smtp-rich:") {
+	if !strings.Contains(lockText, "smtp-basic:") || !strings.Contains(lockText, "smtp-auth:") {
 		t.Fatalf("expected lock keyed by worker names, got:\n%s", lockText)
 	}
 }
@@ -227,9 +227,9 @@ workers:
 
 	if err := os.WriteFile(cfgPath, []byte(`
 workers:
-  - name: smtp-rich
+  - name: smtp-auth
     app: smtp
-    variant: rich
+    variant: auth
     count: 1
 `), 0o600); err != nil {
 		t.Fatalf("write second config: %v", err)
@@ -242,8 +242,8 @@ workers:
 	if len(instances) != 1 {
 		t.Fatalf("expected 1 instance, got %d", len(instances))
 	}
-	if instances[0].Name != "smtp-rich" {
-		t.Fatalf("expected remaining group smtp-rich, got %#v", instances[0])
+	if instances[0].Name != "smtp-auth" {
+		t.Fatalf("expected remaining group smtp-auth, got %#v", instances[0])
 	}
 
 	lockData, err := os.ReadFile(lockPath)
