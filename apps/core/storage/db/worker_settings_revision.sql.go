@@ -60,6 +60,32 @@ WHERE worker_settings_schema_id = $1
 ORDER BY created_at DESC
 `
 
+const cloneWorkerSettingsRevision = `-- name: CloneWorkerSettingsRevision :one
+INSERT INTO "worker_settings_revision" (worker_settings_schema_id, created_by_user_id, settings_data)
+SELECT worker_settings_schema_id, $2, settings_data
+FROM "worker_settings_revision"
+WHERE id = $1
+RETURNING id, worker_settings_schema_id, created_by_user_id, settings_data, created_at
+`
+
+type CloneWorkerSettingsRevisionParams struct {
+	ID              int32       `json:"id"`
+	CreatedByUserID pgtype.Int4 `json:"created_by_user_id"`
+}
+
+func (q *Queries) CloneWorkerSettingsRevision(ctx context.Context, arg CloneWorkerSettingsRevisionParams) (WorkerSettingsRevision, error) {
+	row := q.db.QueryRow(ctx, cloneWorkerSettingsRevision, arg.ID, arg.CreatedByUserID)
+	var i WorkerSettingsRevision
+	err := row.Scan(
+		&i.ID,
+		&i.WorkerSettingsSchemaID,
+		&i.CreatedByUserID,
+		&i.SettingsData,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 func (q *Queries) ListWorkerSettingsRevisionsBySchemaID(ctx context.Context, workerSettingsSchemaID int32) ([]WorkerSettingsRevision, error) {
 	rows, err := q.db.Query(ctx, listWorkerSettingsRevisionsBySchemaID, workerSettingsSchemaID)
 	if err != nil {
@@ -84,4 +110,29 @@ func (q *Queries) ListWorkerSettingsRevisionsBySchemaID(ctx context.Context, wor
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateWorkerSettingsRevisionSettings = `-- name: UpdateWorkerSettingsRevisionSettings :one
+UPDATE "worker_settings_revision"
+SET settings_data = $2
+WHERE id = $1
+RETURNING id, worker_settings_schema_id, created_by_user_id, settings_data, created_at
+`
+
+type UpdateWorkerSettingsRevisionSettingsParams struct {
+	ID           int32  `json:"id"`
+	SettingsData []byte `json:"settings_data"`
+}
+
+func (q *Queries) UpdateWorkerSettingsRevisionSettings(ctx context.Context, arg UpdateWorkerSettingsRevisionSettingsParams) (WorkerSettingsRevision, error) {
+	row := q.db.QueryRow(ctx, updateWorkerSettingsRevisionSettings, arg.ID, arg.SettingsData)
+	var i WorkerSettingsRevision
+	err := row.Scan(
+		&i.ID,
+		&i.WorkerSettingsSchemaID,
+		&i.CreatedByUserID,
+		&i.SettingsData,
+		&i.CreatedAt,
+	)
+	return i, err
 }

@@ -63,6 +63,12 @@ export interface WorkerSettingsSchema {
   created_at: string
 }
 
+export interface WorkTypeCatalogItem extends WorkType {
+  worker_count: number
+  ready_workers: number
+  schemas: Array<{ id: number, version: string }>
+}
+
 export function useWorkers() {
   const { api } = useApi()
 
@@ -72,6 +78,14 @@ export function useWorkers() {
       throw new Error(resp.error?.message ?? 'Failed to fetch work types')
     }
     return resp.data
+  }
+
+  async function fetchWorkTypeCatalog(): Promise<WorkTypeCatalogItem[]> {
+    const resp = await api<ApiResponse<WorkTypeCatalogItem[]>>('/work-types/catalog')
+    if (!resp.success || !resp.data) {
+      throw new Error(resp.error?.message ?? 'Failed to fetch work type catalog')
+    }
+    return Array.isArray(resp.data) ? resp.data : []
   }
 
   async function fetchWorkers(workTypeId: number) {
@@ -153,6 +167,7 @@ export function useWorkers() {
 
   return {
     fetchWorkTypes,
+    fetchWorkTypeCatalog,
     fetchWorkers,
     fetchWorkersForOrg,
     deleteWorker,

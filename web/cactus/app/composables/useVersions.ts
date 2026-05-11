@@ -4,10 +4,28 @@ import type { WorkType, WorkTypeMeta } from '~/composables/useWorkers'
 export interface Version {
   id: number
   workflow_id: number
+  name?: string
   version_number: number
   is_valid: boolean
   is_active: boolean
+  traffic_weight?: number
+  is_control_group?: boolean
   created_at: string
+}
+
+export interface VersionSummary {
+  id: number
+  workflow_id: number
+  name: string
+  version_number: number
+  is_valid: boolean
+  is_active: boolean
+  traffic_weight: number
+  is_control_group: boolean
+  run_count: number
+  created_at: string
+  updated_at?: string
+  deleted_at?: string
 }
 
 export interface Step {
@@ -41,6 +59,29 @@ export interface ValidationResult {
   errors?: string[]
 }
 
+export interface WorkflowTrafficVersionUpdate {
+  version_id: number
+  mode: 'share' | 'fixed'
+  weight?: number
+}
+
+export interface WorkflowTrafficUpdate {
+  versions: WorkflowTrafficVersionUpdate[]
+}
+
+export interface VersionInputSchema {
+  schema: Record<string, unknown>
+}
+
+export interface WorkflowInputField {
+  id: number
+  workflow_version_id: number
+  name: string
+  type: 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array'
+  required: boolean
+  description?: string
+}
+
 export function useVersions() {
   const { api } = useApi()
 
@@ -63,6 +104,122 @@ export function useVersions() {
       throw new Error(resp.error?.message ?? 'Failed to create version')
     }
     return resp.data
+  }
+
+  async function fetchVersionSummaries(workflowId: number): Promise<VersionSummary[]> {
+    const resp = await api<ApiResponse<VersionSummary[]>>(
+      `/workflows/${workflowId}/version-summaries`,
+    )
+    if (!resp.success || !resp.data) {
+      throw new Error(resp.error?.message ?? 'Failed to fetch version summaries')
+    }
+    return Array.isArray(resp.data) ? resp.data : []
+  }
+
+  async function copyVersion(versionId: number): Promise<Version> {
+    const resp = await api<ApiResponse<Version>>(
+      `/versions/${versionId}/copy`,
+      { method: 'POST' },
+    )
+    if (!resp.success || !resp.data) {
+      throw new Error(resp.error?.message ?? 'Failed to copy version')
+    }
+    return resp.data
+  }
+
+  async function updateVersionName(versionId: number, name: string): Promise<Version> {
+    const resp = await api<ApiResponse<Version>>(
+      `/versions/${versionId}/name`,
+      {
+        method: 'PATCH',
+        body: { name },
+      },
+    )
+    if (!resp.success || !resp.data) {
+      throw new Error(resp.error?.message ?? 'Failed to update version name')
+    }
+    return resp.data
+  }
+
+  async function updateWorkflowTraffic(workflowId: number, data: WorkflowTrafficUpdate): Promise<void> {
+    const resp = await api<ApiResponse<null>>(
+      `/workflows/${workflowId}/traffic`,
+      {
+        method: 'PUT',
+        body: data,
+      },
+    )
+    if (!resp.success) {
+      throw new Error(resp.error?.message ?? 'Failed to update workflow traffic')
+    }
+  }
+
+  async function fetchVersionInputSchema(versionId: number): Promise<Record<string, unknown>> {
+    const resp = await api<ApiResponse<VersionInputSchema>>(
+      `/versions/${versionId}/input-schema`,
+    )
+    if (!resp.success || !resp.data) {
+      throw new Error(resp.error?.message ?? 'Failed to fetch version input schema')
+    }
+    const data = resp.data as VersionInputSchema | Record<string, unknown>
+    if ('schema' in data && typeof data.schema === 'object' && data.schema) {
+      return data.schema as Record<string, unknown>
+    }
+    return data as Record<string, unknown>
+  }
+
+  async function fetchWorkflowInputs(versionId: number): Promise<WorkflowInputField[]> {
+    const resp = await api<ApiResponse<WorkflowInputField[]>>(
+      `/versions/${versionId}/inputs`,
+    )
+    if (!resp.success || !resp.data) {
+      throw new Error(resp.error?.message ?? 'Failed to fetch workflow inputs')
+    }
+    return Array.isArray(resp.data) ? resp.data : []
+  }
+
+  async function createWorkflowInput(
+    versionId: number,
+    data: Omit<WorkflowInputField, 'id' | 'workflow_version_id'>,
+  ): Promise<WorkflowInputField> {
+    const resp = await api<ApiResponse<WorkflowInputField>>(
+      `/versions/${versionId}/inputs`,
+      {
+        method: 'POST',
+        body: data,
+      },
+    )
+    if (!resp.success || !resp.data) {
+      throw new Error(resp.error?.message ?? 'Failed to create workflow input')
+    }
+    return resp.data
+  }
+
+  async function updateWorkflowInput(
+    inputId: number,
+    data: Omit<WorkflowInputField, 'id' | 'workflow_version_id'>,
+  ): Promise<WorkflowInputField> {
+    const resp = await api<ApiResponse<WorkflowInputField>>(
+      `/workflow-inputs/${inputId}`,
+      {
+        method: 'PUT',
+        body: data,
+      },
+    )
+    if (!resp.success || !resp.data) {
+      throw new Error(resp.error?.message ?? 'Failed to update workflow input')
+    }
+    return resp.data
+  }
+
+  async function deleteWorkflowInput(inputId: number): Promise<void> {
+    const resp = await api<ApiResponse<null>>(
+      `/workflow-inputs/${inputId}`,
+      { method: 'DELETE' },
+    )
+    if (!resp.success) {
+      throw new Error(resp.error?.message ?? 'Failed to delete workflow input')
+    }
   }
 
   async function validateVersion(versionId: number): Promise<ValidationResult> {
@@ -131,6 +288,7 @@ export function useVersions() {
       name: string
       step_type: string
       work_type_id?: number
+      worker_settings_schema_id?: number
       control_kind?: string
       config?: Record<string, unknown>
       canvas_position?: { x: number; y: number }
@@ -161,6 +319,22 @@ export function useVersions() {
       throw new Error(resp.error?.message ?? 'Failed to update step')
     }
     return resp.data
+  }
+
+  async function updateTaskSettings(stepId: number, data: {
+    settings_data: Record<string, unknown>
+    input_mapping: Array<{ target: string, source: string }>
+  }): Promise<void> {
+    const resp = await api<ApiResponse<null>>(
+      `/steps/${stepId}/task-settings`,
+      {
+        method: 'PUT',
+        body: data,
+      },
+    )
+    if (!resp.success) {
+      throw new Error(resp.error?.message ?? 'Failed to update task settings')
+    }
   }
 
   async function updateStepPosition(stepId: number, position: { x: number; y: number }): Promise<void> {
@@ -225,6 +399,15 @@ export function useVersions() {
   return {
     fetchVersions,
     createVersion,
+    fetchVersionSummaries,
+    copyVersion,
+    updateVersionName,
+    updateWorkflowTraffic,
+    fetchVersionInputSchema,
+    fetchWorkflowInputs,
+    createWorkflowInput,
+    updateWorkflowInput,
+    deleteWorkflowInput,
     validateVersion,
     activateVersion,
     deactivateVersion,
@@ -232,6 +415,7 @@ export function useVersions() {
     fetchSteps,
     createStep,
     updateStep,
+    updateTaskSettings,
     updateStepPosition,
     deleteStep,
     createDependency,

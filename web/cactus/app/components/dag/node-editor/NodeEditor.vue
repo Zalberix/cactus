@@ -14,7 +14,6 @@ import {
 } from '~/components/ui/dialog'
 import InputPanel from './InputPanel.vue'
 import ParametersPanel from './ParametersPanel.vue'
-import OutputPanel from './OutputPanel.vue'
 
 const iconMap: Record<string, Component> = {
   'mail': Mail,
@@ -30,20 +29,19 @@ const iconMap: Record<string, Component> = {
 const props = defineProps<{
   open: boolean
   nodeId: string | null
+  versionId: number | null
   allNodes: Node[]
   allEdges: Edge[]
 }>()
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
-  save: [nodeId: string, config: Record<string, unknown>, inputMapping: Record<string, string>]
+  save: [nodeId: string, settingsData: Record<string, unknown>, inputMapping: Array<{ target: string, source: string }>]
 }>()
-
-const { t } = useI18n()
 
 const dialogOpen = computed({
   get: () => props.open,
-  set: (val) => emit('update:open', val),
+  set: val => emit('update:open', val),
 })
 
 const currentNode = computed(() => {
@@ -60,32 +58,35 @@ const nodeIcon = computed(() => {
   if (!stepData.value) return Workflow
   const metaIcon = stepData.value.workTypeMeta?.icon
   if (metaIcon && iconMap[metaIcon]) return iconMap[metaIcon]
-  if (stepData.value.controlKind === 'start') return Zap
-  if (stepData.value.stepType === 'control') return GitBranch
   return Workflow
 })
 
-const accentColor = computed(() => {
-  if (stepData.value?.controlKind === 'start') return '#0f766e'
-  return stepData.value?.workTypeMeta?.color ?? '#607d8b'
-})
+const accentColor = computed(() =>
+  stepData.value?.workTypeMeta?.color ?? '#607d8b',
+)
 
-function onSave(config: Record<string, unknown>, inputMapping: Record<string, string>) {
+function onSave(settingsData: Record<string, unknown>, inputMapping: Array<{ target: string, source: string }>) {
   if (!props.nodeId) return
-  emit('save', props.nodeId, config, inputMapping)
+  emit('save', props.nodeId, settingsData, inputMapping)
 }
 
 const parametersRef = ref<InstanceType<typeof ParametersPanel> | null>(null)
+const inputPanelRef = ref<InstanceType<typeof InputPanel> | null>(null)
 
 function onInsertExpression(expression: string) {
   parametersRef.value?.insertExpression(expression)
+}
+
+function onCreateWorkflowInput() {
+  inputPanelRef.value?.openCreateDialog((expression: string) => {
+    parametersRef.value?.insertExpression(expression)
+  })
 }
 </script>
 
 <template>
   <Dialog v-model:open="dialogOpen">
     <DialogContent class="max-w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
-      <!-- Header -->
       <div class="flex items-center gap-3 border-b px-5 py-3 shrink-0">
         <div
           class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
@@ -95,11 +96,11 @@ function onInsertExpression(expression: string) {
         </div>
         <div class="min-w-0 flex-1">
           <div class="text-sm font-semibold truncate">
-            {{ stepData?.label ?? 'Step' }}
+            {{ stepData?.label ?? 'Task' }}
           </div>
           <div class="flex items-center gap-1.5">
             <Badge variant="secondary" class="h-5 px-1.5 text-[10px]">
-              {{ stepData?.controlKind === 'start' ? 'Start' : stepData?.stepType === 'control' ? 'Control' : 'Task' }}
+              {{ stepData?.workTypeName ?? 'Task' }}
             </Badge>
             <Badge
               v-if="stepData?.workTypeCode"
@@ -115,25 +116,24 @@ function onInsertExpression(expression: string) {
         </Button>
       </div>
 
-      <!-- Three panels -->
       <div v-if="stepData && nodeId" class="flex flex-1 overflow-hidden">
-        <div class="w-1/4 border-r overflow-hidden">
+        <div class="w-1/3 border-r overflow-hidden">
           <InputPanel
+            ref="inputPanelRef"
             :step-id="nodeId"
+            :version-id="versionId"
             :all-nodes="allNodes"
             :all-edges="allEdges"
             @insert-expression="onInsertExpression"
           />
         </div>
-        <div class="w-1/2 overflow-hidden">
+        <div class="w-2/3 overflow-hidden">
           <ParametersPanel
             ref="parametersRef"
             :step-data="stepData"
+            @create-workflow-input="onCreateWorkflowInput"
             @save="onSave"
           />
-        </div>
-        <div class="w-1/4 border-l overflow-hidden">
-          <OutputPanel :output-schema="stepData.outputSchema" />
         </div>
       </div>
     </DialogContent>

@@ -16,6 +16,11 @@ func makeStep(id int32, stepType dag.StepType, mappings ...dag.MappingEntry) dag
 	}
 }
 
+func withWorkflowInputs(step dag.Step, inputs ...string) dag.Step {
+	step.WorkflowInputs = inputs
+	return step
+}
+
 func makeDep(stepID, dependsOn int32, outcome string) dag.Dependency {
 	return dag.Dependency{
 		StepID:          stepID,
@@ -141,7 +146,20 @@ func TestValidateDAG_InvalidMapping(t *testing.T) {
 	assert.Contains(t, collectTypes(errs), "invalid_mapping")
 }
 
-func TestValidateDAG_MessageSourceAlwaysValid(t *testing.T) {
+func TestValidateDAG_DeclaredMessageSourceValid(t *testing.T) {
+	steps := []dag.Step{
+		makeStart(),
+		withWorkflowInputs(makeStep(1, dag.StepTypeTask, dag.MappingEntry{
+			Target: "email",
+			Source: "$.message.value.email",
+		}), "email"),
+	}
+	deps := []dag.Dependency{makeDep(1, 100, "success")}
+	errs := dag.ValidateDAG(steps, deps)
+	assert.Empty(t, errs)
+}
+
+func TestValidateDAG_UndeclaredMessageSourceInvalid(t *testing.T) {
 	steps := []dag.Step{
 		makeStart(),
 		makeStep(1, dag.StepTypeTask, dag.MappingEntry{
@@ -151,7 +169,7 @@ func TestValidateDAG_MessageSourceAlwaysValid(t *testing.T) {
 	}
 	deps := []dag.Dependency{makeDep(1, 100, "success")}
 	errs := dag.ValidateDAG(steps, deps)
-	assert.Empty(t, errs)
+	assert.Contains(t, collectTypes(errs), "invalid_mapping")
 }
 
 func TestValidateDAG_StepsDependencyMappingValid(t *testing.T) {
@@ -166,6 +184,25 @@ func TestValidateDAG_StepsDependencyMappingValid(t *testing.T) {
 	deps := []dag.Dependency{
 		makeDep(1, 100, "success"),
 		makeDep(2, 1, "success"),
+	}
+	errs := dag.ValidateDAG(steps, deps)
+	assert.Empty(t, errs)
+}
+
+func TestValidateDAG_TransitivePredecessorMappingValid(t *testing.T) {
+	steps := []dag.Step{
+		makeStart(),
+		makeStep(1, dag.StepTypeTask),
+		makeStep(2, dag.StepTypeTask),
+		makeStep(3, dag.StepTypeTask, dag.MappingEntry{
+			Target: "result",
+			Source: "$.steps.1.output.data",
+		}),
+	}
+	deps := []dag.Dependency{
+		makeDep(1, 100, "success"),
+		makeDep(2, 1, "success"),
+		makeDep(3, 2, "success"),
 	}
 	errs := dag.ValidateDAG(steps, deps)
 	assert.Empty(t, errs)
@@ -201,6 +238,21 @@ func TestValidateDAG_ControlStepOutcomeValid(t *testing.T) {
 		makeDep(3, 1, "no"),
 	}
 	errs := dag.ValidateDAG(steps, deps)
+	assert.Empty(t, errs)
+}
+
+func TestValidateDAG_ConditionTrueFalseOutcomesValid(t *testing.T) {
+	condition := makeStep(1, dag.StepTypeControl)
+	condition.ControlKind = "condition"
+	steps := []dag.Step{makeStart(), condition, makeStep(2, dag.StepTypeTask), makeStep(3, dag.StepTypeTask)}
+	deps := []dag.Dependency{
+		makeDep(1, 100, "success"),
+		makeDep(2, 1, "true"),
+		makeDep(3, 1, "false"),
+	}
+
+	errs := dag.ValidateDAG(steps, deps)
+
 	assert.Empty(t, errs)
 }
 

@@ -1,4 +1,4 @@
-package worktype
+﻿package worktype
 
 import (
 	"errors"
@@ -13,13 +13,13 @@ import (
 	"github.com/zalberix/cactus/libs/permissions"
 )
 
-// Handler — HTTP-обработчики для типов работ, воркеров и систем.
+// Handler вЂ” HTTP-РѕР±СЂР°Р±РѕС‚С‡РёРєРё РґР»СЏ С‚РёРїРѕРІ СЂР°Р±РѕС‚, РІРѕСЂРєРµСЂРѕРІ Рё СЃРёСЃС‚РµРј.
 type Handler struct {
 	service     *Service
 	permChecker middleware.PermissionChecker
 }
 
-// NewHandler создаёт новый worktype Handler.
+// NewHandler СЃРѕР·РґР°С‘С‚ РЅРѕРІС‹Р№ worktype Handler.
 func NewHandler(service *Service, permChecker middleware.PermissionChecker) *Handler {
 	return &Handler{
 		service:     service,
@@ -27,11 +27,11 @@ func NewHandler(service *Service, permChecker middleware.PermissionChecker) *Han
 	}
 }
 
-// RegisterRoutes регистрирует все маршруты worktype домена.
+// RegisterRoutes СЂРµРіРёСЃС‚СЂРёСЂСѓРµС‚ РІСЃРµ РјР°СЂС€СЂСѓС‚С‹ worktype РґРѕРјРµРЅР°.
 func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc, _ middleware.SystemTokenStore) {
 	v1 := r.Group("/api/v1", authMw)
 
-	// Systems (под организацией)
+	// Systems (РїРѕРґ РѕСЂРіР°РЅРёР·Р°С†РёРµР№)
 	v1.GET("/organizations/:orgId/systems",
 		middleware.RequirePermission(h.permChecker, permissions.SystemRead), h.ListSystems)
 	v1.POST("/organizations/:orgId/systems",
@@ -60,10 +60,14 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc, _ middle
 		middleware.RequirePermission(h.permChecker, permissions.SystemWrite), h.UnbindWorkflow)
 
 	// Work Types
+	v1.GET("/work-types/catalog",
+		middleware.RequirePermission(h.permChecker, permissions.WorkerRead), h.ListWorkTypeCatalog)
 	v1.GET("/work-types",
 		middleware.RequirePermission(h.permChecker, permissions.WorkerRead), h.ListWorkTypes)
 	v1.POST("/work-types",
 		middleware.RequirePermission(h.permChecker, permissions.WorkerWrite), h.CreateWorkType)
+	v1.GET("/work-types/:workTypeId/settings-schemas",
+		middleware.RequirePermission(h.permChecker, permissions.WorkerRead), h.ListSettingsSchemasByWorkType)
 	v1.GET("/work-types/:workTypeId/workers",
 		middleware.RequirePermission(h.permChecker, permissions.WorkerRead), h.ListWorkers)
 	v1.DELETE("/workers/:workerId",
@@ -79,16 +83,16 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc, _ middle
 	v1.POST("/worker-settings-schemas/:schemaId/revisions",
 		middleware.RequirePermission(h.permChecker, permissions.WorkerWrite), h.CreateRevision)
 
-	// Публичный маршрут — регистрация воркера по bootstrap token (D-06, вне JWT-группы)
+	// РџСѓР±Р»РёС‡РЅС‹Р№ РјР°СЂС€СЂСѓС‚ вЂ” СЂРµРіРёСЃС‚СЂР°С†РёСЏ РІРѕСЂРєРµСЂР° РїРѕ bootstrap token (D-06, РІРЅРµ JWT-РіСЂСѓРїРїС‹)
 	r.POST("/api/v1/register/worker", h.RegisterWorker)
 }
 
-// parseID извлекает int32 ID из параметра URL.
+// parseID РёР·РІР»РµРєР°РµС‚ int32 ID РёР· РїР°СЂР°РјРµС‚СЂР° URL.
 func parseID(c *gin.Context, param string) (int32, bool) {
 	raw := c.Param(param)
 	id, err := strconv.ParseInt(raw, 10, 32)
 	if err != nil || id <= 0 {
-		response.BadRequest(c, "INVALID_PARAM", "Неверный формат ID: "+param)
+		response.BadRequest(c, "INVALID_PARAM", "РќРµРІРµСЂРЅС‹Р№ С„РѕСЂРјР°С‚ ID: "+param)
 		return 0, false
 	}
 	return int32(id), true
@@ -110,7 +114,7 @@ func (h *Handler) ListSystems(c *gin.Context) {
 
 		systems, total, err := h.service.ListSystemsPaginated(c.Request.Context(), orgID, page, perPage)
 		if err != nil {
-			response.InternalError(c, "РћС€РёР±РєР° РїРѕР»СѓС‡РµРЅРёСЏ СЃРёСЃС‚РµРј")
+            response.InternalError(c, "Ошибка получения систем")
 			return
 		}
 		response.OKPaginated(c, systems, total, page, perPage)
@@ -119,7 +123,7 @@ func (h *Handler) ListSystems(c *gin.Context) {
 
 	systems, err := h.service.ListSystems(c.Request.Context(), orgID)
 	if err != nil {
-		response.InternalError(c, "Ошибка получения систем")
+        response.InternalError(c, "Ошибка получения систем")
 		return
 	}
 	response.OK(c, systems)
@@ -140,7 +144,7 @@ func (h *Handler) CreateSystem(c *gin.Context) {
 
 	system, err := h.service.CreateSystem(c.Request.Context(), orgID, req)
 	if err != nil {
-		response.InternalError(c, "Ошибка создания системы")
+        response.InternalError(c, "Ошибка создания системы")
 		return
 	}
 	response.Created(c, system)
@@ -161,7 +165,7 @@ func (h *Handler) UpdateSystem(c *gin.Context) {
 
 	system, err := h.service.UpdateSystem(c.Request.Context(), id, req)
 	if err != nil {
-		response.InternalError(c, "Ошибка обновления системы")
+        response.InternalError(c, "Ошибка обновления системы")
 		return
 	}
 	response.OK(c, system)
@@ -176,17 +180,17 @@ func (h *Handler) DeleteSystem(c *gin.Context) {
 	}
 
 	if err := h.service.DeleteSystem(c.Request.Context(), id); err != nil {
-		response.InternalError(c, "Ошибка удаления системы")
+        response.InternalError(c, "Ошибка удаления системы")
 		return
 	}
-	response.OK(c, gin.H{"message": "Система удалена"})
+	response.OK(c, gin.H{"message": "РЎРёСЃС‚РµРјР° СѓРґР°Р»РµРЅР°"})
 }
 
 // --- System Token handlers ---
 
 // CreateToken godoc
 // POST /api/v1/systems/:systemId/tokens
-// Токены генерируются в сервисном слое (D-18).
+// РўРѕРєРµРЅС‹ РіРµРЅРµСЂРёСЂСѓСЋС‚СЃСЏ РІ СЃРµСЂРІРёСЃРЅРѕРј СЃР»РѕРµ (D-18).
 func (h *Handler) CreateToken(c *gin.Context) {
 	systemID, ok := parseID(c, "systemId")
 	if !ok {
@@ -200,7 +204,7 @@ func (h *Handler) CreateToken(c *gin.Context) {
 
 	tokenResp, err := h.service.CreateSystemToken(c.Request.Context(), systemID, req.Name)
 	if err != nil {
-		response.InternalError(c, "Ошибка создания токена")
+        response.InternalError(c, "Ошибка создания токена")
 		return
 	}
 	response.Created(c, tokenResp)
@@ -216,7 +220,7 @@ func (h *Handler) ListTokens(c *gin.Context) {
 
 	tokens, err := h.service.ListSystemTokens(c.Request.Context(), systemID)
 	if err != nil {
-		response.InternalError(c, "Ошибка получения токенов")
+        response.InternalError(c, "Ошибка получения токенов")
 		return
 	}
 	response.OK(c, tokens)
@@ -231,10 +235,10 @@ func (h *Handler) DeactivateToken(c *gin.Context) {
 	}
 
 	if err := h.service.DeactivateSystemToken(c.Request.Context(), tokenID); err != nil {
-		response.InternalError(c, "Ошибка деактивации токена")
+        response.InternalError(c, "Ошибка деактивации токена")
 		return
 	}
-	response.OK(c, gin.H{"message": "Токен деактивирован"})
+	response.OK(c, gin.H{"message": "РўРѕРєРµРЅ РґРµР°РєС‚РёРІРёСЂРѕРІР°РЅ"})
 }
 
 // ActivateToken godoc
@@ -246,10 +250,10 @@ func (h *Handler) ActivateToken(c *gin.Context) {
 	}
 
 	if err := h.service.ActivateSystemToken(c.Request.Context(), tokenID); err != nil {
-		response.InternalError(c, "Ошибка активации токена")
+        response.InternalError(c, "Ошибка активации токена")
 		return
 	}
-	response.OK(c, gin.H{"message": "Токен активирован"})
+	response.OK(c, gin.H{"message": "РўРѕРєРµРЅ Р°РєС‚РёРІРёСЂРѕРІР°РЅ"})
 }
 
 // BindWorkflow godoc
@@ -269,10 +273,10 @@ func (h *Handler) BindWorkflow(c *gin.Context) {
 			response.BadRequest(c, "SYSTEM_MISMATCH", "System token and workflow must belong to the same system")
 			return
 		}
-		response.InternalError(c, "Ошибка привязки workflow к токену")
+        response.InternalError(c, "Ошибка привязки workflow к токену")
 		return
 	}
-	response.OK(c, gin.H{"message": "Workflow привязан к токену"})
+	response.OK(c, gin.H{"message": "Workflow РїСЂРёРІСЏР·Р°РЅ Рє С‚РѕРєРµРЅСѓ"})
 }
 
 // UnbindWorkflow godoc
@@ -292,10 +296,10 @@ func (h *Handler) UnbindWorkflow(c *gin.Context) {
 			response.BadRequest(c, "SYSTEM_MISMATCH", "System token and workflow must belong to the same system")
 			return
 		}
-		response.InternalError(c, "Ошибка отвязки workflow от токена")
+        response.InternalError(c, "Ошибка отвязки workflow от токена")
 		return
 	}
-	response.OK(c, gin.H{"message": "Workflow отвязан от токена"})
+	response.OK(c, gin.H{"message": "Workflow РѕС‚РІСЏР·Р°РЅ РѕС‚ С‚РѕРєРµРЅР°"})
 }
 
 // ListTokenWorkflows godoc
@@ -337,15 +341,37 @@ func (h *Handler) ListWorkflowTokens(c *gin.Context) {
 func (h *Handler) ListWorkTypes(c *gin.Context) {
 	workTypes, err := h.service.ListWorkTypes(c.Request.Context())
 	if err != nil {
-		response.InternalError(c, "Ошибка получения типов работ")
+        response.InternalError(c, "Ошибка получения типов работ")
 		return
 	}
 	response.OK(c, workTypes)
 }
 
+func (h *Handler) ListWorkTypeCatalog(c *gin.Context) {
+	catalog, err := h.service.ListWorkTypeCatalog(c.Request.Context())
+	if err != nil {
+		response.InternalError(c, "Error fetching work type catalog")
+		return
+	}
+	response.OK(c, catalog)
+}
+
+func (h *Handler) ListSettingsSchemasByWorkType(c *gin.Context) {
+	workTypeID, ok := parseID(c, "workTypeId")
+	if !ok {
+		return
+	}
+	schemas, err := h.service.ListSettingsSchemasByWorkType(c.Request.Context(), workTypeID)
+	if err != nil {
+		response.InternalError(c, "Error fetching settings schemas")
+		return
+	}
+	response.OK(c, schemas)
+}
+
 // CreateWorkType godoc
 // POST /api/v1/work-types
-// Возвращает тип работы и bootstrap-токен (plaintext, один раз).
+// Р’РѕР·РІСЂР°С‰Р°РµС‚ С‚РёРї СЂР°Р±РѕС‚С‹ Рё bootstrap-С‚РѕРєРµРЅ (plaintext, РѕРґРёРЅ СЂР°Р·).
 func (h *Handler) CreateWorkType(c *gin.Context) {
 	var req CreateWorkTypeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -355,7 +381,7 @@ func (h *Handler) CreateWorkType(c *gin.Context) {
 
 	result, err := h.service.CreateWorkType(c.Request.Context(), req)
 	if err != nil {
-		response.InternalError(c, "Ошибка создания типа работы")
+        response.InternalError(c, "Ошибка создания типа работы")
 		return
 	}
 	response.Created(c, result)
@@ -371,7 +397,7 @@ func (h *Handler) ListWorkers(c *gin.Context) {
 
 	workers, err := h.service.ListWorkers(c.Request.Context(), workTypeID)
 	if err != nil {
-		response.InternalError(c, "Ошибка получения воркеров")
+        response.InternalError(c, "Ошибка получения воркеров")
 		return
 	}
 	response.OK(c, workers)
@@ -397,7 +423,7 @@ func (h *Handler) DeleteWorker(c *gin.Context) {
 
 // RegisterWorker godoc
 // POST /api/v1/register/worker
-// Публичный endpoint — аутентификация по bootstrap token (не JWT).
+// РџСѓР±Р»РёС‡РЅС‹Р№ endpoint вЂ” Р°СѓС‚РµРЅС‚РёС„РёРєР°С†РёСЏ РїРѕ bootstrap token (РЅРµ JWT).
 func (h *Handler) RegisterWorker(c *gin.Context) {
 	var req RegisterWorkerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -407,7 +433,7 @@ func (h *Handler) RegisterWorker(c *gin.Context) {
 
 	worker, err := h.service.RegisterWorker(c.Request.Context(), req)
 	if err != nil {
-		response.Fail(c, http.StatusUnauthorized, "INVALID_TOKEN", "Неверный bootstrap токен или ошибка регистрации")
+		response.Fail(c, http.StatusUnauthorized, "INVALID_TOKEN", "РќРµРІРµСЂРЅС‹Р№ bootstrap С‚РѕРєРµРЅ РёР»Рё РѕС€РёР±РєР° СЂРµРіРёСЃС‚СЂР°С†РёРё")
 		return
 	}
 	response.OK(c, worker)
@@ -426,10 +452,10 @@ func (h *Handler) GetSettingsSchema(c *gin.Context) {
 	schema, err := h.service.GetSettingsSchema(c.Request.Context(), schemaID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			response.NotFound(c, "Схема настроек не найдена")
+			response.NotFound(c, "РЎС…РµРјР° РЅР°СЃС‚СЂРѕРµРє РЅРµ РЅР°Р№РґРµРЅР°")
 			return
 		}
-		response.InternalError(c, "Ошибка получения схемы настроек")
+        response.InternalError(c, "Ошибка получения схемы настроек")
 		return
 	}
 	response.OK(c, schema)
@@ -447,7 +473,7 @@ func (h *Handler) ListRevisions(c *gin.Context) {
 
 	revisions, err := h.service.ListSettingsRevisions(c.Request.Context(), schemaID)
 	if err != nil {
-		response.InternalError(c, "Ошибка получения ревизий настроек")
+        response.InternalError(c, "Ошибка получения ревизий настроек")
 		return
 	}
 	response.OK(c, revisions)
@@ -468,7 +494,7 @@ func (h *Handler) CreateRevision(c *gin.Context) {
 
 	revision, err := h.service.CreateSettingsRevision(c.Request.Context(), schemaID, req)
 	if err != nil {
-		response.InternalError(c, "Ошибка создания ревизии настроек")
+        response.InternalError(c, "Ошибка создания ревизии настроек")
 		return
 	}
 	response.Created(c, revision)
@@ -476,12 +502,12 @@ func (h *Handler) CreateRevision(c *gin.Context) {
 
 // ActivateRevision godoc
 // PATCH /api/v1/worker-settings-revisions/:revisionId/activate
-// Заглушка — activate логика будет реализована при наличии is_active поля в схеме.
+// Р—Р°РіР»СѓС€РєР° вЂ” activate Р»РѕРіРёРєР° Р±СѓРґРµС‚ СЂРµР°Р»РёР·РѕРІР°РЅР° РїСЂРё РЅР°Р»РёС‡РёРё is_active РїРѕР»СЏ РІ СЃС…РµРјРµ.
 func (h *Handler) ActivateRevision(c *gin.Context) {
 	_, ok := parseID(c, "revisionId")
 	if !ok {
 		return
 	}
 	// TODO: implement when worker_settings_revision gains is_active field
-	response.OK(c, gin.H{"message": "Ревизия активирована"})
+	response.OK(c, gin.H{"message": "Р РµРІРёР·РёСЏ Р°РєС‚РёРІРёСЂРѕРІР°РЅР°"})
 }

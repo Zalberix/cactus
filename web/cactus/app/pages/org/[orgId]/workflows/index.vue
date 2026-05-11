@@ -5,6 +5,7 @@ import { Workflow as WorkflowIcon, MoreHorizontal, Pencil, Trash2, Search } from
 import { toTypedSchema } from '@vee-validate/zod'
 import { z } from 'zod'
 import type { Workflow } from '~/composables/useWorkflows'
+import { workflowOverviewPath } from '~/composables/useWorkflows'
 import type { System } from '~/composables/useSystems'
 import DataTable from '~/components/tables/DataTable.vue'
 import DataTableColumnHeader from '~/components/tables/DataTableColumnHeader.vue'
@@ -107,7 +108,7 @@ const columns: ColumnDef<Workflow>[] = [
     cell: ({ row }) => h(
       resolveComponent('NuxtLink') as any,
       {
-        to: `/org/${orgId.value}/workflows/${row.original.id}/edit`,
+        to: workflowOverviewPath(orgId.value, row.original.id),
         class: 'font-medium text-primary hover:underline',
       },
       () => row.getValue('name'),
@@ -201,7 +202,7 @@ async function loadData() {
 }
 
 function onEditWorkflow(workflow: Workflow) {
-  router.push(`/org/${orgId.value}/workflows/${workflow.id}/edit`)
+  router.push(workflowOverviewPath(orgId.value, workflow.id))
 }
 
 function onConfirmDelete(workflow: Workflow) {
@@ -239,7 +240,7 @@ async function onCreate(values: Record<string, unknown>) {
     )
     createOpen.value = false
     toast({ title: t('workflows.created') })
-    router.push(`/org/${orgId.value}/workflows/${wf.id}/edit`)
+    router.push(workflowOverviewPath(orgId.value, wf.id))
   }
   catch (err) {
     toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })

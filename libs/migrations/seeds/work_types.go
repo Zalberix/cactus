@@ -28,22 +28,6 @@ func SeedWorkTypes(ctx context.Context, db *pgxpool.Pool) error {
 			`{"icon":"message-square","color":"#0088cc","category":"Channels"}`,
 			"",
 		},
-		// Control types
-		{
-			"IF Condition", "condition",
-			`{"kind":"control","icon":"git-branch","color":"#ff6b6b","category":"Logic"}`,
-			"",
-		},
-		{
-			"Switch", "switch",
-			`{"kind":"control","icon":"split","color":"#e85d75","category":"Logic"}`,
-			"",
-		},
-		{
-			"Delay", "delay",
-			`{"kind":"control","icon":"clock","color":"#607d8b","category":"Logic"}`,
-			"",
-		},
 	}
 
 	for _, wt := range workTypes {

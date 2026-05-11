@@ -213,6 +213,7 @@ CREATE TABLE "workflow_version" (
     workflow_id INT NOT NULL,
     created_by_user_id INT,
     version_number INT NOT NULL,
+    "name" VARCHAR(255),
     is_valid BOOLEAN DEFAULT FALSE NOT NULL,
     is_active BOOLEAN DEFAULT FALSE NOT NULL,
     traffic_weight INT NOT NULL DEFAULT 100 CHECK (traffic_weight >= 0 AND traffic_weight <= 100),
@@ -222,6 +223,20 @@ CREATE TABLE "workflow_version" (
     deleted_at TIMESTAMP DEFAULT NULL,
     CONSTRAINT workflow_version_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES "workflow"(id) ON DELETE CASCADE,
     CONSTRAINT workflow_version_user_id_fkey FOREIGN KEY (created_by_user_id) REFERENCES "user"(id) ON DELETE SET NULL
+);
+
+CREATE TABLE "workflow_version_input" (
+    id SERIAL PRIMARY KEY,
+    workflow_version_id INT NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    type VARCHAR(50) NOT NULL CHECK (type IN ('string', 'number', 'integer', 'boolean', 'object', 'array')),
+    required BOOLEAN DEFAULT TRUE NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP DEFAULT NULL,
+    CONSTRAINT workflow_version_input_version_id_fkey FOREIGN KEY (workflow_version_id) REFERENCES "workflow_version"(id) ON DELETE CASCADE,
+    CONSTRAINT workflow_version_input_name_uq UNIQUE (workflow_version_id, name)
 );
 
 -- ============================================================
@@ -359,6 +374,7 @@ DROP TABLE IF EXISTS "workflow_run" CASCADE;
 DROP TABLE IF EXISTS "message" CASCADE;
 DROP TABLE IF EXISTS "workflow_step_dependency" CASCADE;
 DROP TABLE IF EXISTS "workflow_step" CASCADE;
+DROP TABLE IF EXISTS "workflow_version_input" CASCADE;
 DROP TABLE IF EXISTS "workflow_version" CASCADE;
 DROP TABLE IF EXISTS "workflow_token" CASCADE;
 DROP TABLE IF EXISTS "workflow" CASCADE;

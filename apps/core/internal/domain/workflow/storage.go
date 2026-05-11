@@ -23,10 +23,22 @@ type Storage interface {
 	GetWorkflowVersionByID(ctx context.Context, id int32) (db.WorkflowVersion, error)
 	GetMaxVersionNumberByWorkflowID(ctx context.Context, workflowID int32) (int32, error)
 	ListWorkflowVersionsByWorkflowID(ctx context.Context, workflowID int32) ([]db.WorkflowVersion, error)
+	ListAllWorkflowVersionsByWorkflowID(ctx context.Context, workflowID int32) ([]db.WorkflowVersion, error)
+	ListWorkflowVersionSummariesByWorkflowID(ctx context.Context, workflowID int32) ([]db.ListWorkflowVersionSummariesByWorkflowIDRow, error)
 	ListActiveWorkflowVersions(ctx context.Context, workflowID int32) ([]db.WorkflowVersion, error)
 	UpdateWorkflowVersionValid(ctx context.Context, arg db.UpdateWorkflowVersionValidParams) (db.WorkflowVersion, error)
 	UpdateWorkflowVersionActive(ctx context.Context, arg db.UpdateWorkflowVersionActiveParams) (db.WorkflowVersion, error)
+	UpdateWorkflowVersionTrafficWeight(ctx context.Context, arg db.UpdateWorkflowVersionTrafficWeightParams) (db.WorkflowVersion, error)
+	UpdateWorkflowVersionTrafficWeightIncludingDeleted(ctx context.Context, arg db.UpdateWorkflowVersionTrafficWeightParams) (db.WorkflowVersion, error)
+	UpdateWorkflowVersionName(ctx context.Context, arg db.UpdateWorkflowVersionNameParams) (db.WorkflowVersion, error)
 	SoftDeleteWorkflowVersion(ctx context.Context, id int32) error
+
+	// WorkflowVersionInput
+	CreateWorkflowVersionInput(ctx context.Context, arg db.CreateWorkflowVersionInputParams) (db.WorkflowVersionInput, error)
+	GetWorkflowVersionInputByID(ctx context.Context, id int32) (db.WorkflowVersionInput, error)
+	ListWorkflowVersionInputs(ctx context.Context, workflowVersionID int32) ([]db.WorkflowVersionInput, error)
+	UpdateWorkflowVersionInput(ctx context.Context, arg db.UpdateWorkflowVersionInputParams) (db.WorkflowVersionInput, error)
+	SoftDeleteWorkflowVersionInput(ctx context.Context, id int32) error
 
 	// WorkflowStep
 	CreateWorkflowStep(ctx context.Context, arg db.CreateWorkflowStepParams) (db.WorkflowStep, error)
@@ -39,6 +51,9 @@ type Storage interface {
 	// Worker settings (for auto-resolving revision in CreateStep)
 	ListWorkerSettingsSchemasByWorkTypeID(ctx context.Context, workTypeID int32) ([]db.WorkerSettingsSchema, error)
 	ListWorkerSettingsRevisionsBySchemaID(ctx context.Context, schemaID int32) ([]db.WorkerSettingsRevision, error)
+	CreateWorkerSettingsRevision(ctx context.Context, arg db.CreateWorkerSettingsRevisionParams) (db.WorkerSettingsRevision, error)
+	CloneWorkerSettingsRevision(ctx context.Context, arg db.CloneWorkerSettingsRevisionParams) (db.WorkerSettingsRevision, error)
+	UpdateWorkerSettingsRevisionSettings(ctx context.Context, arg db.UpdateWorkerSettingsRevisionSettingsParams) (db.WorkerSettingsRevision, error)
 
 	// WorkflowStep (extended)
 	UpdateWorkflowStepPosition(ctx context.Context, arg db.UpdateWorkflowStepPositionParams) error

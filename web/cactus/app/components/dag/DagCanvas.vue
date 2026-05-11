@@ -3,6 +3,7 @@ import { VueFlow, useVueFlow } from '@vue-flow/core'
 import type { Node, Edge, Connection, NodeDragEvent, NodeMouseEvent, EdgeMouseEvent } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
+import { canConnectSteps } from '~/composables/dag-connection-guards'
 import StepNode from './StepNode.vue'
 import StepEdge from './StepEdge.vue'
 
@@ -23,7 +24,7 @@ const emit = defineEmits<{
   nodeDoubleClick: [nodeId: string]
   edgeClick: [edgeId: string]
   removeEdge: [edgeId: string]
-  drop: [stepType: string, workTypeId: number | undefined, workTypeCode: string | undefined, position: { x: number; y: number }, name: string | undefined]
+  drop: [stepType: string, workTypeId: number | undefined, workTypeCode: string | undefined, workerSettingsSchemaId: number | undefined, position: { x: number; y: number }, name: string | undefined]
   deleteSelected: []
 }>()
 
@@ -45,6 +46,7 @@ function snapToGrid(val: number): number {
 
 function onConnect(params: Connection) {
   if (!isEdit.value) return
+  if (!canConnectSteps({ ...params, nodes: props.nodes })) return
   emit('connect', params)
 }
 
@@ -70,10 +72,12 @@ function onEdgeClick(event: EdgeMouseEvent) {
 }
 
 function onEdgeRemove(edgeId: string) {
+  if (!isEdit.value) return
   emit('removeEdge', edgeId)
 }
 
 function onDragOver(event: DragEvent) {
+  if (!isEdit.value) return
   event.preventDefault()
   if (event.dataTransfer) {
     event.dataTransfer.dropEffect = 'move'
@@ -90,6 +94,7 @@ function onDrop(event: DragEvent) {
     stepType: string
     workTypeId?: number
     workTypeCode?: string
+    workerSettingsSchemaId?: number
     name?: string
   }
 
@@ -103,7 +108,7 @@ function onDrop(event: DragEvent) {
     y: snapToGrid(projected.y),
   }
 
-  emit('drop', data.stepType, data.workTypeId, data.workTypeCode, position, data.name)
+  emit('drop', data.stepType, data.workTypeId, data.workTypeCode, data.workerSettingsSchemaId, position, data.name)
 }
 
 function onKeyDown(event: KeyboardEvent) {

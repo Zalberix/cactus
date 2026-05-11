@@ -185,6 +185,80 @@ func (s *Service) ListWorkTypes(ctx context.Context) ([]Response, error) {
 	return result, nil
 }
 
+func (s *Service) ListWorkTypeCatalog(ctx context.Context) ([]WorkTypeCatalogItem, error) {
+	workTypes, err := s.store.ListWorkTypes(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]WorkTypeCatalogItem, 0, len(workTypes))
+	for _, wt := range workTypes {
+		if isControlWorkType(wt.Meta) {
+			continue
+		}
+
+		workers, err := s.store.ListNewWorkersByWorkTypeID(ctx, wt.ID)
+		if err != nil {
+			return nil, fmt.Errorf("list workers for work type %d: %w", wt.ID, err)
+		}
+		schemas, err := s.store.ListWorkerSettingsSchemasByWorkTypeID(ctx, wt.ID)
+		if err != nil {
+			return nil, fmt.Errorf("list schemas for work type %d: %w", wt.ID, err)
+		}
+
+		item := WorkTypeCatalogItem{
+			ID:          wt.ID,
+			Name:        wt.Name,
+			Code:        wt.Code,
+			WorkerCount: int64(len(workers)),
+			Schemas:     settingsSchemaBriefs(schemas),
+		}
+		if wt.Description.Valid {
+			item.Description = wt.Description.String
+		}
+		if len(wt.Meta) > 0 {
+			item.Meta = json.RawMessage(wt.Meta)
+		}
+		for _, worker := range workers {
+			var lastHB time.Time
+			if worker.LastHeartbeatAt.Valid {
+				lastHB = worker.LastHeartbeatAt.Time
+			}
+			if ComputeWorkerStatus(lastHB, false) == WorkerStatusReady {
+				item.ReadyWorkers++
+			}
+		}
+		result = append(result, item)
+	}
+	return result, nil
+}
+
+func (s *Service) ListSettingsSchemasByWorkType(ctx context.Context, workTypeID int32) ([]db.WorkerSettingsSchema, error) {
+	return s.store.ListWorkerSettingsSchemasByWorkTypeID(ctx, workTypeID)
+}
+
+func isControlWorkType(meta []byte) bool {
+	if len(meta) == 0 {
+		return false
+	}
+	var object map[string]interface{}
+	if err := json.Unmarshal(meta, &object); err != nil {
+		return false
+	}
+	return object["kind"] == "control"
+}
+
+func settingsSchemaBriefs(schemas []db.WorkerSettingsSchema) []SettingsSchemaBrief {
+	briefs := make([]SettingsSchemaBrief, 0, len(schemas))
+	for _, schema := range schemas {
+		briefs = append(briefs, SettingsSchemaBrief{
+			ID:      schema.ID,
+			Version: schema.Version,
+		})
+	}
+	return briefs
+}
+
 // --- Worker methods ---
 
 // RegisterWorker регистрирует воркер по bootstrap-токену и манифесту.

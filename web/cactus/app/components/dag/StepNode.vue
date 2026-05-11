@@ -5,8 +5,10 @@ import {
   Clock, Split, Zap, Radio,
 } from 'lucide-vue-next'
 import type { Component } from 'vue'
+import { useControlSteps } from '~/composables/useControlSteps'
 
 const { node } = useNode()
+const controlSteps = useControlSteps()
 
 const iconMap: Record<string, Component> = {
   'mail': Mail,
@@ -19,21 +21,8 @@ const iconMap: Record<string, Component> = {
   'zap': Zap,
 }
 
-// Control node output handles
-const controlHandles: Record<string, Array<{ id: string; label: string; color: string }>> = {
-  condition: [
-    { id: 'true', label: 'true', color: '#22c55e' },
-    { id: 'false', label: 'false', color: '#ef4444' },
-  ],
-  switch: [
-    { id: 'case0', label: '0', color: '#3b82f6' },
-    { id: 'case1', label: '1', color: '#8b5cf6' },
-    { id: 'default', label: '∗', color: '#6b7280' },
-  ],
-  delay: [
-    { id: 'continue', label: '', color: '#22c55e' },
-  ],
-}
+const isControl = computed(() => node.data.stepType === 'control')
+const isStart = computed(() => node.data.controlKind === 'start')
 
 const icon = computed(() => {
   const metaIcon = node.data.workTypeMeta?.icon
@@ -45,18 +34,17 @@ const icon = computed(() => {
 
 const accentColor = computed(() => {
   if (isStart.value) return '#0f766e'
-  return node.data.workTypeMeta?.color ?? '#607d8b'
+  const control = controlSteps.find(item => item.kind === node.data.controlKind)
+  return control?.color ?? node.data.workTypeMeta?.color ?? '#607d8b'
 })
-
-const isControl = computed(() => node.data.stepType === 'control')
-const isStart = computed(() => node.data.controlKind === 'start')
 
 const outputHandles = computed(() => {
   if (isStart.value) {
     return [{ id: 'success', label: '', color: '#22c55e' }]
   }
   if (isControl.value && node.data.controlKind) {
-    return controlHandles[node.data.controlKind] ?? [{ id: 'success', label: '', color: '#22c55e' }]
+    const definition = controlSteps.find(control => control.kind === node.data.controlKind)
+    return definition?.handles ?? [{ id: 'success', label: '', color: '#22c55e' }]
   }
   return [{ id: 'success', label: '', color: '#22c55e' }]
 })
@@ -85,13 +73,11 @@ const subtitle = computed(() => {
     :class="node.selected ? 'ring-2 ring-primary shadow-md' : ''"
     style="min-width: 200px;"
   >
-    <!-- Color accent bar (left) -->
     <div
       class="w-1 shrink-0 rounded-l-lg"
       :style="{ backgroundColor: accentColor }"
     />
 
-    <!-- Input handle (left side) -->
     <Handle
       v-if="!isStart"
       type="target"
@@ -99,9 +85,7 @@ const subtitle = computed(() => {
       class="!w-3 !h-3 !border-2 !border-background !bg-gray-400 !-left-1.5"
     />
 
-    <!-- Content -->
     <div class="flex items-center gap-3 px-3 py-2.5 min-w-0 flex-1">
-      <!-- Icon circle -->
       <div
         class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
         :style="{ backgroundColor: accentColor + '20', color: accentColor }"
@@ -109,7 +93,6 @@ const subtitle = computed(() => {
         <component :is="icon" class="h-4 w-4" />
       </div>
 
-      <!-- Text -->
       <div class="min-w-0 flex-1">
         <div class="truncate text-sm font-medium leading-tight">{{ label }}</div>
         <div
@@ -120,14 +103,12 @@ const subtitle = computed(() => {
         </div>
       </div>
 
-      <!-- Status dot -->
       <div
         class="h-2 w-2 shrink-0 rounded-full"
         :class="statusIndicator"
       />
     </div>
 
-    <!-- Output handles (right side) -->
     <div class="relative shrink-0 flex flex-col justify-center" style="width: 6px;">
       <Handle
         v-for="(handle, idx) in outputHandles"
@@ -144,7 +125,6 @@ const subtitle = computed(() => {
         }"
       />
 
-      <!-- Handle labels for multi-output controls -->
       <template v-if="outputHandles.length > 1">
         <div
           v-for="(handle, idx) in outputHandles"

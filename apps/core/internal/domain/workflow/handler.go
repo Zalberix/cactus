@@ -13,7 +13,7 @@ import (
 	"github.com/zalberix/cactus/libs/permissions"
 )
 
-// Handler — HTTP-обработчики для workflow домена.
+// Handler — HTTP-обработчики для workflow-домена.
 type Handler struct {
 	service     *Service
 	permChecker middleware.PermissionChecker
@@ -27,7 +27,7 @@ func NewHandler(service *Service, permChecker middleware.PermissionChecker) *Han
 	}
 }
 
-// RegisterRoutes регистрирует все маршруты workflow домена.
+// RegisterRoutes регистрирует все маршруты workflow-домена.
 func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc) {
 	v1 := r.Group("/api/v1", authMw)
 
@@ -52,9 +52,36 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc) {
 	// GET /api/v1/workflows/:workflowId/versions
 	v1.GET("/workflows/:workflowId/versions",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowRead), h.ListVersions)
+	// GET /api/v1/workflows/:workflowId/version-summaries
+	v1.GET("/workflows/:workflowId/version-summaries",
+		middleware.RequirePermission(h.permChecker, permissions.WorkflowRead), h.ListVersionSummaries)
 	// POST /api/v1/workflows/:workflowId/versions
 	v1.POST("/workflows/:workflowId/versions",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.CreateVersion)
+	// PATCH /api/v1/versions/:versionId/name
+	v1.PATCH("/versions/:versionId/name",
+		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.UpdateVersionName)
+	// POST /api/v1/versions/:versionId/copy
+	v1.POST("/versions/:versionId/copy",
+		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.CopyVersion)
+	// PUT /api/v1/workflows/:workflowId/traffic
+	v1.PUT("/workflows/:workflowId/traffic",
+		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.UpdateWorkflowTraffic)
+	// GET /api/v1/versions/:versionId/inputs
+	v1.GET("/versions/:versionId/inputs",
+		middleware.RequirePermission(h.permChecker, permissions.WorkflowRead), h.ListWorkflowInputs)
+	// POST /api/v1/versions/:versionId/inputs
+	v1.POST("/versions/:versionId/inputs",
+		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.CreateWorkflowInput)
+	// PUT /api/v1/workflow-inputs/:inputId
+	v1.PUT("/workflow-inputs/:inputId",
+		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.UpdateWorkflowInput)
+	// DELETE /api/v1/workflow-inputs/:inputId
+	v1.DELETE("/workflow-inputs/:inputId",
+		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.DeleteWorkflowInput)
+	// GET /api/v1/versions/:versionId/input-schema
+	v1.GET("/versions/:versionId/input-schema",
+		middleware.RequirePermission(h.permChecker, permissions.WorkflowRead), h.GetVersionInputSchema)
 	// POST /api/v1/versions/:versionId/validate
 	v1.POST("/versions/:versionId/validate",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.ValidateVersion)
@@ -78,6 +105,9 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc) {
 	// PUT /api/v1/steps/:stepId
 	v1.PUT("/steps/:stepId",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.UpdateStep)
+	// PUT /api/v1/steps/:stepId/task-settings
+	v1.PUT("/steps/:stepId/task-settings",
+		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.UpdateTaskSettings)
 	// PATCH /api/v1/steps/:stepId/position
 	v1.PATCH("/steps/:stepId/position",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.UpdateStepPosition)
@@ -208,6 +238,21 @@ func (h *Handler) ListVersions(c *gin.Context) {
 	response.OK(c, versions)
 }
 
+// ListVersionSummaries godoc
+// GET /api/v1/workflows/:workflowId/version-summaries
+func (h *Handler) ListVersionSummaries(c *gin.Context) {
+	workflowID, ok := parseID(c, "workflowId")
+	if !ok {
+		return
+	}
+	summaries, err := h.service.ListVersionSummaries(c.Request.Context(), workflowID)
+	if err != nil {
+		response.InternalError(c, "Ошибка получения сводки версий")
+		return
+	}
+	response.OK(c, summaries)
+}
+
 // CreateVersion godoc
 // POST /api/v1/workflows/:workflowId/versions
 func (h *Handler) CreateVersion(c *gin.Context) {
@@ -223,6 +268,46 @@ func (h *Handler) CreateVersion(c *gin.Context) {
 	version, err := h.service.CreateVersion(c.Request.Context(), workflowID, userID)
 	if err != nil {
 		response.InternalError(c, "Ошибка создания версии")
+		return
+	}
+	response.Created(c, version)
+}
+
+// UpdateVersionName godoc
+// PATCH /api/v1/versions/:versionId/name
+func (h *Handler) UpdateVersionName(c *gin.Context) {
+	versionID, ok := parseID(c, "versionId")
+	if !ok {
+		return
+	}
+	var req UpdateVersionNameRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "INVALID_BODY", err.Error())
+		return
+	}
+	version, err := h.service.UpdateVersionName(c.Request.Context(), versionID, req)
+	if err != nil {
+		response.InternalError(c, "Ошибка обновления имени версии")
+		return
+	}
+	response.OK(c, version)
+}
+
+// CopyVersion godoc
+// POST /api/v1/versions/:versionId/copy
+func (h *Handler) CopyVersion(c *gin.Context) {
+	versionID, ok := parseID(c, "versionId")
+	if !ok {
+		return
+	}
+	claims := middleware.GetClaims(c)
+	userID := int32(0)
+	if claims != nil {
+		userID = claims.UserID
+	}
+	version, err := h.service.CopyVersion(c.Request.Context(), versionID, userID)
+	if err != nil {
+		response.InternalError(c, "Ошибка копирования версии")
 		return
 	}
 	response.Created(c, version)
@@ -249,8 +334,7 @@ func (h *Handler) ValidateVersion(c *gin.Context) {
 				Message: e.Message,
 			})
 		}
-		response.Fail(c, http.StatusUnprocessableEntity, "DAG_VALIDATION_FAILED",
-			"Версия содержит ошибки DAG", details...)
+		response.Fail(c, http.StatusUnprocessableEntity, "DAG_VALIDATION_FAILED", "Версия содержит ошибки DAG", details...)
 		return
 	}
 	response.OK(c, result)
@@ -265,8 +349,7 @@ func (h *Handler) ActivateVersion(c *gin.Context) {
 	}
 	if err := h.service.ActivateVersion(c.Request.Context(), versionID); err != nil {
 		if errors.Is(err, ErrValidationRequired) {
-			response.Fail(c, http.StatusUnprocessableEntity, "VALIDATION_REQUIRED",
-				"Версия должна пройти валидацию DAG перед активацией")
+			response.Fail(c, http.StatusUnprocessableEntity, "VALIDATION_REQUIRED", "Версия должна пройти валидацию DAG перед активацией")
 			return
 		}
 		response.InternalError(c, "Ошибка активации версии")
@@ -303,11 +386,108 @@ func (h *Handler) DeleteVersion(c *gin.Context) {
 	response.OK(c, gin.H{"message": "Версия удалена"})
 }
 
+// UpdateWorkflowTraffic godoc
+// PUT /api/v1/workflows/:workflowId/traffic
+func (h *Handler) UpdateWorkflowTraffic(c *gin.Context) {
+	workflowID, ok := parseID(c, "workflowId")
+	if !ok {
+		return
+	}
+	var req UpdateTrafficRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "INVALID_BODY", err.Error())
+		return
+	}
+	if err := h.service.UpdateWorkflowTraffic(c.Request.Context(), workflowID, req); err != nil {
+		if errors.Is(err, ErrTrafficWeightInvalid) {
+			response.Fail(c, http.StatusUnprocessableEntity, "TRAFFIC_WEIGHT_INVALID", "Сумма весов трафика не может превышать 100")
+			return
+		}
+		response.InternalError(c, "Ошибка обновления настроек трафика")
+		return
+	}
+	response.OK(c, gin.H{"message": "Настройки трафика сохранены"})
+}
+
+func (h *Handler) ListWorkflowInputs(c *gin.Context) {
+	versionID, ok := parseID(c, "versionId")
+	if !ok {
+		return
+	}
+	inputs, err := h.service.ListWorkflowInputs(c.Request.Context(), versionID)
+	if err != nil {
+		response.InternalError(c, "Ошибка получения входных параметров workflow")
+		return
+	}
+	response.OK(c, inputs)
+}
+
+func (h *Handler) CreateWorkflowInput(c *gin.Context) {
+	versionID, ok := parseID(c, "versionId")
+	if !ok {
+		return
+	}
+	var req WorkflowInputRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "INVALID_BODY", err.Error())
+		return
+	}
+	input, err := h.service.CreateWorkflowInput(c.Request.Context(), versionID, req)
+	if err != nil {
+		response.InternalError(c, "Ошибка создания входного параметра workflow")
+		return
+	}
+	response.Created(c, input)
+}
+
+func (h *Handler) UpdateWorkflowInput(c *gin.Context) {
+	inputID, ok := parseID(c, "inputId")
+	if !ok {
+		return
+	}
+	var req WorkflowInputRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "INVALID_BODY", err.Error())
+		return
+	}
+	input, err := h.service.UpdateWorkflowInput(c.Request.Context(), inputID, req)
+	if err != nil {
+		response.InternalError(c, "Ошибка обновления входного параметра workflow")
+		return
+	}
+	response.OK(c, input)
+}
+
+func (h *Handler) DeleteWorkflowInput(c *gin.Context) {
+	inputID, ok := parseID(c, "inputId")
+	if !ok {
+		return
+	}
+	if err := h.service.DeleteWorkflowInput(c.Request.Context(), inputID); err != nil {
+		response.InternalError(c, "Ошибка удаления входного параметра workflow")
+		return
+	}
+	response.OK(c, gin.H{"message": "Входной параметр workflow удалён"})
+}
+
+func (h *Handler) GetVersionInputSchema(c *gin.Context) {
+	versionID, ok := parseID(c, "versionId")
+	if !ok {
+		return
+	}
+	schema, err := h.service.GetVersionInputSchema(c.Request.Context(), versionID)
+	if err != nil {
+		response.InternalError(c, "Ошибка получения схемы входных параметров")
+		return
+	}
+	response.OK(c, gin.H{"schema": schema})
+}
+
 // --- Step handlers ---
 
 // ListSteps godoc
 // GET /api/v1/versions/:versionId/steps
-// Возвращает enriched шаги с work_type meta и settings schemas.
+// Возвращает enriched-шаги с work_type meta и settings schemas.
 func (h *Handler) ListSteps(c *gin.Context) {
 	versionID, ok := parseID(c, "versionId")
 	if !ok {
@@ -366,6 +546,10 @@ func (h *Handler) CreateStep(c *gin.Context) {
 			response.Fail(c, http.StatusUnprocessableEntity, "START_STEP_PROTECTED", "Стартовый блок управляется системой")
 			return
 		}
+		if errors.Is(err, ErrControlKindInvalid) {
+			response.Fail(c, http.StatusUnprocessableEntity, "CONTROL_KIND_INVALID", "Неподдерживаемый тип control")
+			return
+		}
 		fmt.Printf("[CreateStep ERROR] versionID=%d stepType=%s workTypeID=%v controlKind=%v err=%v\n",
 			versionID, req.StepType, req.WorkTypeID, req.ControlKind, err)
 		response.InternalError(c, "Ошибка создания шага: "+err.Error())
@@ -392,10 +576,35 @@ func (h *Handler) UpdateStep(c *gin.Context) {
 			response.Fail(c, http.StatusUnprocessableEntity, "START_STEP_PROTECTED", "Стартовый блок управляется системой")
 			return
 		}
+		if errors.Is(err, ErrControlKindInvalid) {
+			response.Fail(c, http.StatusUnprocessableEntity, "CONTROL_KIND_INVALID", "Неподдерживаемый тип control")
+			return
+		}
 		response.InternalError(c, "Ошибка обновления шага")
 		return
 	}
 	response.OK(c, step)
+}
+
+func (h *Handler) UpdateTaskSettings(c *gin.Context) {
+	stepID, ok := parseID(c, "stepId")
+	if !ok {
+		return
+	}
+	var req UpdateTaskSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "INVALID_BODY", err.Error())
+		return
+	}
+	if err := h.service.UpdateTaskSettings(c.Request.Context(), stepID, req); err != nil {
+		if errors.Is(err, ErrTaskStepRequired) {
+			response.Fail(c, http.StatusUnprocessableEntity, "TASK_STEP_REQUIRED", "Шаг должен быть task-шагом")
+			return
+		}
+		response.InternalError(c, "Ошибка обновления настроек задачи")
+		return
+	}
+	response.OK(c, gin.H{"message": "Настройки задачи сохранены"})
 }
 
 // DeleteStep godoc

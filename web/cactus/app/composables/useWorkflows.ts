@@ -16,6 +16,10 @@ export interface CreateWorkflowRequest {
   priority: number
 }
 
+export function workflowOverviewPath(orgId: number, workflowId: number) {
+  return `/org/${orgId}/workflows/${workflowId}`
+}
+
 export function useWorkflows() {
   const { api } = useApi()
 

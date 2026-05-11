@@ -254,6 +254,7 @@ type WorkflowVersion struct {
 	WorkflowID      int32            `json:"workflow_id"`
 	CreatedByUserID pgtype.Int4      `json:"created_by_user_id"`
 	VersionNumber   int32            `json:"version_number"`
+	Name            pgtype.Text      `json:"name"`
 	IsValid         bool             `json:"is_valid"`
 	IsActive        bool             `json:"is_active"`
 	TrafficWeight   int32            `json:"traffic_weight"`
@@ -261,4 +262,16 @@ type WorkflowVersion struct {
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
 	DeletedAt       pgtype.Timestamp `json:"deleted_at"`
+}
+
+type WorkflowVersionInput struct {
+	ID                int32            `json:"id"`
+	WorkflowVersionID int32            `json:"workflow_version_id"`
+	Name              string           `json:"name"`
+	Type              string           `json:"type"`
+	Required          bool             `json:"required"`
+	Description       pgtype.Text      `json:"description"`
+	CreatedAt         pgtype.Timestamp `json:"created_at"`
+	UpdatedAt         pgtype.Timestamp `json:"updated_at"`
+	DeletedAt         pgtype.Timestamp `json:"deleted_at"`
 }

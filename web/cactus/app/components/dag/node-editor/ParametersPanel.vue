@@ -11,49 +11,22 @@ import {
 } from '~/components/ui/tabs'
 import DynamicSettingsForm from '~/components/forms/DynamicSettingsForm.vue'
 import ExpressionField from './ExpressionField.vue'
+import { mappingRecordToEntries, setMappingExpression } from './mapping-utils'
 
 const props = defineProps<{
   stepData: StepData
 }>()
 
 const emit = defineEmits<{
-  save: [config: Record<string, unknown>, inputMapping: Record<string, string>]
+  save: [settingsData: Record<string, unknown>, inputMapping: Array<{ target: string, source: string }>]
+  createWorkflowInput: []
 }>()
 
 const { t } = useI18n()
 
-const controlSchemas: Record<string, Record<string, unknown>> = {
-  condition: {
-    type: 'object',
-    properties: {
-      left: { type: 'string', description: 'Value 1', required: true },
-      operator: { type: 'string', enum: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'contains', 'not_contains', 'exists', 'not_exists'], required: true },
-      right: { type: 'string', description: 'Value 2', required: true },
-      combine: { type: 'string', enum: ['AND', 'OR'], default: 'AND' },
-    },
-  },
-  delay: {
-    type: 'object',
-    properties: {
-      duration: { type: 'integer', description: 'Duration', default: 1, required: true },
-      unit: { type: 'string', enum: ['seconds', 'minutes', 'hours'], default: 'seconds', required: true },
-    },
-  },
-  switch: {
-    type: 'object',
-    properties: {
-      expression: { type: 'string', description: 'Expression to evaluate' },
-      default_case: { type: 'string', description: 'Default case label' },
-    },
-  },
-}
-
-const settingsSchema = computed(() => {
-  if (props.stepData.stepType === 'control' && props.stepData.controlKind) {
-    return controlSchemas[props.stepData.controlKind] ?? { type: 'object', properties: {} }
-  }
-  return props.stepData.settingsSchema ?? { type: 'object', properties: {} }
-})
+const settingsSchema = computed(() =>
+  props.stepData.settingsSchema ?? { type: 'object', properties: {} },
+)
 
 const inputFields = computed(() => {
   const schema = props.stepData.inputSchema as { properties?: Record<string, unknown> } | undefined
@@ -63,17 +36,16 @@ const inputFields = computed(() => {
 
 const formData = ref<Record<string, unknown>>({})
 const mappingData = ref<Record<string, string>>({})
+const activeMappingField = ref<string | null>(null)
 
 watch(
   () => props.stepData,
   (data) => {
-    formData.value = data.stepType === 'control'
-      ? { ...(data.controlSettings ?? {}) }
-      : { ...(data.config ?? {}) }
+    formData.value = { ...(data.config ?? {}) }
 
     if (Array.isArray(data.inputMapping)) {
       const map: Record<string, string> = {}
-      for (const entry of data.inputMapping as Array<{ target?: string; source?: string }>) {
+      for (const entry of data.inputMapping as Array<{ target?: string, source?: string }>) {
         if (entry.target) map[entry.target] = entry.source ?? ''
       }
       mappingData.value = map
@@ -93,11 +65,11 @@ const hasSettings = computed(() => {
 const hasMapping = computed(() => inputFields.value.length > 0)
 
 function onSave() {
-  emit('save', { ...formData.value }, { ...mappingData.value })
+  emit('save', { ...formData.value }, mappingRecordToEntries(mappingData.value))
 }
 
 function insertExpression(expr: string) {
-  // TODO: insert into focused expression field
+  mappingData.value = setMappingExpression(mappingData.value, activeMappingField.value, expr)
 }
 
 defineExpose({ insertExpression })
@@ -106,20 +78,19 @@ defineExpose({ insertExpression })
 <template>
   <div class="flex h-full flex-col">
     <div class="border-b px-4 py-3 shrink-0">
-      <h3 class="text-sm font-semibold">{{ t('nodeEditor.parameters') || 'Parameters' }}</h3>
+      <h3 class="text-sm font-semibold">{{ t('nodeEditor.parameters') }}</h3>
     </div>
 
     <Tabs :default-value="hasSettings ? 'settings' : 'mapping'" class="flex flex-1 flex-col overflow-hidden">
       <TabsList class="mx-4 mt-2 w-auto shrink-0">
         <TabsTrigger v-if="hasSettings" value="settings">
-          Settings
+          {{ t('nodeEditor.parameters') }}
         </TabsTrigger>
         <TabsTrigger v-if="hasMapping" value="mapping">
-          Input Mapping
+          {{ t('editor.inputMapping') }}
         </TabsTrigger>
       </TabsList>
 
-      <!-- Settings tab -->
       <TabsContent v-if="hasSettings" value="settings" class="flex-1 overflow-hidden mt-0">
         <ScrollArea class="h-full">
           <div class="p-4">
@@ -132,19 +103,21 @@ defineExpose({ insertExpression })
         </ScrollArea>
       </TabsContent>
 
-      <!-- Input Mapping tab -->
       <TabsContent v-if="hasMapping" value="mapping" class="flex-1 overflow-hidden mt-0">
         <ScrollArea class="h-full">
           <div class="p-4 space-y-3">
             <p class="text-xs text-muted-foreground mb-3">
-              Map upstream outputs to this step's input fields.
+              {{ t('nodeEditor.mappingDescription') }}
             </p>
             <div v-for="field in inputFields" :key="field" class="space-y-1">
               <Label class="text-xs font-medium">{{ field }}</Label>
               <ExpressionField
+                :data-test="`mapping-${field}`"
                 :model-value="mappingData[field] ?? ''"
                 :field-key="field"
                 :placeholder="`$.steps.{id}.output.${field}`"
+                @focus="activeMappingField = field"
+                @create-workflow-input="activeMappingField = field; emit('createWorkflowInput')"
                 @update:model-value="mappingData[field] = $event"
               />
             </div>
@@ -152,15 +125,14 @@ defineExpose({ insertExpression })
         </ScrollArea>
       </TabsContent>
 
-      <!-- Fallback if neither -->
       <div v-if="!hasSettings && !hasMapping" class="flex-1 flex items-center justify-center">
-        <p class="text-sm text-muted-foreground">No configuration available.</p>
+        <p class="text-sm text-muted-foreground">{{ t('nodeEditor.noConfiguration') }}</p>
       </div>
     </Tabs>
 
     <div class="border-t p-4 shrink-0">
       <Button class="w-full" @click="onSave">
-        {{ t('nodeEditor.save') || 'Save' }}
+        {{ t('nodeEditor.save') }}
       </Button>
     </div>
   </div>

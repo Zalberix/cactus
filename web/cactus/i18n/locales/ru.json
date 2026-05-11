@@ -29,6 +29,28 @@
     "createdAt": "Создан",
     "updatedAt": "Обновлён"
   },
+  "workflowTraffic": {
+    "title": "Workflow traffic",
+    "settingsTitle": "Traffic distribution",
+    "settingsDescription": "Choose how new messages are routed across active versions.",
+    "equalShare": "Equal share",
+    "customPercent": "Custom percent",
+    "share": "Share",
+    "fixed": "Fixed",
+    "shareMode": "Split remaining traffic",
+    "fixedTotal": "Fixed total",
+    "sharedRemainder": "Shared remainder",
+    "noShareForRemainder": "Add a share version or allocate 100% as fixed traffic.",
+    "preview": "Preview",
+    "currentWeight": "Current: {weight}%",
+    "total": "Total",
+    "totalOver": "Total traffic cannot be above 100%.",
+    "totalUnder": "Unused traffic remains unassigned.",
+    "noActiveVersions": "No active versions are available for traffic.",
+    "controlGroup": "Control",
+    "save": "Save traffic",
+    "saved": "Traffic settings saved"
+  },
   "editor": {
     "saveVersion": "Сохранить версию",
     "activateVersion": "Активировать версию",
@@ -54,7 +76,14 @@
     "invalid": "Невалидна",
     "task": "Задача",
     "control": "Управление",
-    "configure": "Настроить"
+    "configure": "Настроить",
+    "validate": "Validate",
+    "inputSchema": "Input schema",
+    "inputSchemaDescription": "JSON Schema generated from declared workflow inputs.",
+    "validationRequired": "Validation required",
+    "readOnly": "Read-only",
+    "createEditableCopy": "Create editable copy",
+    "startStepReadOnly": "Start step is managed by the system and cannot be edited."
   },
   "nodeEditor": {
     "title": "Настройка шага",
@@ -68,12 +97,24 @@
     "expression": "Выражение",
     "fixedValue": "Фиксированное значение",
     "save": "Сохранить",
-    "configure": "Настроить"
+    "configure": "Настроить",
+    "mappingDescription": "Map upstream outputs to this step input fields.",
+    "noConfiguration": "No configuration available.",
+    "directUpstream": "Direct upstream steps",
+    "earlierPredecessors": "Earlier predecessor steps",
+    "workflowInputs": "Workflow Inputs",
+    "newWorkflowInput": "New workflow input",
+    "required": "Required"
   },
   "toolbar": {
     "channels": "Каналы",
     "logic": "Логика",
-    "other": "Другое"
+    "other": "Другое",
+    "searchSteps": "Search steps...",
+    "noWorkersAvailable": "No ready workers available",
+    "readyWorkers": "{ready}/{total} ready",
+    "chooseSchema": "Choose settings schema",
+    "schemaVersion": "Schema {version}"
   },
   "users": {
     "invite": "Пригласить",
@@ -273,7 +314,8 @@
     "deactivateVersion": {
       "title": "Деактивировать версию",
       "body": "Деактивировать версию {number}? Новые сообщения не будут использовать эту версию.",
-      "confirm": "Деактивировать"
+      "confirm": "Деактивировать",
+      "trafficBody": " New send endpoint traffic will stop using this version, and its traffic share becomes available to other active versions."
     },
     "deleteVersion": {
       "title": "Удалить версию",

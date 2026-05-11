@@ -18,10 +18,11 @@ const ControlKindStart = "start"
 
 // Step is a workflow DAG validation step.
 type Step struct {
-	ID           int32
-	StepType     StepType
-	ControlKind  string
-	InputMapping []MappingEntry
+	ID             int32
+	StepType       StepType
+	ControlKind    string
+	InputMapping   []MappingEntry
+	WorkflowInputs []string
 }
 
 // MappingEntry is an input mapping entry.
@@ -52,12 +53,13 @@ func ValidateDAG(steps []Step, deps []Dependency) []ValidationError {
 
 	stepMap := buildStepMap(steps)
 	inDegree, adj := buildGraph(steps, deps)
-	directDeps := buildDirectDeps(steps, deps)
+	predecessors := buildPredecessors(steps, deps)
+	workflowInputs := buildWorkflowInputSet(steps)
 
 	errors := validateStart(steps, inDegree, adj)
 	errors = append(errors, validateCycles(steps, inDegree, adj)...)
 	errors = append(errors, validateOutcomes(deps, stepMap)...)
-	errors = append(errors, validateMappings(steps, directDeps)...)
+	errors = append(errors, validateMappings(steps, predecessors, workflowInputs)...)
 
 	return errors
 }
@@ -83,15 +85,40 @@ func buildGraph(steps []Step, deps []Dependency) (map[int32]int, map[int32][]int
 	return inDegree, adj
 }
 
-func buildDirectDeps(steps []Step, deps []Dependency) map[int32]map[int32]struct{} {
-	directDeps := make(map[int32]map[int32]struct{}, len(steps))
+func buildPredecessors(steps []Step, deps []Dependency) map[int32]map[int32]struct{} {
+	parents := make(map[int32][]int32, len(steps))
 	for _, dep := range deps {
-		if directDeps[dep.StepID] == nil {
-			directDeps[dep.StepID] = make(map[int32]struct{})
-		}
-		directDeps[dep.StepID][dep.DependsOnStepID] = struct{}{}
+		parents[dep.StepID] = append(parents[dep.StepID], dep.DependsOnStepID)
 	}
-	return directDeps
+
+	predecessors := make(map[int32]map[int32]struct{}, len(steps))
+	for _, step := range steps {
+		visited := make(map[int32]struct{})
+		queue := append([]int32(nil), parents[step.ID]...)
+		for len(queue) > 0 {
+			parentID := queue[0]
+			queue = queue[1:]
+			if _, ok := visited[parentID]; ok {
+				continue
+			}
+			visited[parentID] = struct{}{}
+			queue = append(queue, parents[parentID]...)
+		}
+		predecessors[step.ID] = visited
+	}
+	return predecessors
+}
+
+func buildWorkflowInputSet(steps []Step) map[string]struct{} {
+	inputs := make(map[string]struct{})
+	for _, step := range steps {
+		for _, input := range step.WorkflowInputs {
+			if input != "" {
+				inputs[input] = struct{}{}
+			}
+		}
+	}
+	return inputs
 }
 
 func validateStart(steps []Step, inDegree map[int32]int, adj map[int32][]int32) []ValidationError {
@@ -271,11 +298,11 @@ func validateDependencyOutcome(dep Dependency, dependsOnStep Step) []ValidationE
 	return errors
 }
 
-func validateMappings(steps []Step, directDeps map[int32]map[int32]struct{}) []ValidationError {
+func validateMappings(steps []Step, predecessors map[int32]map[int32]struct{}, workflowInputs map[string]struct{}) []ValidationError {
 	var errors []ValidationError
 	for _, step := range steps {
 		for _, mapping := range step.InputMapping {
-			if err := validateMappingSource(step.ID, mapping.Source, directDeps[step.ID]); err != nil {
+			if err := validateMappingSource(step.ID, mapping.Source, predecessors[step.ID], workflowInputs); err != nil {
 				errors = append(errors, *err)
 			}
 		}
@@ -287,13 +314,27 @@ func isStartStep(step Step) bool {
 	return step.StepType == StepTypeControl && step.ControlKind == ControlKindStart
 }
 
-func validateMappingSource(stepID int32, source string, directDeps map[int32]struct{}) *ValidationError {
+func validateMappingSource(stepID int32, source string, predecessors map[int32]struct{}, workflowInputs map[string]struct{}) *ValidationError {
 	if strings.HasPrefix(source, "$.message.value.") {
-		return nil
+		fieldPath := strings.TrimPrefix(source, "$.message.value.")
+		fieldName := fieldPath
+		if dotIdx := strings.Index(fieldName, "."); dotIdx != -1 {
+			fieldName = fieldName[:dotIdx]
+		}
+		if fieldName != "" {
+			if _, ok := workflowInputs[fieldName]; ok {
+				return nil
+			}
+		}
+		return &ValidationError{
+			Type:    "invalid_mapping",
+			StepID:  stepID,
+			Message: fmt.Sprintf("РЁР°Рі %d: РјР°РїРїРёРЅРі СЃСЃС‹Р»Р°РµС‚СЃСЏ РЅР° РЅРµРѕР±СЉСЏРІР»РµРЅРЅС‹Р№ workflow input: %s", stepID, source),
+		}
 	}
 
 	if strings.HasPrefix(source, "$.steps.") {
-		return validateStepMappingSource(stepID, source, directDeps)
+		return validateStepMappingSource(stepID, source, predecessors)
 	}
 
 	return &ValidationError{
@@ -303,7 +344,7 @@ func validateMappingSource(stepID int32, source string, directDeps map[int32]str
 	}
 }
 
-func validateStepMappingSource(stepID int32, source string, directDeps map[int32]struct{}) *ValidationError {
+func validateStepMappingSource(stepID int32, source string, predecessors map[int32]struct{}) *ValidationError {
 	rest := strings.TrimPrefix(source, "$.steps.")
 	parts := strings.SplitN(rest, ".", 2)
 	if len(parts) < 1 {
@@ -324,7 +365,7 @@ func validateStepMappingSource(stepID int32, source string, directDeps map[int32
 	}
 
 	refID := int32(refID64)
-	if _, ok := directDeps[refID]; !ok {
+	if _, ok := predecessors[refID]; !ok {
 		return &ValidationError{
 			Type:    "invalid_mapping",
 			StepID:  stepID,

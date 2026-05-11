@@ -1,6 +1,7 @@
 import type { Node, Edge, Connection } from '@vue-flow/core'
 import type { Step, Dependency } from '~/composables/useVersions'
 import type { WorkTypeMeta } from '~/composables/useWorkers'
+import { canConnectSteps } from '~/composables/dag-connection-guards'
 
 export interface StepData {
   label: string
@@ -30,11 +31,13 @@ function snapToGrid(val: number): number {
 export function useDagEditor(
   workflowId: Ref<number>,
   versionId: Ref<number | null>,
+  readOnly?: Ref<boolean>,
 ) {
   const {
     fetchSteps,
     createStep,
     updateStep,
+    updateTaskSettings,
     updateStepPosition,
     deleteStep: apiDeleteStep,
     createDependency,
@@ -49,6 +52,7 @@ export function useDagEditor(
   const isDirty = ref(false)
   const validationErrors = ref<string[]>([])
   const isLoading = ref(false)
+  const isReadOnly = computed(() => readOnly?.value ?? false)
 
   const selectedNode = computed(() => {
     if (!selectedNodeId.value) return null
@@ -126,9 +130,11 @@ export function useDagEditor(
     stepType: string,
     workTypeId: number | undefined,
     workTypeCode: string | undefined,
+    workerSettingsSchemaId: number | undefined,
     position: { x: number; y: number },
     name?: string,
   ): Promise<void> {
+    if (isReadOnly.value) return
     const vid = versionId.value
     if (!vid) return
 
@@ -137,6 +143,7 @@ export function useDagEditor(
       name: stepName,
       step_type: stepType,
       work_type_id: stepType === 'task' ? workTypeId : undefined,
+      worker_settings_schema_id: stepType === 'task' ? workerSettingsSchemaId : undefined,
       control_kind: stepType === 'control' ? workTypeCode : undefined,
       canvas_position: position,
     })
@@ -161,6 +168,7 @@ export function useDagEditor(
   }
 
   async function removeStep(stepId: string): Promise<void> {
+    if (isReadOnly.value) return
     const node = nodes.value.find(n => n.id === stepId)
     if (node?.data.controlKind === 'start') return
 
@@ -179,6 +187,8 @@ export function useDagEditor(
   }
 
   async function connectSteps(params: Connection): Promise<void> {
+    if (isReadOnly.value) return
+    if (!canConnectSteps({ ...params, nodes: nodes.value })) return
     if (!params.source || !params.target) return
     const target = nodes.value.find(n => n.id === params.target)
     if (target?.data.controlKind === 'start') return
@@ -204,6 +214,7 @@ export function useDagEditor(
   }
 
   async function removeEdge(edgeId: string): Promise<void> {
+    if (isReadOnly.value) return
     const edge = edges.value.find(e => e.id === edgeId)
     if (!edge) return
 
@@ -216,6 +227,7 @@ export function useDagEditor(
   }
 
   function updateNodeData(nodeId: string, data: Partial<StepData>): void {
+    if (isReadOnly.value) return
     nodes.value = nodes.value.map((n) => {
       if (n.id !== nodeId) return n
       return {
@@ -243,6 +255,7 @@ export function useDagEditor(
   }
 
   function onNodeDragStop(nodeId: string, position: { x: number; y: number }): void {
+    if (isReadOnly.value) return
     const snapped = {
       x: snapToGrid(position.x),
       y: snapToGrid(position.y),
@@ -273,10 +286,25 @@ export function useDagEditor(
   }
 
   async function updateStepOnServer(stepId: string, data: Partial<Step>): Promise<void> {
+    if (isReadOnly.value) return
     const node = nodes.value.find(n => n.id === stepId)
     if (node?.data.controlKind === 'start') return
 
     await updateStep(Number(stepId), data)
+    isDirty.value = true
+  }
+
+  async function updateTaskSettingsOnServer(
+    stepId: string,
+    settingsData: Record<string, unknown>,
+    inputMapping: Array<{ target: string, source: string }>,
+  ): Promise<void> {
+    if (isReadOnly.value) return
+
+    await updateTaskSettings(Number(stepId), {
+      settings_data: settingsData,
+      input_mapping: inputMapping,
+    })
     isDirty.value = true
   }
 
@@ -301,5 +329,6 @@ export function useDagEditor(
     selectNode,
     selectEdge,
     updateStepOnServer,
+    updateTaskSettingsOnServer,
   }
 }

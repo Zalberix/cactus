@@ -47,6 +47,7 @@ SELECT
     wt.name AS work_type_name,
     wt.code AS work_type_code,
     wt.meta AS work_type_meta,
+    wsr.settings_data AS config,
     wss.settings_schema,
     wss.input_schema,
     wss.output_schema

@@ -17,6 +17,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
+  focus: []
+  createWorkflowInput: []
 }>()
 
 const isExpressionMode = ref(false)
@@ -31,6 +33,19 @@ function toggleMode() {
 
 function onInput(value: string | number) {
   emit('update:modelValue', String(value))
+}
+
+function onDrop(event: DragEvent) {
+  event.preventDefault()
+  const newWorkflowInput = event.dataTransfer?.getData('application/cactus-workflow-input-new')
+  if (newWorkflowInput) {
+    emit('createWorkflowInput')
+    return
+  }
+  const expression = event.dataTransfer?.getData('application/cactus-expression')
+  if (!expression) return
+  isExpressionMode.value = true
+  emit('update:modelValue', expression)
 }
 
 // Allow external expression insertion
@@ -49,6 +64,9 @@ defineExpose({ insertExpression, fieldKey: props.fieldKey })
         :model-value="modelValue"
         :placeholder="placeholder"
         :class="isExpression ? 'font-mono text-xs bg-orange-50 dark:bg-orange-950/30 border-orange-300 dark:border-orange-700' : ''"
+        @focus="emit('focus')"
+        @dragover.prevent
+        @drop="onDrop"
         @update:model-value="onInput"
       />
     </div>

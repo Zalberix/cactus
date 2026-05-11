@@ -99,6 +99,7 @@ SELECT
     wt.name AS work_type_name,
     wt.code AS work_type_code,
     wt.meta AS work_type_meta,
+    wsr.settings_data AS config,
     wss.settings_schema,
     wss.input_schema,
     wss.output_schema
@@ -126,6 +127,7 @@ type ListEnrichedStepsByVersionIDRow struct {
 	WorkTypeName             pgtype.Text      `json:"work_type_name"`
 	WorkTypeCode             pgtype.Text      `json:"work_type_code"`
 	WorkTypeMeta             []byte           `json:"work_type_meta"`
+	Config                   []byte           `json:"config"`
 	SettingsSchema           []byte           `json:"settings_schema"`
 	InputSchema              []byte           `json:"input_schema"`
 	OutputSchema             []byte           `json:"output_schema"`
@@ -139,10 +141,10 @@ func (q *Queries) ListEnrichedStepsByVersionID(ctx context.Context, workflowVers
 	defer rows.Close()
 	var items []ListEnrichedStepsByVersionIDRow
 	for rows.Next() {
-		var i ListEnrichedStepsByVersionIDRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.WorkflowVersionID,
+	var i ListEnrichedStepsByVersionIDRow
+	if err := rows.Scan(
+		&i.ID,
+		&i.WorkflowVersionID,
 			&i.StepType,
 			&i.WorkTypeID,
 			&i.WorkerSettingsRevisionID,
@@ -153,12 +155,13 @@ func (q *Queries) ListEnrichedStepsByVersionID(ctx context.Context, workflowVers
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
-			&i.WorkTypeName,
-			&i.WorkTypeCode,
-			&i.WorkTypeMeta,
-			&i.SettingsSchema,
-			&i.InputSchema,
-			&i.OutputSchema,
+		&i.WorkTypeName,
+		&i.WorkTypeCode,
+		&i.WorkTypeMeta,
+		&i.Config,
+		&i.SettingsSchema,
+		&i.InputSchema,
+		&i.OutputSchema,
 		); err != nil {
 			return nil, err
 		}

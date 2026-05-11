@@ -37,6 +37,22 @@ type Response struct {
 	Meta        json.RawMessage `json:"meta,omitempty"`
 }
 
+type WorkTypeCatalogItem struct {
+	ID           int32                 `json:"id"`
+	Name         string                `json:"name"`
+	Code         string                `json:"code"`
+	Description  string                `json:"description,omitempty"`
+	Meta         json.RawMessage       `json:"meta,omitempty"`
+	WorkerCount  int64                 `json:"worker_count"`
+	ReadyWorkers int64                 `json:"ready_workers"`
+	Schemas      []SettingsSchemaBrief `json:"schemas"`
+}
+
+type SettingsSchemaBrief struct {
+	ID      int32  `json:"id"`
+	Version string `json:"version"`
+}
+
 // CreateWorkTypeResponse — ответ с типом работы и bootstrap-токеном.
 type CreateWorkTypeResponse struct {
 	WorkType       db.WorkType `json:"work_type"`

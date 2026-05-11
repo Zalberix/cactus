@@ -9,23 +9,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '~/components/ui/select'
-
-interface JsonSchema {
-  type?: string
-  properties?: Record<string, JsonSchemaProperty>
-}
-
-interface JsonSchemaProperty {
-  type?: string
-  description?: string
-  default?: unknown
-  enum?: string[]
-  required?: boolean
-  'x-ui-widget'?: string
-  'x-ui-order'?: number
-  'x-ui-placeholder'?: string
-  'x-ui-help'?: string
-}
+import type { JsonSchema } from './dynamic-settings-utils'
+import { schemaPropertiesForForm } from './dynamic-settings-utils'
 
 const props = defineProps<{
   schema: Record<string, unknown>
@@ -38,18 +23,7 @@ const emit = defineEmits<{
 
 const parsedSchema = computed<JsonSchema>(() => props.schema as JsonSchema)
 
-const properties = computed(() => {
-  const p = parsedSchema.value.properties
-  if (!p) return []
-
-  return Object.entries(p)
-    .map(([key, prop]) => ({
-      key,
-      ...prop,
-      isRequired: prop.required === true,
-    }))
-    .sort((a, b) => (a['x-ui-order'] ?? 999) - (b['x-ui-order'] ?? 999))
-})
+const properties = computed(() => schemaPropertiesForForm(parsedSchema.value))
 
 function formatLabel(key: string): string {
   return key

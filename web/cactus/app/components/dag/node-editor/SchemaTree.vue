@@ -56,6 +56,13 @@ const parsed = computed(() => {
 function onFieldClick(path: string) {
   emit('fieldClick', path)
 }
+
+function onDragStart(event: DragEvent, path: string) {
+  event.dataTransfer?.setData('application/cactus-expression', path)
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'copy'
+  }
+}
 </script>
 
 <template>
@@ -88,6 +95,8 @@ function onFieldClick(path: string) {
         v-else
         class="flex items-center gap-1.5 rounded px-1 py-0.5"
         :class="clickable ? 'cursor-pointer hover:bg-accent' : ''"
+        :draggable="clickable"
+        @dragstart="onDragStart($event, `${basePath}.${field.key}`)"
         @click="clickable && onFieldClick(`${basePath}.${field.key}`)"
       >
         <span class="h-3 w-3 shrink-0" />

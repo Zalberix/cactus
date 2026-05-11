@@ -1,16 +1,21 @@
 <script setup lang="ts">
 import '@vue-flow/core/dist/style.css'
-import { Save, Play, Pause, AlertCircle, X, Trash2, Key, Download } from 'lucide-vue-next'
+import { Save, Play, Pause, AlertCircle, X, Trash2, Key, Download, Copy, FileJson } from 'lucide-vue-next'
 import type { Connection } from '@vue-flow/core'
-import type { Version, WorkType } from '~/composables/useVersions'
+import type { VersionSummary } from '~/composables/useVersions'
+import type { WorkType } from '~/composables/useWorkers'
 import type { StepData } from '~/composables/useDagEditor'
 import type { Token, CreateTokenResponse } from '~/composables/useSystems'
 import DagCanvas from '~/components/dag/DagCanvas.vue'
 import StepToolbar from '~/components/dag/StepToolbar.vue'
 import StepPanel from '~/components/dag/StepPanel.vue'
 import VersionSelector from '~/components/dag/VersionSelector.vue'
+import WorkflowSchemaDialog from '~/components/dag/WorkflowSchemaDialog.vue'
 import NodeEditor from '~/components/dag/node-editor/NodeEditor.vue'
 import EmptyState from '~/components/feedback/EmptyState.vue'
+import { editorSurfaceForStep, isVersionReadOnly } from '~/components/dag/editor-utils'
+import { sortVersionsForDisplay } from '~/components/dag/version-utils'
+import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { Checkbox } from '~/components/ui/checkbox'
 import { Input } from '~/components/ui/input'
@@ -27,9 +32,11 @@ import { toast } from '~/components/ui/toast/use-toast'
 
 const { t } = useI18n()
 const route = useRoute()
+const router = useRouter()
 
 const orgId = computed(() => Number(route.params.orgId))
 const workflowId = computed(() => Number(route.params.workflowId))
+const routeVersionId = computed(() => Number(route.query.versionId || 0))
 
 const { fetchWorkflow, updateWorkflow } = useWorkflows()
 const {
@@ -40,22 +47,27 @@ const {
   unbindTokenWorkflow,
 } = useSystems()
 const {
-  fetchVersions,
+  fetchVersionSummaries,
   createVersion,
+  copyVersion,
+  updateVersionName,
   activateVersion,
   deactivateVersion,
   deleteVersion,
+  fetchVersionInputSchema,
   fetchWorkTypes,
 } = useVersions()
 
 // Workflow state
 const workflowName = ref('')
 const workflowSystemId = ref<number | null>(null)
-const versions = ref<Version[]>([])
+const versions = ref<VersionSummary[]>([])
 const selectedVersionId = ref<number | null>(null)
 const workTypes = ref<WorkType[]>([])
 const pageLoading = ref(true)
 const saving = ref(false)
+const schemaOpen = ref(false)
+const inputSchema = ref<Record<string, unknown> | null>(null)
 const deactivateOpen = ref(false)
 const deleteVersionOpen = ref(false)
 const deletingVersion = ref(false)
@@ -69,11 +81,34 @@ const tokenCreateName = ref('')
 const tokenCreating = ref(false)
 const createdToken = ref<CreateTokenResponse | null>(null)
 
+const currentVersion = computed(() =>
+  versions.value.find(v => v.id === selectedVersionId.value),
+)
+
+const sortedVersions = computed(() =>
+  sortVersionsForDisplay(versions.value.filter(version => !version.deleted_at)),
+)
+
+const currentVersionName = computed({
+  get: () => currentVersion.value?.name || t('editor.versionNumber', { number: currentVersion.value?.version_number ?? '' }),
+  set: (value: string) => {
+    const version = currentVersion.value
+    if (version) version.name = value
+  },
+})
+
+const isVersionActive = computed(() => currentVersion.value?.is_active ?? false)
+const isCurrentVersionReadOnly = computed(() => isVersionReadOnly(currentVersion.value))
+
 // DAG editor composable
-const dagEditor = useDagEditor(workflowId, selectedVersionId)
+const dagEditor = useDagEditor(workflowId, selectedVersionId, isCurrentVersionReadOnly)
 
 // Node editor composable
 const nodeEditor = useNodeEditor()
+
+const canActivate = computed(() =>
+  Boolean(selectedVersionId.value && currentVersion.value?.is_valid && !dagEditor.isDirty.value),
+)
 
 const canvasEdges = computed(() =>
   dagEditor.edges.value.map(edge => ({
@@ -82,19 +117,13 @@ const canvasEdges = computed(() =>
   })),
 )
 
-const currentVersion = computed(() =>
-  versions.value.find(v => v.id === selectedVersionId.value),
-)
-
-const isVersionActive = computed(() => currentVersion.value?.is_active ?? false)
-
 // Load workflow data on mount
 async function loadAll() {
   pageLoading.value = true
   try {
     const [wf, vers, wts] = await Promise.all([
       fetchWorkflow(workflowId.value),
-      fetchVersions(workflowId.value),
+      fetchVersionSummaries(workflowId.value),
       fetchWorkTypes(),
     ])
 
@@ -103,11 +132,12 @@ async function loadAll() {
     versions.value = vers
     workTypes.value = wts
 
-    // Auto-select: prefer active version, else latest
+    // Auto-select: query version, else active version, else latest
     if (vers.length > 0) {
+      const routeVersion = vers.find(v => v.id === routeVersionId.value)
       const active = vers.find(v => v.is_active)
       const latest = vers[vers.length - 1]
-      selectedVersionId.value = (active ?? latest).id
+      selectedVersionId.value = (routeVersion ?? active ?? latest).id
     }
   }
   catch (err) {
@@ -130,13 +160,27 @@ watch(selectedVersionId, async (vid) => {
   }
 })
 
+watch(isCurrentVersionReadOnly, (readOnly) => {
+  if (readOnly) {
+    nodeEditor.close()
+  }
+})
+
 async function onSave() {
+  if (isCurrentVersionReadOnly.value) {
+    await onCreateEditableCopy()
+    return
+  }
+
   saving.value = true
   try {
     const success = await dagEditor.saveVersion()
     if (success) {
       toast({ title: t('editor.validated') })
-      versions.value = await fetchVersions(workflowId.value)
+      versions.value = await fetchVersionSummaries(workflowId.value)
+      if (selectedVersionId.value) {
+        inputSchema.value = await fetchVersionInputSchema(selectedVersionId.value)
+      }
     }
     else if (dagEditor.validationErrors.value.length > 0) {
       toast({ title: t('error.dagValidation'), variant: 'destructive' })
@@ -151,11 +195,11 @@ async function onSave() {
 }
 
 async function onActivate() {
-  if (!selectedVersionId.value) return
+  if (!selectedVersionId.value || !canActivate.value) return
   try {
     await activateVersion(selectedVersionId.value)
     toast({ title: t('editor.activateVersion') })
-    versions.value = await fetchVersions(workflowId.value)
+    versions.value = await fetchVersionSummaries(workflowId.value)
   }
   catch (err) {
     toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
@@ -168,7 +212,7 @@ async function onDeactivate() {
     await deactivateVersion(selectedVersionId.value)
     deactivateOpen.value = false
     toast({ title: t('editor.deactivateVersion') })
-    versions.value = await fetchVersions(workflowId.value)
+    versions.value = await fetchVersionSummaries(workflowId.value)
   }
   catch (err) {
     toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
@@ -178,9 +222,24 @@ async function onDeactivate() {
 async function onCreateVersion() {
   try {
     const ver = await createVersion(workflowId.value)
-    versions.value = await fetchVersions(workflowId.value)
+    versions.value = await fetchVersionSummaries(workflowId.value)
     selectedVersionId.value = ver.id
+    await router.replace({ query: { ...route.query, versionId: String(ver.id) } })
     toast({ title: t('editor.createVersion') })
+  }
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
+  }
+}
+
+async function onCreateEditableCopy() {
+  if (!selectedVersionId.value) return
+  try {
+    const ver = await copyVersion(selectedVersionId.value)
+    versions.value = await fetchVersionSummaries(workflowId.value)
+    selectedVersionId.value = ver.id
+    await router.replace({ query: { ...route.query, versionId: String(ver.id) } })
+    toast({ title: t('editor.createEditableCopy') })
   }
   catch (err) {
     toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
@@ -196,7 +255,7 @@ async function onDeleteVersion() {
     await deleteVersion(versionId)
     deleteVersionOpen.value = false
 
-    const nextVersions = await fetchVersions(workflowId.value)
+    const nextVersions = await fetchVersionSummaries(workflowId.value)
     versions.value = nextVersions
 
     if (nextVersions.length > 0) {
@@ -231,22 +290,56 @@ async function onNameBlur() {
   }
 }
 
+async function onVersionNameBlur() {
+  const version = currentVersion.value
+  if (!version || isCurrentVersionReadOnly.value) return
+  try {
+    await updateVersionName(version.id, currentVersionName.value)
+    versions.value = await fetchVersionSummaries(workflowId.value)
+  }
+  catch {
+    // Non-critical inline rename.
+  }
+}
+
+async function openSchemaDialog() {
+  if (!selectedVersionId.value || !currentVersion.value?.is_valid) return
+  try {
+    inputSchema.value = await fetchVersionInputSchema(selectedVersionId.value)
+    schemaOpen.value = true
+  }
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
+  }
+}
+
 function onConnect(params: Connection) {
+  if (isCurrentVersionReadOnly.value) return
   dagEditor.connectSteps(params)
 }
 
 function onNodeDragStop(nodeId: string, position: { x: number; y: number }) {
+  if (isCurrentVersionReadOnly.value) return
   dagEditor.onNodeDragStop(nodeId, position)
 }
 
 function onNodeClick(nodeId: string) {
-  dagEditor.selectNode(nodeId)
+  const node = dagEditor.nodes.value.find(n => n.id === nodeId)
+  const surface = editorSurfaceForStep(node?.data ?? {})
+  dagEditor.selectNode(surface === 'none' ? null : nodeId)
 }
 
 function onNodeDoubleClick(nodeId: string) {
+  if (isCurrentVersionReadOnly.value) return
   const node = dagEditor.nodes.value.find(n => n.id === nodeId)
-  if (node?.data.controlKind === 'start') return
-  nodeEditor.open(nodeId)
+  const surface = editorSurfaceForStep(node?.data ?? {})
+  if (surface === 'node-editor') {
+    nodeEditor.open(nodeId)
+    return
+  }
+  if (surface === 'step-panel') {
+    dagEditor.selectNode(nodeId)
+  }
 }
 
 function onEdgeClick(edgeId: string) {
@@ -254,6 +347,7 @@ function onEdgeClick(edgeId: string) {
 }
 
 function onRemoveEdge(edgeId: string) {
+  if (isCurrentVersionReadOnly.value) return
   dagEditor.removeEdge(edgeId)
 }
 
@@ -261,23 +355,28 @@ function onDrop(
   stepType: string,
   workTypeId: number | undefined,
   workTypeCode: string | undefined,
+  workerSettingsSchemaId: number | undefined,
   position: { x: number; y: number },
   name: string | undefined,
 ) {
-  dagEditor.addStep(stepType, workTypeId, workTypeCode, position, name)
+  if (isCurrentVersionReadOnly.value) return
+  dagEditor.addStep(stepType, workTypeId, workTypeCode, workerSettingsSchemaId, position, name)
 }
 
 function onToolbarAddStep(
   stepType: string,
   workTypeId: number | undefined,
   workTypeCode: string | undefined,
+  workerSettingsSchemaId: number | undefined,
   position: { x: number; y: number },
   name: string | undefined,
 ) {
-  dagEditor.addStep(stepType, workTypeId, workTypeCode, position, name)
+  if (isCurrentVersionReadOnly.value) return
+  dagEditor.addStep(stepType, workTypeId, workTypeCode, workerSettingsSchemaId, position, name)
 }
 
 function onDeleteSelected() {
+  if (isCurrentVersionReadOnly.value) return
   if (dagEditor.selectedEdgeId.value) {
     dagEditor.removeEdge(dagEditor.selectedEdgeId.value)
     return
@@ -388,26 +487,32 @@ function downloadTokenJson() {
 }
 
 function onPanelUpdateData(nodeId: string, data: Partial<StepData>) {
+  if (isCurrentVersionReadOnly.value) return
   dagEditor.updateNodeData(nodeId, data)
 }
 
 function onPanelUpdateStep(stepId: string, data: Record<string, unknown>) {
+  if (isCurrentVersionReadOnly.value) return
   dagEditor.updateStepOnServer(stepId, data)
 }
 
 function onPanelDeleteStep(stepId: string) {
+  if (isCurrentVersionReadOnly.value) return
   dagEditor.removeStep(stepId)
 }
 
 function onPanelOpenEditor(nodeId: string) {
+  if (isCurrentVersionReadOnly.value) return
   const node = dagEditor.nodes.value.find(n => n.id === nodeId)
   if (node?.data.controlKind === 'start') return
   nodeEditor.open(nodeId)
 }
 
-function onNodeEditorSave(nodeId: string, config: Record<string, unknown>, inputMapping: Record<string, string>) {
-  dagEditor.updateNodeData(nodeId, { config, inputMapping })
-  dagEditor.updateStepOnServer(nodeId, { config, input_mapping: inputMapping })
+function onNodeEditorSave(nodeId: string, settingsData: Record<string, unknown>, inputMapping: Array<{ target: string, source: string }>) {
+  if (isCurrentVersionReadOnly.value) return
+  const inputMappingRecord = Object.fromEntries(inputMapping.map(entry => [entry.target, entry.source]))
+  dagEditor.updateNodeData(nodeId, { config: settingsData, inputMapping: inputMappingRecord })
+  dagEditor.updateTaskSettingsOnServer(nodeId, settingsData, inputMapping)
 }
 
 function dismissErrors() {
@@ -423,16 +528,58 @@ onMounted(() => {
   <div class="flex h-[calc(100vh-3.5rem)] flex-col">
     <!-- Header bar -->
     <div class="flex items-center gap-3 border-b px-4 py-2">
-      <Input
-        v-model="workflowName"
-        class="h-8 w-64 border-0 p-0 text-sm font-semibold shadow-none focus-visible:ring-0"
-        @blur="onNameBlur"
-        @keydown.enter="($event.target as HTMLInputElement)?.blur()"
-      />
+      <div class="min-w-0 space-y-1">
+        <Input
+          v-model="workflowName"
+          class="h-7 w-64 border-0 p-0 text-sm font-semibold shadow-none focus-visible:ring-0"
+          @blur="onNameBlur"
+          @keydown.enter="($event.target as HTMLInputElement)?.blur()"
+        />
+        <div class="flex flex-wrap items-center gap-2">
+          <Input
+            v-model="currentVersionName"
+            :readonly="!currentVersion || isCurrentVersionReadOnly"
+            class="h-7 w-56 border-0 p-0 text-xs font-medium text-muted-foreground shadow-none focus-visible:ring-0"
+            @blur="onVersionNameBlur"
+            @keydown.enter="($event.target as HTMLInputElement)?.blur()"
+          />
+          <Badge v-if="currentVersion?.is_active" class="h-5 px-1.5 text-[10px]">
+            {{ t('editor.activeVersion') }}
+          </Badge>
+          <Badge
+            v-if="currentVersion?.is_valid"
+            variant="secondary"
+            class="h-5 px-1.5 text-[10px] bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+          >
+            {{ t('editor.valid') }}
+          </Badge>
+          <Badge
+            v-else-if="currentVersion"
+            variant="secondary"
+            class="h-5 px-1.5 text-[10px] bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
+          >
+            {{ t('editor.invalid') }}
+          </Badge>
+          <Badge
+            v-if="dagEditor.isDirty.value"
+            variant="outline"
+            class="h-5 px-1.5 text-[10px]"
+          >
+            {{ t('editor.validationRequired') }}
+          </Badge>
+          <Badge
+            v-if="isCurrentVersionReadOnly"
+            variant="outline"
+            class="h-5 px-1.5 text-[10px]"
+          >
+            {{ t('editor.readOnly') }}
+          </Badge>
+        </div>
+      </div>
 
       <VersionSelector
         v-model="selectedVersionId"
-        :versions="versions"
+        :versions="sortedVersions"
       />
 
       <Button
@@ -447,7 +594,7 @@ onMounted(() => {
         variant="outline"
         size="icon"
         class="h-8 w-8 text-destructive hover:text-destructive"
-        :disabled="!selectedVersionId || deletingVersion"
+        :disabled="!selectedVersionId || deletingVersion || isCurrentVersionReadOnly"
         :title="t('editor.deleteVersion')"
         @click="deleteVersionOpen = true"
       >
@@ -455,6 +602,17 @@ onMounted(() => {
       </Button>
 
       <div class="flex-1" />
+
+      <Button
+        size="sm"
+        variant="outline"
+        class="gap-2"
+        :disabled="!currentVersion?.is_valid"
+        @click="openSchemaDialog"
+      >
+        <FileJson class="h-4 w-4" />
+        {{ t('editor.inputSchema') }}
+      </Button>
 
       <Button
         size="sm"
@@ -472,15 +630,16 @@ onMounted(() => {
         :disabled="saving || !selectedVersionId"
         @click="onSave"
       >
-        <Save class="mr-2 h-4 w-4" />
-        {{ t('editor.saveVersion') }}
+        <Copy v-if="isCurrentVersionReadOnly" class="mr-2 h-4 w-4" />
+        <Save v-else class="mr-2 h-4 w-4" />
+        {{ isCurrentVersionReadOnly ? t('editor.createEditableCopy') : t('editor.validate') }}
       </Button>
 
       <Button
         v-if="!isVersionActive"
         size="sm"
         variant="outline"
-        :disabled="!selectedVersionId"
+        :disabled="!canActivate"
         @click="onActivate"
       >
         <Play class="mr-2 h-4 w-4" />
@@ -534,12 +693,12 @@ onMounted(() => {
     <!-- Editor layout -->
     <div v-if="!pageLoading && versions.length > 0" class="flex flex-1 overflow-hidden">
       <!-- Left toolbar -->
-      <StepToolbar @add-step="onToolbarAddStep" />
+      <StepToolbar :disabled="isCurrentVersionReadOnly" @add-step="onToolbarAddStep" />
 
       <!-- Center canvas -->
       <div class="flex-1">
         <DagCanvas
-          mode="edit"
+          :mode="isCurrentVersionReadOnly ? 'view' : 'edit'"
           :nodes="dagEditor.nodes.value"
           :edges="canvasEdges"
           @connect="onConnect"
@@ -555,9 +714,10 @@ onMounted(() => {
 
       <!-- Right panel -->
       <StepPanel
-        v-if="dagEditor.selectedNode.value"
+        v-if="dagEditor.selectedNode.value && editorSurfaceForStep(dagEditor.selectedNode.value.data) !== 'node-editor'"
         :node="dagEditor.selectedNode.value"
         :work-types="workTypes"
+        :read-only="isCurrentVersionReadOnly"
         @close="dagEditor.selectNode(null)"
         @open-editor="onPanelOpenEditor"
         @update-data="onPanelUpdateData"
@@ -585,9 +745,15 @@ onMounted(() => {
     <NodeEditor
       v-model:open="nodeEditor.isOpen.value"
       :node-id="nodeEditor.editingNodeId.value"
+      :version-id="selectedVersionId"
       :all-nodes="dagEditor.nodes.value"
       :all-edges="dagEditor.edges.value"
       @save="onNodeEditorSave"
+    />
+
+    <WorkflowSchemaDialog
+      v-model:open="schemaOpen"
+      :schema="inputSchema"
     />
 
     <!-- Workflow Tokens Dialog -->
@@ -689,6 +855,7 @@ onMounted(() => {
           <DialogTitle>{{ t('destructive.deactivateVersion.title') }}</DialogTitle>
           <DialogDescription>
             {{ t('destructive.deactivateVersion.body', { number: currentVersion?.version_number ?? '' }) }}
+            {{ t('destructive.deactivateVersion.trafficBody') }}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

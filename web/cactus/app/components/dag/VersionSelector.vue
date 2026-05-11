@@ -24,6 +24,10 @@ const selected = computed({
   get: () => props.modelValue ? String(props.modelValue) : undefined,
   set: (val) => emit('update:modelValue', val ? Number(val) : null),
 })
+
+function versionLabel(version: Version) {
+  return version.name || t('editor.versionNumber', { number: version.version_number })
+}
 </script>
 
 <template>
@@ -37,8 +41,8 @@ const selected = computed({
         :key="version.id"
         :value="String(version.id)"
       >
-        <div class="flex items-center gap-2">
-          <span>{{ t('editor.versionNumber', { number: version.version_number }) }}</span>
+        <div class="flex min-w-0 items-center gap-2">
+          <span class="truncate">{{ versionLabel(version) }}</span>
           <Badge
             v-if="version.is_active"
             variant="default"
@@ -58,8 +62,14 @@ const selected = computed({
             variant="secondary"
             class="h-5 px-1.5 text-[10px] bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
           >
-            {{ t('editor.invalid') }}
+            {{ t('editor.validationRequired') }}
           </Badge>
+          <Badge v-if="version.is_control_group" variant="outline" class="h-5 px-1.5 text-[10px]">
+            {{ t('workflowTraffic.controlGroup') }}
+          </Badge>
+          <span v-if="version.traffic_weight !== undefined" class="text-xs text-muted-foreground">
+            {{ version.traffic_weight }}%
+          </span>
         </div>
       </SelectItem>
     </SelectContent>
