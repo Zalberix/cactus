@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ExternalLink, MoreHorizontal, Play, Pause, Trash2, Key } from 'lucide-vue-next'
+import { ExternalLink, MoreHorizontal, Play, Pause, Trash2 } from 'lucide-vue-next'
 import type { VersionSummary } from '~/composables/useVersions'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
@@ -20,7 +20,6 @@ const emit = defineEmits<{
   activate: [version: VersionSummary]
   deactivate: [version: VersionSummary]
   delete: [version: VersionSummary]
-  tokens: [version: VersionSummary]
 }>()
 
 function editPath(version: VersionSummary) {
@@ -105,10 +104,6 @@ function editingStatus(version: VersionSummary) {
                 >
                   <Pause class="mr-2 h-4 w-4" />
                   Deactivate
-                </DropdownMenuItem>
-                <DropdownMenuItem @click="emit('tokens', version)">
-                  <Key class="mr-2 h-4 w-4" />
-                  Tokens
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   class="text-destructive focus:text-destructive"

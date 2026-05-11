@@ -135,7 +135,6 @@ onMounted(loadData)
       @activate="onActivate"
       @deactivate="onDeactivate"
       @delete="onDelete"
-      @tokens="tokensOpen = true"
     />
 
     <EmptyState
