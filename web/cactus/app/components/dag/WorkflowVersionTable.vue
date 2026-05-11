@@ -3,6 +3,7 @@ import { ExternalLink, MoreHorizontal, Play, Pause, Trash2 } from 'lucide-vue-ne
 import type { VersionSummary } from '~/composables/useVersions'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
+import { workflowVersionEditorPath } from '~/composables/useWorkflows'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,7 +24,7 @@ const emit = defineEmits<{
 }>()
 
 function editPath(version: VersionSummary) {
-  return `/org/${props.orgId}/workflows/${props.workflowId}/edit?versionId=${version.id}`
+  return workflowVersionEditorPath(props.orgId, props.workflowId, version.id)
 }
 
 function editingStatus(version: VersionSummary) {

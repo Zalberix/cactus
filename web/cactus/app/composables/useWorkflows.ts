@@ -20,6 +20,10 @@ export function workflowOverviewPath(orgId: number, workflowId: number) {
   return `/org/${orgId}/workflows/${workflowId}`
 }
 
+export function workflowVersionEditorPath(orgId: number, workflowId: number, versionId: number) {
+  return `/org/${orgId}/workflows/${workflowId}/versions/${versionId}/edit`
+}
+
 export function useWorkflows() {
   const { api } = useApi()
 

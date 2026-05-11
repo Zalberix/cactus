@@ -2,6 +2,7 @@
 import { Copy, FilePlus2 } from 'lucide-vue-next'
 import type { Version, VersionSummary } from '~/composables/useVersions'
 import { Button } from '~/components/ui/button'
+import { workflowVersionEditorPath } from '~/composables/useWorkflows'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,7 +27,7 @@ const latestVersion = computed(() => props.versions.find(v => !v.deleted_at))
 
 async function openCreated(version: Version) {
   emit('created', version)
-  await router.push(`/org/${props.orgId}/workflows/${props.workflowId}/edit?versionId=${version.id}`)
+  await router.push(workflowVersionEditorPath(props.orgId, props.workflowId, version.id))
 }
 
 async function createBlank() {
