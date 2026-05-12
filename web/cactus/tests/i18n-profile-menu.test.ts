@@ -30,6 +30,12 @@ describe('profile language controls', () => {
 })
 
 describe('Russian locale coverage', () => {
+  it('includes a Russian translation for the role description label', () => {
+    const russianMessages = JSON.parse(readProjectFile('i18n/locales/ru.json'))
+
+    expect(russianMessages.roles.description).toBe('Описание')
+  })
+
   it('includes every common key used by the English locale', () => {
     const englishMessages = JSON.parse(readProjectFile('i18n/locales/en.json'))
     const russianMessages = JSON.parse(readProjectFile('i18n/locales/ru.json'))

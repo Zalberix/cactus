@@ -63,10 +63,19 @@ export interface WorkerSettingsSchema {
   created_at: string
 }
 
+export interface WorkerSettingsSchemaSummary {
+  id: number
+  version: string
+  created_at: string
+  settings_schema: Record<string, unknown>
+  worker_count: number
+  ready_workers: number
+}
+
 export interface WorkTypeCatalogItem extends WorkType {
   worker_count: number
   ready_workers: number
-  schemas: Array<{ id: number, version: string }>
+  schemas: WorkerSettingsSchemaSummary[]
 }
 
 export function useWorkers() {

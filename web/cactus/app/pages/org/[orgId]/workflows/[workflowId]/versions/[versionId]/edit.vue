@@ -8,10 +8,16 @@ import type { StepData } from '~/composables/useDagEditor'
 import DagCanvas from '~/components/dag/DagCanvas.vue'
 import StepToolbar from '~/components/dag/StepToolbar.vue'
 import StepPanel from '~/components/dag/StepPanel.vue'
+import StepSchemaChoiceDialog from '~/components/dag/StepSchemaChoiceDialog.vue'
 import WorkflowSchemaDialog from '~/components/dag/WorkflowSchemaDialog.vue'
 import NodeEditor from '~/components/dag/node-editor/NodeEditor.vue'
 import EmptyState from '~/components/feedback/EmptyState.vue'
 import { editorSurfaceForStep, isVersionReadOnly } from '~/components/dag/editor-utils'
+import {
+  schemaChoiceOptions,
+  shouldPromptForSchemaChoice,
+} from '~/components/dag/step-toolbar-utils'
+import type { StepAddPayload } from '~/components/dag/step-toolbar-utils'
 import { workflowVersionEditorPath } from '~/composables/useWorkflows'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
@@ -55,6 +61,8 @@ const saving = ref(false)
 const schemaOpen = ref(false)
 const inputSchema = ref<Record<string, unknown> | null>(null)
 const deactivateOpen = ref(false)
+const schemaChoiceOpen = ref(false)
+const pendingStepPayload = ref<StepAddPayload | null>(null)
 
 const currentVersion = computed(() =>
   versions.value.find(v => v.id === selectedVersionId.value),
@@ -264,28 +272,44 @@ function onRemoveEdge(edgeId: string) {
   dagEditor.removeEdge(edgeId)
 }
 
-function onDrop(
-  stepType: string,
-  workTypeId: number | undefined,
-  workTypeCode: string | undefined,
-  workerSettingsSchemaId: number | undefined,
-  position: { x: number; y: number },
-  name: string | undefined,
-) {
+function addStepFromPayload(payload: StepAddPayload) {
   if (isCurrentVersionReadOnly.value) return
-  dagEditor.addStep(stepType, workTypeId, workTypeCode, workerSettingsSchemaId, position, name)
+
+  if (shouldPromptForSchemaChoice(payload.stepType, payload.schemas, payload.workerSettingsSchemaId)) {
+    pendingStepPayload.value = payload
+    schemaChoiceOpen.value = true
+    return
+  }
+
+  dagEditor.addStep(
+    payload.stepType,
+    payload.workTypeId,
+    payload.workTypeCode,
+    payload.workerSettingsSchemaId,
+    payload.position,
+    payload.name,
+  )
 }
 
-function onToolbarAddStep(
-  stepType: string,
-  workTypeId: number | undefined,
-  workTypeCode: string | undefined,
-  workerSettingsSchemaId: number | undefined,
-  position: { x: number; y: number },
-  name: string | undefined,
-) {
-  if (isCurrentVersionReadOnly.value) return
-  dagEditor.addStep(stepType, workTypeId, workTypeCode, workerSettingsSchemaId, position, name)
+function onDrop(payload: StepAddPayload) {
+  addStepFromPayload(payload)
+}
+
+function onToolbarAddStep(payload: StepAddPayload) {
+  addStepFromPayload(payload)
+}
+
+function onChooseStepSchema(schemaId: number) {
+  const payload = pendingStepPayload.value
+  if (!payload) return
+
+  schemaChoiceOpen.value = false
+  pendingStepPayload.value = null
+  addStepFromPayload({
+    ...payload,
+    workerSettingsSchemaId: schemaId,
+    schemas: schemaChoiceOptions(payload.schemas),
+  })
 }
 
 function onDeleteSelected() {
@@ -528,6 +552,13 @@ onMounted(() => {
     <WorkflowSchemaDialog
       v-model:open="schemaOpen"
       :schema="inputSchema"
+    />
+
+    <StepSchemaChoiceDialog
+      v-model:open="schemaChoiceOpen"
+      :step-name="pendingStepPayload?.name"
+      :schemas="schemaChoiceOptions(pendingStepPayload?.schemas)"
+      @choose="onChooseStepSchema"
     />
 
     <!-- Deactivate Confirmation Dialog -->

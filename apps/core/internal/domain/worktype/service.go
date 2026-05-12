@@ -124,6 +124,11 @@ func VerifyPrivateToken(storedHash, incoming string) bool {
 
 // --- Work Type methods ---
 
+type schemaWorkerStats struct {
+	WorkerCount  int64
+	ReadyWorkers int64
+}
+
 // CreateWorkType создаёт тип работы и генерирует bootstrap-токен.
 // Bootstrap-токен хэшируется SHA256 и хранится в work_type_token.
 // Plaintext возвращается один раз.
@@ -206,12 +211,12 @@ func (s *Service) ListWorkTypeCatalog(ctx context.Context) ([]WorkTypeCatalogIte
 			return nil, fmt.Errorf("list schemas for work type %d: %w", wt.ID, err)
 		}
 
+		schemaStats := make(map[int32]schemaWorkerStats, len(schemas))
 		item := WorkTypeCatalogItem{
 			ID:          wt.ID,
 			Name:        wt.Name,
 			Code:        wt.Code,
 			WorkerCount: int64(len(workers)),
-			Schemas:     settingsSchemaBriefs(schemas),
 		}
 		if wt.Description.Valid {
 			item.Description = wt.Description.String
@@ -224,10 +229,15 @@ func (s *Service) ListWorkTypeCatalog(ctx context.Context) ([]WorkTypeCatalogIte
 			if worker.LastHeartbeatAt.Valid {
 				lastHB = worker.LastHeartbeatAt.Time
 			}
+			stats := schemaStats[worker.WorkerSettingsSchemaID]
+			stats.WorkerCount++
 			if ComputeWorkerStatus(lastHB, false) == WorkerStatusReady {
+				stats.ReadyWorkers++
 				item.ReadyWorkers++
 			}
+			schemaStats[worker.WorkerSettingsSchemaID] = stats
 		}
+		item.Schemas = settingsSchemaBriefs(schemas, schemaStats)
 		result = append(result, item)
 	}
 	return result, nil
@@ -248,15 +258,30 @@ func isControlWorkType(meta []byte) bool {
 	return object["kind"] == "control"
 }
 
-func settingsSchemaBriefs(schemas []db.WorkerSettingsSchema) []SettingsSchemaBrief {
+func settingsSchemaBriefs(schemas []db.WorkerSettingsSchema, statsBySchema map[int32]schemaWorkerStats) []SettingsSchemaBrief {
 	briefs := make([]SettingsSchemaBrief, 0, len(schemas))
 	for _, schema := range schemas {
+		stats := statsBySchema[schema.ID]
+		if stats.WorkerCount == 0 {
+			continue
+		}
 		briefs = append(briefs, SettingsSchemaBrief{
-			ID:      schema.ID,
-			Version: schema.Version,
+			ID:             schema.ID,
+			Version:        schema.Version,
+			CreatedAt:      timestampString(schema.CreatedAt),
+			SettingsSchema: json.RawMessage(schema.SettingsSchema),
+			WorkerCount:    stats.WorkerCount,
+			ReadyWorkers:   stats.ReadyWorkers,
 		})
 	}
 	return briefs
+}
+
+func timestampString(ts pgtype.Timestamp) string {
+	if !ts.Valid {
+		return ""
+	}
+	return ts.Time.Format(time.RFC3339)
 }
 
 // --- Worker methods ---

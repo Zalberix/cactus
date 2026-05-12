@@ -13,13 +13,13 @@ import (
 	"github.com/zalberix/cactus/libs/permissions"
 )
 
-// Handler вЂ” HTTP-РѕР±СЂР°Р±РѕС‚С‡РёРєРё РґР»СЏ С‚РёРїРѕРІ СЂР°Р±РѕС‚, РІРѕСЂРєРµСЂРѕРІ Рё СЃРёСЃС‚РµРј.
+// Handler — HTTP-обработчики для типов работ, воркеров и систем.
 type Handler struct {
 	service     *Service
 	permChecker middleware.PermissionChecker
 }
 
-// NewHandler СЃРѕР·РґР°С‘С‚ РЅРѕРІС‹Р№ worktype Handler.
+// NewHandler создаёт новый worktype Handler.
 func NewHandler(service *Service, permChecker middleware.PermissionChecker) *Handler {
 	return &Handler{
 		service:     service,
@@ -27,11 +27,11 @@ func NewHandler(service *Service, permChecker middleware.PermissionChecker) *Han
 	}
 }
 
-// RegisterRoutes СЂРµРіРёСЃС‚СЂРёСЂСѓРµС‚ РІСЃРµ РјР°СЂС€СЂСѓС‚С‹ worktype РґРѕРјРµРЅР°.
+// RegisterRoutes регистрирует все маршруты worktype домена.
 func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc, _ middleware.SystemTokenStore) {
 	v1 := r.Group("/api/v1", authMw)
 
-	// Systems (РїРѕРґ РѕСЂРіР°РЅРёР·Р°С†РёРµР№)
+	// Systems (под организацией)
 	v1.GET("/organizations/:orgId/systems",
 		middleware.RequirePermission(h.permChecker, permissions.SystemRead), h.ListSystems)
 	v1.POST("/organizations/:orgId/systems",
@@ -83,16 +83,16 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc, _ middle
 	v1.POST("/worker-settings-schemas/:schemaId/revisions",
 		middleware.RequirePermission(h.permChecker, permissions.WorkerWrite), h.CreateRevision)
 
-	// РџСѓР±Р»РёС‡РЅС‹Р№ РјР°СЂС€СЂСѓС‚ вЂ” СЂРµРіРёСЃС‚СЂР°С†РёСЏ РІРѕСЂРєРµСЂР° РїРѕ bootstrap token (D-06, РІРЅРµ JWT-РіСЂСѓРїРїС‹)
+	// Публичный маршрут — регистрация воркера по bootstrap token (D-06, вне JWT-группы)
 	r.POST("/api/v1/register/worker", h.RegisterWorker)
 }
 
-// parseID РёР·РІР»РµРєР°РµС‚ int32 ID РёР· РїР°СЂР°РјРµС‚СЂР° URL.
+// parseID извлекает int32 ID из параметра URL.
 func parseID(c *gin.Context, param string) (int32, bool) {
 	raw := c.Param(param)
 	id, err := strconv.ParseInt(raw, 10, 32)
 	if err != nil || id <= 0 {
-		response.BadRequest(c, "INVALID_PARAM", "РќРµРІРµСЂРЅС‹Р№ С„РѕСЂРјР°С‚ ID: "+param)
+		response.BadRequest(c, "INVALID_PARAM", "Неверный формат ID: "+param)
 		return 0, false
 	}
 	return int32(id), true
@@ -183,14 +183,14 @@ func (h *Handler) DeleteSystem(c *gin.Context) {
         response.InternalError(c, "Ошибка удаления системы")
 		return
 	}
-	response.OK(c, gin.H{"message": "РЎРёСЃС‚РµРјР° СѓРґР°Р»РµРЅР°"})
+	response.OK(c, gin.H{"message": "Система удалена"})
 }
 
 // --- System Token handlers ---
 
 // CreateToken godoc
 // POST /api/v1/systems/:systemId/tokens
-// РўРѕРєРµРЅС‹ РіРµРЅРµСЂРёСЂСѓСЋС‚СЃСЏ РІ СЃРµСЂРІРёСЃРЅРѕРј СЃР»РѕРµ (D-18).
+// Токены генерируются в сервисном слое (D-18).
 func (h *Handler) CreateToken(c *gin.Context) {
 	systemID, ok := parseID(c, "systemId")
 	if !ok {
@@ -238,7 +238,7 @@ func (h *Handler) DeactivateToken(c *gin.Context) {
         response.InternalError(c, "Ошибка деактивации токена")
 		return
 	}
-	response.OK(c, gin.H{"message": "РўРѕРєРµРЅ РґРµР°РєС‚РёРІРёСЂРѕРІР°РЅ"})
+	response.OK(c, gin.H{"message": "Токен деактивирован"})
 }
 
 // ActivateToken godoc
@@ -253,7 +253,7 @@ func (h *Handler) ActivateToken(c *gin.Context) {
         response.InternalError(c, "Ошибка активации токена")
 		return
 	}
-	response.OK(c, gin.H{"message": "РўРѕРєРµРЅ Р°РєС‚РёРІРёСЂРѕРІР°РЅ"})
+	response.OK(c, gin.H{"message": "Токен активирован"})
 }
 
 // BindWorkflow godoc
@@ -276,7 +276,7 @@ func (h *Handler) BindWorkflow(c *gin.Context) {
         response.InternalError(c, "Ошибка привязки workflow к токену")
 		return
 	}
-	response.OK(c, gin.H{"message": "Workflow РїСЂРёРІСЏР·Р°РЅ Рє С‚РѕРєРµРЅСѓ"})
+	response.OK(c, gin.H{"message": "Workflow привязан к токену"})
 }
 
 // UnbindWorkflow godoc
@@ -299,7 +299,7 @@ func (h *Handler) UnbindWorkflow(c *gin.Context) {
         response.InternalError(c, "Ошибка отвязки workflow от токена")
 		return
 	}
-	response.OK(c, gin.H{"message": "Workflow РѕС‚РІСЏР·Р°РЅ РѕС‚ С‚РѕРєРµРЅР°"})
+	response.OK(c, gin.H{"message": "Workflow отвязан от токена"})
 }
 
 // ListTokenWorkflows godoc
@@ -371,7 +371,7 @@ func (h *Handler) ListSettingsSchemasByWorkType(c *gin.Context) {
 
 // CreateWorkType godoc
 // POST /api/v1/work-types
-// Р’РѕР·РІСЂР°С‰Р°РµС‚ С‚РёРї СЂР°Р±РѕС‚С‹ Рё bootstrap-С‚РѕРєРµРЅ (plaintext, РѕРґРёРЅ СЂР°Р·).
+// Возвращает тип работы и bootstrap-токен (plaintext, один раз).
 func (h *Handler) CreateWorkType(c *gin.Context) {
 	var req CreateWorkTypeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -423,7 +423,7 @@ func (h *Handler) DeleteWorker(c *gin.Context) {
 
 // RegisterWorker godoc
 // POST /api/v1/register/worker
-// РџСѓР±Р»РёС‡РЅС‹Р№ endpoint вЂ” Р°СѓС‚РµРЅС‚РёС„РёРєР°С†РёСЏ РїРѕ bootstrap token (РЅРµ JWT).
+// Публичный endpoint — аутентификация по bootstrap token (не JWT).
 func (h *Handler) RegisterWorker(c *gin.Context) {
 	var req RegisterWorkerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -433,7 +433,7 @@ func (h *Handler) RegisterWorker(c *gin.Context) {
 
 	worker, err := h.service.RegisterWorker(c.Request.Context(), req)
 	if err != nil {
-		response.Fail(c, http.StatusUnauthorized, "INVALID_TOKEN", "РќРµРІРµСЂРЅС‹Р№ bootstrap С‚РѕРєРµРЅ РёР»Рё РѕС€РёР±РєР° СЂРµРіРёСЃС‚СЂР°С†РёРё")
+		response.Fail(c, http.StatusUnauthorized, "INVALID_TOKEN", "Неверный bootstrap токен или ошибка регистрации")
 		return
 	}
 	response.OK(c, worker)
@@ -452,7 +452,7 @@ func (h *Handler) GetSettingsSchema(c *gin.Context) {
 	schema, err := h.service.GetSettingsSchema(c.Request.Context(), schemaID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			response.NotFound(c, "РЎС…РµРјР° РЅР°СЃС‚СЂРѕРµРє РЅРµ РЅР°Р№РґРµРЅР°")
+			response.NotFound(c, "Схема настроек не найдена")
 			return
 		}
         response.InternalError(c, "Ошибка получения схемы настроек")
@@ -502,12 +502,12 @@ func (h *Handler) CreateRevision(c *gin.Context) {
 
 // ActivateRevision godoc
 // PATCH /api/v1/worker-settings-revisions/:revisionId/activate
-// Р—Р°РіР»СѓС€РєР° вЂ” activate Р»РѕРіРёРєР° Р±СѓРґРµС‚ СЂРµР°Р»РёР·РѕРІР°РЅР° РїСЂРё РЅР°Р»РёС‡РёРё is_active РїРѕР»СЏ РІ СЃС…РµРјРµ.
+// Заглушка — activate логика будет реализована при наличии is_active поля в схеме.
 func (h *Handler) ActivateRevision(c *gin.Context) {
 	_, ok := parseID(c, "revisionId")
 	if !ok {
 		return
 	}
 	// TODO: implement when worker_settings_revision gains is_active field
-	response.OK(c, gin.H{"message": "Р РµРІРёР·РёСЏ Р°РєС‚РёРІРёСЂРѕРІР°РЅР°"})
+	response.OK(c, gin.H{"message": "Ревизия активирована"})
 }

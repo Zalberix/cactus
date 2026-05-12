@@ -114,7 +114,11 @@
     "noWorkersAvailable": "No ready workers available",
     "readyWorkers": "{ready}/{total} ready",
     "chooseSchema": "Choose settings schema",
-    "schemaVersion": "Schema {version}"
+    "schemaVersion": "Schema {version}",
+    "schemaAddedAt": "Добавлена {date}",
+    "schemaWorkers": "Готовые воркеры: {ready}/{total}",
+    "settingsSchemaPreview": "Схема настроек",
+    "useSchema": "Использовать"
   },
   "users": {
     "invite": "Пригласить",
@@ -128,7 +132,8 @@
     "title": "Роли",
     "name": "Название",
     "permissions": "Права",
-    "usersCount": "Пользователи"
+    "usersCount": "Пользователи",
+    "description": "Описание"
   },
   "systems": {
     "create": "Создать систему",

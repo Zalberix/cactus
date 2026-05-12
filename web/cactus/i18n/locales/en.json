@@ -117,7 +117,11 @@
     "noWorkersAvailable": "No ready workers available",
     "readyWorkers": "{ready}/{total} ready",
     "chooseSchema": "Choose settings schema",
-    "schemaVersion": "Schema {version}"
+    "schemaVersion": "Schema {version}",
+    "schemaAddedAt": "Added {date}",
+    "schemaWorkers": "{ready}/{total} ready workers",
+    "settingsSchemaPreview": "Settings schema",
+    "useSchema": "Use schema"
   },
   "users": {
     "invite": "Invite User",

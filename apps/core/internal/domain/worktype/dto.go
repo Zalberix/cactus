@@ -49,8 +49,12 @@ type WorkTypeCatalogItem struct {
 }
 
 type SettingsSchemaBrief struct {
-	ID      int32  `json:"id"`
-	Version string `json:"version"`
+	ID             int32           `json:"id"`
+	Version        string          `json:"version"`
+	CreatedAt      string          `json:"created_at"`
+	SettingsSchema json.RawMessage `json:"settings_schema"`
+	WorkerCount    int64           `json:"worker_count"`
+	ReadyWorkers   int64           `json:"ready_workers"`
 }
 
 // CreateWorkTypeResponse — ответ с типом работы и bootstrap-токеном.

@@ -5,20 +5,18 @@ import {
   PanelLeftClose, PanelLeftOpen, GripVertical, Search,
 } from 'lucide-vue-next'
 import type { Component } from 'vue'
-import type { WorkTypeCatalogItem } from '~/composables/useWorkers'
+import type { WorkTypeCatalogItem, WorkerSettingsSchemaSummary } from '~/composables/useWorkers'
 import type { ControlStepDefinition } from '~/composables/useControlSteps'
-import { filterStepCatalog } from '~/components/dag/step-toolbar-utils'
+import {
+  filterStepCatalog,
+  schemaChoiceOptions,
+  selectedSchemaIdForStep,
+} from '~/components/dag/step-toolbar-utils'
+import type { StepAddPayload, StepCatalogPayload } from '~/components/dag/step-toolbar-utils'
 import { ScrollArea } from '~/components/ui/scroll-area'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '~/components/ui/dialog'
 
 const props = withDefaults(defineProps<{
   disabled?: boolean
@@ -27,14 +25,7 @@ const props = withDefaults(defineProps<{
 })
 
 const emit = defineEmits<{
-  addStep: [
-    stepType: string,
-    workTypeId: number | undefined,
-    workTypeCode: string | undefined,
-    workerSettingsSchemaId: number | undefined,
-    position: { x: number, y: number },
-    name: string | undefined,
-  ]
+  addStep: [payload: StepAddPayload]
 }>()
 
 const { t } = useI18n()
@@ -44,8 +35,6 @@ const controlSteps = useControlSteps()
 const workTypes = ref<WorkTypeCatalogItem[]>([])
 const collapsed = ref(false)
 const search = ref('')
-const schemaDialogOpen = ref(false)
-const pendingSchemaItem = ref<ToolbarItem | null>(null)
 const selectedSchemaByWorkType = ref<Record<number, number>>({})
 
 const iconMap: Record<string, Component> = {
@@ -72,7 +61,7 @@ interface ToolbarItem {
   disabledReason?: string
   readyWorkers?: number
   workerCount?: number
-  schemas?: Array<{ id: number, version: string }>
+  schemas?: WorkerSettingsSchemaSummary[]
 }
 
 const taskItems = computed<ToolbarItem[]>(() =>
@@ -126,51 +115,29 @@ const groupedItems = computed(() => {
   return groups
 })
 
-const pendingSchemas = computed(() => pendingSchemaItem.value?.schemas ?? [])
-
 function selectedSchemaId(item: ToolbarItem) {
-  if (!item.workTypeId || !item.schemas?.length) return undefined
-  return selectedSchemaByWorkType.value[item.workTypeId] ?? item.schemas[0]?.id
-}
-
-function requiresSchemaChoice(item: ToolbarItem) {
-  return item.stepType === 'task' && (item.schemas?.length ?? 0) > 1 && item.workTypeId && !selectedSchemaByWorkType.value[item.workTypeId]
-}
-
-function openSchemaDialog(item: ToolbarItem) {
-  pendingSchemaItem.value = item
-  schemaDialogOpen.value = true
-}
-
-function chooseSchema(schemaId: number) {
-  const item = pendingSchemaItem.value
   if (!item?.workTypeId) return
-  selectedSchemaByWorkType.value = {
-    ...selectedSchemaByWorkType.value,
-    [item.workTypeId]: schemaId,
-  }
-  schemaDialogOpen.value = false
-  pendingSchemaItem.value = null
+  return selectedSchemaIdForStep(
+    item.stepType,
+    item.schemas,
+    selectedSchemaByWorkType.value[item.workTypeId],
+  )
 }
 
-function payloadFor(item: ToolbarItem) {
+function payloadFor(item: ToolbarItem): StepCatalogPayload {
   return {
     stepType: item.stepType,
     workTypeId: item.workTypeId,
     workTypeCode: item.stepType === 'control' ? item.controlKind : item.workTypeCode,
-    workerSettingsSchemaId: item.stepType === 'task' ? selectedSchemaId(item) : undefined,
+    workerSettingsSchemaId: selectedSchemaId(item),
     name: item.name,
+    schemas: item.stepType === 'task' ? schemaChoiceOptions(item.schemas) : undefined,
   }
 }
 
 function onDragStart(event: DragEvent, item: ToolbarItem) {
   if (props.disabled || !item.available) {
     event.preventDefault()
-    return
-  }
-  if (requiresSchemaChoice(item)) {
-    event.preventDefault()
-    openSchemaDialog(item)
     return
   }
   if (!event.dataTransfer) return
@@ -181,12 +148,10 @@ function onDragStart(event: DragEvent, item: ToolbarItem) {
 
 function onDoubleClick(item: ToolbarItem) {
   if (props.disabled || !item.available) return
-  if (requiresSchemaChoice(item)) {
-    openSchemaDialog(item)
-    return
-  }
-  const payload = payloadFor(item)
-  emit('addStep', payload.stepType, payload.workTypeId, payload.workTypeCode, payload.workerSettingsSchemaId, { x: 300, y: 200 }, payload.name)
+  emit('addStep', {
+    ...payloadFor(item),
+    position: { x: 300, y: 200 },
+  })
 }
 
 onMounted(async () => {
@@ -265,26 +230,5 @@ onMounted(async () => {
         </p>
       </div>
     </ScrollArea>
-
-    <Dialog v-model:open="schemaDialogOpen">
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{{ t('toolbar.chooseSchema') }}</DialogTitle>
-          <DialogDescription>{{ pendingSchemaItem?.name }}</DialogDescription>
-        </DialogHeader>
-        <div class="space-y-2">
-          <Button
-            v-for="schema in pendingSchemas"
-            :key="schema.id"
-            variant="outline"
-            class="w-full justify-between"
-            @click="chooseSchema(schema.id)"
-          >
-            <span>{{ t('toolbar.schemaVersion', { version: schema.version }) }}</span>
-            <span class="text-xs text-muted-foreground">#{{ schema.id }}</span>
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
   </div>
 </template>

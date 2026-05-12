@@ -329,7 +329,7 @@ func validateMappingSource(stepID int32, source string, predecessors map[int32]s
 		return &ValidationError{
 			Type:    "invalid_mapping",
 			StepID:  stepID,
-			Message: fmt.Sprintf("РЁР°Рі %d: РјР°РїРїРёРЅРі СЃСЃС‹Р»Р°РµС‚СЃСЏ РЅР° РЅРµРѕР±СЉСЏРІР»РµРЅРЅС‹Р№ workflow input: %s", stepID, source),
+			Message: fmt.Sprintf("Шаг %d: маппинг ссылается на необъявленный workflow input: %s", stepID, source),
 		}
 	}
 

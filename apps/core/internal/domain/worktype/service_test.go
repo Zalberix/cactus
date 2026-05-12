@@ -90,6 +90,84 @@ func TestComputeWorkerStatus(t *testing.T) {
 	})
 }
 
+type catalogStore struct {
+	registerWorkerStore
+	workTypes         []db.WorkType
+	workersByWorkType map[int32][]db.Worker
+	schemasByWorkType map[int32][]db.WorkerSettingsSchema
+}
+
+func (s *catalogStore) ListWorkTypes(context.Context) ([]db.WorkType, error) {
+	return s.workTypes, nil
+}
+
+func (s *catalogStore) ListNewWorkersByWorkTypeID(_ context.Context, workTypeID int32) ([]db.Worker, error) {
+	return s.workersByWorkType[workTypeID], nil
+}
+
+func (s *catalogStore) ListWorkerSettingsSchemasByWorkTypeID(_ context.Context, workTypeID int32) ([]db.WorkerSettingsSchema, error) {
+	return s.schemasByWorkType[workTypeID], nil
+}
+
+func TestListWorkTypeCatalogFiltersSchemasWithoutWorkersAndIncludesDetails(t *testing.T) {
+	createdAt := time.Date(2026, 5, 11, 9, 30, 0, 0, time.UTC)
+	store := &catalogStore{
+		workTypes: []db.WorkType{
+			{ID: 7, Name: "SMTP", Code: "smtp"},
+		},
+		workersByWorkType: map[int32][]db.Worker{
+			7: {
+				{
+					ID:                     100,
+					WorkTypeID:             7,
+					WorkerSettingsSchemaID: 11,
+					LastHeartbeatAt:        pgtype.Timestamp{Time: time.Now(), Valid: true},
+				},
+			},
+		},
+		schemasByWorkType: map[int32][]db.WorkerSettingsSchema{
+			7: {
+				{
+					ID:             11,
+					WorkTypeID:     7,
+					Version:        "hash-with-worker",
+					SettingsSchema: []byte(`{"type":"object","properties":{"host":{"type":"string"}}}`),
+					CreatedAt:      pgtype.Timestamp{Time: createdAt, Valid: true},
+				},
+				{
+					ID:             12,
+					WorkTypeID:     7,
+					Version:        "hash-without-worker",
+					SettingsSchema: []byte(`{"type":"object","properties":{"unused":{"type":"string"}}}`),
+					CreatedAt:      pgtype.Timestamp{Time: createdAt.Add(time.Hour), Valid: true},
+				},
+			},
+		},
+	}
+
+	catalog, err := NewService(store).ListWorkTypeCatalog(context.Background())
+	if err != nil {
+		t.Fatalf("ListWorkTypeCatalog error: %v", err)
+	}
+	if len(catalog) != 1 {
+		t.Fatalf("expected one catalog item, got %d", len(catalog))
+	}
+	schemas := catalog[0].Schemas
+	if len(schemas) != 1 {
+		t.Fatalf("expected only worker-backed schemas, got %#v", schemas)
+	}
+	if schemas[0].ID != 11 {
+		t.Fatalf("expected schema 11, got %#v", schemas[0])
+	}
+	if schemas[0].CreatedAt != "2026-05-11T09:30:00Z" {
+		t.Fatalf("expected RFC3339 created_at, got %q", schemas[0].CreatedAt)
+	}
+	if schemas[0].WorkerCount != 1 || schemas[0].ReadyWorkers != 1 {
+		t.Fatalf("expected worker counts 1/1, got %#v", schemas[0])
+	}
+	assertJSONEqual(t, `{"type":"object","properties":{"host":{"type":"string"}}}`, schemas[0].SettingsSchema)
+}
+
 // TestGenerateBootstrapToken проверяет формат bootstrap-токена.
 func TestGenerateBootstrapToken(t *testing.T) {
 	plaintext, hash, err := GenerateBootstrapToken()

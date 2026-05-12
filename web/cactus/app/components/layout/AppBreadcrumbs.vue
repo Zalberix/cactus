@@ -28,6 +28,10 @@ const sectionLabels: Record<string, string> = {
   tokens: 'nav.tokens',
 }
 
+function isBreadcrumbRouteLinkable(path: string) {
+  return !/^\/org\/\d+\/workflows\/\d+\/versions(?:\/\d+)?$/.test(path)
+}
+
 const crumbs = computed<BreadcrumbEntry[]>(() => {
   const entries: BreadcrumbEntry[] = []
   const path = route.path
@@ -51,7 +55,7 @@ const crumbs = computed<BreadcrumbEntry[]>(() => {
 
     if (i < rest.length - 1) {
       const to = `/org/${orgId}/${rest.slice(0, i + 1).join('/')}`
-      entries.push({ label, to })
+      entries.push({ label, to: isBreadcrumbRouteLinkable(to) ? to : undefined })
     } else {
       entries.push({ label })
     }

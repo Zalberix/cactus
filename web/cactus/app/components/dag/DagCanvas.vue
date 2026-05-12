@@ -4,6 +4,7 @@ import type { Node, Edge, Connection, NodeDragEvent, NodeMouseEvent, EdgeMouseEv
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
 import { canConnectSteps } from '~/composables/dag-connection-guards'
+import type { StepAddPayload, StepCatalogPayload } from '~/components/dag/step-toolbar-utils'
 import StepNode from './StepNode.vue'
 import StepEdge from './StepEdge.vue'
 
@@ -24,7 +25,7 @@ const emit = defineEmits<{
   nodeDoubleClick: [nodeId: string]
   edgeClick: [edgeId: string]
   removeEdge: [edgeId: string]
-  drop: [stepType: string, workTypeId: number | undefined, workTypeCode: string | undefined, workerSettingsSchemaId: number | undefined, position: { x: number; y: number }, name: string | undefined]
+  drop: [payload: StepAddPayload]
   deleteSelected: []
 }>()
 
@@ -90,13 +91,7 @@ function onDrop(event: DragEvent) {
   const raw = event.dataTransfer.getData('application/cactus-step')
   if (!raw) return
 
-  const data = JSON.parse(raw) as {
-    stepType: string
-    workTypeId?: number
-    workTypeCode?: string
-    workerSettingsSchemaId?: number
-    name?: string
-  }
+  const data = JSON.parse(raw) as StepCatalogPayload
 
   const projected = screenToFlowCoordinate({
     x: event.clientX,
@@ -108,7 +103,7 @@ function onDrop(event: DragEvent) {
     y: snapToGrid(projected.y),
   }
 
-  emit('drop', data.stepType, data.workTypeId, data.workTypeCode, data.workerSettingsSchemaId, position, data.name)
+  emit('drop', { ...data, position })
 }
 
 function onKeyDown(event: KeyboardEvent) {
