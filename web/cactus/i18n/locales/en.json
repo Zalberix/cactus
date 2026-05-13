@@ -68,7 +68,7 @@
     "stepName": "Step Name",
     "stepType": "Type",
     "workType": "Work Type",
-    "inputMapping": "Input Mapping",
+    "inputMapping": "Input Data",
     "config": "Configuration",
     "addMapping": "Add Mapping",
     "key": "Key",
@@ -91,7 +91,7 @@
   "nodeEditor": {
     "title": "Configure Step",
     "input": "Input",
-    "parameters": "Parameters",
+    "parameters": "Settings",
     "output": "Output",
     "upstream": "Upstream Outputs",
     "noUpstream": "No upstream dependencies.",
