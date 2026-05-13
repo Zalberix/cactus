@@ -177,6 +177,17 @@ export function useDagEditor(
     edges.value = edges.value.filter(
       e => e.source !== stepId && e.target !== stepId,
     )
+    nodes.value = nodes.value.map((node) => {
+      const filtered = filterDeletedStepMappings(node.data.inputMapping, stepId)
+      if (!filtered) return node
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          inputMapping: filtered,
+        },
+      }
+    })
     if (selectedNodeId.value === stepId) {
       selectedNodeId.value = null
     }
@@ -238,13 +249,54 @@ export function useDagEditor(
     isDirty.value = true
   }
 
+  function filterDeletedStepMappings(
+    mapping: StepData['inputMapping'] | unknown,
+    deletedStepId: string,
+  ): Record<string, string> | undefined {
+    const prefix = `$.steps.${deletedStepId}`
+    const nestedPrefix = `${prefix}.`
+
+    if (!mapping) return undefined
+
+    const normalized: Array<{ target: string, source: string }> = []
+    if (Array.isArray(mapping)) {
+      if (!mapping.length) return undefined
+      for (const entry of mapping) {
+        if (!entry || typeof entry.source !== 'string' || typeof entry.target !== 'string') continue
+        const source = entry.source.trim()
+        if (source === prefix || source.startsWith(nestedPrefix)) continue
+        normalized.push({ target: entry.target, source: entry.source })
+      }
+      if (normalized.length === mapping.length) return undefined
+    }
+    else if (typeof mapping === 'object') {
+      for (const [target, source] of Object.entries(mapping)) {
+        if (!target || typeof source !== 'string') continue
+        const trimmed = source.trim()
+        if (trimmed === prefix || trimmed.startsWith(nestedPrefix)) continue
+        normalized.push({ target, source })
+      }
+      if (normalized.length === Object.keys(mapping).length) return undefined
+    }
+    else {
+      return undefined
+    }
+
+    const nextMapping: Record<string, string> = {}
+    for (const entry of normalized) {
+      if (entry.target in nextMapping) continue
+      nextMapping[entry.target] = entry.source
+    }
+    return nextMapping
+  }
+
   async function saveVersion(): Promise<boolean> {
     const vid = versionId.value
     if (!vid) return false
 
     const result = await validateVersion(vid)
 
-    if (!result.valid && result.errors?.length) {
+    if (!result.isValid && result.errors.length) {
       validationErrors.value = result.errors
       return false
     }

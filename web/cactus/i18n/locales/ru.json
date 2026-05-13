@@ -65,7 +65,7 @@
     "stepName": "Название шага",
     "stepType": "Тип",
     "workType": "Тип работы",
-    "inputMapping": "Маппинг входа",
+    "inputMapping": "Входные данные",
     "config": "Конфигурация",
     "addMapping": "Добавить маппинг",
     "key": "Ключ",
@@ -88,7 +88,7 @@
   "nodeEditor": {
     "title": "Настройка шага",
     "input": "Вход",
-    "parameters": "Параметры",
+    "parameters": "Настройки",
     "output": "Выход",
     "upstream": "Выходы зависимостей",
     "noUpstream": "Нет зависимостей.",

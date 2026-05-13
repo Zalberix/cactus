@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import '@vue-flow/core/dist/style.css'
-import { Save, Play, Pause, AlertCircle, X, Copy, FileJson } from 'lucide-vue-next'
+import { Save, Play, Pause, AlertCircle, Copy, FileJson } from 'lucide-vue-next'
 import type { Connection } from '@vue-flow/core'
 import type { VersionSummary } from '~/composables/useVersions'
 import type { WorkType } from '~/composables/useWorkers'
@@ -63,6 +63,7 @@ const inputSchema = ref<Record<string, unknown> | null>(null)
 const deactivateOpen = ref(false)
 const schemaChoiceOpen = ref(false)
 const pendingStepPayload = ref<StepAddPayload | null>(null)
+const showValidationDialog = ref(false)
 
 const currentVersion = computed(() =>
   versions.value.find(v => v.id === selectedVersionId.value),
@@ -128,6 +129,7 @@ async function loadAll() {
 
 // When version changes, load its steps
 watch(selectedVersionId, async (vid) => {
+  showValidationDialog.value = false
   if (vid) {
     try {
       await dagEditor.loadSteps(vid)
@@ -161,6 +163,7 @@ async function onSave() {
       }
     }
     else if (dagEditor.validationErrors.value.length > 0) {
+      showValidationDialog.value = true
       toast({ title: t('error.dagValidation'), variant: 'destructive' })
     }
   }
@@ -355,6 +358,11 @@ function onNodeEditorSave(nodeId: string, settingsData: Record<string, unknown>,
 
 function dismissErrors() {
   dagEditor.validationErrors.value = []
+  showValidationDialog.value = false
+}
+
+function onValidationDialogUpdate(open: boolean) {
+  if (!open) dismissErrors()
 }
 
 onMounted(() => {
@@ -457,38 +465,35 @@ onMounted(() => {
       </Button>
     </div>
 
-    <!-- Validation errors -->
-    <div
-      v-if="dagEditor.validationErrors.value.length > 0"
-      class="mx-4 mt-2 rounded-md border border-red-300 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950"
-    >
-      <div class="flex items-start justify-between">
-        <div class="flex items-start gap-2">
-          <AlertCircle class="mt-0.5 h-4 w-4 text-red-600 dark:text-red-400" />
-          <div>
-            <p class="text-sm font-medium text-red-800 dark:text-red-200">
-              {{ t('editor.validationErrors') }}
-            </p>
-            <ul class="mt-1 list-disc pl-4 text-sm text-red-700 dark:text-red-300">
-              <li
-                v-for="(error, i) in dagEditor.validationErrors.value"
-                :key="i"
-              >
-                {{ error }}
-              </li>
-            </ul>
-          </div>
+    <Dialog v-model:open="showValidationDialog" @update:open="onValidationDialogUpdate">
+      <DialogContent class="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle class="flex items-center gap-2">
+            <AlertCircle class="h-4 w-4 text-red-500" />
+            {{ t('editor.validationErrors') }}
+          </DialogTitle>
+          <DialogDescription>
+            {{ t('error.dagValidation') }}
+          </DialogDescription>
+        </DialogHeader>
+        <div class="max-h-72 overflow-y-auto pl-5">
+          <ul class="space-y-1 list-disc text-sm">
+            <li v-for="(error, i) in dagEditor.validationErrors.value" :key="i">
+              {{ error }}
+            </li>
+          </ul>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          class="h-6 w-6 shrink-0"
-          @click="dismissErrors"
-        >
-          <X class="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            @click="dismissErrors"
+          >
+            {{ t('destructive.cancel') }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <!-- Editor layout -->
     <div v-if="!pageLoading && versions.length > 0" class="flex flex-1 overflow-hidden">

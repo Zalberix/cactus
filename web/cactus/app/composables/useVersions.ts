@@ -55,8 +55,8 @@ export interface Dependency {
 }
 
 export interface ValidationResult {
-  valid: boolean
-  errors?: string[]
+  isValid: boolean
+  errors: string[]
 }
 
 export interface WorkflowTrafficVersionUpdate {
@@ -222,21 +222,75 @@ export function useVersions() {
     }
   }
 
+  function normalizeValidationResult(payload: {
+    is_valid?: boolean
+    valid?: boolean
+    errors?: unknown
+  } | undefined | null): ValidationResult {
+    const rawErrors = Array.isArray(payload?.errors) ? payload.errors : []
+    const errors = rawErrors
+      .filter((value): value is string => typeof value === 'string')
+
+    return {
+      isValid: Boolean(payload?.is_valid ?? payload?.valid ?? false),
+      errors,
+    }
+  }
+
+  function extractValidationErrorMessages(error: unknown): string[] | null {
+    if (!error || typeof error !== 'object') return null
+
+    const response = (error as {
+      response?: { _data?: ApiResponse<{ is_valid?: boolean; valid?: boolean; errors?: unknown }> }
+      data?: ApiResponse<{ is_valid?: boolean; valid?: boolean; errors?: unknown }>
+    })
+    const responsePayload = response.response?._data ?? response.data
+    if (!responsePayload || typeof responsePayload !== 'object') return null
+
+    if (!responsePayload.error || !Array.isArray(responsePayload.error.details)) return null
+
+    const messages = responsePayload.error.details
+      .map((detail) => {
+        if (!detail || typeof detail !== 'object') return ''
+        return String((detail as { message?: string }).message ?? '')
+      })
+      .filter(Boolean)
+
+    return messages.length > 0 ? messages : null
+  }
+
   async function validateVersion(versionId: number): Promise<ValidationResult> {
-    const resp = await api<ApiResponse<ValidationResult>>(
-      `/versions/${versionId}/validate`,
-      { method: 'POST' },
-    )
-    if (!resp.success || !resp.data) {
-      if (resp.error?.details) {
+    try {
+      const resp = await api<ApiResponse<{ is_valid?: boolean; valid?: boolean; errors?: unknown }>>(
+        `/versions/${versionId}/validate`,
+        { method: 'POST' },
+      )
+
+      if (resp.success && resp.data) {
+        return normalizeValidationResult(resp.data)
+      }
+
+      const errorMessages = extractValidationErrorMessages(resp)
+      if (errorMessages) {
         return {
-          valid: false,
-          errors: resp.error.details.map(d => d.message),
+          isValid: false,
+          errors: errorMessages,
         }
       }
+
       throw new Error(resp.error?.message ?? 'Failed to validate version')
     }
-    return resp.data
+    catch (error) {
+      const errorMessages = extractValidationErrorMessages(error)
+      if (errorMessages) {
+        return {
+          isValid: false,
+          errors: errorMessages,
+        }
+      }
+
+      throw new Error(error instanceof Error ? error.message : 'Failed to validate version')
+    }
   }
 
   async function activateVersion(versionId: number): Promise<void> {

@@ -1,6 +1,7 @@
 ﻿package workflow
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -677,6 +678,10 @@ func (s *Service) DeleteStep(ctx context.Context, stepID int32) error {
 		return ErrStartStepProtected
 	}
 
+	if err := s.removeInboundInputMappings(ctx, current.WorkflowVersionID, stepID); err != nil {
+		return fmt.Errorf("delete step input mappings: %w", err)
+	}
+
 	// Удаляем зависимости шага перед его удалением
 	if err := s.store.DeleteDependenciesByStepID(ctx, stepID); err != nil {
 		return fmt.Errorf("delete step dependencies: %w", err)
@@ -685,6 +690,87 @@ func (s *Service) DeleteStep(ctx context.Context, stepID int32) error {
 		return fmt.Errorf("delete step: %w", err)
 	}
 	return s.invalidateVersion(ctx, current.WorkflowVersionID)
+}
+
+func (s *Service) removeInboundInputMappings(ctx context.Context, versionID, deletedStepID int32) error {
+	steps, err := s.store.ListWorkflowStepsByVersionID(ctx, versionID)
+	if err != nil {
+		return fmt.Errorf("list steps: %w", err)
+	}
+
+	prefix := fmt.Sprintf("$.steps.%d", deletedStepID)
+	expectedPrefix := prefix + "."
+
+	for _, step := range steps {
+		if step.ID == deletedStepID {
+			continue
+		}
+		if len(step.InputMapping) == 0 {
+			continue
+		}
+
+		mapping, parseErr := parseInputMapping(step.InputMapping)
+		if parseErr != nil {
+			return fmt.Errorf("parse input mapping for step %d: %w", step.ID, parseErr)
+		}
+
+		kept := make([]dagpkg.MappingEntry, 0, len(mapping))
+		changed := false
+		for _, entry := range mapping {
+			if strings.TrimSpace(entry.Source) == prefix || strings.HasPrefix(strings.TrimSpace(entry.Source), expectedPrefix) {
+				changed = true
+				continue
+			}
+			kept = append(kept, entry)
+		}
+		if !changed {
+			continue
+		}
+
+		serialized, err := json.Marshal(kept)
+		if err != nil {
+			return fmt.Errorf("marshal filtered input mapping for step %d: %w", step.ID, err)
+		}
+		if _, err := s.store.UpdateWorkflowStep(ctx, db.UpdateWorkflowStepParams{
+			ID:                       step.ID,
+			StepType:                 step.StepType,
+			WorkTypeID:               step.WorkTypeID,
+			WorkerSettingsRevisionID:  step.WorkerSettingsRevisionID,
+			ControlKind:              step.ControlKind,
+			ControlSettings:          step.ControlSettings,
+			InputMapping:             serialized,
+			CanvasPosition:           step.CanvasPosition,
+		}); err != nil {
+			return fmt.Errorf("clear inbound input mappings for step %d: %w", step.ID, err)
+		}
+	}
+	return nil
+}
+
+func parseInputMapping(raw json.RawMessage) ([]dagpkg.MappingEntry, error) {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return nil, nil
+	}
+
+	var arr []dagpkg.MappingEntry
+	if err := json.Unmarshal(raw, &arr); err == nil {
+		return arr, nil
+	}
+
+	var mapping map[string]string
+	if err := json.Unmarshal(raw, &mapping); err == nil {
+		entries := make([]dagpkg.MappingEntry, 0, len(mapping))
+		for target, source := range mapping {
+			entries = append(entries, dagpkg.MappingEntry{
+				Target: target,
+				Source: source,
+			})
+		}
+		return entries, nil
+	}
+
+	return nil, fmt.Errorf("invalid input_mapping format")
 }
 
 // ListDependencies возвращает все зависимости версии workflow.

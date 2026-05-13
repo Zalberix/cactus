@@ -63,6 +63,7 @@ const hasSettings = computed(() => {
 })
 
 const hasMapping = computed(() => inputFields.value.length > 0)
+const defaultTab = computed(() => (hasMapping.value ? 'mapping' : 'settings'))
 
 function onSave() {
   emit('save', { ...formData.value }, mappingRecordToEntries(mappingData.value))
@@ -81,27 +82,15 @@ defineExpose({ insertExpression })
       <h3 class="text-sm font-semibold">{{ t('nodeEditor.parameters') }}</h3>
     </div>
 
-    <Tabs :default-value="hasSettings ? 'settings' : 'mapping'" class="flex flex-1 flex-col overflow-hidden">
+    <Tabs :default-value="defaultTab" class="flex flex-1 flex-col overflow-hidden">
       <TabsList class="mx-4 mt-2 w-auto shrink-0">
-        <TabsTrigger v-if="hasSettings" value="settings">
-          {{ t('nodeEditor.parameters') }}
-        </TabsTrigger>
         <TabsTrigger v-if="hasMapping" value="mapping">
           {{ t('editor.inputMapping') }}
         </TabsTrigger>
+        <TabsTrigger v-if="hasSettings" value="settings">
+          {{ t('nodeEditor.parameters') }}
+        </TabsTrigger>
       </TabsList>
-
-      <TabsContent v-if="hasSettings" value="settings" class="flex-1 overflow-hidden mt-0">
-        <ScrollArea class="h-full">
-          <div class="p-4">
-            <DynamicSettingsForm
-              :schema="settingsSchema"
-              :model-value="formData"
-              @update:model-value="formData = $event"
-            />
-          </div>
-        </ScrollArea>
-      </TabsContent>
 
       <TabsContent v-if="hasMapping" value="mapping" class="flex-1 overflow-hidden mt-0">
         <ScrollArea class="h-full">
@@ -121,6 +110,18 @@ defineExpose({ insertExpression })
                 @update:model-value="mappingData[field] = $event"
               />
             </div>
+          </div>
+        </ScrollArea>
+      </TabsContent>
+
+      <TabsContent v-if="hasSettings" value="settings" class="flex-1 overflow-hidden mt-0">
+        <ScrollArea class="h-full">
+          <div class="p-4">
+            <DynamicSettingsForm
+              :schema="settingsSchema"
+              :model-value="formData"
+              @update:model-value="formData = $event"
+            />
           </div>
         </ScrollArea>
       </TabsContent>
