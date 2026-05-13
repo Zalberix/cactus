@@ -35,7 +35,7 @@ func (q *Queries) CreateWorkflowStepDependency(ctx context.Context, arg CreateWo
 
 const deleteDependenciesByStepID = `-- name: DeleteDependenciesByStepID :exec
 DELETE FROM "workflow_step_dependency"
-WHERE step_id = $1
+WHERE step_id = $1 OR depends_on_step_id = $1
 `
 
 func (q *Queries) DeleteDependenciesByStepID(ctx context.Context, stepID int32) error {
@@ -61,8 +61,12 @@ func (q *Queries) DeleteWorkflowStepDependency(ctx context.Context, arg DeleteWo
 const listDependenciesByVersionID = `-- name: ListDependenciesByVersionID :many
 SELECT wsd.step_id, wsd.depends_on_step_id, wsd.outcome, wsd.output_index
 FROM "workflow_step_dependency" wsd
-JOIN "workflow_step" ws ON ws.id = wsd.step_id
-WHERE ws.workflow_version_id = $1 AND ws.deleted_at IS NULL
+JOIN "workflow_step" target_step ON target_step.id = wsd.step_id
+JOIN "workflow_step" source_step ON source_step.id = wsd.depends_on_step_id
+WHERE target_step.workflow_version_id = $1
+  AND source_step.workflow_version_id = $1
+  AND target_step.deleted_at IS NULL
+  AND source_step.deleted_at IS NULL
 ORDER BY wsd.step_id, wsd.depends_on_step_id
 `
 

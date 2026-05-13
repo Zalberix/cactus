@@ -43,7 +43,7 @@ type mockStorage struct {
 	createDependencyParams             []db.CreateWorkflowStepDependencyParams
 	createDependencyErr                error
 	createdRevisionSettings            []byte
-	updateTrafficArgs                  []db.UpdateWorkflowVersionTrafficWeightParams
+	updateTrafficArgs                  []updateTrafficArg
 	updateRevisionSettingsArg          db.UpdateWorkerSettingsRevisionSettingsParams
 	createdWorkflowInputArg            db.CreateWorkflowVersionInputParams
 	updatedWorkflowInputArg            db.UpdateWorkflowVersionInputParams
@@ -58,6 +58,11 @@ type mockStorage struct {
 	lastUpdateValidArg  db.UpdateWorkflowVersionValidParams
 	lastUpdateActiveArg db.UpdateWorkflowVersionActiveParams
 	lastUpdateSchemaArg db.UpdateWorkflowInputValidationParams
+}
+
+type updateTrafficArg struct {
+	ID            int32
+	TrafficWeight int32
 }
 
 func (m *mockStorage) WithTx(_ context.Context, _ func(q *db.Queries) error) error {
@@ -141,12 +146,12 @@ func (m *mockStorage) UpdateWorkflowVersionName(_ context.Context, arg db.Update
 }
 
 func (m *mockStorage) UpdateWorkflowVersionTrafficWeight(_ context.Context, arg db.UpdateWorkflowVersionTrafficWeightParams) (db.WorkflowVersion, error) {
-	m.updateTrafficArgs = append(m.updateTrafficArgs, arg)
+	m.updateTrafficArgs = append(m.updateTrafficArgs, updateTrafficArg{ID: arg.ID, TrafficWeight: arg.TrafficWeight})
 	return db.WorkflowVersion{ID: arg.ID, TrafficWeight: arg.TrafficWeight}, m.updateTrafficErr
 }
 
-func (m *mockStorage) UpdateWorkflowVersionTrafficWeightIncludingDeleted(_ context.Context, arg db.UpdateWorkflowVersionTrafficWeightParams) (db.WorkflowVersion, error) {
-	m.updateTrafficArgs = append(m.updateTrafficArgs, arg)
+func (m *mockStorage) UpdateWorkflowVersionTrafficWeightIncludingDeleted(_ context.Context, arg db.UpdateWorkflowVersionTrafficWeightIncludingDeletedParams) (db.WorkflowVersion, error) {
+	m.updateTrafficArgs = append(m.updateTrafficArgs, updateTrafficArg{ID: arg.ID, TrafficWeight: arg.TrafficWeight})
 	return db.WorkflowVersion{ID: arg.ID, TrafficWeight: arg.TrafficWeight}, m.updateTrafficErr
 }
 
@@ -291,8 +296,8 @@ func (m *mockStorage) CloneWorkerSettingsRevision(_ context.Context, arg db.Clon
 	if m.cloneWorkerSettingsRevisionErr != nil {
 		return db.WorkerSettingsRevision{}, m.cloneWorkerSettingsRevisionErr
 	}
-	if m.cloneWorkerSettingsRevisionResp.ID == 0 && arg.ID != 0 {
-		return db.WorkerSettingsRevision{ID: arg.ID + 5000, WorkerSettingsSchemaID: 0}, nil
+	if m.cloneWorkerSettingsRevisionResp.ID == 0 && arg.Column1.Valid {
+		return db.WorkerSettingsRevision{ID: arg.Column1.Int32 + 5000, WorkerSettingsSchemaID: 0}, nil
 	}
 	return m.cloneWorkerSettingsRevisionResp, nil
 }
@@ -544,7 +549,10 @@ func TestCopyVersion_ClonesStepsDependenciesAndTaskRevisions(t *testing.T) {
 	assert.Equal(t, int32(2001), store.createDependencyParams[0].StepID)
 	assert.Equal(t, int32(2001), store.createDependencyParams[1].DependsOnStepID)
 	assert.Equal(t, int32(2002), store.createDependencyParams[1].StepID)
-	assert.Equal(t, int32(70), store.lastCloneWorkerSettingsRevisionArg.ID)
+	assert.Equal(t, int32(70), store.lastCloneWorkerSettingsRevisionArg.Column1.Int32)
+	assert.True(t, store.lastCloneWorkerSettingsRevisionArg.Column1.Valid)
+	assert.Equal(t, int32(55), store.lastCloneWorkerSettingsRevisionArg.Column2.Int32)
+	assert.True(t, store.lastCloneWorkerSettingsRevisionArg.Column2.Valid)
 }
 
 func TestUpdateVersionName_PassesNameToStorage(t *testing.T) {

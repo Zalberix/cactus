@@ -29,7 +29,7 @@ type Storage interface {
 	UpdateWorkflowVersionValid(ctx context.Context, arg db.UpdateWorkflowVersionValidParams) (db.WorkflowVersion, error)
 	UpdateWorkflowVersionActive(ctx context.Context, arg db.UpdateWorkflowVersionActiveParams) (db.WorkflowVersion, error)
 	UpdateWorkflowVersionTrafficWeight(ctx context.Context, arg db.UpdateWorkflowVersionTrafficWeightParams) (db.WorkflowVersion, error)
-	UpdateWorkflowVersionTrafficWeightIncludingDeleted(ctx context.Context, arg db.UpdateWorkflowVersionTrafficWeightParams) (db.WorkflowVersion, error)
+	UpdateWorkflowVersionTrafficWeightIncludingDeleted(ctx context.Context, arg db.UpdateWorkflowVersionTrafficWeightIncludingDeletedParams) (db.WorkflowVersion, error)
 	UpdateWorkflowVersionName(ctx context.Context, arg db.UpdateWorkflowVersionNameParams) (db.WorkflowVersion, error)
 	SoftDeleteWorkflowVersion(ctx context.Context, id int32) error
 

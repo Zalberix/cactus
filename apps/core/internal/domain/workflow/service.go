@@ -147,7 +147,7 @@ func (s *Service) ListVersionSummaries(ctx context.Context, workflowID int32) ([
 		summary := VersionSummaryResponse{
 			ID:             r.ID,
 			WorkflowID:     r.WorkflowID,
-			Name:           r.Name,
+			Name:           pgTextString(r.Name),
 			VersionNumber:  r.VersionNumber,
 			IsValid:        r.IsValid,
 			IsActive:       r.IsActive,
@@ -236,8 +236,8 @@ func (s *Service) CopyVersion(ctx context.Context, versionID, userID int32) (db.
 		}
 		if sourceStep.WorkerSettingsRevisionID.Valid && sourceStep.StepType == string(dagpkg.StepTypeTask) {
 			revision, err := s.store.CloneWorkerSettingsRevision(ctx, db.CloneWorkerSettingsRevisionParams{
-				ID:              sourceStep.WorkerSettingsRevisionID.Int32,
-				CreatedByUserID: pgtype.Int4{Int32: userID, Valid: true},
+				Column1: pgtype.Int4{Int32: sourceStep.WorkerSettingsRevisionID.Int32, Valid: true},
+				Column2: pgtype.Int4{Int32: userID, Valid: true},
 			})
 			if err != nil {
 				return db.WorkflowVersion{}, fmt.Errorf("clone settings revision for step %d: %w", sourceStep.ID, err)
@@ -369,7 +369,7 @@ func (s *Service) UpdateWorkflowTraffic(ctx context.Context, workflowID int32, r
 		if version.IsActive {
 			weight = traffic[version.ID]
 		}
-		if _, err := s.store.UpdateWorkflowVersionTrafficWeightIncludingDeleted(ctx, db.UpdateWorkflowVersionTrafficWeightParams{
+		if _, err := s.store.UpdateWorkflowVersionTrafficWeightIncludingDeleted(ctx, db.UpdateWorkflowVersionTrafficWeightIncludingDeletedParams{
 			ID:            version.ID,
 			TrafficWeight: weight,
 		}); err != nil {
@@ -839,6 +839,13 @@ func timestampString(ts pgtype.Timestamp) string {
 		return ""
 	}
 	return ts.Time.Format(time.RFC3339)
+}
+
+func pgTextString(text pgtype.Text) string {
+	if !text.Valid {
+		return ""
+	}
+	return text.String
 }
 
 func isStartWorkflowStep(step db.WorkflowStep) bool {

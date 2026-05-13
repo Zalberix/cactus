@@ -141,10 +141,10 @@ func (q *Queries) ListEnrichedStepsByVersionID(ctx context.Context, workflowVers
 	defer rows.Close()
 	var items []ListEnrichedStepsByVersionIDRow
 	for rows.Next() {
-	var i ListEnrichedStepsByVersionIDRow
-	if err := rows.Scan(
-		&i.ID,
-		&i.WorkflowVersionID,
+		var i ListEnrichedStepsByVersionIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkflowVersionID,
 			&i.StepType,
 			&i.WorkTypeID,
 			&i.WorkerSettingsRevisionID,
@@ -155,13 +155,13 @@ func (q *Queries) ListEnrichedStepsByVersionID(ctx context.Context, workflowVers
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
-		&i.WorkTypeName,
-		&i.WorkTypeCode,
-		&i.WorkTypeMeta,
-		&i.Config,
-		&i.SettingsSchema,
-		&i.InputSchema,
-		&i.OutputSchema,
+			&i.WorkTypeName,
+			&i.WorkTypeCode,
+			&i.WorkTypeMeta,
+			&i.Config,
+			&i.SettingsSchema,
+			&i.InputSchema,
+			&i.OutputSchema,
 		); err != nil {
 			return nil, err
 		}
