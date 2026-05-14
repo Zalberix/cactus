@@ -39,6 +39,7 @@
 /.claude/
 /docs/plans/
 /.worker_id/
+/.worktrees/
 /configs/cactus-services-lock.yaml
 /docs/superpowers/
 /docs/questions/

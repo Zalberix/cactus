@@ -4,6 +4,7 @@ go 1.25.5
 
 use (
 	./apps/core
+	./apps/workers/html
 	./apps/workers/smtp
 	./apps/workers/telegram
 	./cli

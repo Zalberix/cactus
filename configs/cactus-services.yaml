@@ -8,3 +8,8 @@ workers:
     app: smtp
     variant: auth
     count: 1
+
+  - name: html-template
+    app: html
+    variant: basic
+    count: 1

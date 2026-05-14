@@ -1,0 +1,5 @@
+nats_url: "nats://localhost:4222"
+manager_url: "http://localhost:3009"
+bootstrap_token: "dev-html-bootstrap-token"
+work_type_id: 3
+revision_id: 1

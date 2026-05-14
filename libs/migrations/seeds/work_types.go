@@ -7,6 +7,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+const htmlBootstrapTokenHash = "fcaf410de830d072b301a2e7ca1092320647584c2585c9b5e5f64cebf1990164"
+
 // SeedWorkTypes вставляет базовые типы работ (smtp, telegram, control-типы)
 // и создаёт dev bootstrap-токены для них.
 func SeedWorkTypes(ctx context.Context, db *pgxpool.Pool) error {
@@ -27,6 +29,12 @@ func SeedWorkTypes(ctx context.Context, db *pgxpool.Pool) error {
 			"Telegram", "telegram",
 			`{"icon":"message-square","color":"#0088cc","category":"Channels"}`,
 			"",
+		},
+		// plaintext: "dev-html-bootstrap-token"
+		{
+			"HTML Template", "html",
+			`{"icon":"file-code","color":"#10b981","category":"Content"}`,
+			htmlBootstrapTokenHash,
 		},
 	}
 
