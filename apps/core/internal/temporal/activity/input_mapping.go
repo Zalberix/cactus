@@ -28,7 +28,16 @@ func ResolveInput(mapping []temporaltypes.MappingEntry, messageValue []byte, ste
 	}
 
 	result := make(map[string]any, len(mapping))
+	seenTargets := make(map[string]struct{}, len(mapping))
 	for _, entry := range mapping {
+		if strings.Contains(entry.Target, ".") {
+			return nil, fmt.Errorf("nested target path is not supported: %s", entry.Target)
+		}
+		if _, ok := seenTargets[entry.Target]; ok {
+			return nil, fmt.Errorf("duplicate mapping target %q", entry.Target)
+		}
+		seenTargets[entry.Target] = struct{}{}
+
 		val, err := resolveSource(entry.Source, msgValue, stepOutputs)
 		if err != nil {
 			return nil, fmt.Errorf("resolve %s -> %s: %w", entry.Source, entry.Target, err)
@@ -42,6 +51,9 @@ func resolveSource(source string, msgValue map[string]any, stepOutputs map[int32
 	switch {
 	case strings.HasPrefix(source, "$.message.value."):
 		field := strings.TrimPrefix(source, "$.message.value.")
+		if strings.Contains(field, ".") {
+			return nil, fmt.Errorf("nested source path is not supported: %s", source)
+		}
 		val, ok := msgValue[field]
 		if !ok {
 			return nil, fmt.Errorf("field %q not found in message value", field)
@@ -61,6 +73,9 @@ func resolveSource(source string, msgValue map[string]any, stepOutputs map[int32
 		}
 		stepID := int32(stepID64)
 		field := parts[2]
+		if strings.Contains(field, ".") {
+			return nil, fmt.Errorf("nested source path is not supported: %s", source)
+		}
 
 		outputs, ok := stepOutputs[stepID]
 		if !ok {
@@ -72,7 +87,12 @@ func resolveSource(source string, msgValue map[string]any, stepOutputs map[int32
 		}
 		return val, nil
 
-	default:
+	case strings.HasPrefix(source, "$."):
 		return nil, fmt.Errorf("unknown source format: %s", source)
+	default:
+		if strings.TrimSpace(source) == "" {
+			return nil, fmt.Errorf("empty static source")
+		}
+		return source, nil
 	}
 }

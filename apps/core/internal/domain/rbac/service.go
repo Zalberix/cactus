@@ -43,8 +43,8 @@ func (s *Service) CreateOrg(ctx context.Context, req CreateOrgRequest) (db.Organ
 func (s *Service) ListOrgs(ctx context.Context, pq PaginationQuery) ([]db.Organization, int64, error) {
 	pq.Defaults()
 	orgs, err := s.store.ListOrganizations(ctx, db.ListOrganizationsParams{
-		Limit:  pq.Limit(),
-		Offset: pq.Offset(),
+		Limit:  int32(pq.Limit()),  // #nosec G115 -- PaginationQuery bounds values.
+		Offset: int32(pq.Offset()), // #nosec G115 -- PaginationQuery bounds values.
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("list organizations: %w", err)
@@ -117,8 +117,8 @@ func (s *Service) ListUsersByOrg(ctx context.Context, orgID int32, pq Pagination
 	orgPg := pgtype.Int4{Int32: orgID, Valid: true}
 	users, err := s.store.ListUsersByOrgID(ctx, db.ListUsersByOrgIDParams{
 		OrganizationID: orgPg,
-		Limit:          pq.Limit(),
-		Offset:         pq.Offset(),
+		Limit:          int32(pq.Limit()),  // #nosec G115 -- PaginationQuery bounds values.
+		Offset:         int32(pq.Offset()), // #nosec G115 -- PaginationQuery bounds values.
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("list users: %w", err)

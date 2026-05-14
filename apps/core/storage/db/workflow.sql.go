@@ -12,17 +12,17 @@ import (
 )
 
 const createWorkflow = `-- name: CreateWorkflow :one
-INSERT INTO "workflow" (system_id, "name", priority, input_validation, description)
+INSERT INTO "workflow" (system_id, "name", priority, input_schema, description)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, system_id, name, priority, input_validation, description, created_at, updated_at, deleted_at
+RETURNING id, system_id, name, priority, description, created_at, updated_at, deleted_at, input_schema
 `
 
 type CreateWorkflowParams struct {
-	SystemID        int32       `json:"system_id"`
-	Name            string      `json:"name"`
-	Priority        int32       `json:"priority"`
-	InputValidation []byte      `json:"input_validation"`
-	Description     pgtype.Text `json:"description"`
+	SystemID    int32       `json:"system_id"`
+	Name        string      `json:"name"`
+	Priority    int32       `json:"priority"`
+	InputSchema []byte      `json:"input_schema"`
+	Description pgtype.Text `json:"description"`
 }
 
 func (q *Queries) CreateWorkflow(ctx context.Context, arg CreateWorkflowParams) (Workflow, error) {
@@ -30,7 +30,7 @@ func (q *Queries) CreateWorkflow(ctx context.Context, arg CreateWorkflowParams) 
 		arg.SystemID,
 		arg.Name,
 		arg.Priority,
-		arg.InputValidation,
+		arg.InputSchema,
 		arg.Description,
 	)
 	var i Workflow
@@ -39,17 +39,17 @@ func (q *Queries) CreateWorkflow(ctx context.Context, arg CreateWorkflowParams) 
 		&i.SystemID,
 		&i.Name,
 		&i.Priority,
-		&i.InputValidation,
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.InputSchema,
 	)
 	return i, err
 }
 
 const getWorkflowByID = `-- name: GetWorkflowByID :one
-SELECT id, system_id, name, priority, input_validation, description, created_at, updated_at, deleted_at FROM "workflow"
+SELECT id, system_id, name, priority, description, created_at, updated_at, deleted_at, input_schema FROM "workflow"
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -61,17 +61,17 @@ func (q *Queries) GetWorkflowByID(ctx context.Context, id int32) (Workflow, erro
 		&i.SystemID,
 		&i.Name,
 		&i.Priority,
-		&i.InputValidation,
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.InputSchema,
 	)
 	return i, err
 }
 
 const listWorkflowsBySystemID = `-- name: ListWorkflowsBySystemID :many
-SELECT id, system_id, name, priority, input_validation, description, created_at, updated_at, deleted_at FROM "workflow"
+SELECT id, system_id, name, priority, description, created_at, updated_at, deleted_at, input_schema FROM "workflow"
 WHERE system_id = $1 AND deleted_at IS NULL
 ORDER BY id
 `
@@ -90,11 +90,11 @@ func (q *Queries) ListWorkflowsBySystemID(ctx context.Context, systemID int32) (
 			&i.SystemID,
 			&i.Name,
 			&i.Priority,
-			&i.InputValidation,
 			&i.Description,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+			&i.InputSchema,
 		); err != nil {
 			return nil, err
 		}
@@ -121,7 +121,7 @@ const updateWorkflow = `-- name: UpdateWorkflow :one
 UPDATE "workflow"
 SET "name" = $2, priority = $3, description = $4, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, system_id, name, priority, input_validation, description, created_at, updated_at, deleted_at
+RETURNING id, system_id, name, priority, description, created_at, updated_at, deleted_at, input_schema
 `
 
 type UpdateWorkflowParams struct {
@@ -144,40 +144,40 @@ func (q *Queries) UpdateWorkflow(ctx context.Context, arg UpdateWorkflowParams) 
 		&i.SystemID,
 		&i.Name,
 		&i.Priority,
-		&i.InputValidation,
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.InputSchema,
 	)
 	return i, err
 }
 
-const updateWorkflowInputValidation = `-- name: UpdateWorkflowInputValidation :one
+const updateWorkflowInputSchema = `-- name: UpdateWorkflowInputSchema :one
 UPDATE "workflow"
-SET input_validation = $2, updated_at = CURRENT_TIMESTAMP
+SET input_schema = $2, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, system_id, name, priority, input_validation, description, created_at, updated_at, deleted_at
+RETURNING id, system_id, name, priority, description, created_at, updated_at, deleted_at, input_schema
 `
 
-type UpdateWorkflowInputValidationParams struct {
-	ID              int32  `json:"id"`
-	InputValidation []byte `json:"input_validation"`
+type UpdateWorkflowInputSchemaParams struct {
+	ID          int32  `json:"id"`
+	InputSchema []byte `json:"input_schema"`
 }
 
-func (q *Queries) UpdateWorkflowInputValidation(ctx context.Context, arg UpdateWorkflowInputValidationParams) (Workflow, error) {
-	row := q.db.QueryRow(ctx, updateWorkflowInputValidation, arg.ID, arg.InputValidation)
+func (q *Queries) UpdateWorkflowInputSchema(ctx context.Context, arg UpdateWorkflowInputSchemaParams) (Workflow, error) {
+	row := q.db.QueryRow(ctx, updateWorkflowInputSchema, arg.ID, arg.InputSchema)
 	var i Workflow
 	err := row.Scan(
 		&i.ID,
 		&i.SystemID,
 		&i.Name,
 		&i.Priority,
-		&i.InputValidation,
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.InputSchema,
 	)
 	return i, err
 }

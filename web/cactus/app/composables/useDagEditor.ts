@@ -1,5 +1,5 @@
 import type { Node, Edge, Connection } from '@vue-flow/core'
-import type { Step, Dependency } from '~/composables/useVersions'
+import type { Step, Dependency, ValidationIssue } from '~/composables/useVersions'
 import type { WorkTypeMeta } from '~/composables/useWorkers'
 import { canConnectSteps } from '~/composables/dag-connection-guards'
 
@@ -17,6 +17,7 @@ export interface StepData {
   settingsSchema?: Record<string, unknown>
   inputSchema?: Record<string, unknown>
   outputSchema?: Record<string, unknown>
+  validationErrors?: ValidationIssue[]
   status: string
   locked?: boolean
 }
@@ -50,7 +51,16 @@ export function useDagEditor(
   const selectedNodeId = ref<string | null>(null)
   const selectedEdgeId = ref<string | null>(null)
   const isDirty = ref(false)
-  const validationErrors = ref<string[]>([])
+  const validationErrors = ref<ValidationIssue[]>([])
+  const validationErrorsByNode = computed(() => {
+    const map = new Map<string, ValidationIssue[]>()
+    for (const error of validationErrors.value) {
+      if (!error.step_id) continue
+      const key = String(error.step_id)
+      map.set(key, [...(map.get(key) ?? []), error])
+    }
+    return map
+  })
   const isLoading = ref(false)
   const isReadOnly = computed(() => readOnly?.value ?? false)
 
@@ -298,12 +308,25 @@ export function useDagEditor(
 
     if (!result.isValid && result.errors.length) {
       validationErrors.value = result.errors
+      attachValidationErrorsToNodes()
       return false
     }
 
     validationErrors.value = []
+    attachValidationErrorsToNodes()
     isDirty.value = false
     return true
+  }
+
+  function attachValidationErrorsToNodes(): void {
+    const byNode = validationErrorsByNode.value
+    nodes.value = nodes.value.map(node => ({
+      ...node,
+      data: {
+        ...node.data,
+        validationErrors: byNode.get(node.id) ?? [],
+      },
+    }))
   }
 
   function onNodeDragStop(nodeId: string, position: { x: number; y: number }): void {
@@ -369,6 +392,7 @@ export function useDagEditor(
     selectedEdge,
     isDirty,
     validationErrors,
+    validationErrorsByNode,
     isLoading,
     loadSteps,
     addStep,

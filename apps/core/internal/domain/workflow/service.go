@@ -28,6 +28,8 @@ var ErrTaskStepRequired = errors.New("TASK_STEP_REQUIRED: step must be a task")
 
 var ErrControlKindInvalid = errors.New("CONTROL_KIND_INVALID: unsupported control kind")
 
+var ErrInvalidInputMapping = errors.New("INVALID_INPUT_MAPPING")
+
 var allowedControlKinds = map[string]struct{}{
 	dagpkg.ControlKindStart: {},
 	"condition":             {},
@@ -56,6 +58,7 @@ func (s *Service) CreateWorkflow(ctx context.Context, systemID int32, req Create
 		SystemID:    systemID,
 		Name:        req.Name,
 		Priority:    int32(req.Priority),
+		InputSchema: []byte(`{"type":"object","properties":{}}`),
 		Description: pgtype.Text{String: req.Description, Valid: req.Description != ""},
 	})
 }
@@ -237,8 +240,8 @@ func (s *Service) CopyVersion(ctx context.Context, versionID, userID int32) (db.
 		}
 		if sourceStep.WorkerSettingsRevisionID.Valid && sourceStep.StepType == string(dagpkg.StepTypeTask) {
 			revision, err := s.store.CloneWorkerSettingsRevision(ctx, db.CloneWorkerSettingsRevisionParams{
-				Column1: pgtype.Int4{Int32: sourceStep.WorkerSettingsRevisionID.Int32, Valid: true},
-				Column2: pgtype.Int4{Int32: userID, Valid: true},
+				ID:              sourceStep.WorkerSettingsRevisionID.Int32,
+				CreatedByUserID: pgtype.Int4{Int32: userID, Valid: true},
 			})
 			if err != nil {
 				return db.WorkflowVersion{}, fmt.Errorf("clone settings revision for step %d: %w", sourceStep.ID, err)
@@ -434,69 +437,41 @@ func distributePerVersionTraffic(
 	return traffic, nil
 }
 
-func (s *Service) ListWorkflowInputs(ctx context.Context, versionID int32) ([]WorkflowInputResponse, error) {
-	inputs, err := s.store.ListWorkflowVersionInputs(ctx, versionID)
+func (s *Service) GetWorkflowInputSchema(ctx context.Context, workflowID int32) (json.RawMessage, error) {
+	wf, err := s.store.GetWorkflowByID(ctx, workflowID)
 	if err != nil {
-		return nil, fmt.Errorf("list workflow inputs: %w", err)
+		return nil, fmt.Errorf("get workflow: %w", err)
 	}
-	return workflowInputResponses(inputs), nil
+	if len(wf.InputSchema) == 0 {
+		schema, err := marshalWorkflowInputSchema(map[string]workflowInputSchemaField{})
+		if err != nil {
+			return nil, err
+		}
+		return json.RawMessage(schema), nil
+	}
+	return json.RawMessage(wf.InputSchema), nil
 }
 
-func (s *Service) CreateWorkflowInput(ctx context.Context, versionID int32, req WorkflowInputRequest) (WorkflowInputResponse, error) {
-	input, err := s.store.CreateWorkflowVersionInput(ctx, db.CreateWorkflowVersionInputParams{
-		WorkflowVersionID: versionID,
-		Name:              req.Name,
-		Type:              req.Type,
-		Required:          req.Required,
-		Description:       pgtype.Text{String: req.Description, Valid: req.Description != ""},
-	})
+func (s *Service) UpsertWorkflowInputSchemaField(ctx context.Context, workflowID int32, req WorkflowInputSchemaFieldRequest) (json.RawMessage, error) {
+	wf, err := s.store.GetWorkflowByID(ctx, workflowID)
 	if err != nil {
-		return WorkflowInputResponse{}, fmt.Errorf("create workflow input: %w", err)
+		return nil, fmt.Errorf("get workflow: %w", err)
 	}
-	if err := s.invalidateVersion(ctx, versionID); err != nil {
-		return WorkflowInputResponse{}, err
-	}
-	return workflowInputResponse(input), nil
-}
-
-func (s *Service) UpdateWorkflowInput(ctx context.Context, inputID int32, req WorkflowInputRequest) (WorkflowInputResponse, error) {
-	input, err := s.store.UpdateWorkflowVersionInput(ctx, db.UpdateWorkflowVersionInputParams{
-		ID:          inputID,
-		Name:        req.Name,
-		Type:        req.Type,
-		Required:    req.Required,
-		Description: pgtype.Text{String: req.Description, Valid: req.Description != ""},
-	})
-	if err != nil {
-		return WorkflowInputResponse{}, fmt.Errorf("update workflow input: %w", err)
-	}
-	if err := s.invalidateVersion(ctx, input.WorkflowVersionID); err != nil {
-		return WorkflowInputResponse{}, err
-	}
-	return workflowInputResponse(input), nil
-}
-
-func (s *Service) DeleteWorkflowInput(ctx context.Context, inputID int32) error {
-	input, err := s.store.GetWorkflowVersionInputByID(ctx, inputID)
-	if err != nil {
-		return fmt.Errorf("get workflow input: %w", err)
-	}
-	if err := s.store.SoftDeleteWorkflowVersionInput(ctx, inputID); err != nil {
-		return fmt.Errorf("delete workflow input: %w", err)
-	}
-	return s.invalidateVersion(ctx, input.WorkflowVersionID)
-}
-
-func (s *Service) GetVersionInputSchema(ctx context.Context, versionID int32) (json.RawMessage, error) {
-	inputs, err := s.store.ListWorkflowVersionInputs(ctx, versionID)
-	if err != nil {
-		return nil, fmt.Errorf("list workflow inputs: %w", err)
-	}
-	schema, err := workflowInputsSchema(inputs)
+	schemaJSON, err := upsertWorkflowInputSchemaField(wf.InputSchema, req)
 	if err != nil {
 		return nil, err
 	}
-	return json.RawMessage(schema), nil
+	updated, err := s.store.UpdateWorkflowInputSchema(ctx, db.UpdateWorkflowInputSchemaParams{
+		ID:          workflowID,
+		InputSchema: schemaJSON,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update workflow input schema: %w", err)
+	}
+	if err := s.store.InvalidateWorkflowVersionsByWorkflowID(ctx, workflowID); err != nil {
+		return nil, fmt.Errorf("invalidate workflow versions: %w", err)
+	}
+	return json.RawMessage(updated.InputSchema), nil
 }
 
 // --- Step CRUD ---
@@ -646,6 +621,12 @@ func (s *Service) UpdateTaskSettings(ctx context.Context, stepID int32, req Upda
 	if current.StepType != string(dagpkg.StepTypeTask) || !current.WorkerSettingsRevisionID.Valid {
 		return ErrTaskStepRequired
 	}
+	if err := validateInputMappingShape(req.InputMapping); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidInputMapping, err)
+	}
+	if err := s.validateTaskInputMapping(ctx, current, req.InputMapping); err != nil {
+		return err
+	}
 
 	if _, err := s.store.UpdateWorkerSettingsRevisionSettings(ctx, db.UpdateWorkerSettingsRevisionSettingsParams{
 		ID:           current.WorkerSettingsRevisionID.Int32,
@@ -669,6 +650,73 @@ func (s *Service) UpdateTaskSettings(ctx context.Context, stepID int32, req Upda
 	}
 	return s.invalidateVersion(ctx, current.WorkflowVersionID)
 }
+
+func validateInputMappingShape(raw json.RawMessage) error {
+	mapping, err := parseInputMapping(raw)
+	if err != nil {
+		return err
+	}
+	seen := make(map[string]struct{}, len(mapping))
+	for _, entry := range mapping {
+		target := strings.TrimSpace(entry.Target)
+		source := strings.TrimSpace(entry.Source)
+		if target == "" {
+			return fmt.Errorf("mapping target is required")
+		}
+		if strings.Contains(target, ".") {
+			return fmt.Errorf("nested mapping target is not supported: %s", target)
+		}
+		if _, ok := seen[target]; ok {
+			return fmt.Errorf("duplicate mapping target %q", target)
+		}
+		seen[target] = struct{}{}
+		if strings.HasPrefix(source, "$.message.value.") {
+			field := strings.TrimPrefix(source, "$.message.value.")
+			if field == "" || strings.Contains(field, ".") {
+				return fmt.Errorf("nested message source is not supported: %s", source)
+			}
+			continue
+		}
+		if strings.HasPrefix(source, "$.steps.") {
+			if _, _, err := parseStepOutputSource(source); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (s *Service) validateTaskInputMapping(ctx context.Context, current db.WorkflowStep, nextMapping json.RawMessage) error {
+	version, err := s.store.GetWorkflowVersionByID(ctx, current.WorkflowVersionID)
+	if err != nil {
+		return fmt.Errorf("get workflow version: %w", err)
+	}
+	workflow, err := s.store.GetWorkflowByID(ctx, version.WorkflowID)
+	if err != nil {
+		return fmt.Errorf("get workflow: %w", err)
+	}
+	steps, err := s.store.ListEnrichedStepsByVersionID(ctx, current.WorkflowVersionID)
+	if err != nil {
+		return fmt.Errorf("list enriched steps: %w", err)
+	}
+	for i := range steps {
+		if steps[i].ID == current.ID {
+			steps[i].InputMapping = nextMapping
+			break
+		}
+	}
+	deps, err := s.store.ListDependenciesByVersionID(ctx, current.WorkflowVersionID)
+	if err != nil {
+		return fmt.Errorf("list dependencies: %w", err)
+	}
+	for _, validationErr := range validateStepInputsFilled(steps, deps, workflow.InputSchema) {
+		if validationErr.StepID == current.ID {
+			return fmt.Errorf("%w: %s", ErrInvalidInputMapping, validationErr.Message)
+		}
+	}
+	return nil
+}
+
 func (s *Service) DeleteStep(ctx context.Context, stepID int32) error {
 	current, err := s.store.GetWorkflowStepByID(ctx, stepID)
 	if err != nil {
@@ -735,7 +783,7 @@ func (s *Service) removeInboundInputMappings(ctx context.Context, versionID, del
 			ID:                       step.ID,
 			StepType:                 step.StepType,
 			WorkTypeID:               step.WorkTypeID,
-			WorkerSettingsRevisionID:  step.WorkerSettingsRevisionID,
+			WorkerSettingsRevisionID: step.WorkerSettingsRevisionID,
 			ControlKind:              step.ControlKind,
 			ControlSettings:          step.ControlSettings,
 			InputMapping:             serialized,
@@ -853,57 +901,6 @@ func toRawMessage(b []byte) json.RawMessage {
 	return json.RawMessage(b)
 }
 
-func workflowInputResponse(input db.WorkflowVersionInput) WorkflowInputResponse {
-	resp := WorkflowInputResponse{
-		ID:                input.ID,
-		WorkflowVersionID: input.WorkflowVersionID,
-		Name:              input.Name,
-		Type:              input.Type,
-		Required:          input.Required,
-	}
-	if input.Description.Valid {
-		resp.Description = input.Description.String
-	}
-	return resp
-}
-
-func workflowInputResponses(inputs []db.WorkflowVersionInput) []WorkflowInputResponse {
-	responses := make([]WorkflowInputResponse, 0, len(inputs))
-	for _, input := range inputs {
-		responses = append(responses, workflowInputResponse(input))
-	}
-	return responses
-}
-
-func workflowInputNames(inputs []db.WorkflowVersionInput) []string {
-	names := make([]string, 0, len(inputs))
-	for _, input := range inputs {
-		names = append(names, input.Name)
-	}
-	return names
-}
-
-func workflowInputsSchema(inputs []db.WorkflowVersionInput) ([]byte, error) {
-	properties := make(map[string]interface{}, len(inputs))
-	required := make([]string, 0, len(inputs))
-	for _, input := range inputs {
-		properties[input.Name] = map[string]interface{}{"type": input.Type}
-		if input.Required {
-			required = append(required, input.Name)
-		}
-	}
-	sort.Strings(required)
-
-	schema := map[string]interface{}{
-		"type":       "object",
-		"properties": properties,
-	}
-	if len(required) > 0 {
-		schema["required"] = required
-	}
-	return json.Marshal(schema)
-}
-
 func (s *Service) invalidateVersion(ctx context.Context, versionID int32) error {
 	_, err := s.store.UpdateWorkflowVersionValid(ctx, db.UpdateWorkflowVersionValidParams{
 		ID:      versionID,
@@ -977,9 +974,22 @@ func (s *Service) DeleteDependency(ctx context.Context, stepID, dependsOnStepID 
 // обновляет is_valid у версии.
 // Возвращает результат валидации со всеми ошибками сразу (D-12).
 func (s *Service) ValidateVersion(ctx context.Context, versionID int32) (ValidateVersionResponse, error) {
+	version, err := s.store.GetWorkflowVersionByID(ctx, versionID)
+	if err != nil {
+		return ValidateVersionResponse{}, fmt.Errorf("get workflow version: %w", err)
+	}
+	workflow, err := s.store.GetWorkflowByID(ctx, version.WorkflowID)
+	if err != nil {
+		return ValidateVersionResponse{}, fmt.Errorf("get workflow: %w", err)
+	}
 	dbSteps, err := s.store.ListWorkflowStepsByVersionID(ctx, versionID)
 	if err != nil {
 		return ValidateVersionResponse{}, fmt.Errorf("list steps: %w", err)
+	}
+
+	enrichedSteps, err := s.store.ListEnrichedStepsByVersionID(ctx, versionID)
+	if err != nil {
+		return ValidateVersionResponse{}, fmt.Errorf("list enriched steps: %w", err)
 	}
 
 	dbDeps, err := s.store.ListDependenciesByVersionID(ctx, versionID)
@@ -987,11 +997,7 @@ func (s *Service) ValidateVersion(ctx context.Context, versionID int32) (Validat
 		return ValidateVersionResponse{}, fmt.Errorf("list dependencies: %w", err)
 	}
 
-	versionInputs, err := s.store.ListWorkflowVersionInputs(ctx, versionID)
-	if err != nil {
-		return ValidateVersionResponse{}, fmt.Errorf("list workflow inputs: %w", err)
-	}
-	inputNames := workflowInputNames(versionInputs)
+	inputNames := workflowInputNamesFromSchema(workflow.InputSchema)
 
 	// Конвертируем в типы dag пакета
 	dagSteps := make([]dagpkg.Step, 0, len(dbSteps))
@@ -1008,7 +1014,11 @@ func (s *Service) ValidateVersion(ctx context.Context, versionID int32) (Validat
 		if len(step.InputMapping) > 0 {
 			var mappings []dagpkg.MappingEntry
 			if err := json.Unmarshal(step.InputMapping, &mappings); err == nil {
-				dagStep.InputMapping = mappings
+				for _, mapping := range mappings {
+					if strings.HasPrefix(strings.TrimSpace(mapping.Source), "$.") {
+						dagStep.InputMapping = append(dagStep.InputMapping, mapping)
+					}
+				}
 			}
 		}
 		dagSteps = append(dagSteps, dagStep)
@@ -1029,6 +1039,7 @@ func (s *Service) ValidateVersion(ctx context.Context, versionID int32) (Validat
 
 	// Валидируем DAG
 	validationErrors := dagpkg.ValidateDAG(dagSteps, dagDeps)
+	validationErrors = append(validationErrors, validateStepInputsFilled(enrichedSteps, dbDeps, workflow.InputSchema)...)
 	isValid := len(validationErrors) == 0
 
 	// Обновляем is_valid у версии
@@ -1043,6 +1054,19 @@ func (s *Service) ValidateVersion(ctx context.Context, versionID int32) (Validat
 		IsValid: isValid,
 		Errors:  validationErrors,
 	}, nil
+}
+
+func workflowInputNamesFromSchema(schemaJSON []byte) []string {
+	props, err := parseTopLevelProperties(schemaJSON)
+	if err != nil {
+		return nil
+	}
+	names := make([]string, 0, len(props))
+	for name := range props {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // --- Activation ---
@@ -1067,14 +1091,12 @@ func (s *Service) ActivateVersion(ctx context.Context, versionID int32) error {
 		return fmt.Errorf("activate version: %w", err)
 	}
 
-	// WF-09: пересчитываем input_validation
-	return s.regenerateInputValidation(ctx, version.WorkflowID)
+	return nil
 }
 
 // DeactivateVersion деактивирует версию workflow (WF-08).
 func (s *Service) DeactivateVersion(ctx context.Context, versionID int32) error {
-	version, err := s.store.GetWorkflowVersionByID(ctx, versionID)
-	if err != nil {
+	if _, err := s.store.GetWorkflowVersionByID(ctx, versionID); err != nil {
 		return fmt.Errorf("get version: %w", err)
 	}
 
@@ -1085,14 +1107,12 @@ func (s *Service) DeactivateVersion(ctx context.Context, versionID int32) error 
 		return fmt.Errorf("deactivate version: %w", err)
 	}
 
-	// WF-09: пересчитываем input_validation
-	return s.regenerateInputValidation(ctx, version.WorkflowID)
+	return nil
 }
 
 // DeleteVersion soft-deletes a workflow version and its steps.
 func (s *Service) DeleteVersion(ctx context.Context, versionID int32) error {
-	version, err := s.store.GetWorkflowVersionByID(ctx, versionID)
-	if err != nil {
+	if _, err := s.store.GetWorkflowVersionByID(ctx, versionID); err != nil {
 		return fmt.Errorf("get version: %w", err)
 	}
 
@@ -1108,62 +1128,5 @@ func (s *Service) DeleteVersion(ctx context.Context, versionID int32) error {
 		return err
 	}
 
-	if version.IsActive {
-		return s.regenerateInputValidation(ctx, version.WorkflowID)
-	}
 	return nil
-}
-
-// regenerateInputValidation пересчитывает input_validation workflow (WF-09).
-// Итерирует ВСЕ активные версии (Pitfall 5), собирает union JSON Schema
-// из всех $.message.value.* полей в input_mapping.
-func (s *Service) regenerateInputValidation(ctx context.Context, workflowID int32) error {
-	activeVersions, err := s.store.ListActiveWorkflowVersions(ctx, workflowID)
-	if err != nil {
-		return fmt.Errorf("list active versions: %w", err)
-	}
-
-	if len(activeVersions) == 0 {
-		emptySchema := []byte(`{"type":"object","properties":{}}`)
-		_, err = s.store.UpdateWorkflowInputValidation(ctx, db.UpdateWorkflowInputValidationParams{
-			ID:              workflowID,
-			InputValidation: emptySchema,
-		})
-		return err
-	}
-
-	inputByName := make(map[string]db.WorkflowVersionInput)
-	for _, version := range activeVersions {
-		inputs, err := s.store.ListWorkflowVersionInputs(ctx, version.ID)
-		if err != nil {
-			return fmt.Errorf("list workflow inputs for version %d: %w", version.ID, err)
-		}
-		for _, input := range inputs {
-			existing, ok := inputByName[input.Name]
-			if !ok {
-				inputByName[input.Name] = input
-				continue
-			}
-			existing.Required = existing.Required || input.Required
-			if existing.Type == "" {
-				existing.Type = input.Type
-			}
-			inputByName[input.Name] = existing
-		}
-	}
-
-	inputs := make([]db.WorkflowVersionInput, 0, len(inputByName))
-	for _, input := range inputByName {
-		inputs = append(inputs, input)
-	}
-	schemaJSON, err := workflowInputsSchema(inputs)
-	if err != nil {
-		return fmt.Errorf("marshal input_validation schema: %w", err)
-	}
-
-	_, err = s.store.UpdateWorkflowInputValidation(ctx, db.UpdateWorkflowInputValidationParams{
-		ID:              workflowID,
-		InputValidation: schemaJSON,
-	})
-	return err
 }

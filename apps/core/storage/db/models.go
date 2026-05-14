@@ -171,15 +171,15 @@ type WorkerSettingsSchema struct {
 }
 
 type Workflow struct {
-	ID              int32            `json:"id"`
-	SystemID        int32            `json:"system_id"`
-	Name            string           `json:"name"`
-	Priority        int32            `json:"priority"`
-	InputValidation []byte           `json:"input_validation"`
-	Description     pgtype.Text      `json:"description"`
-	CreatedAt       pgtype.Timestamp `json:"created_at"`
-	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
-	DeletedAt       pgtype.Timestamp `json:"deleted_at"`
+	ID          int32            `json:"id"`
+	SystemID    int32            `json:"system_id"`
+	Name        string           `json:"name"`
+	Priority    int32            `json:"priority"`
+	Description pgtype.Text      `json:"description"`
+	CreatedAt   pgtype.Timestamp `json:"created_at"`
+	UpdatedAt   pgtype.Timestamp `json:"updated_at"`
+	DeletedAt   pgtype.Timestamp `json:"deleted_at"`
+	InputSchema []byte           `json:"input_schema"`
 }
 
 type WorkflowRun struct {
@@ -262,16 +262,4 @@ type WorkflowVersion struct {
 	CreatedAt       pgtype.Timestamp `json:"created_at"`
 	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
 	DeletedAt       pgtype.Timestamp `json:"deleted_at"`
-}
-
-type WorkflowVersionInput struct {
-	ID                int32            `json:"id"`
-	WorkflowVersionID int32            `json:"workflow_version_id"`
-	Name              string           `json:"name"`
-	Type              string           `json:"type"`
-	Required          bool             `json:"required"`
-	Description       pgtype.Text      `json:"description"`
-	CreatedAt         pgtype.Timestamp `json:"created_at"`
-	UpdatedAt         pgtype.Timestamp `json:"updated_at"`
-	DeletedAt         pgtype.Timestamp `json:"deleted_at"`
 }

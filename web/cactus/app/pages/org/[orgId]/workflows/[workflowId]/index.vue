@@ -3,6 +3,7 @@ import { Key, Route, Split } from 'lucide-vue-next'
 import type { VersionSummary } from '~/composables/useVersions'
 import WorkflowVersionCreateMenu from '~/components/dag/WorkflowVersionCreateMenu.vue'
 import WorkflowVersionTable from '~/components/dag/WorkflowVersionTable.vue'
+import WorkflowSchemaDialog from '~/components/dag/WorkflowSchemaDialog.vue'
 import WorkflowTokensDialog from '~/components/dag/WorkflowTokensDialog.vue'
 import EmptyState from '~/components/feedback/EmptyState.vue'
 import { Button } from '~/components/ui/button'
@@ -16,7 +17,7 @@ const router = useRouter()
 const orgId = computed(() => Number(route.params.orgId))
 const workflowId = computed(() => Number(route.params.workflowId))
 
-const { fetchWorkflow, updateWorkflow } = useWorkflows()
+const { fetchWorkflow, updateWorkflow, fetchWorkflowInputSchema } = useWorkflows()
 const {
   fetchVersionSummaries,
   activateVersion,
@@ -30,6 +31,8 @@ const workflowPriority = ref(1)
 const versions = ref<VersionSummary[]>([])
 const loading = ref(true)
 const tokensOpen = ref(false)
+const schemaOpen = ref(false)
+const inputSchema = ref<Record<string, unknown> | null>(null)
 
 async function loadData() {
   loading.value = true
@@ -90,6 +93,16 @@ async function onDelete(version: VersionSummary) {
   }
 }
 
+async function onShowInputSchema() {
+  try {
+    inputSchema.value = await fetchWorkflowInputSchema(workflowId.value)
+    schemaOpen.value = true
+  }
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
+  }
+}
+
 onMounted(loadData)
 </script>
 
@@ -135,6 +148,7 @@ onMounted(loadData)
       @activate="onActivate"
       @deactivate="onDeactivate"
       @delete="onDelete"
+      @show-input-schema="onShowInputSchema"
     />
 
     <EmptyState
@@ -149,6 +163,11 @@ onMounted(loadData)
       v-model:open="tokensOpen"
       :workflow-id="workflowId"
       :system-id="workflowSystemId"
+    />
+
+    <WorkflowSchemaDialog
+      v-model:open="schemaOpen"
+      :schema="inputSchema"
     />
   </div>
 </template>

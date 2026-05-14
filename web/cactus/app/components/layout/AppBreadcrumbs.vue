@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed, ref, watch } from 'vue'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -7,6 +8,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '~/components/ui/breadcrumb'
+import { workflowVersionEditorPath } from '~/composables/useWorkflows'
 
 interface BreadcrumbEntry {
   label: string
@@ -16,9 +18,17 @@ interface BreadcrumbEntry {
 const { t } = useI18n()
 const route = useRoute()
 const orgStore = useOrgStore()
+const { fetchWorkflow } = useWorkflows()
+const { fetchVersionSummaries } = useVersions()
+
+const workflowNamesById = ref<Record<number, string>>({})
+const versionNamesById = ref<Record<number, string>>({})
+const loadingWorkflowIds = new Set<number>()
+const loadingVersionWorkflowIds = new Set<number>()
 
 const sectionLabels: Record<string, string> = {
   workflows: 'nav.workflows',
+  versions: 'editor.versions',
   workers: 'nav.workers',
   messages: 'nav.messages',
   settings: 'nav.settings',
@@ -31,6 +41,71 @@ const sectionLabels: Record<string, string> = {
 function isBreadcrumbRouteLinkable(path: string) {
   return !/^\/org\/\d+\/workflows\/\d+\/versions(?:\/\d+)?$/.test(path)
 }
+
+function parseRouteIds(path: string) {
+  const match = path.match(/^\/org\/(\d+)(?:\/workflows\/(\d+)(?:\/versions\/(\d+))?)?/)
+  return {
+    workflowId: match?.[2] ? Number(match[2]) : undefined,
+    versionId: match?.[3] ? Number(match[3]) : undefined,
+  }
+}
+
+function setWorkflowName(id: number, name: string) {
+  workflowNamesById.value = {
+    ...workflowNamesById.value,
+    [id]: name,
+  }
+}
+
+function setVersionNames(versions: Array<{ id: number, name?: string, version_number: number }>) {
+  versionNamesById.value = {
+    ...versionNamesById.value,
+    ...Object.fromEntries(
+      versions.map(version => [
+        version.id,
+        version.name || t('editor.versionNumber', { number: version.version_number }),
+      ]),
+    ),
+  }
+}
+
+async function loadRouteNames(path: string) {
+  const { workflowId, versionId } = parseRouteIds(path)
+
+  if (workflowId && !workflowNamesById.value[workflowId] && !loadingWorkflowIds.has(workflowId)) {
+    loadingWorkflowIds.add(workflowId)
+    try {
+      const workflow = await fetchWorkflow(workflowId)
+      setWorkflowName(workflowId, workflow.name)
+    }
+    catch {
+      // Breadcrumbs should degrade to URL labels if contextual data is unavailable.
+    }
+    finally {
+      loadingWorkflowIds.delete(workflowId)
+    }
+  }
+
+  if (workflowId && versionId && !versionNamesById.value[versionId] && !loadingVersionWorkflowIds.has(workflowId)) {
+    loadingVersionWorkflowIds.add(workflowId)
+    try {
+      const versions = await fetchVersionSummaries(workflowId)
+      setVersionNames(versions)
+    }
+    catch {
+      // Breadcrumbs should degrade to URL labels if contextual data is unavailable.
+    }
+    finally {
+      loadingVersionWorkflowIds.delete(workflowId)
+    }
+  }
+}
+
+watch(
+  () => route.path,
+  path => loadRouteNames(path),
+  { immediate: true },
+)
 
 const crumbs = computed<BreadcrumbEntry[]>(() => {
   const entries: BreadcrumbEntry[] = []
@@ -51,10 +126,21 @@ const crumbs = computed<BreadcrumbEntry[]>(() => {
   for (let i = 0; i < rest.length; i++) {
     const seg = rest[i]
     const i18nKey = sectionLabels[seg]
-    const label = i18nKey ? t(i18nKey) : seg
+    const previous = rest[i - 1]
+    const next = rest[i + 1]
+    const isWorkflowId = previous === 'workflows' && /^\d+$/.test(seg)
+    const isVersionId = previous === 'versions' && /^\d+$/.test(seg)
+    const label = isWorkflowId
+      ? workflowNamesById.value[Number(seg)] ?? seg
+      : isVersionId
+        ? versionNamesById.value[Number(seg)] ?? t('editor.versionNumber', { number: seg })
+        : i18nKey ? t(i18nKey) : seg
 
     if (i < rest.length - 1) {
-      const to = `/org/${orgId}/${rest.slice(0, i + 1).join('/')}`
+      const rawTo = `/org/${orgId}/${rest.slice(0, i + 1).join('/')}`
+      const to = isVersionId && next === 'edit'
+        ? workflowVersionEditorPath(Number(orgId), Number(rest[i - 2]), Number(seg))
+        : rawTo
       entries.push({ label, to: isBreadcrumbRouteLinkable(to) ? to : undefined })
     } else {
       entries.push({ label })

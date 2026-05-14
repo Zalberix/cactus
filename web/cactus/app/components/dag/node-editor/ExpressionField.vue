@@ -18,7 +18,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: string]
   focus: []
-  createWorkflowInput: []
+  createWorkflowInput: [fieldKey: string]
 }>()
 
 const isExpressionMode = ref(false)
@@ -39,7 +39,7 @@ function onDrop(event: DragEvent) {
   event.preventDefault()
   const newWorkflowInput = event.dataTransfer?.getData('application/cactus-workflow-input-new')
   if (newWorkflowInput) {
-    emit('createWorkflowInput')
+    emit('createWorkflowInput', props.fieldKey)
     return
   }
   const expression = event.dataTransfer?.getData('application/cactus-expression')

@@ -15,17 +15,17 @@ const cloneWorkerSettingsRevision = `-- name: CloneWorkerSettingsRevision :one
 INSERT INTO "worker_settings_revision" (worker_settings_schema_id, created_by_user_id, settings_data)
 SELECT worker_settings_schema_id, $2, settings_data
 FROM "worker_settings_revision"
-WHERE id = $1
+WHERE "worker_settings_revision".id = $1
 RETURNING id, worker_settings_schema_id, created_by_user_id, settings_data, created_at
 `
 
 type CloneWorkerSettingsRevisionParams struct {
-	Column1 pgtype.Int4 `json:"column_1"`
-	Column2 pgtype.Int4 `json:"column_2"`
+	ID              int32       `json:"id"`
+	CreatedByUserID pgtype.Int4 `json:"created_by_user_id"`
 }
 
 func (q *Queries) CloneWorkerSettingsRevision(ctx context.Context, arg CloneWorkerSettingsRevisionParams) (WorkerSettingsRevision, error) {
-	row := q.db.QueryRow(ctx, cloneWorkerSettingsRevision, arg.Column1, arg.Column2)
+	row := q.db.QueryRow(ctx, cloneWorkerSettingsRevision, arg.ID, arg.CreatedByUserID)
 	var i WorkerSettingsRevision
 	err := row.Scan(
 		&i.ID,

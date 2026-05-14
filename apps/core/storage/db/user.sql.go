@@ -132,8 +132,8 @@ LIMIT $2 OFFSET $3
 
 type ListUsersByOrgIDParams struct {
 	OrganizationID pgtype.Int4 `json:"organization_id"`
-	Limit          int64       `json:"limit"`
-	Offset         int64       `json:"offset"`
+	Limit          int32       `json:"limit"`
+	Offset         int32       `json:"offset"`
 }
 
 func (q *Queries) ListUsersByOrgID(ctx context.Context, arg ListUsersByOrgIDParams) ([]User, error) {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import type { WorkflowInputField } from '~/composables/useVersions'
 import { Plus } from 'lucide-vue-next'
 import { Badge } from '~/components/ui/badge'
+import type { WorkflowInputField } from './workflow-input-utils'
 import { workflowInputPath } from './workflow-input-utils'
 
 defineProps<{
@@ -10,7 +10,6 @@ defineProps<{
 
 const emit = defineEmits<{
   insertExpression: [expression: string]
-  createRequested: []
 }>()
 
 const { t } = useI18n()
@@ -30,7 +29,7 @@ function onNewDragStart(event: DragEvent) {
   <div class="space-y-1">
     <div
       v-for="input in inputs"
-      :key="input.id"
+      :key="input.name"
       class="flex cursor-grab items-center gap-2 rounded px-2 py-1 text-sm hover:bg-accent"
       draggable="true"
       @dragstart="onDragStart($event, input)"
@@ -48,7 +47,6 @@ function onNewDragStart(event: DragEvent) {
       class="flex cursor-grab items-center gap-2 rounded border border-dashed px-2 py-1 text-sm text-muted-foreground hover:bg-accent"
       draggable="true"
       @dragstart="onNewDragStart"
-      @click="emit('createRequested')"
     >
       <Plus class="h-3.5 w-3.5" />
       <span>{{ t('nodeEditor.newWorkflowInput') }}</span>

@@ -19,7 +19,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   save: [settingsData: Record<string, unknown>, inputMapping: Array<{ target: string, source: string }>]
-  createWorkflowInput: []
+  createWorkflowInput: [field: string, property: Record<string, unknown>]
 }>()
 
 const { t } = useI18n()
@@ -73,6 +73,14 @@ function insertExpression(expr: string) {
   mappingData.value = setMappingExpression(mappingData.value, activeMappingField.value, expr)
 }
 
+function inputProperty(field: string): Record<string, unknown> {
+  const schema = props.stepData.inputSchema as { properties?: Record<string, unknown> } | undefined
+  const raw = schema?.properties?.[field]
+  return raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? raw as Record<string, unknown>
+    : {}
+}
+
 defineExpose({ insertExpression })
 </script>
 
@@ -106,7 +114,7 @@ defineExpose({ insertExpression })
                 :field-key="field"
                 :placeholder="`$.steps.{id}.output.${field}`"
                 @focus="activeMappingField = field"
-                @create-workflow-input="activeMappingField = field; emit('createWorkflowInput')"
+                @create-workflow-input="targetField => { activeMappingField = targetField; emit('createWorkflowInput', targetField, inputProperty(targetField)) }"
                 @update:model-value="mappingData[field] = $event"
               />
             </div>

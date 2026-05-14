@@ -94,6 +94,17 @@ func (q *Queries) GetWorkflowVersionByID(ctx context.Context, id int32) (Workflo
 	return i, err
 }
 
+const invalidateWorkflowVersionsByWorkflowID = `-- name: InvalidateWorkflowVersionsByWorkflowID :exec
+UPDATE "workflow_version"
+SET is_valid = FALSE, updated_at = CURRENT_TIMESTAMP
+WHERE workflow_id = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) InvalidateWorkflowVersionsByWorkflowID(ctx context.Context, workflowID int32) error {
+	_, err := q.db.Exec(ctx, invalidateWorkflowVersionsByWorkflowID, workflowID)
+	return err
+}
+
 const listActiveWorkflowVersions = `-- name: ListActiveWorkflowVersions :many
 SELECT id, workflow_id, created_by_user_id, version_number, name, is_valid, is_active, traffic_weight, is_control_group, created_at, updated_at, deleted_at FROM "workflow_version"
 WHERE workflow_id = $1 AND is_active = TRUE AND deleted_at IS NULL

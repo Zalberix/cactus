@@ -509,8 +509,8 @@ func (s *Service) ListSystemsPaginated(ctx context.Context, orgID int32, page, p
 	orgPg := pgtype.Int4{Int32: orgID, Valid: true}
 	systems, err := s.store.ListSystemsByOrganizationIDPaginated(ctx, db.ListSystemsByOrganizationIDPaginatedParams{
 		OrganizationID: orgPg,
-		Limit:          int64(perPage),
-		Offset:         int64((page - 1) * perPage),
+		Limit:          int32(perPage),              // #nosec G115 -- perPage is bounded above.
+		Offset:         int32((page - 1) * perPage), // #nosec G115 -- page/perPage are bounded by pagination rules.
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("list systems: %w", err)

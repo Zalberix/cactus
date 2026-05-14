@@ -24,12 +24,12 @@ type mockStorage struct {
 	updateNameErr     error
 	updateTrafficErr  error
 	steps             []db.WorkflowStep
+	enrichedSteps     []db.ListEnrichedStepsByVersionIDRow
 	deps              []db.WorkflowStepDependency
 	activeVersions    []db.WorkflowVersion
 	listVersions      []db.WorkflowVersion
 	maxVersionNumber  int32
-	workflowInputs    map[int32][]db.WorkflowVersionInput
-	workflowInput     db.WorkflowVersionInput
+	workflow          db.Workflow
 	revisionsBySchema map[int32][]db.WorkerSettingsRevision
 
 	listVersionSummaries               []db.ListWorkflowVersionSummariesByWorkflowIDRow
@@ -45,9 +45,6 @@ type mockStorage struct {
 	createdRevisionSettings            []byte
 	updateTrafficArgs                  []updateTrafficArg
 	updateRevisionSettingsArg          db.UpdateWorkerSettingsRevisionSettingsParams
-	createdWorkflowInputArg            db.CreateWorkflowVersionInputParams
-	updatedWorkflowInputArg            db.UpdateWorkflowVersionInputParams
-	deletedWorkflowInputID             int32
 	lastUpdateVersionNameArg           db.UpdateWorkflowVersionNameParams
 	lastCloneWorkerSettingsRevisionArg db.CloneWorkerSettingsRevisionParams
 	cloneWorkerSettingsRevisionResp    db.WorkerSettingsRevision
@@ -55,9 +52,10 @@ type mockStorage struct {
 	getWorkflowStepErr                 error
 	workflowStep                       db.WorkflowStep
 	// capture args
-	lastUpdateValidArg  db.UpdateWorkflowVersionValidParams
-	lastUpdateActiveArg db.UpdateWorkflowVersionActiveParams
-	lastUpdateSchemaArg db.UpdateWorkflowInputValidationParams
+	lastUpdateValidArg    db.UpdateWorkflowVersionValidParams
+	lastUpdateActiveArg   db.UpdateWorkflowVersionActiveParams
+	lastUpdateSchemaArg   db.UpdateWorkflowInputSchemaParams
+	invalidatedWorkflowID int32
 }
 
 type updateTrafficArg struct {
@@ -74,7 +72,7 @@ func (m *mockStorage) CreateWorkflow(_ context.Context, _ db.CreateWorkflowParam
 }
 
 func (m *mockStorage) GetWorkflowByID(_ context.Context, _ int32) (db.Workflow, error) {
-	return db.Workflow{}, nil
+	return m.workflow, nil
 }
 
 func (m *mockStorage) ListWorkflowsBySystemID(_ context.Context, _ int32) ([]db.Workflow, error) {
@@ -85,9 +83,9 @@ func (m *mockStorage) UpdateWorkflow(_ context.Context, _ db.UpdateWorkflowParam
 	return db.Workflow{}, nil
 }
 
-func (m *mockStorage) UpdateWorkflowInputValidation(_ context.Context, arg db.UpdateWorkflowInputValidationParams) (db.Workflow, error) {
+func (m *mockStorage) UpdateWorkflowInputSchema(_ context.Context, arg db.UpdateWorkflowInputSchemaParams) (db.Workflow, error) {
 	m.lastUpdateSchemaArg = arg
-	return db.Workflow{}, m.updateSchemaErr
+	return db.Workflow{ID: arg.ID, InputSchema: arg.InputSchema}, m.updateSchemaErr
 }
 func (m *mockStorage) SoftDeleteWorkflow(_ context.Context, _ int32) error { return nil }
 func (m *mockStorage) CreateWorkflowVersion(_ context.Context, arg db.CreateWorkflowVersionParams) (db.WorkflowVersion, error) {
@@ -164,54 +162,13 @@ func (m *mockStorage) UpdateWorkflowVersionActive(_ context.Context, arg db.Upda
 	m.lastUpdateActiveArg = arg
 	return db.WorkflowVersion{IsActive: arg.IsActive}, m.activateErr
 }
-func (m *mockStorage) SoftDeleteWorkflowVersion(_ context.Context, _ int32) error { return nil }
 
-func (m *mockStorage) CreateWorkflowVersionInput(_ context.Context, arg db.CreateWorkflowVersionInputParams) (db.WorkflowVersionInput, error) {
-	m.createdWorkflowInputArg = arg
-	return db.WorkflowVersionInput{
-		ID:                100,
-		WorkflowVersionID: arg.WorkflowVersionID,
-		Name:              arg.Name,
-		Type:              arg.Type,
-		Required:          arg.Required,
-		Description:       arg.Description,
-	}, nil
-}
-
-func (m *mockStorage) GetWorkflowVersionInputByID(_ context.Context, _ int32) (db.WorkflowVersionInput, error) {
-	if m.workflowInput.ID != 0 {
-		return m.workflowInput, nil
-	}
-	return db.WorkflowVersionInput{ID: 1, WorkflowVersionID: 10}, nil
-}
-
-func (m *mockStorage) ListWorkflowVersionInputs(_ context.Context, versionID int32) ([]db.WorkflowVersionInput, error) {
-	if m.workflowInputs == nil {
-		return nil, nil
-	}
-	return m.workflowInputs[versionID], nil
-}
-
-func (m *mockStorage) UpdateWorkflowVersionInput(_ context.Context, arg db.UpdateWorkflowVersionInputParams) (db.WorkflowVersionInput, error) {
-	m.updatedWorkflowInputArg = arg
-	versionID := int32(10)
-	if m.workflowInput.WorkflowVersionID != 0 {
-		versionID = m.workflowInput.WorkflowVersionID
-	}
-	return db.WorkflowVersionInput{
-		ID:                arg.ID,
-		WorkflowVersionID: versionID,
-		Name:              arg.Name,
-		Type:              arg.Type,
-		Required:          arg.Required,
-		Description:       arg.Description,
-	}, nil
-}
-
-func (m *mockStorage) SoftDeleteWorkflowVersionInput(_ context.Context, id int32) error {
-	m.deletedWorkflowInputID = id
+func (m *mockStorage) InvalidateWorkflowVersionsByWorkflowID(_ context.Context, workflowID int32) error {
+	m.invalidatedWorkflowID = workflowID
 	return nil
 }
+
+func (m *mockStorage) SoftDeleteWorkflowVersion(_ context.Context, _ int32) error { return nil }
 
 func (m *mockStorage) CreateWorkflowStep(_ context.Context, arg db.CreateWorkflowStepParams) (db.WorkflowStep, error) {
 	m.createWorkflowStepParams = append(m.createWorkflowStepParams, arg)
@@ -296,8 +253,8 @@ func (m *mockStorage) CloneWorkerSettingsRevision(_ context.Context, arg db.Clon
 	if m.cloneWorkerSettingsRevisionErr != nil {
 		return db.WorkerSettingsRevision{}, m.cloneWorkerSettingsRevisionErr
 	}
-	if m.cloneWorkerSettingsRevisionResp.ID == 0 && arg.Column1.Valid {
-		return db.WorkerSettingsRevision{ID: arg.Column1.Int32 + 5000, WorkerSettingsSchemaID: 0}, nil
+	if m.cloneWorkerSettingsRevisionResp.ID == 0 && arg.ID != 0 {
+		return db.WorkerSettingsRevision{ID: arg.ID + 5000, WorkerSettingsSchemaID: 0}, nil
 	}
 	return m.cloneWorkerSettingsRevisionResp, nil
 }
@@ -307,7 +264,7 @@ func (m *mockStorage) UpdateWorkflowStepPosition(_ context.Context, _ db.UpdateW
 }
 
 func (m *mockStorage) ListEnrichedStepsByVersionID(_ context.Context, _ int32) ([]db.ListEnrichedStepsByVersionIDRow, error) {
-	return nil, nil
+	return m.enrichedSteps, nil
 }
 
 func makeDBStartStep(id, versionID int32) db.WorkflowStep {
@@ -385,52 +342,32 @@ func TestActivateVersion_Success(t *testing.T) {
 	assert.True(t, store.lastUpdateActiveArg.IsActive)
 }
 
-func TestRegenerateInputValidation_UsesDeclaredWorkflowInputs(t *testing.T) {
+func TestGetWorkflowInputSchema_ReturnsStoredSchema(t *testing.T) {
 	store := &mockStorage{
-		version: db.WorkflowVersion{
-			ID:         3,
-			WorkflowID: 30,
-			IsValid:    true,
-		},
-		activeVersions: []db.WorkflowVersion{
-			{ID: 3, WorkflowID: 30, IsValid: true, IsActive: true},
-		},
-		workflowInputs: map[int32][]db.WorkflowVersionInput{
-			3: {
-				{Name: "email", Type: "string", Required: true},
-				{Name: "priority", Type: "integer", Required: false},
-			},
-		},
+		workflow: db.Workflow{ID: 30, InputSchema: []byte(`{"type":"object","properties":{"email":{"type":"string","required":true}}}`)},
 	}
 	svc := workflow.NewService(store)
-	err := svc.ActivateVersion(context.Background(), 3)
+	schema, err := svc.GetWorkflowInputSchema(context.Background(), 30)
 	require.NoError(t, err)
-
-	require.NotNil(t, store.lastUpdateSchemaArg.InputValidation)
-	assert.JSONEq(t, `{
-		"type": "object",
-		"required": ["email"],
-		"properties": {
-			"email": {"type": "string"},
-			"priority": {"type": "integer"}
-		}
-	}`, string(store.lastUpdateSchemaArg.InputValidation))
+	assert.JSONEq(t, `{"type":"object","properties":{"email":{"type":"string","required":true}}}`, string(schema))
 }
 
-// TestRegenerateInputValidation_NoActiveVersions — если нет активных версий, input_validation=nil.
-func TestRegenerateInputValidation_NoActiveVersions(t *testing.T) {
+func TestUpsertWorkflowInputSchemaField_UpdatesSchemaAndInvalidatesVersions(t *testing.T) {
 	store := &mockStorage{
-		version: db.WorkflowVersion{
-			ID:         4,
-			WorkflowID: 40,
-			IsValid:    true,
-		},
+		workflow:       db.Workflow{ID: 40, InputSchema: []byte(`{"type":"object","properties":{}}`)},
 		activeVersions: []db.WorkflowVersion{}, // пустой список после деактивации
 	}
 	svc := workflow.NewService(store)
-	err := svc.DeactivateVersion(context.Background(), 4)
+	schema, err := svc.UpsertWorkflowInputSchemaField(context.Background(), 40, workflow.WorkflowInputSchemaFieldRequest{
+		Name:     "email",
+		Type:     "string",
+		Required: true,
+	})
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"type":"object","properties":{}}`, string(store.lastUpdateSchemaArg.InputValidation))
+	assert.JSONEq(t, `{"type":"object","properties":{"email":{"type":"string","required":true}}}`, string(schema))
+	assert.Equal(t, int32(40), store.lastUpdateSchemaArg.ID)
+	assert.JSONEq(t, `{"type":"object","properties":{"email":{"type":"string","required":true}}}`, string(store.lastUpdateSchemaArg.InputSchema))
+	assert.Equal(t, int32(40), store.invalidatedWorkflowID)
 }
 
 // TestValidateVersion_CycleReturnsErrors — ValidateVersion обнаруживает цикл в DAG.
@@ -549,10 +486,9 @@ func TestCopyVersion_ClonesStepsDependenciesAndTaskRevisions(t *testing.T) {
 	assert.Equal(t, int32(2001), store.createDependencyParams[0].StepID)
 	assert.Equal(t, int32(2001), store.createDependencyParams[1].DependsOnStepID)
 	assert.Equal(t, int32(2002), store.createDependencyParams[1].StepID)
-	assert.Equal(t, int32(70), store.lastCloneWorkerSettingsRevisionArg.Column1.Int32)
-	assert.True(t, store.lastCloneWorkerSettingsRevisionArg.Column1.Valid)
-	assert.Equal(t, int32(55), store.lastCloneWorkerSettingsRevisionArg.Column2.Int32)
-	assert.True(t, store.lastCloneWorkerSettingsRevisionArg.Column2.Valid)
+	assert.Equal(t, int32(70), store.lastCloneWorkerSettingsRevisionArg.ID)
+	assert.Equal(t, int32(55), store.lastCloneWorkerSettingsRevisionArg.CreatedByUserID.Int32)
+	assert.True(t, store.lastCloneWorkerSettingsRevisionArg.CreatedByUserID.Valid)
 }
 
 func TestUpdateVersionName_PassesNameToStorage(t *testing.T) {

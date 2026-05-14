@@ -2,7 +2,7 @@
 import { Handle, Position, useNode } from '@vue-flow/core'
 import {
   Mail, MessageSquare, Bell, Workflow, GitBranch,
-  Clock, Split, Zap, Radio,
+  Clock, Split, Zap, Radio, AlertCircle,
 } from 'lucide-vue-next'
 import type { Component } from 'vue'
 import { useControlSteps } from '~/composables/useControlSteps'
@@ -65,14 +65,32 @@ const subtitle = computed(() => {
   if (isStart.value) return 'system_message'
   return node.data.workTypeCode ?? node.data.controlKind ?? ''
 })
+const nodeErrors = computed(() => node.data.validationErrors ?? [])
+const hasValidationErrors = computed(() => nodeErrors.value.length > 0)
 </script>
 
 <template>
   <div
     class="relative flex items-stretch rounded-lg border bg-background shadow-sm transition-shadow hover:shadow-md cursor-pointer select-none"
-    :class="node.selected ? 'ring-2 ring-primary shadow-md' : ''"
+    :class="[
+      node.selected ? 'ring-2 ring-primary shadow-md' : '',
+      hasValidationErrors ? 'ring-2 ring-orange-500' : '',
+    ]"
     style="min-width: 200px;"
   >
+    <div v-if="hasValidationErrors" class="group absolute right-1 top-1 z-10">
+      <button
+        type="button"
+        class="flex h-6 w-6 items-center justify-center rounded bg-background text-orange-600 opacity-0 shadow-sm ring-1 ring-border transition-opacity group-hover:opacity-100"
+      >
+        <AlertCircle class="h-3.5 w-3.5" />
+      </button>
+      <div class="pointer-events-none absolute right-0 top-7 hidden w-64 rounded-md border bg-popover p-2 text-xs text-popover-foreground shadow-md group-hover:block">
+        <div v-for="(error, index) in nodeErrors" :key="index" class="py-0.5">
+          {{ error.message }}
+        </div>
+      </div>
+    </div>
     <div
       class="w-1 shrink-0 rounded-l-lg"
       :style="{ backgroundColor: accentColor }"

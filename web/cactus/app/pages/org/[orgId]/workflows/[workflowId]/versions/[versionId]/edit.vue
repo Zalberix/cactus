@@ -40,14 +40,13 @@ const orgId = computed(() => Number(route.params.orgId))
 const workflowId = computed(() => Number(route.params.workflowId))
 const routeVersionId = computed(() => Number(route.params.versionId || 0))
 
-const { fetchWorkflow } = useWorkflows()
+const { fetchWorkflow, fetchWorkflowInputSchema } = useWorkflows()
 const {
   fetchVersionSummaries,
   copyVersion,
   updateVersionName,
   activateVersion,
   deactivateVersion,
-  fetchVersionInputSchema,
   fetchWorkTypes,
 } = useVersions()
 
@@ -159,7 +158,7 @@ async function onSave() {
       toast({ title: t('editor.validated') })
       versions.value = await fetchVersionSummaries(workflowId.value)
       if (selectedVersionId.value) {
-        inputSchema.value = await fetchVersionInputSchema(selectedVersionId.value)
+        inputSchema.value = await fetchWorkflowInputSchema(workflowId.value)
       }
     }
     else if (dagEditor.validationErrors.value.length > 0) {
@@ -227,9 +226,9 @@ async function onVersionNameBlur() {
 }
 
 async function openSchemaDialog() {
-  if (!selectedVersionId.value || !currentVersion.value?.is_valid) return
+  if (!currentVersion.value?.is_valid) return
   try {
-    inputSchema.value = await fetchVersionInputSchema(selectedVersionId.value)
+    inputSchema.value = await fetchWorkflowInputSchema(workflowId.value)
     schemaOpen.value = true
   }
   catch (err) {
@@ -479,7 +478,7 @@ onMounted(() => {
         <div class="max-h-72 overflow-y-auto pl-5">
           <ul class="space-y-1 list-disc text-sm">
             <li v-for="(error, i) in dagEditor.validationErrors.value" :key="i">
-              {{ error }}
+              {{ error.message }}
             </li>
           </ul>
         </div>
@@ -548,6 +547,7 @@ onMounted(() => {
     <NodeEditor
       v-model:open="nodeEditor.isOpen.value"
       :node-id="nodeEditor.editingNodeId.value"
+      :workflow-id="workflowId"
       :version-id="selectedVersionId"
       :all-nodes="dagEditor.nodes.value"
       :all-edges="dagEditor.edges.value"

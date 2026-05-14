@@ -119,20 +119,22 @@ type TrafficVersionInput struct {
 	Weight    int32  `json:"weight" binding:"min=0,max=100"`
 }
 
-type WorkflowInputRequest struct {
+type WorkflowInputSchemaFieldRequest struct {
 	Name        string `json:"name" binding:"required,min=1,max=255"`
 	Type        string `json:"type" binding:"required,oneof=string number integer boolean object array"`
 	Required    bool   `json:"required"`
 	Description string `json:"description"`
 }
 
-type WorkflowInputResponse struct {
-	ID                int32  `json:"id"`
-	WorkflowVersionID int32  `json:"workflow_version_id"`
-	Name              string `json:"name"`
-	Type              string `json:"type"`
-	Required          bool   `json:"required"`
-	Description       string `json:"description,omitempty"`
+type WorkflowInputSchemaFieldResponse struct {
+	Name        string `json:"name"`
+	Type        string `json:"type"`
+	Required    bool   `json:"required"`
+	Description string `json:"description,omitempty"`
+}
+
+type WorkflowInputSchemaResponse struct {
+	Schema map[string]any `json:"schema"`
 }
 
 type UpdateTaskSettingsRequest struct {

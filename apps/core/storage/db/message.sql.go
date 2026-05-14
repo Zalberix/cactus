@@ -138,8 +138,8 @@ LIMIT $2 OFFSET $3
 
 type ListMessagesByOrganizationIDParams struct {
 	OrganizationID pgtype.Int4 `json:"organization_id"`
-	Limit          int64       `json:"limit"`
-	Offset         int64       `json:"offset"`
+	Limit          int32       `json:"limit"`
+	Offset         int32       `json:"offset"`
 }
 
 type ListMessagesByOrganizationIDRow struct {

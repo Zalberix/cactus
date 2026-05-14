@@ -54,6 +54,11 @@ SET is_valid = $2, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;
 
+-- name: InvalidateWorkflowVersionsByWorkflowID :exec
+UPDATE "workflow_version"
+SET is_valid = FALSE, updated_at = CURRENT_TIMESTAMP
+WHERE workflow_id = $1 AND deleted_at IS NULL;
+
 -- name: UpdateWorkflowVersionActive :one
 UPDATE "workflow_version"
 SET is_active = $2, updated_at = CURRENT_TIMESTAMP

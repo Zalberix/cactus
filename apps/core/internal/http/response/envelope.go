@@ -29,6 +29,7 @@ type APIError struct {
 type ErrorDetail struct {
 	Type    string `json:"type,omitempty"`
 	Field   string `json:"field,omitempty"`
+	StepID  int32  `json:"step_id,omitempty"`
 	Message string `json:"message"`
 }
 

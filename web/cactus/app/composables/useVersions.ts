@@ -54,9 +54,16 @@ export interface Dependency {
   output_index: number
 }
 
+export interface ValidationIssue {
+  type?: string
+  step_id?: number
+  field?: string
+  message: string
+}
+
 export interface ValidationResult {
   isValid: boolean
-  errors: string[]
+  errors: ValidationIssue[]
 }
 
 export interface WorkflowTrafficVersionUpdate {
@@ -69,17 +76,54 @@ export interface WorkflowTrafficUpdate {
   versions: WorkflowTrafficVersionUpdate[]
 }
 
-export interface VersionInputSchema {
-  schema: Record<string, unknown>
+export function normalizeValidationIssue(value: unknown): ValidationIssue | null {
+  if (typeof value === 'string' && value) return { message: value }
+  if (!value || typeof value !== 'object') return null
+
+  const raw = value as Record<string, unknown>
+  const message = typeof raw.message === 'string' ? raw.message : ''
+  if (!message) return null
+
+  const issue: ValidationIssue = { message }
+  if (typeof raw.type === 'string') issue.type = raw.type
+  if (typeof raw.field === 'string') issue.field = raw.field
+  if (typeof raw.step_id === 'number') issue.step_id = raw.step_id
+  return issue
 }
 
-export interface WorkflowInputField {
-  id: number
-  workflow_version_id: number
-  name: string
-  type: 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array'
-  required: boolean
-  description?: string
+export function normalizeValidationResult(payload: {
+  is_valid?: boolean
+  valid?: boolean
+  errors?: unknown
+} | undefined | null): ValidationResult {
+  const rawErrors = Array.isArray(payload?.errors) ? payload.errors : []
+  const errors = rawErrors
+    .map(normalizeValidationIssue)
+    .filter((value): value is ValidationIssue => Boolean(value))
+
+  return {
+    isValid: Boolean(payload?.is_valid ?? payload?.valid ?? false),
+    errors,
+  }
+}
+
+function extractValidationErrorMessages(error: unknown): ValidationIssue[] | null {
+  if (!error || typeof error !== 'object') return null
+
+  const response = (error as {
+    response?: { _data?: ApiResponse<{ is_valid?: boolean; valid?: boolean; errors?: unknown }> }
+    data?: ApiResponse<{ is_valid?: boolean; valid?: boolean; errors?: unknown }>
+  })
+  const responsePayload = response.response?._data ?? response.data
+  if (!responsePayload || typeof responsePayload !== 'object') return null
+
+  if (!responsePayload.error || !Array.isArray(responsePayload.error.details)) return null
+
+  const messages = responsePayload.error.details
+    .map(normalizeValidationIssue)
+    .filter((value): value is ValidationIssue => Boolean(value))
+
+  return messages.length > 0 ? messages : null
 }
 
 export function useVersions() {
@@ -152,111 +196,6 @@ export function useVersions() {
     if (!resp.success) {
       throw new Error(resp.error?.message ?? 'Failed to update workflow traffic')
     }
-  }
-
-  async function fetchVersionInputSchema(versionId: number): Promise<Record<string, unknown>> {
-    const resp = await api<ApiResponse<VersionInputSchema>>(
-      `/versions/${versionId}/input-schema`,
-    )
-    if (!resp.success || !resp.data) {
-      throw new Error(resp.error?.message ?? 'Failed to fetch version input schema')
-    }
-    const data = resp.data as VersionInputSchema | Record<string, unknown>
-    if ('schema' in data && typeof data.schema === 'object' && data.schema) {
-      return data.schema as Record<string, unknown>
-    }
-    return data as Record<string, unknown>
-  }
-
-  async function fetchWorkflowInputs(versionId: number): Promise<WorkflowInputField[]> {
-    const resp = await api<ApiResponse<WorkflowInputField[]>>(
-      `/versions/${versionId}/inputs`,
-    )
-    if (!resp.success || !resp.data) {
-      throw new Error(resp.error?.message ?? 'Failed to fetch workflow inputs')
-    }
-    return Array.isArray(resp.data) ? resp.data : []
-  }
-
-  async function createWorkflowInput(
-    versionId: number,
-    data: Omit<WorkflowInputField, 'id' | 'workflow_version_id'>,
-  ): Promise<WorkflowInputField> {
-    const resp = await api<ApiResponse<WorkflowInputField>>(
-      `/versions/${versionId}/inputs`,
-      {
-        method: 'POST',
-        body: data,
-      },
-    )
-    if (!resp.success || !resp.data) {
-      throw new Error(resp.error?.message ?? 'Failed to create workflow input')
-    }
-    return resp.data
-  }
-
-  async function updateWorkflowInput(
-    inputId: number,
-    data: Omit<WorkflowInputField, 'id' | 'workflow_version_id'>,
-  ): Promise<WorkflowInputField> {
-    const resp = await api<ApiResponse<WorkflowInputField>>(
-      `/workflow-inputs/${inputId}`,
-      {
-        method: 'PUT',
-        body: data,
-      },
-    )
-    if (!resp.success || !resp.data) {
-      throw new Error(resp.error?.message ?? 'Failed to update workflow input')
-    }
-    return resp.data
-  }
-
-  async function deleteWorkflowInput(inputId: number): Promise<void> {
-    const resp = await api<ApiResponse<null>>(
-      `/workflow-inputs/${inputId}`,
-      { method: 'DELETE' },
-    )
-    if (!resp.success) {
-      throw new Error(resp.error?.message ?? 'Failed to delete workflow input')
-    }
-  }
-
-  function normalizeValidationResult(payload: {
-    is_valid?: boolean
-    valid?: boolean
-    errors?: unknown
-  } | undefined | null): ValidationResult {
-    const rawErrors = Array.isArray(payload?.errors) ? payload.errors : []
-    const errors = rawErrors
-      .filter((value): value is string => typeof value === 'string')
-
-    return {
-      isValid: Boolean(payload?.is_valid ?? payload?.valid ?? false),
-      errors,
-    }
-  }
-
-  function extractValidationErrorMessages(error: unknown): string[] | null {
-    if (!error || typeof error !== 'object') return null
-
-    const response = (error as {
-      response?: { _data?: ApiResponse<{ is_valid?: boolean; valid?: boolean; errors?: unknown }> }
-      data?: ApiResponse<{ is_valid?: boolean; valid?: boolean; errors?: unknown }>
-    })
-    const responsePayload = response.response?._data ?? response.data
-    if (!responsePayload || typeof responsePayload !== 'object') return null
-
-    if (!responsePayload.error || !Array.isArray(responsePayload.error.details)) return null
-
-    const messages = responsePayload.error.details
-      .map((detail) => {
-        if (!detail || typeof detail !== 'object') return ''
-        return String((detail as { message?: string }).message ?? '')
-      })
-      .filter(Boolean)
-
-    return messages.length > 0 ? messages : null
   }
 
   async function validateVersion(versionId: number): Promise<ValidationResult> {
@@ -457,11 +396,6 @@ export function useVersions() {
     copyVersion,
     updateVersionName,
     updateWorkflowTraffic,
-    fetchVersionInputSchema,
-    fetchWorkflowInputs,
-    createWorkflowInput,
-    updateWorkflowInput,
-    deleteWorkflowInput,
     validateVersion,
     activateVersion,
     deactivateVersion,

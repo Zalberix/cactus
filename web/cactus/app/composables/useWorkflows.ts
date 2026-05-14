@@ -16,6 +16,17 @@ export interface CreateWorkflowRequest {
   priority: number
 }
 
+export interface WorkflowInputSchemaField {
+  name: string
+  type: 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array'
+  required: boolean
+  description?: string
+}
+
+export interface WorkflowInputSchemaResponse {
+  schema: Record<string, unknown>
+}
+
 export function workflowOverviewPath(orgId: number, workflowId: number) {
   return `/org/${orgId}/workflows/${workflowId}`
 }
@@ -118,6 +129,30 @@ export function useWorkflows() {
     }
   }
 
+  async function fetchWorkflowInputSchema(workflowId: number): Promise<Record<string, unknown>> {
+    const resp = await api<ApiResponse<WorkflowInputSchemaResponse>>(
+      `/workflows/${workflowId}/input-schema`,
+    )
+    if (!resp.success || !resp.data) {
+      throw new Error(resp.error?.message ?? 'Failed to fetch workflow input schema')
+    }
+    return resp.data.schema
+  }
+
+  async function upsertWorkflowInputSchemaField(
+    workflowId: number,
+    data: WorkflowInputSchemaField,
+  ): Promise<Record<string, unknown>> {
+    const resp = await api<ApiResponse<WorkflowInputSchemaResponse>>(
+      `/workflows/${workflowId}/input-schema/fields`,
+      { method: 'POST', body: data },
+    )
+    if (!resp.success || !resp.data) {
+      throw new Error(resp.error?.message ?? 'Failed to update workflow input schema')
+    }
+    return resp.data.schema
+  }
+
   return {
     fetchWorkflowsForOrg,
     fetchWorkflowsForSystem,
@@ -125,5 +160,7 @@ export function useWorkflows() {
     createWorkflow,
     updateWorkflow,
     deleteWorkflow,
+    fetchWorkflowInputSchema,
+    upsertWorkflowInputSchemaField,
   }
 }

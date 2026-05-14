@@ -1,5 +1,5 @@
 -- name: CreateWorkflow :one
-INSERT INTO "workflow" (system_id, "name", priority, input_validation, description)
+INSERT INTO "workflow" (system_id, "name", priority, input_schema, description)
 VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
@@ -18,9 +18,9 @@ SET "name" = $2, priority = $3, description = $4, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;
 
--- name: UpdateWorkflowInputValidation :one
+-- name: UpdateWorkflowInputSchema :one
 UPDATE "workflow"
-SET input_validation = $2, updated_at = CURRENT_TIMESTAMP
+SET input_schema = $2, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;
 

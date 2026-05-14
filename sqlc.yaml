@@ -1,8 +1,6 @@
 version: "2"
 sql:
   - engine: "postgresql"
-    database:
-      uri: postgresql://root:root@localhost:5432/postgres
     queries: "./libs/migrations/queries/postgres"
     schema: "./libs/migrations/postgres"
     gen:
@@ -10,4 +8,4 @@ sql:
         package: "db"
         sql_package: "pgx/v5"
         emit_json_tags: true
-        out: "./apps/core/storage/db"
+        out: "./apps/core/storage/db"

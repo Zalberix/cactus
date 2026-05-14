@@ -44,6 +44,12 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc) {
 	// PUT /api/v1/workflows/:workflowId
 	v1.PUT("/workflows/:workflowId",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.UpdateWorkflow)
+	// GET /api/v1/workflows/:workflowId/input-schema
+	v1.GET("/workflows/:workflowId/input-schema",
+		middleware.RequirePermission(h.permChecker, permissions.WorkflowRead), h.GetWorkflowInputSchema)
+	// POST /api/v1/workflows/:workflowId/input-schema/fields
+	v1.POST("/workflows/:workflowId/input-schema/fields",
+		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.UpsertWorkflowInputSchemaField)
 	// DELETE /api/v1/workflows/:workflowId
 	v1.DELETE("/workflows/:workflowId",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.DeleteWorkflow)
@@ -67,21 +73,6 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc) {
 	// PUT /api/v1/workflows/:workflowId/traffic
 	v1.PUT("/workflows/:workflowId/traffic",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.UpdateWorkflowTraffic)
-	// GET /api/v1/versions/:versionId/inputs
-	v1.GET("/versions/:versionId/inputs",
-		middleware.RequirePermission(h.permChecker, permissions.WorkflowRead), h.ListWorkflowInputs)
-	// POST /api/v1/versions/:versionId/inputs
-	v1.POST("/versions/:versionId/inputs",
-		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.CreateWorkflowInput)
-	// PUT /api/v1/workflow-inputs/:inputId
-	v1.PUT("/workflow-inputs/:inputId",
-		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.UpdateWorkflowInput)
-	// DELETE /api/v1/workflow-inputs/:inputId
-	v1.DELETE("/workflow-inputs/:inputId",
-		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.DeleteWorkflowInput)
-	// GET /api/v1/versions/:versionId/input-schema
-	v1.GET("/versions/:versionId/input-schema",
-		middleware.RequirePermission(h.permChecker, permissions.WorkflowRead), h.GetVersionInputSchema)
 	// POST /api/v1/versions/:versionId/validate
 	v1.POST("/versions/:versionId/validate",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.ValidateVersion)
@@ -221,6 +212,37 @@ func (h *Handler) DeleteWorkflow(c *gin.Context) {
 	response.OK(c, gin.H{"message": "Workflow удалён"})
 }
 
+func (h *Handler) GetWorkflowInputSchema(c *gin.Context) {
+	workflowID, ok := parseID(c, "workflowId")
+	if !ok {
+		return
+	}
+	schema, err := h.service.GetWorkflowInputSchema(c.Request.Context(), workflowID)
+	if err != nil {
+		response.InternalError(c, "РћС€РёР±РєР° РїРѕР»СѓС‡РµРЅРёСЏ СЃС…РµРјС‹ РІС…РѕРґРЅС‹С… РїР°СЂР°РјРµС‚СЂРѕРІ")
+		return
+	}
+	response.OK(c, gin.H{"schema": schema})
+}
+
+func (h *Handler) UpsertWorkflowInputSchemaField(c *gin.Context) {
+	workflowID, ok := parseID(c, "workflowId")
+	if !ok {
+		return
+	}
+	var req WorkflowInputSchemaFieldRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "INVALID_BODY", err.Error())
+		return
+	}
+	schema, err := h.service.UpsertWorkflowInputSchemaField(c.Request.Context(), workflowID, req)
+	if err != nil {
+		response.Fail(c, http.StatusUnprocessableEntity, "INVALID_INPUT_SCHEMA", err.Error())
+		return
+	}
+	response.OK(c, gin.H{"schema": schema})
+}
+
 // --- Version handlers ---
 
 // ListVersions godoc
@@ -331,6 +353,7 @@ func (h *Handler) ValidateVersion(c *gin.Context) {
 		for _, e := range result.Errors {
 			details = append(details, response.ErrorDetail{
 				Type:    e.Type,
+				StepID:  e.StepID,
 				Message: e.Message,
 			})
 		}
@@ -407,80 +430,6 @@ func (h *Handler) UpdateWorkflowTraffic(c *gin.Context) {
 		return
 	}
 	response.OK(c, gin.H{"message": "Настройки трафика сохранены"})
-}
-
-func (h *Handler) ListWorkflowInputs(c *gin.Context) {
-	versionID, ok := parseID(c, "versionId")
-	if !ok {
-		return
-	}
-	inputs, err := h.service.ListWorkflowInputs(c.Request.Context(), versionID)
-	if err != nil {
-		response.InternalError(c, "Ошибка получения входных параметров workflow")
-		return
-	}
-	response.OK(c, inputs)
-}
-
-func (h *Handler) CreateWorkflowInput(c *gin.Context) {
-	versionID, ok := parseID(c, "versionId")
-	if !ok {
-		return
-	}
-	var req WorkflowInputRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "INVALID_BODY", err.Error())
-		return
-	}
-	input, err := h.service.CreateWorkflowInput(c.Request.Context(), versionID, req)
-	if err != nil {
-		response.InternalError(c, "Ошибка создания входного параметра workflow")
-		return
-	}
-	response.Created(c, input)
-}
-
-func (h *Handler) UpdateWorkflowInput(c *gin.Context) {
-	inputID, ok := parseID(c, "inputId")
-	if !ok {
-		return
-	}
-	var req WorkflowInputRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "INVALID_BODY", err.Error())
-		return
-	}
-	input, err := h.service.UpdateWorkflowInput(c.Request.Context(), inputID, req)
-	if err != nil {
-		response.InternalError(c, "Ошибка обновления входного параметра workflow")
-		return
-	}
-	response.OK(c, input)
-}
-
-func (h *Handler) DeleteWorkflowInput(c *gin.Context) {
-	inputID, ok := parseID(c, "inputId")
-	if !ok {
-		return
-	}
-	if err := h.service.DeleteWorkflowInput(c.Request.Context(), inputID); err != nil {
-		response.InternalError(c, "Ошибка удаления входного параметра workflow")
-		return
-	}
-	response.OK(c, gin.H{"message": "Входной параметр workflow удалён"})
-}
-
-func (h *Handler) GetVersionInputSchema(c *gin.Context) {
-	versionID, ok := parseID(c, "versionId")
-	if !ok {
-		return
-	}
-	schema, err := h.service.GetVersionInputSchema(c.Request.Context(), versionID)
-	if err != nil {
-		response.InternalError(c, "Ошибка получения схемы входных параметров")
-		return
-	}
-	response.OK(c, gin.H{"schema": schema})
 }
 
 // --- Step handlers ---
@@ -599,6 +548,10 @@ func (h *Handler) UpdateTaskSettings(c *gin.Context) {
 	if err := h.service.UpdateTaskSettings(c.Request.Context(), stepID, req); err != nil {
 		if errors.Is(err, ErrTaskStepRequired) {
 			response.Fail(c, http.StatusUnprocessableEntity, "TASK_STEP_REQUIRED", "Шаг должен быть task-шагом")
+			return
+		}
+		if errors.Is(err, ErrInvalidInputMapping) {
+			response.Fail(c, http.StatusUnprocessableEntity, "INVALID_INPUT_MAPPING", err.Error())
 			return
 		}
 		response.InternalError(c, "Ошибка обновления настроек задачи")

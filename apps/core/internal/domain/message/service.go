@@ -34,7 +34,7 @@ func NewService(store Storage, tc client.Client) *Service {
 // 1. Загрузить workflow по ID
 // 2. Проверить доступ (system token → CheckWorkflowAccess)
 // 3. Найти единственную активную версию
-// 4. Валидировать payload по input_validation
+// 4. Валидировать payload по input_schema
 // 5. Создать message в БД
 // 6. Сформировать DAGInput из steps + deps активной версии
 // 7. Создать workflow_run в БД
@@ -70,7 +70,7 @@ func (s *Service) SendMessage(ctx context.Context, req SendMessageRequest, publi
 	activeVersion := activeVersions[0]
 
 	// 4. Валидировать payload по JSON Schema
-	if validationErrors := ValidatePayload(wf.InputValidation, req.Value); len(validationErrors) > 0 {
+	if validationErrors := ValidatePayload(wf.InputSchema, req.Value); len(validationErrors) > 0 {
 		return nil, validationErrors, nil
 	}
 
@@ -216,8 +216,8 @@ func (s *Service) ListMessages(ctx context.Context, orgID int32, page, perPage i
 	// Get page of messages
 	rows, err := s.store.ListMessagesByOrganizationID(ctx, db.ListMessagesByOrganizationIDParams{
 		OrganizationID: pgtype.Int4{Int32: orgID, Valid: true},
-		Limit:          int64(perPage),
-		Offset:         int64(offset),
+		Limit:          int32(perPage), // #nosec G115 -- perPage is bounded above.
+		Offset:         int32(offset),  // #nosec G115 -- offset is derived from pagination input.
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("list messages: %w", err)

@@ -11,8 +11,8 @@ import (
 	schemadialect "github.com/zalberix/cactus/apps/core/internal/schema"
 )
 
-// ValidatePayload валидирует payload по JSON Schema из workflow.input_validation.
-// schemaJSON — JSONB из поля workflow.input_validation.
+// ValidatePayload валидирует payload по JSON Schema из workflow.input_schema.
+// schemaJSON — JSONB из поля workflow.input_schema.
 // payload — значение из SendMessageRequest.Value.
 // Возвращает nil если валидация пройдена, или slice ErrorDetail с описанием ошибок полей.
 func ValidatePayload(schemaJSON []byte, payload map[string]any) []response.ErrorDetail {
@@ -25,7 +25,7 @@ func ValidatePayload(schemaJSON []byte, payload map[string]any) []response.Error
 	schemaAny, err := schemadialect.NormalizeRequired(schemaJSON)
 	if err != nil {
 		return []response.ErrorDetail{{
-			Message: fmt.Sprintf("invalid input_validation schema: %v", err),
+			Message: fmt.Sprintf("invalid input_schema schema: %v", err),
 		}}
 	}
 

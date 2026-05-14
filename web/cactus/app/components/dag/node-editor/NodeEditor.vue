@@ -29,6 +29,7 @@ const iconMap: Record<string, Component> = {
 const props = defineProps<{
   open: boolean
   nodeId: string | null
+  workflowId: number
   versionId: number | null
   allNodes: Node[]
   allEdges: Edge[]
@@ -77,8 +78,8 @@ function onInsertExpression(expression: string) {
   parametersRef.value?.insertExpression(expression)
 }
 
-function onCreateWorkflowInput() {
-  inputPanelRef.value?.openCreateDialog((expression: string) => {
+function onCreateWorkflowInput(field: string, property: Record<string, unknown>) {
+  inputPanelRef.value?.createWorkflowInputFromField(field, property, (expression: string) => {
     parametersRef.value?.insertExpression(expression)
   })
 }
@@ -121,6 +122,7 @@ function onCreateWorkflowInput() {
           <InputPanel
             ref="inputPanelRef"
             :step-id="nodeId"
+            :workflow-id="workflowId"
             :version-id="versionId"
             :all-nodes="allNodes"
             :all-edges="allEdges"

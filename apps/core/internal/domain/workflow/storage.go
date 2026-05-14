@@ -15,7 +15,7 @@ type Storage interface {
 	GetWorkflowByID(ctx context.Context, id int32) (db.Workflow, error)
 	ListWorkflowsBySystemID(ctx context.Context, systemID int32) ([]db.Workflow, error)
 	UpdateWorkflow(ctx context.Context, arg db.UpdateWorkflowParams) (db.Workflow, error)
-	UpdateWorkflowInputValidation(ctx context.Context, arg db.UpdateWorkflowInputValidationParams) (db.Workflow, error)
+	UpdateWorkflowInputSchema(ctx context.Context, arg db.UpdateWorkflowInputSchemaParams) (db.Workflow, error)
 	SoftDeleteWorkflow(ctx context.Context, id int32) error
 
 	// WorkflowVersion
@@ -31,14 +31,8 @@ type Storage interface {
 	UpdateWorkflowVersionTrafficWeight(ctx context.Context, arg db.UpdateWorkflowVersionTrafficWeightParams) (db.WorkflowVersion, error)
 	UpdateWorkflowVersionTrafficWeightIncludingDeleted(ctx context.Context, arg db.UpdateWorkflowVersionTrafficWeightIncludingDeletedParams) (db.WorkflowVersion, error)
 	UpdateWorkflowVersionName(ctx context.Context, arg db.UpdateWorkflowVersionNameParams) (db.WorkflowVersion, error)
+	InvalidateWorkflowVersionsByWorkflowID(ctx context.Context, workflowID int32) error
 	SoftDeleteWorkflowVersion(ctx context.Context, id int32) error
-
-	// WorkflowVersionInput
-	CreateWorkflowVersionInput(ctx context.Context, arg db.CreateWorkflowVersionInputParams) (db.WorkflowVersionInput, error)
-	GetWorkflowVersionInputByID(ctx context.Context, id int32) (db.WorkflowVersionInput, error)
-	ListWorkflowVersionInputs(ctx context.Context, workflowVersionID int32) ([]db.WorkflowVersionInput, error)
-	UpdateWorkflowVersionInput(ctx context.Context, arg db.UpdateWorkflowVersionInputParams) (db.WorkflowVersionInput, error)
-	SoftDeleteWorkflowVersionInput(ctx context.Context, id int32) error
 
 	// WorkflowStep
 	CreateWorkflowStep(ctx context.Context, arg db.CreateWorkflowStepParams) (db.WorkflowStep, error)

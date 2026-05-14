@@ -16,7 +16,7 @@ ORDER BY created_at DESC;
 INSERT INTO "worker_settings_revision" (worker_settings_schema_id, created_by_user_id, settings_data)
 SELECT worker_settings_schema_id, $2, settings_data
 FROM "worker_settings_revision"
-WHERE id = $1
+WHERE "worker_settings_revision".id = $1
 RETURNING *;
 
 -- name: UpdateWorkerSettingsRevisionSettings :one

@@ -17,7 +17,7 @@ import (
 //
 // Создаёт:
 //   - System token (pub: demo-public-token, priv: demo-private-token)
-//   - Workflow "Demo Email Notification" с input_validation (JSON Schema)
+//   - Workflow "Demo Email Notification" с input_schema (JSON Schema)
 //   - Активная версия workflow
 //   - 3 шага: два независимых (smtp, telegram) + один зависимый
 //   - Зависимости между шагами (DAG)
@@ -42,7 +42,7 @@ func SeedDemo(ctx context.Context, db *pgxpool.Pool) error {
 
 	// 2. Workflow с JSON Schema валидацией
 	_, err = db.Exec(ctx, `
-		INSERT INTO workflow (system_id, name, priority, description, input_validation)
+		INSERT INTO workflow (system_id, name, priority, description, input_schema)
 		VALUES (
 			(SELECT id FROM system WHERE name = 'Тестовая система' LIMIT 1),
 			'Demo Email Notification',
@@ -54,7 +54,7 @@ func SeedDemo(ctx context.Context, db *pgxpool.Pool) error {
 					"to": {"type": "string", "format": "email", "required": true},
 					"subject": {"type": "string", "minLength": 1, "maxLength": 200, "required": true},
 					"body": {"type": "string", "required": true},
-					"telegram_chat_id": {"type": "string"}
+					"telegram_chat_id": {"type": "string", "required": true}
 				}
 			}'::jsonb
 		)

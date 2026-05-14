@@ -1,18 +1,19 @@
 <script setup lang="ts">
 import { Search } from 'lucide-vue-next'
 import type { Node, Edge } from '@vue-flow/core'
-import type { WorkflowInputField } from '~/composables/useVersions'
+import type { WorkflowInputSchemaField } from '~/composables/useWorkflows'
 import type { StepData } from '~/composables/useDagEditor'
+import type { WorkflowInputField } from './workflow-input-utils'
 import { Input } from '~/components/ui/input'
 import { ScrollArea } from '~/components/ui/scroll-area'
 import { Separator } from '~/components/ui/separator'
 import SchemaTree from './SchemaTree.vue'
 import WorkflowInputsPanel from './WorkflowInputsPanel.vue'
-import WorkflowInputCreateDialog from './WorkflowInputCreateDialog.vue'
-import { workflowInputPath } from './workflow-input-utils'
+import { workflowInputFieldsFromSchema, workflowInputPath } from './workflow-input-utils'
 
 const props = defineProps<{
   stepId: string
+  workflowId: number
   versionId: number | null
   allNodes: Node[]
   allEdges: Edge[]
@@ -23,11 +24,9 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const { fetchWorkflowInputs, createWorkflowInput } = useVersions()
+const { fetchWorkflowInputSchema, upsertWorkflowInputSchemaField } = useWorkflows()
 const searchQuery = ref('')
 const workflowInputs = ref<WorkflowInputField[]>([])
-const createOpen = ref(false)
-const pendingInsert = ref<((expression: string) => void) | null>(null)
 
 interface SourceNode {
   id: string
@@ -90,36 +89,36 @@ function onFieldClick(path: string) {
 }
 
 async function loadWorkflowInputs() {
-  if (!props.versionId) {
+  if (!props.workflowId) {
     workflowInputs.value = []
     return
   }
-  workflowInputs.value = await fetchWorkflowInputs(props.versionId)
+  const schema = await fetchWorkflowInputSchema(props.workflowId)
+  workflowInputs.value = workflowInputFieldsFromSchema(schema)
 }
 
-function openCreateDialog(onCreated?: (expression: string) => void) {
-  pendingInsert.value = onCreated ?? null
-  createOpen.value = true
-}
-
-async function onCreateWorkflowInput(data: Omit<WorkflowInputField, 'id' | 'workflow_version_id'>) {
-  if (!props.versionId) return
-  const input = await createWorkflowInput(props.versionId, data)
+async function createWorkflowInputFromField(
+  field: string,
+  property: Record<string, unknown>,
+  onCreated: (expression: string) => void,
+) {
+  const type = typeof property.type === 'string' ? property.type : 'string'
+  const allowedTypes: WorkflowInputSchemaField['type'][] = ['string', 'number', 'integer', 'boolean', 'object', 'array']
+  await upsertWorkflowInputSchemaField(props.workflowId, {
+    name: field,
+    type: allowedTypes.includes(type as WorkflowInputSchemaField['type'])
+      ? type as WorkflowInputSchemaField['type']
+      : 'string',
+    required: property.required === true,
+    description: typeof property.description === 'string' ? property.description : undefined,
+  })
   await loadWorkflowInputs()
-  createOpen.value = false
-  const expression = workflowInputPath(input.name)
-  if (pendingInsert.value) {
-    pendingInsert.value(expression)
-    pendingInsert.value = null
-  }
-  else {
-    emit('insertExpression', expression)
-  }
+  onCreated(workflowInputPath(field))
 }
 
-watch(() => props.versionId, loadWorkflowInputs, { immediate: true })
+watch(() => props.workflowId, loadWorkflowInputs, { immediate: true })
 
-defineExpose({ openCreateDialog })
+defineExpose({ createWorkflowInputFromField })
 </script>
 
 <template>
@@ -152,7 +151,6 @@ defineExpose({ openCreateDialog })
           <WorkflowInputsPanel
             :inputs="workflowInputs"
             @insert-expression="onFieldClick"
-            @create-requested="openCreateDialog()"
           />
           <Separator class="mt-3" />
         </div>
@@ -239,10 +237,5 @@ defineExpose({ openCreateDialog })
         </div>
       </div>
     </ScrollArea>
-
-    <WorkflowInputCreateDialog
-      v-model:open="createOpen"
-      @create="onCreateWorkflowInput"
-    />
   </div>
 </template>
