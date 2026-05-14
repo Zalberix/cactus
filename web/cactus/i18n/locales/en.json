@@ -54,6 +54,23 @@
     "save": "Save traffic",
     "saved": "Traffic settings saved"
   },
+  "workflowInputs": {
+    "addInput": "Add input",
+    "name": "Name",
+    "type": "Type",
+    "required": "Required",
+    "optional": "Optional",
+    "description": "Description",
+    "actions": "Actions",
+    "empty": "No workflow inputs declared.",
+    "noDescription": "No description",
+    "editInput": "Edit input",
+    "deleteInput": "Delete input",
+    "deleteConfirmTitle": "Delete {name}?",
+    "deleteConfirmBody": "Mappings that use this input will become invalid until updated.",
+    "saved": "Workflow input saved",
+    "deleted": "Workflow input deleted"
+  },
   "editor": {
     "saveVersion": "Save Version",
     "activateVersion": "Activate Version",

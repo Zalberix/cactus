@@ -50,6 +50,9 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc) {
 	// POST /api/v1/workflows/:workflowId/input-schema/fields
 	v1.POST("/workflows/:workflowId/input-schema/fields",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.UpsertWorkflowInputSchemaField)
+	// DELETE /api/v1/workflows/:workflowId/input-schema/fields/:fieldName
+	v1.DELETE("/workflows/:workflowId/input-schema/fields/:fieldName",
+		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.DeleteWorkflowInputSchemaField)
 	// DELETE /api/v1/workflows/:workflowId
 	v1.DELETE("/workflows/:workflowId",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.DeleteWorkflow)
@@ -236,6 +239,20 @@ func (h *Handler) UpsertWorkflowInputSchemaField(c *gin.Context) {
 		return
 	}
 	schema, err := h.service.UpsertWorkflowInputSchemaField(c.Request.Context(), workflowID, req)
+	if err != nil {
+		response.Fail(c, http.StatusUnprocessableEntity, "INVALID_INPUT_SCHEMA", err.Error())
+		return
+	}
+	response.OK(c, gin.H{"schema": schema})
+}
+
+func (h *Handler) DeleteWorkflowInputSchemaField(c *gin.Context) {
+	workflowID, ok := parseID(c, "workflowId")
+	if !ok {
+		return
+	}
+	fieldName := c.Param("fieldName")
+	schema, err := h.service.DeleteWorkflowInputSchemaField(c.Request.Context(), workflowID, fieldName)
 	if err != nil {
 		response.Fail(c, http.StatusUnprocessableEntity, "INVALID_INPUT_SCHEMA", err.Error())
 		return

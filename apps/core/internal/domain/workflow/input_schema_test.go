@@ -35,6 +35,29 @@ func TestUpsertWorkflowInputSchemaFieldRejectsNestedName(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestDeleteWorkflowInputSchemaFieldRemovesOnlyRequestedField(t *testing.T) {
+	schema, err := deleteWorkflowInputSchemaField([]byte(`{
+		"type":"object",
+		"properties":{
+			"email":{"type":"string","required":true},
+			"subject":{"type":"string"}
+		}
+	}`), "email")
+	require.NoError(t, err)
+
+	assert.JSONEq(t, `{
+		"type":"object",
+		"properties":{
+			"subject":{"type":"string"}
+		}
+	}`, string(schema))
+}
+
+func TestDeleteWorkflowInputSchemaFieldRejectsMissingField(t *testing.T) {
+	_, err := deleteWorkflowInputSchemaField([]byte(`{"type":"object","properties":{}}`), "email")
+	require.Error(t, err)
+}
+
 func TestParseTopLevelPropertiesUsesPropertyRequiredDialect(t *testing.T) {
 	props, err := parseTopLevelProperties([]byte(`{
 		"type":"object",

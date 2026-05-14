@@ -38,6 +38,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:open': [value: boolean]
   save: [nodeId: string, settingsData: Record<string, unknown>, inputMapping: Array<{ target: string, source: string }>]
+  workflowInputsChanged: []
 }>()
 
 const dialogOpen = computed({
@@ -127,6 +128,7 @@ function onCreateWorkflowInput(field: string, property: Record<string, unknown>)
             :all-nodes="allNodes"
             :all-edges="allEdges"
             @insert-expression="onInsertExpression"
+            @workflow-inputs-changed="emit('workflowInputsChanged')"
           />
         </div>
         <div class="w-2/3 overflow-hidden">

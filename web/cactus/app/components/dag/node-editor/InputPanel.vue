@@ -4,9 +4,11 @@ import type { Node, Edge } from '@vue-flow/core'
 import type { WorkflowInputSchemaField } from '~/composables/useWorkflows'
 import type { StepData } from '~/composables/useDagEditor'
 import type { WorkflowInputField } from './workflow-input-utils'
+import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { ScrollArea } from '~/components/ui/scroll-area'
 import { Separator } from '~/components/ui/separator'
+import { toast } from '~/components/ui/toast/use-toast'
 import SchemaTree from './SchemaTree.vue'
 import WorkflowInputsPanel from './WorkflowInputsPanel.vue'
 import { workflowInputFieldsFromSchema, workflowInputPath } from './workflow-input-utils'
@@ -21,12 +23,24 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   insertExpression: [expression: string]
+  workflowInputsChanged: []
 }>()
 
 const { t } = useI18n()
-const { fetchWorkflowInputSchema, upsertWorkflowInputSchemaField } = useWorkflows()
+const { fetchWorkflowInputSchema, upsertWorkflowInputSchemaField, deleteWorkflowInputSchemaField } = useWorkflows()
 const searchQuery = ref('')
 const workflowInputs = ref<WorkflowInputField[]>([])
+const workflowInputSaving = ref(false)
+const editingWorkflowInput = ref<WorkflowInputField | null>(null)
+const deletingWorkflowInput = ref<WorkflowInputField | null>(null)
+const workflowInputForm = ref<WorkflowInputSchemaField>({
+  name: '',
+  type: 'string',
+  required: false,
+  description: '',
+})
+const inputTypes: WorkflowInputSchemaField['type'][] = ['string', 'number', 'integer', 'boolean', 'object', 'array']
+const canSaveWorkflowInput = computed(() => workflowInputForm.value.name.trim().length > 0 && !workflowInputSaving.value)
 
 interface SourceNode {
   id: string
@@ -113,7 +127,64 @@ async function createWorkflowInputFromField(
     description: typeof property.description === 'string' ? property.description : undefined,
   })
   await loadWorkflowInputs()
+  emit('workflowInputsChanged')
   onCreated(workflowInputPath(field))
+}
+
+function onEditWorkflowInput(input: WorkflowInputField) {
+  deletingWorkflowInput.value = null
+  editingWorkflowInput.value = input
+  workflowInputForm.value = {
+    name: input.name,
+    type: input.type,
+    required: input.required,
+    description: input.description ?? '',
+  }
+}
+
+function onDeleteWorkflowInput(input: WorkflowInputField) {
+  editingWorkflowInput.value = null
+  deletingWorkflowInput.value = input
+}
+
+async function saveWorkflowInput() {
+  if (!canSaveWorkflowInput.value) return
+  workflowInputSaving.value = true
+  try {
+    const description = workflowInputForm.value.description?.trim()
+    await upsertWorkflowInputSchemaField(props.workflowId, {
+      name: workflowInputForm.value.name.trim(),
+      type: workflowInputForm.value.type,
+      required: workflowInputForm.value.required,
+      description: description || undefined,
+    })
+    await loadWorkflowInputs()
+    editingWorkflowInput.value = null
+    emit('workflowInputsChanged')
+  }
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
+  }
+  finally {
+    workflowInputSaving.value = false
+  }
+}
+
+async function deleteWorkflowInput() {
+  if (!deletingWorkflowInput.value || workflowInputSaving.value) return
+  workflowInputSaving.value = true
+  try {
+    await deleteWorkflowInputSchemaField(props.workflowId, deletingWorkflowInput.value.name)
+    await loadWorkflowInputs()
+    deletingWorkflowInput.value = null
+    emit('workflowInputsChanged')
+  }
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
+  }
+  finally {
+    workflowInputSaving.value = false
+  }
 }
 
 watch(() => props.workflowId, loadWorkflowInputs, { immediate: true })
@@ -151,7 +222,75 @@ defineExpose({ createWorkflowInputFromField })
           <WorkflowInputsPanel
             :inputs="workflowInputs"
             @insert-expression="onFieldClick"
+            @edit-input="onEditWorkflowInput"
+            @delete-input="onDeleteWorkflowInput"
           />
+          <form
+            v-if="editingWorkflowInput"
+            class="mt-2 space-y-2 rounded-md border bg-muted/30 p-3"
+            @submit.prevent="saveWorkflowInput"
+          >
+            <div class="grid grid-cols-[1fr_auto] gap-2">
+              <label class="space-y-1">
+                <span class="text-[11px] font-medium text-muted-foreground">{{ t('workflowInputs.name') }}</span>
+                <Input v-model="workflowInputForm.name" readonly :disabled="workflowInputSaving" class="h-8 text-xs" />
+              </label>
+              <label class="space-y-1">
+                <span class="text-[11px] font-medium text-muted-foreground">{{ t('workflowInputs.type') }}</span>
+                <select
+                  v-model="workflowInputForm.type"
+                  class="flex h-8 rounded-md border border-input bg-background px-2 text-xs"
+                  :disabled="workflowInputSaving"
+                >
+                  <option v-for="type in inputTypes" :key="type" :value="type">
+                    {{ type }}
+                  </option>
+                </select>
+              </label>
+            </div>
+            <label class="flex items-center gap-2 text-xs">
+              <input v-model="workflowInputForm.required" type="checkbox" class="h-4 w-4 rounded border-input" :disabled="workflowInputSaving">
+              <span>{{ t('workflowInputs.required') }}</span>
+            </label>
+            <label class="block space-y-1">
+              <span class="text-[11px] font-medium text-muted-foreground">{{ t('workflowInputs.description') }}</span>
+              <Input v-model="workflowInputForm.description" :disabled="workflowInputSaving" class="h-8 text-xs" />
+            </label>
+            <div class="flex justify-end gap-2">
+              <Button type="button" size="sm" variant="outline" :disabled="workflowInputSaving" @click="editingWorkflowInput = null">
+                {{ t('destructive.cancel') }}
+              </Button>
+              <Button type="submit" size="sm" :disabled="!canSaveWorkflowInput">
+                {{ workflowInputSaving ? t('common.loading') : t('common.save') }}
+              </Button>
+            </div>
+          </form>
+          <div
+            v-if="deletingWorkflowInput"
+            class="mt-2 rounded-md border border-destructive/30 bg-destructive/5 p-3"
+          >
+            <p class="text-xs font-medium">
+              {{ t('workflowInputs.deleteConfirmTitle', { name: deletingWorkflowInput.name }) }}
+            </p>
+            <p class="mt-1 text-xs text-muted-foreground">
+              {{ t('workflowInputs.deleteConfirmBody') }}
+            </p>
+            <div class="mt-3 flex justify-end gap-2">
+              <Button type="button" size="sm" variant="outline" :disabled="workflowInputSaving" @click="deletingWorkflowInput = null">
+                {{ t('destructive.cancel') }}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                :disabled="workflowInputSaving"
+                data-testid="confirm-workflow-input-delete"
+                @click="deleteWorkflowInput"
+              >
+                {{ workflowInputSaving ? t('common.loading') : t('destructive.delete') }}
+              </Button>
+            </div>
+          </div>
           <Separator class="mt-3" />
         </div>
 

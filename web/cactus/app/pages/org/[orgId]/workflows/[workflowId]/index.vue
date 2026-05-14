@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Key, Route, Split } from 'lucide-vue-next'
 import type { VersionSummary } from '~/composables/useVersions'
+import type { WorkflowInputSchemaField } from '~/composables/useWorkflows'
 import WorkflowVersionCreateMenu from '~/components/dag/WorkflowVersionCreateMenu.vue'
 import WorkflowVersionTable from '~/components/dag/WorkflowVersionTable.vue'
 import WorkflowSchemaDialog from '~/components/dag/WorkflowSchemaDialog.vue'
@@ -17,7 +18,7 @@ const router = useRouter()
 const orgId = computed(() => Number(route.params.orgId))
 const workflowId = computed(() => Number(route.params.workflowId))
 
-const { fetchWorkflow, updateWorkflow, fetchWorkflowInputSchema } = useWorkflows()
+const { fetchWorkflow, updateWorkflow, fetchWorkflowInputSchema, upsertWorkflowInputSchemaField, deleteWorkflowInputSchemaField } = useWorkflows()
 const {
   fetchVersionSummaries,
   activateVersion,
@@ -32,6 +33,7 @@ const versions = ref<VersionSummary[]>([])
 const loading = ref(true)
 const tokensOpen = ref(false)
 const schemaOpen = ref(false)
+const schemaSaving = ref(false)
 const inputSchema = ref<Record<string, unknown> | null>(null)
 
 async function loadData() {
@@ -103,6 +105,36 @@ async function onShowInputSchema() {
   }
 }
 
+async function onSchemaSaveField(field: WorkflowInputSchemaField) {
+  schemaSaving.value = true
+  try {
+    inputSchema.value = await upsertWorkflowInputSchemaField(workflowId.value, field)
+    versions.value = await fetchVersionSummaries(workflowId.value)
+    toast({ title: t('workflowInputs.saved') })
+  }
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
+  }
+  finally {
+    schemaSaving.value = false
+  }
+}
+
+async function onSchemaDeleteField(field: { name: string }) {
+  schemaSaving.value = true
+  try {
+    inputSchema.value = await deleteWorkflowInputSchemaField(workflowId.value, field.name)
+    versions.value = await fetchVersionSummaries(workflowId.value)
+    toast({ title: t('workflowInputs.deleted') })
+  }
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
+  }
+  finally {
+    schemaSaving.value = false
+  }
+}
+
 onMounted(loadData)
 </script>
 
@@ -168,6 +200,9 @@ onMounted(loadData)
     <WorkflowSchemaDialog
       v-model:open="schemaOpen"
       :schema="inputSchema"
+      :saving="schemaSaving"
+      @save-field="onSchemaSaveField"
+      @delete-field="onSchemaDeleteField"
     />
   </div>
 </template>

@@ -474,6 +474,28 @@ func (s *Service) UpsertWorkflowInputSchemaField(ctx context.Context, workflowID
 	return json.RawMessage(updated.InputSchema), nil
 }
 
+func (s *Service) DeleteWorkflowInputSchemaField(ctx context.Context, workflowID int32, fieldName string) (json.RawMessage, error) {
+	wf, err := s.store.GetWorkflowByID(ctx, workflowID)
+	if err != nil {
+		return nil, fmt.Errorf("get workflow: %w", err)
+	}
+	schemaJSON, err := deleteWorkflowInputSchemaField(wf.InputSchema, fieldName)
+	if err != nil {
+		return nil, err
+	}
+	updated, err := s.store.UpdateWorkflowInputSchema(ctx, db.UpdateWorkflowInputSchemaParams{
+		ID:          workflowID,
+		InputSchema: schemaJSON,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update workflow input schema: %w", err)
+	}
+	if err := s.store.InvalidateWorkflowVersionsByWorkflowID(ctx, workflowID); err != nil {
+		return nil, fmt.Errorf("invalidate workflow versions: %w", err)
+	}
+	return json.RawMessage(updated.InputSchema), nil
+}
+
 // --- Step CRUD ---
 
 // CreateStep создаёт новый шаг в версии workflow (WF-03).

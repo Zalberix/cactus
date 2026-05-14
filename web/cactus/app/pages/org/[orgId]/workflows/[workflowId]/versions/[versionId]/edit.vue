@@ -4,6 +4,7 @@ import { Save, Play, Pause, AlertCircle, Copy, FileJson } from 'lucide-vue-next'
 import type { Connection } from '@vue-flow/core'
 import type { VersionSummary } from '~/composables/useVersions'
 import type { WorkType } from '~/composables/useWorkers'
+import type { WorkflowInputSchemaField } from '~/composables/useWorkflows'
 import type { StepData } from '~/composables/useDagEditor'
 import DagCanvas from '~/components/dag/DagCanvas.vue'
 import StepToolbar from '~/components/dag/StepToolbar.vue'
@@ -40,7 +41,7 @@ const orgId = computed(() => Number(route.params.orgId))
 const workflowId = computed(() => Number(route.params.workflowId))
 const routeVersionId = computed(() => Number(route.params.versionId || 0))
 
-const { fetchWorkflow, fetchWorkflowInputSchema } = useWorkflows()
+const { fetchWorkflow, fetchWorkflowInputSchema, upsertWorkflowInputSchemaField, deleteWorkflowInputSchemaField } = useWorkflows()
 const {
   fetchVersionSummaries,
   copyVersion,
@@ -58,6 +59,7 @@ const workTypes = ref<WorkType[]>([])
 const pageLoading = ref(true)
 const saving = ref(false)
 const schemaOpen = ref(false)
+const schemaSaving = ref(false)
 const inputSchema = ref<Record<string, unknown> | null>(null)
 const deactivateOpen = ref(false)
 const schemaChoiceOpen = ref(false)
@@ -226,10 +228,52 @@ async function onVersionNameBlur() {
 }
 
 async function openSchemaDialog() {
-  if (!currentVersion.value?.is_valid) return
+  if (!currentVersion.value) return
   try {
     inputSchema.value = await fetchWorkflowInputSchema(workflowId.value)
     schemaOpen.value = true
+  }
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
+  }
+}
+
+async function onSchemaSaveField(field: WorkflowInputSchemaField) {
+  schemaSaving.value = true
+  try {
+    inputSchema.value = await upsertWorkflowInputSchemaField(workflowId.value, field)
+    versions.value = await fetchVersionSummaries(workflowId.value)
+    toast({ title: t('workflowInputs.saved') })
+  }
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
+  }
+  finally {
+    schemaSaving.value = false
+  }
+}
+
+async function onSchemaDeleteField(field: { name: string }) {
+  schemaSaving.value = true
+  try {
+    inputSchema.value = await deleteWorkflowInputSchemaField(workflowId.value, field.name)
+    versions.value = await fetchVersionSummaries(workflowId.value)
+    toast({ title: t('workflowInputs.deleted') })
+  }
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
+  }
+  finally {
+    schemaSaving.value = false
+  }
+}
+
+async function onWorkflowInputsChanged() {
+  try {
+    versions.value = await fetchVersionSummaries(workflowId.value)
+    if (schemaOpen.value) {
+      inputSchema.value = await fetchWorkflowInputSchema(workflowId.value)
+    }
   }
   catch (err) {
     toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
@@ -425,7 +469,7 @@ onMounted(() => {
         size="sm"
         variant="outline"
         class="gap-2"
-        :disabled="!currentVersion?.is_valid"
+        :disabled="!currentVersion"
         @click="openSchemaDialog"
       >
         <FileJson class="h-4 w-4" />
@@ -552,11 +596,15 @@ onMounted(() => {
       :all-nodes="dagEditor.nodes.value"
       :all-edges="dagEditor.edges.value"
       @save="onNodeEditorSave"
+      @workflow-inputs-changed="onWorkflowInputsChanged"
     />
 
     <WorkflowSchemaDialog
       v-model:open="schemaOpen"
       :schema="inputSchema"
+      :saving="schemaSaving"
+      @save-field="onSchemaSaveField"
+      @delete-field="onSchemaDeleteField"
     />
 
     <StepSchemaChoiceDialog

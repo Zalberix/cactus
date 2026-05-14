@@ -153,6 +153,20 @@ export function useWorkflows() {
     return resp.data.schema
   }
 
+  async function deleteWorkflowInputSchemaField(
+    workflowId: number,
+    fieldName: string,
+  ): Promise<Record<string, unknown>> {
+    const resp = await api<ApiResponse<WorkflowInputSchemaResponse>>(
+      `/workflows/${workflowId}/input-schema/fields/${encodeURIComponent(fieldName)}`,
+      { method: 'DELETE' },
+    )
+    if (!resp.success || !resp.data) {
+      throw new Error(resp.error?.message ?? 'Failed to delete workflow input schema field')
+    }
+    return resp.data.schema
+  }
+
   return {
     fetchWorkflowsForOrg,
     fetchWorkflowsForSystem,
@@ -162,5 +176,6 @@ export function useWorkflows() {
     deleteWorkflow,
     fetchWorkflowInputSchema,
     upsertWorkflowInputSchemaField,
+    deleteWorkflowInputSchemaField,
   }
 }

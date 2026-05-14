@@ -707,3 +707,23 @@ func TestUpdateTraffic_PerVersionRejectsFixedTotalAbove100(t *testing.T) {
 	assert.ErrorIs(t, err, workflow.ErrTrafficWeightInvalid)
 	assert.Empty(t, store.updateTrafficArgs)
 }
+
+func TestDeleteWorkflowInputSchemaField_UpdatesSchemaAndInvalidatesVersions(t *testing.T) {
+	store := &mockStorage{
+		workflow: db.Workflow{ID: 40, InputSchema: []byte(`{
+			"type":"object",
+			"properties":{
+				"email":{"type":"string","required":true},
+				"subject":{"type":"string"}
+			}
+		}`)},
+	}
+	svc := workflow.NewService(store)
+	schema, err := svc.DeleteWorkflowInputSchemaField(context.Background(), 40, "email")
+	require.NoError(t, err)
+
+	assert.JSONEq(t, `{"type":"object","properties":{"subject":{"type":"string"}}}`, string(schema))
+	assert.Equal(t, int32(40), store.lastUpdateSchemaArg.ID)
+	assert.JSONEq(t, `{"type":"object","properties":{"subject":{"type":"string"}}}`, string(store.lastUpdateSchemaArg.InputSchema))
+	assert.Equal(t, int32(40), store.invalidatedWorkflowID)
+}

@@ -51,6 +51,23 @@
     "save": "Save traffic",
     "saved": "Traffic settings saved"
   },
+  "workflowInputs": {
+    "addInput": "Добавить input",
+    "name": "Имя",
+    "type": "Тип",
+    "required": "Обязательный",
+    "optional": "Опциональный",
+    "description": "Описание",
+    "actions": "Действия",
+    "empty": "Workflow inputs не объявлены.",
+    "noDescription": "Без описания",
+    "editInput": "Редактировать input",
+    "deleteInput": "Удалить input",
+    "deleteConfirmTitle": "Удалить {name}?",
+    "deleteConfirmBody": "Маппинги, которые используют этот input, станут невалидными до обновления.",
+    "saved": "Workflow input сохранён",
+    "deleted": "Workflow input удалён"
+  },
   "editor": {
     "saveVersion": "Сохранить версию",
     "activateVersion": "Активировать версию",

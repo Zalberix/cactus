@@ -108,6 +108,24 @@ func upsertWorkflowInputSchemaField(schemaJSON []byte, req WorkflowInputSchemaFi
 	return marshalWorkflowInputSchema(fields)
 }
 
+func deleteWorkflowInputSchemaField(schemaJSON []byte, name string) ([]byte, error) {
+	if name == "" {
+		return nil, fmt.Errorf("workflow input field name is required")
+	}
+	if strings.Contains(name, ".") {
+		return nil, fmt.Errorf("nested workflow input field %q is not supported", name)
+	}
+	fields, err := parseWorkflowInputSchema(schemaJSON)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := fields[name]; !ok {
+		return nil, fmt.Errorf("workflow input field %q is not declared", name)
+	}
+	delete(fields, name)
+	return marshalWorkflowInputSchema(fields)
+}
+
 func parseTopLevelProperties(schemaJSON []byte) (map[string]schemaProperty, error) {
 	if len(schemaJSON) == 0 {
 		return map[string]schemaProperty{}, nil
