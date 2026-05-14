@@ -279,6 +279,30 @@ func TestSchemaBuilderStoresRequiredOnProperties(t *testing.T) {
 	}
 }
 
+func TestSchemaBuilderObjectField(t *testing.T) {
+	schema := InputSchema(func(sb *SchemaBuilder) {
+		sb.String("template").Required()
+		sb.Object("fields").Required().Description("Template values as a JSON object")
+	})
+
+	var decoded map[string]any
+	if err := json.Unmarshal(schema, &decoded); err != nil {
+		t.Fatalf("unmarshal schema: %v", err)
+	}
+
+	props := decoded["properties"].(map[string]any)
+	fields := props["fields"].(map[string]any)
+	if fields["type"] != "object" {
+		t.Fatalf("expected fields type object, got %#v", fields)
+	}
+	if fields["required"] != true {
+		t.Fatalf("expected fields to be required, got %#v", fields)
+	}
+	if fields["description"] != "Template values as a JSON object" {
+		t.Fatalf("expected fields description, got %#v", fields)
+	}
+}
+
 func TestManifestBuilderBuildsManifest(t *testing.T) {
 	manifest := Manifest().
 		Kind("telegram", "Telegram Bot").

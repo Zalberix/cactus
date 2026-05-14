@@ -67,6 +67,11 @@ func (builder *SchemaBuilder) Boolean(name string) *FieldBuilder {
 	return builder.field(name, "boolean")
 }
 
+// Object creates an object property.
+func (builder *SchemaBuilder) Object(name string) *FieldBuilder {
+	return builder.field(name, "object")
+}
+
 // Required marks a property as required in the worker schema dialect.
 func (builder *FieldBuilder) Required() *FieldBuilder {
 	builder.field().Required = true
