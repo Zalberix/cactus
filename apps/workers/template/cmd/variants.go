@@ -80,19 +80,19 @@ func parseFieldsJSON(data []byte) (map[string]any, error) {
 	return fields, nil
 }
 
-func htmlVariants() map[string]worker.Variant {
+func templateVariants() map[string]worker.Variant {
 	return map[string]worker.Variant{
-		"basic": {
-			Name:     "basic",
-			Manifest: basicHTMLManifest(),
+		"html": {
+			Name:     "html",
+			Manifest: htmlManifest(),
 			Handler:  HTMLHandler{renderer: TemplateRenderer{templates: embeddedTemplates}},
 		},
 	}
 }
 
-func basicHTMLManifest() worker.ManifestSpec {
+func htmlManifest() worker.ManifestSpec {
 	return worker.Manifest().
-		Kind("html-template", "HTML Template").
+		Kind("template-html", "HTML Template").
 		Type("html", "HTML Generation").
 		SettingsSchema(func(sb *worker.SchemaBuilder) {}).
 		InputSchema(func(sb *worker.SchemaBuilder) {
@@ -100,7 +100,7 @@ func basicHTMLManifest() worker.ManifestSpec {
 			sb.Object("fields").Required().Description("Template values as a JSON object")
 		}).
 		OutputSchema(func(sb *worker.SchemaBuilder) {
-			sb.String("body").Description("Rendered HTML body")
+			sb.String("body").Required().Description("Rendered HTML body")
 		}).
 		Build()
 }

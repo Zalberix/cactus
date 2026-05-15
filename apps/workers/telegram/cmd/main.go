@@ -42,8 +42,6 @@ func main() {
 		NatsURL:        conf.NatsURL,
 		ManagerURL:     conf.ManagerURL,
 		BootstrapToken: bootstrapToken,
-		WorkTypeID:     conf.WorkTypeID,
-		RevisionID:     conf.RevisionID,
 		WorkerIDPath:   *workerIDPath,
 		WorkerName:     telegramWorkerName(selectedVariant.Name, *workerName),
 		OnWorkerID: func(workerID int32) *slog.Logger {

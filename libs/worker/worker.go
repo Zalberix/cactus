@@ -69,6 +69,9 @@ func (w *Worker) Run(ctx context.Context) error {
 	if err := w.registerWithRetry(ctx); err != nil {
 		return fmt.Errorf("registration: %w", err)
 	}
+	if err := w.requireRoutingConfigured(); err != nil {
+		return err
+	}
 
 	w.logger.Info("worker registered",
 		slog.Int("worker_id", int(w.workerID)),
@@ -98,6 +101,13 @@ func (w *Worker) refreshLoggerAfterWorkerID() {
 
 // registerWithRetry пытается зарегистрироваться с экспоненциальным backoff.
 // Не сдаётся до отмены ctx.
+func (w *Worker) requireRoutingConfigured() error {
+	if w.cfg.WorkTypeID <= 0 || w.cfg.RevisionID <= 0 {
+		return fmt.Errorf("registration response missing work_type_id or revision_id")
+	}
+	return nil
+}
+
 func (w *Worker) registerWithRetry(ctx context.Context) error {
 	backoff := []time.Duration{
 		1 * time.Second,

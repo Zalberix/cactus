@@ -10,8 +10,8 @@
     "logout": "Выйти"
   },
   "nav": {
-    "workflows": "Рабочие процессы",
-    "workers": "Воркеры",
+    "workflows": "Процессы",
+    "workers": "Сервисы",
     "messages": "Сообщения",
     "settings": "Настройки",
     "users": "Пользователи",
@@ -21,7 +21,7 @@
   },
   "workflows": {
     "create": "Создать процесс",
-    "title": "Рабочие процессы",
+    "title": "Процессы",
     "name": "Название",
     "system": "Система",
     "priority": "Приоритет",
@@ -133,7 +133,7 @@
     "chooseSchema": "Choose settings schema",
     "schemaVersion": "Schema {version}",
     "schemaAddedAt": "Добавлена {date}",
-    "schemaWorkers": "Готовые воркеры: {ready}/{total}",
+    "schemaWorkers": "Готовые сервисы: {ready}/{total}",
     "settingsSchemaPreview": "Схема настроек",
     "useSchema": "Использовать"
   },
@@ -194,25 +194,25 @@
     }
   },
   "workers": {
-    "title": "Воркеры",
+    "title": "Сервисы",
     "name": "Название",
     "workType": "Тип работы",
     "status": "Статус",
     "lastHeartbeat": "Последний heartbeat",
     "viewRevisions": "Ревизии",
     "settingsRevisions": "Ревизии настроек",
-    "revisionsDescription": "Просмотр и создание ревизий настроек воркера.",
-    "noSchema": "У этого воркера нет схемы настроек.",
+    "revisionsDescription": "Просмотр и создание ревизий настроек сервиса.",
+    "noSchema": "У этого сервиса нет схемы настроек.",
     "noRevisions": "Ревизии ещё не созданы.",
     "createRevision": "Создать ревизию",
     "revisionCreated": "Ревизия создана",
     "settingsJson": "Настройки (JSON)",
-    "delete": "Удалить воркер",
-    "deleteOfflineOnly": "Можно удалять только offline-воркеры",
-    "deleted": "Воркер удалён",
-    "inUse": "Воркер используется в workflow",
-    "onlineDeleteBlocked": "Воркер online и не может быть удалён",
-    "notFound": "Воркер не найден",
+    "delete": "Удалить сервис",
+    "deleteOfflineOnly": "Можно удалять только offline-сервисы",
+    "deleted": "Сервис удалён",
+    "inUse": "Сервис используется в workflow",
+    "onlineDeleteBlocked": "Сервис online и не может быть удалён",
+    "notFound": "Сервис не найден",
     "usedByWorkflows": "\"{name}\" используется в этих workflow:"
   },
   "messages": {
@@ -252,8 +252,8 @@
       "body": "Сообщения появятся здесь после запуска обработки."
     },
     "workers": {
-      "heading": "Нет зарегистрированных воркеров",
-      "body": "Воркеры подключаются автоматически при запуске с bootstrap-токеном."
+      "heading": "Нет зарегистрированных сервисов",
+      "body": "Сервисы подключаются автоматически при запуске с bootstrap-токеном."
     },
     "users": {
       "heading": "Нет пользователей в организации",

@@ -34,8 +34,6 @@ func main() {
 		NatsURL:        cfg.NatsURL,
 		ManagerURL:     cfg.ManagerURL,
 		BootstrapToken: cfg.BootstrapToken,
-		WorkTypeID:     cfg.WorkTypeID,
-		RevisionID:     cfg.RevisionID,
 		WorkerIDPath:   *workerIDPath,
 		WorkerName:     smtpWorkerName(selectedVariant.Name, *workerName),
 		OnWorkerID: func(workerID int32) *slog.Logger {

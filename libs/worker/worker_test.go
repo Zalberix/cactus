@@ -69,7 +69,7 @@ func topLevelKeys(m map[string]json.RawMessage) []string {
 // TestRegisterResponseUnmarshal verifies that registerResponse correctly parses
 // the Manager API envelope, extracting Data.ID (db.Worker.ID).
 func TestRegisterResponseUnmarshal(t *testing.T) {
-	raw := `{"success":true,"data":{"id":42,"work_type_id":1,"worker_settings_schema_id":3,"name":"smtp-worker","metadata":"e30=","registered_at":"2026-01-01T00:00:00Z","last_heartbeat_at":"2026-01-01T00:00:00Z"}}`
+	raw := `{"success":true,"data":{"id":42,"work_type_id":12,"revision_id":99,"worker_settings_schema_id":3,"name":"smtp-worker","metadata":"e30=","registered_at":"2026-01-01T00:00:00Z","last_heartbeat_at":"2026-01-01T00:00:00Z"}}`
 
 	var resp registerResponse
 	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
@@ -81,6 +81,12 @@ func TestRegisterResponseUnmarshal(t *testing.T) {
 	}
 	if resp.Data.ID != int32(42) {
 		t.Errorf("expected Data.ID == 42, got %d", resp.Data.ID)
+	}
+	if resp.Data.WorkTypeID != int32(12) {
+		t.Errorf("expected Data.WorkTypeID == 12, got %d", resp.Data.WorkTypeID)
+	}
+	if resp.Data.RevisionID != int32(99) {
+		t.Errorf("expected Data.RevisionID == 99, got %d", resp.Data.RevisionID)
 	}
 }
 
@@ -144,7 +150,7 @@ func TestSendRegistration(t *testing.T) {
 		// Respond with envelope
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"success":true,"data":{"id":7,"work_type_id":1,"name":"test-worker"}}`))
+		_, _ = w.Write([]byte(`{"success":true,"data":{"id":7,"work_type_id":12,"revision_id":99,"name":"test-worker"}}`))
 	}))
 	defer srv.Close()
 
@@ -168,6 +174,24 @@ func TestSendRegistration(t *testing.T) {
 
 	if wk.workerID != int32(7) {
 		t.Errorf("expected workerID == 7, got %d", wk.workerID)
+	}
+	if wk.cfg.WorkTypeID != int32(12) {
+		t.Errorf("expected runtime WorkTypeID == 12, got %d", wk.cfg.WorkTypeID)
+	}
+	if wk.cfg.RevisionID != int32(99) {
+		t.Errorf("expected runtime RevisionID == 99, got %d", wk.cfg.RevisionID)
+	}
+}
+
+func TestRequireRoutingConfiguredRejectsMissingRegistrationIDs(t *testing.T) {
+	wk := &Worker{}
+
+	err := wk.requireRoutingConfigured()
+	if err == nil {
+		t.Fatal("expected missing routing IDs error")
+	}
+	if !strings.Contains(err.Error(), "registration response missing work_type_id or revision_id") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

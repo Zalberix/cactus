@@ -7,5 +7,5 @@ var Apps = []GoApp{
 	{Name: "core", DebugPort: 2346, AppDir: "apps", Port: &corePort},
 	// {Name: "telegram", IsWorker: true, DebugPort: 2347, AppDir: "apps/workers", DependsOn: []string{"core"}},
 	{Name: "smtp", IsWorker: true, DebugPort: 2348, AppDir: "apps/workers", DependsOn: []string{"core"}},
-	{Name: "html", IsWorker: true, DebugPort: 2349, AppDir: "apps/workers", DependsOn: []string{"core"}},
+	{Name: "template", IsWorker: true, DebugPort: 2349, AppDir: "apps/workers", DependsOn: []string{"core"}},
 }

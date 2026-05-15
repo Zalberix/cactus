@@ -72,6 +72,11 @@ type RegisterWorkerRequest struct {
 	Manifest       json.RawMessage `json:"manifest" binding:"required"`
 }
 
+type RegisterWorkerResponse struct {
+	db.Worker
+	RevisionID int32 `json:"revision_id"`
+}
+
 // WorkerResponse — воркер с вычисленным статусом.
 type WorkerResponse struct {
 	ID              int32        `json:"id"`

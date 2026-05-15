@@ -13,7 +13,9 @@ import (
 
 type registerWorkerStore struct {
 	token            db.WorkTypeToken
+	revisions        []db.WorkerSettingsRevision
 	createdSchemaArg db.CreateWorkerSettingsSchemaParams
+	createdRevision  db.CreateWorkerSettingsRevisionParams
 }
 
 func (s *registerWorkerStore) CreateWorkType(context.Context, db.CreateWorkTypeParams) (db.WorkType, error) {
@@ -76,8 +78,9 @@ func (s *registerWorkerStore) ListWorkerSettingsSchemasByWorkTypeID(context.Cont
 	return nil, nil
 }
 
-func (s *registerWorkerStore) CreateWorkerSettingsRevision(context.Context, db.CreateWorkerSettingsRevisionParams) (db.WorkerSettingsRevision, error) {
-	return db.WorkerSettingsRevision{}, nil
+func (s *registerWorkerStore) CreateWorkerSettingsRevision(_ context.Context, arg db.CreateWorkerSettingsRevisionParams) (db.WorkerSettingsRevision, error) {
+	s.createdRevision = arg
+	return db.WorkerSettingsRevision{ID: 88, WorkerSettingsSchemaID: arg.WorkerSettingsSchemaID, SettingsData: arg.SettingsData}, nil
 }
 
 func (s *registerWorkerStore) GetWorkerSettingsRevisionByID(context.Context, int32) (db.WorkerSettingsRevision, error) {
@@ -85,7 +88,7 @@ func (s *registerWorkerStore) GetWorkerSettingsRevisionByID(context.Context, int
 }
 
 func (s *registerWorkerStore) ListWorkerSettingsRevisionsBySchemaID(context.Context, int32) ([]db.WorkerSettingsRevision, error) {
-	return nil, nil
+	return s.revisions, nil
 }
 
 func (s *registerWorkerStore) CreateSystem(context.Context, db.CreateSystemParams) (db.System, error) {
@@ -159,10 +162,13 @@ func TestRegisterWorkerSplitsManifestSchemasIntoColumns(t *testing.T) {
 		"input_schema": {"type":"object","properties":{"to":{"type":"string","required":true}}},
 		"output_schema": {"type":"object","properties":{"message_id":{"type":"string"}}}
 	}`)
-	store := &registerWorkerStore{token: db.WorkTypeToken{WorkTypeID: 12}}
+	store := &registerWorkerStore{
+		token:     db.WorkTypeToken{WorkTypeID: 12},
+		revisions: []db.WorkerSettingsRevision{{ID: 99, WorkerSettingsSchemaID: 55}},
+	}
 	service := NewService(store)
 
-	worker, err := service.RegisterWorker(context.Background(), RegisterWorkerRequest{
+	registration, err := service.RegisterWorker(context.Background(), RegisterWorkerRequest{
 		BootstrapToken: "token",
 		Name:           "smtp-worker",
 		Manifest:       manifest,
@@ -171,12 +177,49 @@ func TestRegisterWorkerSplitsManifestSchemasIntoColumns(t *testing.T) {
 		t.Fatalf("RegisterWorker error: %v", err)
 	}
 
-	if worker.ID != 77 {
-		t.Fatalf("expected worker ID 77, got %d", worker.ID)
+	if registration.ID != 77 {
+		t.Fatalf("expected worker ID 77, got %d", registration.ID)
+	}
+	if registration.WorkTypeID != 12 {
+		t.Fatalf("expected work_type_id 12, got %d", registration.WorkTypeID)
+	}
+	if registration.RevisionID != 99 {
+		t.Fatalf("expected revision_id 99, got %d", registration.RevisionID)
 	}
 	assertJSONEqual(t, `{"type":"object","properties":{"host":{"type":"string","required":true}}}`, store.createdSchemaArg.SettingsSchema)
 	assertJSONEqual(t, `{"type":"object","properties":{"to":{"type":"string","required":true}}}`, store.createdSchemaArg.InputSchema)
 	assertJSONEqual(t, `{"type":"object","properties":{"message_id":{"type":"string"}}}`, store.createdSchemaArg.OutputSchema)
+}
+
+func TestRegisterWorkerCreatesDefaultRevisionWhenSchemaHasNoRevisions(t *testing.T) {
+	manifest := json.RawMessage(`{
+		"kind": "smtp",
+		"name_kind": "SMTP Email",
+		"type": "email",
+		"name_type": "Email Delivery",
+		"settings_schema": {"type":"object","properties":{}},
+		"input_schema": {"type":"object","properties":{}},
+		"output_schema": {"type":"object","properties":{}}
+	}`)
+	store := &registerWorkerStore{token: db.WorkTypeToken{WorkTypeID: 12}}
+	service := NewService(store)
+
+	registration, err := service.RegisterWorker(context.Background(), RegisterWorkerRequest{
+		BootstrapToken: "token",
+		Name:           "smtp-worker",
+		Manifest:       manifest,
+	})
+	if err != nil {
+		t.Fatalf("RegisterWorker error: %v", err)
+	}
+
+	if registration.RevisionID != 88 {
+		t.Fatalf("expected created revision_id 88, got %d", registration.RevisionID)
+	}
+	if store.createdRevision.WorkerSettingsSchemaID != 55 {
+		t.Fatalf("expected default revision for schema 55, got %d", store.createdRevision.WorkerSettingsSchemaID)
+	}
+	assertJSONEqual(t, `{}`, store.createdRevision.SettingsData)
 }
 
 func assertJSONEqual(t *testing.T, want string, got []byte) {

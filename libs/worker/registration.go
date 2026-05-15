@@ -28,8 +28,10 @@ type registerRequest struct {
 type registerResponse struct {
 	Success bool `json:"success"`
 	Data    struct {
-		ID     int32          `json:"id"`
-		Config map[string]any `json:"config,omitempty"`
+		ID         int32          `json:"id"`
+		WorkTypeID int32          `json:"work_type_id"`
+		RevisionID int32          `json:"revision_id"`
+		Config     map[string]any `json:"config,omitempty"`
 	} `json:"data"`
 }
 
@@ -142,6 +144,12 @@ func (w *Worker) sendRegistration(ctx context.Context) error {
 	if regResp.Data.ID > 0 {
 		w.workerID = regResp.Data.ID
 		w.refreshLoggerAfterWorkerID()
+	}
+	if regResp.Data.WorkTypeID > 0 {
+		w.cfg.WorkTypeID = regResp.Data.WorkTypeID
+	}
+	if regResp.Data.RevisionID > 0 {
+		w.cfg.RevisionID = regResp.Data.RevisionID
 	}
 
 	return nil

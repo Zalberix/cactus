@@ -79,14 +79,17 @@ func TestHTMLHandlerRequiresTemplateAndFields(t *testing.T) {
 }
 
 func TestHTMLManifestSchemas(t *testing.T) {
-	variants := htmlVariants()
-	basic, err := worker.SelectVariant(variants, "basic")
+	variants := templateVariants()
+	basic, err := worker.SelectVariant(variants, "html")
 	if err != nil {
-		t.Fatalf("select basic: %v", err)
+		t.Fatalf("select html: %v", err)
 	}
 
-	if basic.Manifest.Kind != "html-template" {
-		t.Fatalf("expected kind html-template, got %q", basic.Manifest.Kind)
+	if basic.Name != "html" {
+		t.Fatalf("expected variant html, got %q", basic.Name)
+	}
+	if basic.Manifest.Kind != "template-html" {
+		t.Fatalf("expected kind template-html, got %q", basic.Manifest.Kind)
 	}
 	if basic.Manifest.Type != "html" {
 		t.Fatalf("expected type html, got %q", basic.Manifest.Type)

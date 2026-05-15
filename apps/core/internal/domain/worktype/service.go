@@ -291,23 +291,23 @@ func timestampString(ts pgtype.Timestamp) string {
 // 2. Вычисляем манифест-хэш → ищем/создаём WorkerSettingsSchema
 // 3. Ищем/создаём Worker по (work_type_id, name)
 // 4. Обновляем heartbeat
-func (s *Service) RegisterWorker(ctx context.Context, req RegisterWorkerRequest) (db.Worker, error) {
+func (s *Service) RegisterWorker(ctx context.Context, req RegisterWorkerRequest) (RegisterWorkerResponse, error) {
 	// 1. Хэшируем bootstrap token и ищем work_type_token
 	tokenHash := sha256hex(req.BootstrapToken)
 	wtt, err := s.store.GetActiveWorkTypeTokenByHash(ctx, tokenHash)
 	if err != nil {
-		return db.Worker{}, fmt.Errorf("invalid bootstrap token: %w", err)
+		return RegisterWorkerResponse{}, fmt.Errorf("invalid bootstrap token: %w", err)
 	}
 
 	manifest, err := parseWorkerManifest(req.Manifest)
 	if err != nil {
-		return db.Worker{}, err
+		return RegisterWorkerResponse{}, err
 	}
 
 	// 2. Вычисляем манифест хэш (используется как version)
 	manifestHash, err := ManifestHash(req.Manifest)
 	if err != nil {
-		return db.Worker{}, fmt.Errorf("compute manifest hash: %w", err)
+		return RegisterWorkerResponse{}, fmt.Errorf("compute manifest hash: %w", err)
 	}
 
 	// 3. Ищем или создаём WorkerSettingsSchema
@@ -317,7 +317,7 @@ func (s *Service) RegisterWorker(ctx context.Context, req RegisterWorkerRequest)
 	})
 	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
-			return db.Worker{}, fmt.Errorf("get schema: %w", err)
+			return RegisterWorkerResponse{}, fmt.Errorf("get schema: %w", err)
 		}
 		// Создаём новую схему
 		schema, err = s.store.CreateWorkerSettingsSchema(ctx, db.CreateWorkerSettingsSchemaParams{
@@ -328,18 +328,23 @@ func (s *Service) RegisterWorker(ctx context.Context, req RegisterWorkerRequest)
 			OutputSchema:   manifest.OutputSchema,
 		})
 		if err != nil {
-			return db.Worker{}, fmt.Errorf("create worker settings schema: %w", err)
+			return RegisterWorkerResponse{}, fmt.Errorf("create worker settings schema: %w", err)
 		}
 	}
 
 	// 4. Ищем или создаём воркер по (work_type_id, name)
+	revisionID, err := s.resolveRegistrationRevisionID(ctx, schema.ID)
+	if err != nil {
+		return RegisterWorkerResponse{}, err
+	}
+
 	worker, err := s.store.GetWorkerByWorkTypeAndName(ctx, db.GetWorkerByWorkTypeAndNameParams{
 		WorkTypeID: wtt.WorkTypeID,
 		Name:       req.Name,
 	})
 	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
-			return db.Worker{}, fmt.Errorf("get worker: %w", err)
+			return RegisterWorkerResponse{}, fmt.Errorf("get worker: %w", err)
 		}
 		// Создаём нового воркера
 		worker, err = s.store.CreateNewWorker(ctx, db.CreateNewWorkerParams{
@@ -349,7 +354,7 @@ func (s *Service) RegisterWorker(ctx context.Context, req RegisterWorkerRequest)
 			Metadata:               []byte("{}"),
 		})
 		if err != nil {
-			return db.Worker{}, fmt.Errorf("create worker: %w", err)
+			return RegisterWorkerResponse{}, fmt.Errorf("create worker: %w", err)
 		}
 	} else if worker.WorkerSettingsSchemaID != schema.ID {
 		// Обновляем схему если манифест изменился
@@ -358,16 +363,39 @@ func (s *Service) RegisterWorker(ctx context.Context, req RegisterWorkerRequest)
 			WorkerSettingsSchemaID: schema.ID,
 		})
 		if err != nil {
-			return db.Worker{}, fmt.Errorf("update worker schema: %w", err)
+			return RegisterWorkerResponse{}, fmt.Errorf("update worker schema: %w", err)
 		}
 	}
 
 	// 5. Обновляем heartbeat (WORK-05 — и для новых, и для повторно регистрирующихся)
 	if err = s.store.UpdateNewWorkerHeartbeat(ctx, worker.ID); err != nil {
-		return db.Worker{}, fmt.Errorf("update worker heartbeat: %w", err)
+		return RegisterWorkerResponse{}, fmt.Errorf("update worker heartbeat: %w", err)
 	}
 
-	return worker, nil
+	return RegisterWorkerResponse{
+		Worker:     worker,
+		RevisionID: revisionID,
+	}, nil
+}
+
+func (s *Service) resolveRegistrationRevisionID(ctx context.Context, schemaID int32) (int32, error) {
+	revisions, err := s.store.ListWorkerSettingsRevisionsBySchemaID(ctx, schemaID)
+	if err != nil {
+		return 0, fmt.Errorf("list worker settings revisions: %w", err)
+	}
+	if len(revisions) > 0 {
+		return revisions[0].ID, nil
+	}
+
+	revision, err := s.store.CreateWorkerSettingsRevision(ctx, db.CreateWorkerSettingsRevisionParams{
+		WorkerSettingsSchemaID: schemaID,
+		CreatedByUserID:        pgtype.Int4{},
+		SettingsData:           []byte(`{}`),
+	})
+	if err != nil {
+		return 0, fmt.Errorf("create default worker settings revision: %w", err)
+	}
+	return revision.ID, nil
 }
 
 // ListWorkers возвращает список воркеров с вычисленным статусом.

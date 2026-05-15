@@ -19,3 +19,15 @@ func TestBuildArgsTargetCommandPackageDirectory(t *testing.T) {
 		t.Fatalf("expected build target %q, got %q", want, target)
 	}
 }
+
+func TestAppsUsesTemplateWorkerName(t *testing.T) {
+	for _, app := range Apps {
+		if app.Name == "template" && app.IsWorker {
+			return
+		}
+		if (app.Name == "html" || app.Name == "template-html") && app.IsWorker {
+			t.Fatal("HTML template worker app should be named template")
+		}
+	}
+	t.Fatal("template worker app is not registered")
+}
