@@ -148,7 +148,6 @@ onMounted(loadData)
           @blur="onNameBlur"
           @keydown.enter="($event.target as HTMLInputElement)?.blur()"
         />
-        <p class="text-sm text-muted-foreground">Workflow versions, activation, traffic, and tokens.</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <WorkflowVersionCreateMenu
@@ -159,11 +158,11 @@ onMounted(loadData)
         />
         <Button variant="outline" class="gap-2" @click="router.push(`/org/${orgId}/workflows/${workflowId}/traffic`)">
           <Split class="h-4 w-4" />
-          Traffic
+          {{ t('workflowVersions.traffic') }}
         </Button>
         <Button variant="outline" class="gap-2" :disabled="!workflowSystemId" @click="tokensOpen = true">
           <Key class="h-4 w-4" />
-          Tokens
+          {{ t('workflowVersions.tokens') }}
         </Button>
       </div>
     </div>

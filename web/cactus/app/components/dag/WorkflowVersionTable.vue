@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ExternalLink, FileJson, MoreHorizontal, Play, Pause, Trash2 } from 'lucide-vue-next'
+import { FileJson, MoreHorizontal, Pause, Play, Trash2 } from 'lucide-vue-next'
 import type { VersionSummary } from '~/composables/useVersions'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
@@ -23,15 +23,10 @@ const emit = defineEmits<{
   delete: [version: VersionSummary]
   showInputSchema: []
 }>()
+const { t } = useI18n()
 
 function editPath(version: VersionSummary) {
   return workflowVersionEditorPath(props.orgId, props.workflowId, version.id)
-}
-
-function editingStatus(version: VersionSummary) {
-  if (version.deleted_at) return 'Deleted'
-  if (version.is_active && version.run_count > 0) return 'Read-only'
-  return 'Editable'
 }
 </script>
 
@@ -40,11 +35,11 @@ function editingStatus(version: VersionSummary) {
     <table class="w-full text-sm">
       <thead class="border-b bg-muted/40 text-left">
         <tr>
-          <th class="px-4 py-3 font-medium">Name</th>
-          <th class="px-4 py-3 font-medium">Status</th>
-          <th class="px-4 py-3 font-medium">Editing</th>
-          <th class="px-4 py-3 font-medium">Runs</th>
-          <th class="px-4 py-3 font-medium">Traffic</th>
+          <th class="px-4 py-3 font-medium">{{ t('workflowVersions.headers.name') }}</th>
+          <th class="px-4 py-3 font-medium">{{ t('workflowVersions.headers.status') }}</th>
+          <th class="px-4 py-3 font-medium">{{ t('workflowVersions.headers.editing') }}</th>
+          <th class="px-4 py-3 font-medium">{{ t('workflowVersions.headers.runs') }}</th>
+          <th class="px-4 py-3 font-medium">{{ t('workflowVersions.headers.traffic') }}</th>
           <th class="w-12 px-4 py-3" />
         </tr>
       </thead>
@@ -55,22 +50,30 @@ function editingStatus(version: VersionSummary) {
           class="border-b last:border-0"
         >
           <td class="px-4 py-3">
-            <div class="font-medium">{{ version.name || `Version ${version.version_number}` }}</div>
-            <div class="text-xs text-muted-foreground">v{{ version.version_number }}</div>
-          </td>
-          <td class="px-4 py-3">
-            <div class="flex flex-wrap gap-2">
-              <Badge v-if="version.is_active" variant="default">Active</Badge>
-              <Badge v-else variant="secondary">Inactive</Badge>
-              <Badge v-if="version.deleted_at" variant="outline">Deleted</Badge>
-              <Badge :variant="version.is_valid ? 'secondary' : 'destructive'">
-                {{ version.is_valid ? 'Valid' : 'Validation required' }}
-              </Badge>
-              <Badge v-if="version.is_control_group" variant="outline">Control</Badge>
+            <div class="flex items-center gap-2">
+              <NuxtLink :to="editPath(version)" class="font-medium hover:underline">
+                {{ version.name || t('workflowVersions.versionFallback') }}
+              </NuxtLink>
+              <span class="text-xs text-muted-foreground">v{{ version.version_number }}</span>
             </div>
           </td>
           <td class="px-4 py-3">
-            <span class="text-muted-foreground">{{ editingStatus(version) }}</span>
+            <div class="flex flex-wrap gap-2">
+              <Badge v-if="version.is_active" variant="default">{{ t('status.active') }}</Badge>
+              <Badge v-else variant="secondary">{{ t('status.inactive') }}</Badge>
+              <Badge
+                v-if="version.is_active"
+                :variant="version.is_valid ? 'secondary' : 'destructive'"
+              >
+                {{ version.is_valid ? t('editor.valid') : t('workflowVersions.status.validationRequired') }}
+              </Badge>
+              <Badge v-if="version.is_control_group" variant="outline">{{ t('workflowVersions.status.control') }}</Badge>
+            </div>
+          </td>
+          <td class="px-4 py-3">
+            <span class="text-muted-foreground">
+              {{ version.is_active && version.run_count > 0 ? t('workflowVersions.editing.readOnly') : t('workflowVersions.editing.editable') }}
+            </span>
           </td>
           <td class="px-4 py-3">{{ version.run_count }}</td>
           <td class="px-4 py-3">{{ version.traffic_weight }}%</td>
@@ -82,42 +85,31 @@ function editingStatus(version: VersionSummary) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  :disabled="Boolean(version.deleted_at)"
-                  as-child
-                >
-                  <NuxtLink :to="editPath(version)">
-                    <ExternalLink class="mr-2 h-4 w-4" />
-                    Open DAG
-                  </NuxtLink>
-                </DropdownMenuItem>
                 <DropdownMenuItem @click="emit('showInputSchema')">
                   <FileJson class="mr-2 h-4 w-4" />
-                  Workflow input schema
+                  {{ t('workflowVersions.actions.workflowInputSchema') }}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   v-if="!version.is_active"
-                  :disabled="Boolean(version.deleted_at) || !version.is_valid"
+                  :disabled="!version.is_valid"
                   @click="emit('activate', version)"
                 >
                   <Play class="mr-2 h-4 w-4" />
-                  Activate
+                  {{ t('workflowVersions.actions.activate') }}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   v-else
-                  :disabled="Boolean(version.deleted_at)"
                   @click="emit('deactivate', version)"
                 >
                   <Pause class="mr-2 h-4 w-4" />
-                  Deactivate
+                  {{ t('workflowVersions.actions.deactivate') }}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   class="text-destructive focus:text-destructive"
-                  :disabled="Boolean(version.deleted_at)"
                   @click="emit('delete', version)"
                 >
                   <Trash2 class="mr-2 h-4 w-4" />
-                  Delete
+                  {{ t('workflowVersions.actions.delete') }}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

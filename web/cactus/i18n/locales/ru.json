@@ -68,6 +68,39 @@
     "saved": "Workflow input сохранён",
     "deleted": "Workflow input удалён"
   },
+  "workflowVersions": {
+    "headers": {
+      "name": "Название",
+      "status": "Статус",
+      "editing": "Редактирование",
+      "runs": "Запросы",
+      "traffic": "Трафик"
+    },
+    "editing": {
+      "readOnly": "Только чтение",
+      "editable": "Редактируемый"
+    },
+    "status": {
+      "active": "Активная",
+      "inactive": "Неактивная",
+      "validationRequired": "Требуется валидация",
+      "control": "Контрольная"
+    },
+    "versionFallback": "Версия",
+    "traffic": "Трафик",
+    "tokens": "Токены",
+    "createMenu": {
+      "create": "Создать версию",
+      "createBlank": "Создать черновую версию",
+      "copyLatest": "Скопировать последнюю версию"
+    },
+    "actions": {
+      "workflowInputSchema": "Схема входных данных",
+      "activate": "Активировать",
+      "deactivate": "Деактивировать",
+      "delete": "Удалить"
+    }
+  },
   "editor": {
     "saveVersion": "Сохранить версию",
     "activateVersion": "Активировать версию",

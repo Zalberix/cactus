@@ -23,7 +23,8 @@ const emit = defineEmits<{
 const router = useRouter()
 const { createVersion, copyVersion } = useVersions()
 
-const latestVersion = computed(() => props.versions.find(v => !v.deleted_at))
+const latestVersion = computed(() => props.versions[0])
+const { t } = useI18n()
 
 async function openCreated(version: Version) {
   emit('created', version)
@@ -41,18 +42,18 @@ async function copyLatest() {
 </script>
 
 <template>
-  <DropdownMenu>
+    <DropdownMenu>
     <DropdownMenuTrigger as-child>
-      <Button>Create Version</Button>
+      <Button>{{ t('workflowVersions.createMenu.create') }}</Button>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end">
       <DropdownMenuItem @click="createBlank">
         <FilePlus2 class="mr-2 h-4 w-4" />
-        Create blank version
+        {{ t('workflowVersions.createMenu.createBlank') }}
       </DropdownMenuItem>
       <DropdownMenuItem :disabled="!latestVersion" @click="copyLatest">
         <Copy class="mr-2 h-4 w-4" />
-        Copy latest version
+        {{ t('workflowVersions.createMenu.copyLatest') }}
       </DropdownMenuItem>
     </DropdownMenuContent>
   </DropdownMenu>

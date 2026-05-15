@@ -71,6 +71,39 @@
     "saved": "Workflow input saved",
     "deleted": "Workflow input deleted"
   },
+  "workflowVersions": {
+    "headers": {
+      "name": "Name",
+      "status": "Status",
+      "editing": "Editing",
+      "runs": "Runs",
+      "traffic": "Traffic"
+    },
+    "editing": {
+      "readOnly": "Read-only",
+      "editable": "Editable"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "validationRequired": "Validation required",
+      "control": "Control"
+    },
+    "versionFallback": "Version",
+    "traffic": "Traffic",
+    "tokens": "Tokens",
+    "createMenu": {
+      "create": "Create Version",
+      "createBlank": "Create blank version",
+      "copyLatest": "Copy latest version"
+    },
+    "actions": {
+      "workflowInputSchema": "Workflow input schema",
+      "activate": "Activate",
+      "deactivate": "Deactivate",
+      "delete": "Delete"
+    }
+  },
   "editor": {
     "saveVersion": "Save Version",
     "activateVersion": "Activate Version",

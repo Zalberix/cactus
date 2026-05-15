@@ -148,6 +148,10 @@ func (s *Service) ListVersionSummaries(ctx context.Context, workflowID int32) ([
 
 	summaries := make([]VersionSummaryResponse, 0, len(rows))
 	for _, r := range rows {
+		if r.DeletedAt.Valid {
+			continue
+		}
+
 		summary := VersionSummaryResponse{
 			ID:             r.ID,
 			WorkflowID:     r.WorkflowID,

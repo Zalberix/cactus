@@ -20,9 +20,7 @@ const versions = ref<VersionSummary[]>([])
 const loading = ref(true)
 const saving = ref(false)
 
-const activeVersions = computed(() =>
-  versions.value.filter(version => version.is_active && !version.deleted_at),
-)
+const activeVersions = computed(() => versions.value.filter(version => version.is_active))
 
 async function loadData() {
   loading.value = true
