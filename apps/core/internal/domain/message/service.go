@@ -161,6 +161,11 @@ func (s *Service) buildDAGInput(ctx context.Context, versionID, messageID int32,
 		}
 		if step.WorkerSettingsRevisionID.Valid {
 			sd.WorkerSettingsRevisionID = step.WorkerSettingsRevisionID.Int32
+			revision, err := s.store.GetWorkerSettingsRevisionByID(ctx, step.WorkerSettingsRevisionID.Int32)
+			if err != nil {
+				return nil, fmt.Errorf("get worker settings revision %d for step %d: %w", step.WorkerSettingsRevisionID.Int32, step.ID, err)
+			}
+			sd.WorkerSettingsSchemaID = revision.WorkerSettingsSchemaID
 		}
 		// Per D-05: Timeout should be populated from WorkerSettingsRevision.
 		// In v1, we leave it as zero (default worker timeout will be used in activity).

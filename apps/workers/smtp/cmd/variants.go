@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"strings"
 	"time"
 
 	mail "github.com/wneessen/go-mail"
@@ -52,6 +54,14 @@ func (s smtpSender) Send(_ context.Context, msg emailMessage) (emailSendResult, 
 	m.Subject(msg.Subject)
 	m.SetBodyString(mail.TypeTextHTML, msg.Body)
 
+	slog.Info("smtp sender prepared message",
+		slog.String("from", msg.From),
+		slog.String("to", strings.Join(msg.To, ",")),
+		slog.String("subject", msg.Subject),
+		slog.Int("recipients_to", len(msg.To)),
+		slog.Int("recipients_cc", len(msg.CC)),
+	)
+
 	opts := []mail.Option{mail.WithPort(s.port)}
 	switch s.auth {
 	case "none", "":
@@ -68,11 +78,29 @@ func (s smtpSender) Send(_ context.Context, msg emailMessage) (emailSendResult, 
 
 	client, err := mail.NewClient(s.host, opts...)
 	if err != nil {
+		slog.Error("smtp sender create client failed",
+			slog.String("host", s.host),
+			slog.Int("port", s.port),
+			slog.String("error", err.Error()),
+		)
 		return emailSendResult{}, fmt.Errorf("create smtp client: %w", err)
 	}
+
 	if err := client.DialAndSend(m); err != nil {
+		slog.Error("smtp sender send failed",
+			slog.String("host", s.host),
+			slog.Int("port", s.port),
+			slog.String("subject", msg.Subject),
+			slog.String("error", err.Error()),
+		)
 		return emailSendResult{}, fmt.Errorf("send email: %w", err)
 	}
+
+	slog.Info("smtp sender sent message",
+		slog.String("message_id", m.GetMessageID()),
+		slog.String("subject", msg.Subject),
+		slog.Int("recipients_count", len(msg.To)+len(msg.CC)),
+	)
 
 	return emailSendResult{
 		MessageID:       m.GetMessageID(),
@@ -92,10 +120,39 @@ func (h SMTPHandler) Handle(ctx context.Context, task worker.TaskMessage) (worke
 	to, _ := task.Input["to"].(string)
 	subject, _ := task.Input["subject"].(string)
 	body, _ := task.Input["body"].(string)
+
+	log := slog.Default()
+	cc := []string(nil)
+	if h.includeCC {
+		cc = stringsFromInput(task.Input["cc"])
+	}
+
+	log.Info("SMTP handler received task",
+		slog.Int("workflow_run_id", int(task.WorkflowRunID)),
+		slog.Int("step_id", int(task.StepID)),
+		slog.Int("attempt", int(task.Attempt)),
+		slog.String("to", to),
+		slog.String("subject", subject),
+		slog.Int("cc_count", len(cc)),
+		slog.Int("input_len", len(task.Input)),
+		slog.String("idempotency_key", task.IdempotencyKey),
+		slog.String("reply_to", task.ReplyTo),
+	)
+
 	if to == "" || subject == "" {
+		log.Warn("SMTP handler missing required fields",
+			slog.Int("workflow_run_id", int(task.WorkflowRunID)),
+			slog.Int("step_id", int(task.StepID)),
+			slog.String("to", to),
+			slog.String("subject", subject),
+		)
 		return worker.Result{}, fmt.Errorf("missing required fields: to=%q, subject=%q", to, subject)
 	}
 	if h.requireBody && body == "" {
+		log.Warn("SMTP handler missing required body",
+			slog.Int("workflow_run_id", int(task.WorkflowRunID)),
+			slog.Int("step_id", int(task.StepID)),
+		)
 		return worker.Result{}, fmt.Errorf("missing required field: body")
 	}
 
@@ -104,15 +161,38 @@ func (h SMTPHandler) Handle(ctx context.Context, task worker.TaskMessage) (worke
 		To:      []string{to},
 		Subject: subject,
 		Body:    body,
+		CC:      cc,
 	}
-	if h.includeCC {
-		msg.CC = stringsFromInput(task.Input["cc"])
-	}
+
+	log.Info("SMTP handler sending message",
+		slog.Int("workflow_run_id", int(task.WorkflowRunID)),
+		slog.Int("step_id", int(task.StepID)),
+		slog.Int("attempt", int(task.Attempt)),
+		slog.Int("recipients", len(msg.To)+len(msg.CC)),
+		slog.String("reply_to", task.ReplyTo),
+	)
 
 	sendResult, err := h.sender.Send(ctx, msg)
 	if err != nil {
+		log.Error("SMTP handler send error",
+			slog.Int("workflow_run_id", int(task.WorkflowRunID)),
+			slog.Int("step_id", int(task.StepID)),
+			slog.Int("attempt", int(task.Attempt)),
+			slog.String("to", to),
+			slog.String("subject", subject),
+			slog.String("error", err.Error()),
+		)
 		return worker.Result{}, err
 	}
+
+	log.Info("SMTP handler send success",
+		slog.Int("workflow_run_id", int(task.WorkflowRunID)),
+		slog.Int("step_id", int(task.StepID)),
+		slog.Int("attempt", int(task.Attempt)),
+		slog.String("smtp_message_id", sendResult.MessageID),
+		slog.String("sent_at", sendResult.SentAt),
+		slog.Int("recipients_count", sendResult.RecipientsCount),
+	)
 
 	return worker.Result{
 		Success: true,

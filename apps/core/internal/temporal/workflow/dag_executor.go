@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"log/slog"
 	"time"
 
 	"go.temporal.io/sdk/temporal"
@@ -9,18 +10,17 @@ import (
 	temporaltypes "github.com/zalberix/cactus/apps/core/internal/temporal"
 )
 
-// DAGExecutorWorkflow выполняет DAG шагов workflow в топологическом порядке.
-// Независимые шаги запускаются параллельно через workflow.Go.
-// При провале любого шага все оставшиеся помечаются skipped (fail-fast, D-18).
-//
-// КРИТИЧНО — весь код детерминистичен: нет time.Now, нет go func, нет IO.
+// DAGExecutorWorkflow executes DAG workflow sequentially inside Temporal.
+// For compatibility with deterministic execution, no mutable external I/O is used
+// directly inside this workflow code.
 func DAGExecutorWorkflow(ctx workflow.Context, input temporaltypes.DAGInput) error { //nolint:gocognit // Temporal workflow logic must remain deterministic and linear.
-	// Настройки retry и activity options
+	logger := workflow.GetLogger(ctx)
+
 	retryPolicy := &temporal.RetryPolicy{
 		InitialInterval:    5 * time.Second,
 		BackoffCoefficient: 2.0,
 		MaximumInterval:    2 * time.Minute,
-		MaximumAttempts:    3, // D-16: 1 основная + 2 retry
+		MaximumAttempts:    3, // 1 initial attempt + 2 retries
 	}
 	actOpts := workflow.ActivityOptions{
 		StartToCloseTimeout: 10 * time.Minute,
@@ -28,11 +28,21 @@ func DAGExecutorWorkflow(ctx workflow.Context, input temporaltypes.DAGInput) err
 	}
 	ctx = workflow.WithActivityOptions(ctx, actOpts)
 
-	// Строим граф зависимостей
+	logger.Info("DAGExecutorWorkflow started",
+		slog.Int("workflow_run_id", int(input.WorkflowRunID)),
+		slog.Int("message_id", int(input.MessageID)),
+		slog.Int("steps_count", len(input.Steps)),
+	)
+
 	stepMap, children, inDegree, _ := buildGraph(input.Steps, input.Deps)
 
-	// Записываем начальные pending записи для всех шагов
 	for _, step := range input.Steps {
+		logger.Info("RecordStep pending scheduled",
+			slog.Int("workflow_run_id", int(input.WorkflowRunID)),
+			slog.Int("step_id", int(step.ID)),
+			slog.String("step_type", step.StepType),
+			slog.Int("work_type_id", int(step.WorkTypeID)),
+		)
 		_ = workflow.ExecuteActivity(ctx, "RecordStep", temporaltypes.RecordStepInput{
 			WorkflowRunID: input.WorkflowRunID,
 			MessageID:     input.MessageID,
@@ -41,26 +51,29 @@ func DAGExecutorWorkflow(ctx workflow.Context, input temporaltypes.DAGInput) err
 		}).Get(ctx, nil)
 	}
 
-	// Хранилище результатов выполненных шагов
 	stepResults := make(map[int32]temporaltypes.StepResult, len(input.Steps))
 
-	// Отслеживаем незавершённые шаги
 	remaining := make(map[int32]bool, len(input.Steps))
 	for _, step := range input.Steps {
 		remaining[step.ID] = true
 	}
 
-	// Счётчик запущенных и завершённых goroutine
 	type stepFuture struct {
 		stepID int32
 		future workflow.Future
 	}
 
 	futures := make([]stepFuture, 0)
-	selector := workflow.NewSelector(ctx)
 
-	// Функция для запуска шага
 	launchTaskStep := func(step temporaltypes.StepDef) {
+		logger.Info("Launching RunTaskStep",
+			slog.Int("workflow_run_id", int(input.WorkflowRunID)),
+			slog.Int("step_id", int(step.ID)),
+			slog.String("step_type", step.StepType),
+			slog.Int("work_type_id", int(step.WorkTypeID)),
+			slog.Int("revision_id", int(step.WorkerSettingsRevisionID)),
+			slog.Int("attempt", 1),
+		)
 		f := workflow.ExecuteActivity(ctx, "RunTaskStep", temporaltypes.RunTaskStepInput{
 			WorkflowRunID: input.WorkflowRunID,
 			MessageID:     input.MessageID,
@@ -71,7 +84,6 @@ func DAGExecutorWorkflow(ctx workflow.Context, input temporaltypes.DAGInput) err
 		})
 		sf := stepFuture{stepID: step.ID, future: f}
 		futures = append(futures, sf)
-		selector.AddFuture(f, func(_ workflow.Future) {})
 	}
 
 	var processReadyStep func(stepID int32)
@@ -108,34 +120,68 @@ func DAGExecutorWorkflow(ctx workflow.Context, input temporaltypes.DAGInput) err
 		}
 	}
 
-	// Находим и запускаем корневые шаги (без зависимостей)
 	roots := findRoots(inDegree)
 	for _, rootID := range roots {
 		processReadyStep(rootID)
 	}
 
-	// Переменная для хранения ошибки провала шага
-	var failErr error
+	buildSelector := func() workflow.Selector {
+		selector := workflow.NewSelector(ctx)
+		for _, sf := range futures {
+			sfCopy := sf
+			selector.AddFuture(sfCopy.future, func(_ workflow.Future) {})
+		}
+		return selector
+	}
 
-	// Основной цикл обработки результатов
+	var failErr error
+	selector := buildSelector()
+
 	for len(futures) > 0 && failErr == nil {
 		selector.Select(ctx)
 
-		// Обрабатываем все завершившиеся futures
-		newFutures := make([]stepFuture, 0, len(futures))
-		for _, sf := range futures {
+		currentFutures := futures
+		futures = make([]stepFuture, 0, len(currentFutures))
+		for _, sf := range currentFutures {
 			if !sf.future.IsReady() {
-				newFutures = append(newFutures, sf)
+				futures = append(futures, sf)
 				continue
 			}
 
 			var result temporaltypes.StepResult
 			err := sf.future.Get(ctx, &result)
+			logger.Info("RunTaskStep completed",
+				slog.Int("workflow_run_id", int(input.WorkflowRunID)),
+				slog.Int("step_id", int(sf.stepID)),
+				slog.Bool("future_error", err != nil),
+				slog.Bool("step_success", result.Success),
+				slog.String("result_error", result.Error),
+				slog.Int("worker_id", int(result.WorkerID)),
+				slog.Int("remaining_before", len(remaining)),
+			)
 
 			if err != nil || !result.Success {
-				// Fail-fast (D-18): помечаем все оставшиеся шаги как skipped
+				if err != nil {
+					logger.Error("RunTaskStep execution returned error",
+						slog.Int("workflow_run_id", int(input.WorkflowRunID)),
+						slog.Int("step_id", int(sf.stepID)),
+						slog.String("error", err.Error()),
+					)
+				} else {
+					logger.Error("RunTaskStep returned failed result",
+						slog.Int("workflow_run_id", int(input.WorkflowRunID)),
+						slog.Int("step_id", int(sf.stepID)),
+						slog.String("step_error", result.Error),
+					)
+				}
+
 				delete(remaining, sf.stepID)
 				for remID := range remaining {
+					logger.Info("Marking step as skipped",
+						slog.Int("workflow_run_id", int(input.WorkflowRunID)),
+						slog.Int("failed_step_id", int(sf.stepID)),
+						slog.Int("skipped_step_id", int(remID)),
+					)
 					_ = workflow.ExecuteActivity(ctx, "RecordStep", temporaltypes.RecordStepInput{
 						WorkflowRunID: input.WorkflowRunID,
 						MessageID:     input.MessageID,
@@ -147,11 +193,9 @@ func DAGExecutorWorkflow(ctx workflow.Context, input temporaltypes.DAGInput) err
 				break
 			}
 
-			// Шаг успешно завершён
 			stepResults[sf.stepID] = result
 			delete(remaining, sf.stepID)
 
-			// Уменьшаем inDegree потомков и запускаем готовые
 			for _, childID := range children[sf.stepID] {
 				inDegree[childID]--
 				if inDegree[childID] == 0 {
@@ -159,25 +203,27 @@ func DAGExecutorWorkflow(ctx workflow.Context, input temporaltypes.DAGInput) err
 				}
 			}
 		}
-		futures = newFutures
 
-		// Пересоздаём selector с оставшимися futures
 		if len(futures) > 0 && failErr == nil {
-			selector = workflow.NewSelector(ctx)
-			for _, sf := range futures {
-				sfCopy := sf
-				selector.AddFuture(sfCopy.future, func(_ workflow.Future) {})
-			}
+			selector = buildSelector()
 		}
 	}
 
 	if failErr != nil {
-		// Обновляем статус workflow_run как failed и публикуем workflow_failed event
+		logger.Info("Workflow failed, updating status",
+			slog.Int("workflow_run_id", int(input.WorkflowRunID)),
+			slog.Int("message_id", int(input.MessageID)),
+			slog.String("status", temporaltypes.RunStatusFailed),
+		)
 		_ = workflow.ExecuteActivity(ctx, "UpdateRunStatus", input.WorkflowRunID, input.MessageID, temporaltypes.RunStatusFailed, failErr.Error()).Get(ctx, nil)
 		return failErr
 	}
 
-	// Все шаги успешно завершены — обновляем статус workflow run
+	logger.Info("Workflow completed, updating status",
+		slog.Int("workflow_run_id", int(input.WorkflowRunID)),
+		slog.Int("message_id", int(input.MessageID)),
+		slog.String("status", temporaltypes.RunStatusCompleted),
+	)
 	_ = workflow.ExecuteActivity(ctx, "UpdateRunStatus", input.WorkflowRunID, input.MessageID, temporaltypes.RunStatusCompleted, "").Get(ctx, nil)
 
 	return nil
@@ -187,8 +233,6 @@ func isStartStep(step temporaltypes.StepDef) bool {
 	return step.StepType == "control" && step.ControlKind == "start"
 }
 
-// buildGraph строит структуры данных для обхода DAG.
-// Возвращает: stepMap, children, inDegree, depOutcome.
 func buildGraph(
 	steps []temporaltypes.StepDef,
 	deps []temporaltypes.DepDef,
@@ -220,7 +264,6 @@ func buildGraph(
 	return
 }
 
-// findRoots возвращает список шагов без зависимостей (корневые узлы DAG).
 func findRoots(inDegree map[int32]int) []int32 {
 	roots := make([]int32, 0)
 	for id, deg := range inDegree {
@@ -231,7 +274,6 @@ func findRoots(inDegree map[int32]int) []int32 {
 	return roots
 }
 
-// collectOutputs собирает выходные данные завершённых шагов для передачи в следующий шаг.
 func collectOutputs(stepResults map[int32]temporaltypes.StepResult) map[int32]map[string]any {
 	result := make(map[int32]map[string]any, len(stepResults))
 	for id, sr := range stepResults {

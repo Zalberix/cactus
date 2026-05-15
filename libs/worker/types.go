@@ -35,16 +35,17 @@ type Result struct {
 
 // Config --- конфигурация Worker SDK.
 type Config struct {
-	NatsURL           string                            `json:"nats_url"`
-	ManagerURL        string                            `json:"manager_url"`
-	BootstrapToken    string                            `json:"bootstrap_token"`
-	WorkTypeID        int32                             `json:"work_type_id"`
-	RevisionID        int32                             `json:"revision_id"`
-	WorkerIDPath      string                            `json:"worker_id_file"`
-	WorkerName        string                            `json:"worker_name"`
-	HeartbeatInterval time.Duration                     `json:"heartbeat_interval"`
-	Manifest          ManifestSpec                      `json:"manifest"`
-	OnWorkerID        func(workerID int32) *slog.Logger `json:"-"`
+	NatsURL                string                            `json:"nats_url"`
+	ManagerURL             string                            `json:"manager_url"`
+	BootstrapToken         string                            `json:"bootstrap_token"`
+	WorkTypeID             int32                             `json:"work_type_id"`
+	WorkerSettingsSchemaID int32                             `json:"worker_settings_schema_id"`
+	RevisionID             int32                             `json:"revision_id"`
+	WorkerIDPath           string                            `json:"worker_id_file"`
+	WorkerName             string                            `json:"worker_name"`
+	HeartbeatInterval      time.Duration                     `json:"heartbeat_interval"`
+	Manifest               ManifestSpec                      `json:"manifest"`
+	OnWorkerID             func(workerID int32) *slog.Logger `json:"-"`
 }
 
 // ManifestSpec --- возможности воркера, объявляемые при регистрации (per D-03).

@@ -85,6 +85,9 @@ func TestRegisterResponseUnmarshal(t *testing.T) {
 	if resp.Data.WorkTypeID != int32(12) {
 		t.Errorf("expected Data.WorkTypeID == 12, got %d", resp.Data.WorkTypeID)
 	}
+	if resp.Data.WorkerSettingsSchemaID != int32(3) {
+		t.Errorf("expected Data.WorkerSettingsSchemaID == 3, got %d", resp.Data.WorkerSettingsSchemaID)
+	}
 	if resp.Data.RevisionID != int32(99) {
 		t.Errorf("expected Data.RevisionID == 99, got %d", resp.Data.RevisionID)
 	}
@@ -150,7 +153,7 @@ func TestSendRegistration(t *testing.T) {
 		// Respond with envelope
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"success":true,"data":{"id":7,"work_type_id":12,"revision_id":99,"name":"test-worker"}}`))
+		_, _ = w.Write([]byte(`{"success":true,"data":{"id":7,"work_type_id":12,"worker_settings_schema_id":3,"revision_id":99,"name":"test-worker"}}`))
 	}))
 	defer srv.Close()
 
@@ -178,6 +181,9 @@ func TestSendRegistration(t *testing.T) {
 	if wk.cfg.WorkTypeID != int32(12) {
 		t.Errorf("expected runtime WorkTypeID == 12, got %d", wk.cfg.WorkTypeID)
 	}
+	if wk.cfg.WorkerSettingsSchemaID != int32(3) {
+		t.Errorf("expected runtime WorkerSettingsSchemaID == 3, got %d", wk.cfg.WorkerSettingsSchemaID)
+	}
 	if wk.cfg.RevisionID != int32(99) {
 		t.Errorf("expected runtime RevisionID == 99, got %d", wk.cfg.RevisionID)
 	}
@@ -190,8 +196,16 @@ func TestRequireRoutingConfiguredRejectsMissingRegistrationIDs(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected missing routing IDs error")
 	}
-	if !strings.Contains(err.Error(), "registration response missing work_type_id or revision_id") {
+	if !strings.Contains(err.Error(), "registration response missing work_type_id, worker_settings_schema_id or revision_id") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestTaskFilterSubjectIncludesSchemaID(t *testing.T) {
+	got := taskFilterSubject(12, 3)
+	want := "task.12.3.>"
+	if got != want {
+		t.Fatalf("taskFilterSubject() = %q, want %q", got, want)
 	}
 }
 

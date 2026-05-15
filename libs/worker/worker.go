@@ -18,6 +18,10 @@ const (
 	defaultInactiveThreshold = 5 * time.Minute
 )
 
+func taskFilterSubject(workTypeID, schemaID int32) string {
+	return fmt.Sprintf("task.%d.%d.>", workTypeID, schemaID)
+}
+
 // Worker --- SDK для подключения воркеров к Manager через NATS JetStream.
 type Worker struct {
 	cfg      Config
@@ -102,8 +106,8 @@ func (w *Worker) refreshLoggerAfterWorkerID() {
 // registerWithRetry пытается зарегистрироваться с экспоненциальным backoff.
 // Не сдаётся до отмены ctx.
 func (w *Worker) requireRoutingConfigured() error {
-	if w.cfg.WorkTypeID <= 0 || w.cfg.RevisionID <= 0 {
-		return fmt.Errorf("registration response missing work_type_id or revision_id")
+	if w.cfg.WorkTypeID <= 0 || w.cfg.WorkerSettingsSchemaID <= 0 || w.cfg.RevisionID <= 0 {
+		return fmt.Errorf("registration response missing work_type_id, worker_settings_schema_id or revision_id")
 	}
 	return nil
 }
@@ -143,7 +147,7 @@ func (w *Worker) registerWithRetry(ctx context.Context) error {
 
 // consumeLoop подписывается на TASKS stream и обрабатывает сообщения.
 func (w *Worker) consumeLoop(ctx context.Context) error {
-	subject := fmt.Sprintf("task.%d.%d.>", w.cfg.WorkTypeID, w.cfg.RevisionID)
+	subject := taskFilterSubject(w.cfg.WorkTypeID, w.cfg.WorkerSettingsSchemaID)
 	consumerName := fmt.Sprintf("worker-%d", w.workerID)
 
 	cons, err := w.js.CreateOrUpdateConsumer(ctx, "TASKS", jetstream.ConsumerConfig{

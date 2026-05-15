@@ -2,6 +2,36 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
+  hooks: {
+    'vite:extendConfig'(viteConfig) {
+      const fallbackClientEntry = '#app/entry';
+      const fallbackServerEntry = '#app/entry-spa';
+
+      const input = viteConfig.build?.rollupOptions?.input;
+
+      if (!input) {
+        viteConfig.build = viteConfig.build || {};
+        viteConfig.build.rollupOptions = viteConfig.build.rollupOptions || {};
+        viteConfig.build.rollupOptions.input = {
+          entry: fallbackClientEntry,
+          server: fallbackServerEntry,
+        };
+        return;
+      }
+
+      if (typeof input !== 'string' && !Array.isArray(input)) {
+        const normalizedInput = {
+          ...input as Record<string, string>,
+          entry: (input as Record<string, string>).entry || fallbackClientEntry,
+          server: (input as Record<string, string>).server || fallbackServerEntry,
+        };
+
+        viteConfig.build = viteConfig.build || {};
+        viteConfig.build.rollupOptions = viteConfig.build.rollupOptions || {};
+        viteConfig.build.rollupOptions.input = normalizedInput;
+      }
+    },
+  },
   devtools: {
     enabled: true,
 

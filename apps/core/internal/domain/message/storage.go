@@ -20,6 +20,7 @@ type Storage interface {
 	// Workflow steps и dependencies (для формирования DAGInput)
 	ListWorkflowStepsByVersionID(ctx context.Context, workflowVersionID int32) ([]db.WorkflowStep, error)
 	ListDependenciesByVersionID(ctx context.Context, workflowVersionID int32) ([]db.WorkflowStepDependency, error)
+	GetWorkerSettingsRevisionByID(ctx context.Context, id int32) (db.WorkerSettingsRevision, error)
 
 	// Workflow run
 	CreateWorkflowRun(ctx context.Context, arg db.CreateWorkflowRunParams) (db.WorkflowRun, error)

@@ -16,15 +16,14 @@ import (
 	"github.com/zalberix/cactus/libs/bus"
 )
 
-// Activities содержит все Temporal activities с инжектированными зависимостями.
-// Методы этого struct регистрируются как activities в Temporal worker.
+// Activities contains activity implementations for Temporal worker.
 type Activities struct {
 	store  *store.Store
 	bus    *bus.Bus
 	logger *slog.Logger
 }
 
-// New создаёт Activities с зависимостями.
+// New creates Activities with dependencies.
 func New(store *store.Store, bus *bus.Bus) *Activities {
 	return &Activities{
 		store:  store,
@@ -50,40 +49,32 @@ func (a *Activities) publishWorkflowEvent(ctx context.Context, messageID int32, 
 	}
 }
 
-// RunTaskStep — activity для выполнения task-шага (per EXEC-05, EXEC-06 dispatch side).
-//
-// Алгоритм:
-//  1. Resolve input mapping из message value + step outputs
-//  2. Создать workflow_run_step запись со статусом "running"
-//  3. Создать workflow_run_step_attempt запись
-//  4. Сформировать TaskMessage (per D-06)
-//  5. Опубликовать в NATS TASKS stream: subject "task.{work_type_id}.{revision_id}.{run_id}"
-//     NOTE: D-02 deviation — используется integer revision ID вместо configRevisionHash.
-//     Hash добавляет сложность без явной пользы в v1, integer revision ID проще и достаточен.
-//  6. Ждать результат через waitForResult на "result.{run_id}.{step_id}"
-//     Per D-05: timeout берётся из input.Step.Timeout (populated from WorkerSettingsRevision
-//     in buildDAGInput), falls back to defaultWorkerTimeout (5 min)
-//  7. Обновить workflow_run_step и attempt с результатом
-//  8. Вернуть StepResult
+// RunTaskStep is the activity for dispatching task steps.
 func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTaskStepInput) (temporaltypes.StepResult, error) {
 	info := activity.GetInfo(ctx)
-	attempt := info.Attempt + 1 // Temporal attempts 0-based, мы 1-based
+	attempt := info.Attempt + 1 // Temporal attempts 0-based, make it 1-based
 
 	a.logger.Info("RunTaskStep starting",
 		slog.Int("workflow_run_id", int(input.WorkflowRunID)),
 		slog.Int("step_id", int(input.Step.ID)),
 		slog.Int("attempt", int(attempt)),
+		slog.Int("work_type_id", int(input.Step.WorkTypeID)),
+		slog.Int("schema_id", int(input.Step.WorkerSettingsSchemaID)),
+		slog.Int("revision_id", int(input.Step.WorkerSettingsRevisionID)),
 	)
 
-	// 1. Resolve input mapping
 	resolvedInput, err := ResolveInput(input.Step.InputMapping, input.MessageValue, input.StepOutputs)
 	if err != nil {
 		return temporaltypes.StepResult{}, fmt.Errorf("resolve input mapping for step %d: %w", input.Step.ID, err)
 	}
+	a.logger.Info("RunTaskStep resolved input",
+		slog.Int("workflow_run_id", int(input.WorkflowRunID)),
+		slog.Int("step_id", int(input.Step.ID)),
+		slog.Any("resolved_input", resolvedInput),
+	)
 
 	inputDataJSON, _ := json.Marshal(resolvedInput)
 
-	// 2. Создать workflow_run_step
 	runStep, err := a.store.CreateWorkflowRunStep(ctx, db.CreateWorkflowRunStepParams{
 		WorkflowRunID:  input.WorkflowRunID,
 		WorkflowStepID: input.Step.ID,
@@ -95,8 +86,12 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 	if err != nil {
 		return temporaltypes.StepResult{}, fmt.Errorf("create workflow_run_step: %w", err)
 	}
+	a.logger.Info("RunTaskStep created run_step",
+		slog.Int("workflow_run_id", int(input.WorkflowRunID)),
+		slog.Int("step_id", int(input.Step.ID)),
+		slog.Any("run_step_id", runStep.ID),
+	)
 
-	// Publish step_update running event
 	a.publishWorkflowEvent(ctx, input.MessageID, temporaltypes.WorkflowEvent{
 		Type:     "step_update",
 		StepID:   input.Step.ID,
@@ -104,7 +99,6 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 		Status:   temporaltypes.StepStatusRunning,
 	})
 
-	// 3. Создать attempt
 	stepAttempt, err := a.store.CreateWorkflowRunStepAttempt(ctx, db.CreateWorkflowRunStepAttemptParams{
 		WorkflowRunStepID: runStep.ID,
 		WorkerID:          pgtype.Int4{},
@@ -114,8 +108,13 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 	if err != nil {
 		return temporaltypes.StepResult{}, fmt.Errorf("create step attempt: %w", err)
 	}
+	a.logger.Info("RunTaskStep created step attempt",
+		slog.Int("workflow_run_id", int(input.WorkflowRunID)),
+		slog.Int("step_id", int(input.Step.ID)),
+		slog.Any("attempt_id", stepAttempt.ID),
+		slog.Int("attempt_number", int(attempt)),
+	)
 
-	// 4. Формируем TaskMessage (per D-06)
 	replyTo := fmt.Sprintf("result.%d.%d", input.WorkflowRunID, input.Step.ID)
 	idempotencyKey := fmt.Sprintf("%d.%d.%d", input.WorkflowRunID, input.Step.ID, attempt)
 
@@ -128,21 +127,51 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 		IdempotencyKey: idempotencyKey,
 	}
 
-	// 5. Публикуем в NATS TASKS stream
-	// NOTE: D-02 deviation — integer revision ID вместо configRevisionHash (simpler for v1).
-	subject := fmt.Sprintf("task.%d.%d.%d",
+	subject := fmt.Sprintf("task.%d.%d.%d.%d",
 		input.Step.WorkTypeID,
+		input.Step.WorkerSettingsSchemaID,
 		input.Step.WorkerSettingsRevisionID,
 		input.WorkflowRunID,
 	)
+	a.logger.Info("RunTaskStep dispatching task",
+		slog.Int("workflow_run_id", int(input.WorkflowRunID)),
+		slog.Int("step_id", int(input.Step.ID)),
+		slog.Int("attempt", int(attempt)),
+		slog.String("subject", subject),
+		slog.String("reply_to", replyTo),
+		slog.String("idempotency_key", idempotencyKey),
+	)
 	if err := a.bus.PublishJS(ctx, subject, taskMsg); err != nil {
+		a.logger.Error("RunTaskStep failed to publish task",
+			slog.Int("workflow_run_id", int(input.WorkflowRunID)),
+			slog.Int("step_id", int(input.Step.ID)),
+			slog.String("subject", subject),
+			slog.String("error", err.Error()),
+		)
 		return temporaltypes.StepResult{}, fmt.Errorf("publish task to NATS: %w", err)
 	}
+	a.logger.Info("RunTaskStep published task",
+		slog.Int("workflow_run_id", int(input.WorkflowRunID)),
+		slog.Int("step_id", int(input.Step.ID)),
+		slog.Int("attempt", int(attempt)),
+		slog.String("subject", subject),
+	)
 
-	// 6. Ждём результат (per D-05: timeout из Step.Timeout с fallback на default)
+	a.logger.Info("RunTaskStep waiting for worker result",
+		slog.Int("workflow_run_id", int(input.WorkflowRunID)),
+		slog.Int("step_id", int(input.Step.ID)),
+		slog.Int("attempt", int(attempt)),
+		slog.Duration("timeout", input.Step.Timeout),
+	)
 	workerResult, err := waitForResult(ctx, a.bus.JS(), replyTo, input.Step.Timeout)
 	if err != nil {
-		// Обновляем attempt как failed
+		a.logger.Warn("RunTaskStep waitForResult error",
+			slog.Int("workflow_run_id", int(input.WorkflowRunID)),
+			slog.Int("step_id", int(input.Step.ID)),
+			slog.Int("attempt", int(attempt)),
+			slog.String("reply_to", replyTo),
+			slog.String("error", err.Error()),
+		)
 		now := pgtype.Timestamp{Time: time.Now(), Valid: true}
 		_, _ = a.store.UpdateWorkflowRunStepAttemptStatus(ctx, db.UpdateWorkflowRunStepAttemptStatusParams{
 			ID:           stepAttempt.ID,
@@ -155,12 +184,20 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 		return temporaltypes.StepResult{}, fmt.Errorf("wait for result step %d: %w", input.Step.ID, err)
 	}
 
-	// 7. Обновляем records
+	a.logger.Info("RunTaskStep worker result",
+		slog.Int("workflow_run_id", int(input.WorkflowRunID)),
+		slog.Int("step_id", int(input.Step.ID)),
+		slog.Int("attempt", int(attempt)),
+		slog.Bool("worker_success", workerResult.Success),
+		slog.Any("worker_output", workerResult.Output),
+		slog.Int("worker_id", int(workerResult.WorkerID)),
+		slog.String("worker_error", workerResult.Error),
+	)
+
 	now := pgtype.Timestamp{Time: time.Now(), Valid: true}
 	outputJSON, _ := json.Marshal(workerResult.Output)
 
 	if workerResult.Success {
-		// Обновляем step как completed
 		_, _ = a.store.UpdateWorkflowRunStepStatus(ctx, db.UpdateWorkflowRunStepStatusParams{
 			ID:          runStep.ID,
 			Status:      temporaltypes.StepStatusCompleted,
@@ -168,7 +205,6 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 			OutputData:  outputJSON,
 			CompletedAt: now,
 		})
-		// Обновляем attempt как completed
 		_, _ = a.store.UpdateWorkflowRunStepAttemptStatus(ctx, db.UpdateWorkflowRunStepAttemptStatusParams{
 			ID:          stepAttempt.ID,
 			Status:      temporaltypes.StepStatusCompleted,
@@ -177,7 +213,6 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 			CompletedAt: now,
 		})
 
-		// Publish step_update completed event
 		a.publishWorkflowEvent(ctx, input.MessageID, temporaltypes.WorkflowEvent{
 			Type:     "step_update",
 			StepID:   input.Step.ID,
@@ -194,7 +229,6 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 		}, nil
 	}
 
-	// Worker reported failure
 	_, _ = a.store.UpdateWorkflowRunStepStatus(ctx, db.UpdateWorkflowRunStepStatusParams{
 		ID:           runStep.ID,
 		Status:       temporaltypes.StepStatusFailed,
@@ -209,7 +243,6 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 		CompletedAt:  now,
 	})
 
-	// Publish step_update failed event
 	a.publishWorkflowEvent(ctx, input.MessageID, temporaltypes.WorkflowEvent{
 		Type:     "step_update",
 		StepID:   input.Step.ID,
@@ -217,6 +250,13 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 		Status:   temporaltypes.StepStatusFailed,
 		Error:    workerResult.Error,
 	})
+	a.logger.Warn("RunTaskStep worker reported failure",
+		slog.Int("workflow_run_id", int(input.WorkflowRunID)),
+		slog.Int("step_id", int(input.Step.ID)),
+		slog.Int("attempt", int(attempt)),
+		slog.String("worker_error", workerResult.Error),
+		slog.Int("worker_id", int(workerResult.WorkerID)),
+	)
 
 	return temporaltypes.StepResult{
 		StepID:  input.Step.ID,
@@ -225,8 +265,7 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 	}, fmt.Errorf("worker reported failure for step %d: %s", input.Step.ID, workerResult.Error)
 }
 
-// RecordStep — activity для записи статуса шага в БД (per EXEC-07).
-// Используется для начальных pending записей и skip пропагации.
+// RecordStep — activity for recording step status in DB.
 func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordStepInput) error {
 	a.logger.Info("RecordStep",
 		slog.Int("workflow_run_id", int(input.WorkflowRunID)),
@@ -236,7 +275,6 @@ func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordS
 
 	switch input.Status {
 	case temporaltypes.StepStatusPending:
-		// Создаём начальную запись workflow_run_step
 		_, err := a.store.CreateWorkflowRunStep(ctx, db.CreateWorkflowRunStepParams{
 			WorkflowRunID:  input.WorkflowRunID,
 			WorkflowStepID: input.StepID,
@@ -246,7 +284,6 @@ func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordS
 			return fmt.Errorf("create pending run step %d: %w", input.StepID, err)
 		}
 
-		// Publish step_update pending event
 		a.publishWorkflowEvent(ctx, input.MessageID, temporaltypes.WorkflowEvent{
 			Type:   "step_update",
 			StepID: input.StepID,
@@ -254,8 +291,6 @@ func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordS
 		})
 
 	case temporaltypes.StepStatusSkipped:
-		// Обновляем существующую запись как skipped
-		// Находим run_step по workflow_run_id + workflow_step_id
 		steps, err := a.store.ListWorkflowRunStepsByRunID(ctx, input.WorkflowRunID)
 		if err != nil {
 			return fmt.Errorf("list run steps for skip: %w", err)
@@ -269,7 +304,6 @@ func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordS
 					CompletedAt: now,
 				})
 
-				// Publish step_update skipped event
 				a.publishWorkflowEvent(ctx, input.MessageID, temporaltypes.WorkflowEvent{
 					Type:   "step_update",
 					StepID: input.StepID,
@@ -306,11 +340,13 @@ func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordS
 	return nil
 }
 
-// UpdateRunStatus — activity для обновления статуса workflow_run (per D-20).
+// UpdateRunStatus updates workflow_run status.
 func (a *Activities) UpdateRunStatus(ctx context.Context, workflowRunID int32, messageID int32, status string, errorMsg string) error {
 	a.logger.Info("UpdateRunStatus",
 		slog.Int("workflow_run_id", int(workflowRunID)),
+		slog.Int("message_id", int(messageID)),
 		slog.String("status", status),
+		slog.String("error_msg", errorMsg),
 	)
 
 	now := pgtype.Timestamp{Time: time.Now(), Valid: true}
@@ -324,7 +360,6 @@ func (a *Activities) UpdateRunStatus(ctx context.Context, workflowRunID int32, m
 		return err
 	}
 
-	// Publish terminal workflow event
 	switch status {
 	case temporaltypes.RunStatusCompleted:
 		a.publishWorkflowEvent(ctx, messageID, temporaltypes.WorkflowEvent{
