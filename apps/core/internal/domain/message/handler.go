@@ -94,6 +94,29 @@ func (h *Handler) GetMessageStatus(c *gin.Context) {
 	response.OK(c, resp)
 }
 
+// GetMessageDetail returns message detail with run graph and runtime step data.
+// GET /api/v1/messages/:id/detail
+func (h *Handler) GetMessageDetail(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "INVALID_ID", "Invalid message ID")
+		return
+	}
+
+	resp, err := h.service.GetMessageDetail(c.Request.Context(), int32(id))
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "no rows") {
+			response.Fail(c, http.StatusNotFound, "MESSAGE_NOT_FOUND",
+				fmt.Sprintf("Message with ID %d not found", id))
+			return
+		}
+		response.InternalError(c, "Error fetching message detail")
+		return
+	}
+
+	response.OK(c, resp)
+}
+
 // ListMessages returns paginated messages for an organization.
 // GET /api/v1/organizations/:orgId/messages?page=1&per_page=20
 func (h *Handler) ListMessages(c *gin.Context) {
@@ -138,5 +161,6 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, jwtAuthMw gin.HandlerFunc, syste
 	jwtGroup := v1.Group("", jwtAuthMw)
 	jwtGroup.POST("/messages/send-user", h.SendMessage)
 	jwtGroup.GET("/messages/:id/status", h.GetMessageStatus)
+	jwtGroup.GET("/messages/:id/detail", h.GetMessageDetail)
 	jwtGroup.GET("/organizations/:orgId/messages", h.ListMessages)
 }

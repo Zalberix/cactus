@@ -15,6 +15,8 @@ func TestWorkerPermissions(t *testing.T) {
 	wantPub := []string{
 		"result.org.12.>",
 		"config.request.org.12.work_type.3.>",
+		"$JS.API.STREAM.INFO.CONFIGS",
+		"$JS.API.DIRECT.GET.CONFIGS.config.org.12.work_type.3.>",
 		"$JS.API.CONSUMER.CREATE.TASKS.worker-42.task.org.12.work_type.3.>",
 		"$JS.API.CONSUMER.MSG.NEXT.TASKS.worker-42",
 		"$JS.ACK.TASKS.worker-42.>",

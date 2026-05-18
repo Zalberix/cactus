@@ -53,6 +53,14 @@ func (s *tokenWorkflowStore) TouchWorkerBootstrapTokenUse(context.Context, int32
 	return db.WorkerBootstrapToken{}, nil
 }
 
+func (s *tokenWorkflowStore) GetActiveWorkerNATSSessionByWorkerAndBootstrapTokenForUpdate(context.Context, db.GetActiveWorkerNATSSessionByWorkerAndBootstrapTokenForUpdateParams) (db.WorkerNatsSession, error) {
+	return db.WorkerNatsSession{}, nil
+}
+
+func (s *tokenWorkflowStore) ReplaceLatestWorkerNATSSessionByWorkerAndBootstrapToken(context.Context, db.ReplaceLatestWorkerNATSSessionByWorkerAndBootstrapTokenParams) (db.WorkerNatsSession, error) {
+	return db.WorkerNatsSession{}, nil
+}
+
 func (s *tokenWorkflowStore) WithRegistrationTx(_ context.Context, fn func(RegistrationTx) error) error {
 	return fn(s)
 }

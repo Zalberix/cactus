@@ -2,14 +2,16 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
+	"strconv"
 	"strings"
 	"time"
 
 	mail "github.com/wneessen/go-mail"
 
-	"github.com/zalberix/cactus/apps/workers/smtp/config"
 	"github.com/zalberix/cactus/libs/worker"
 )
 
@@ -29,6 +31,14 @@ type emailSendResult struct {
 
 type emailSender interface {
 	Send(ctx context.Context, msg emailMessage) (emailSendResult, error)
+}
+
+type smtpSettings struct {
+	host string
+	port int
+	from string
+	auth string
+	tls  string
 }
 
 type smtpSender struct {
@@ -110,13 +120,29 @@ func (s smtpSender) Send(_ context.Context, msg emailMessage) (emailSendResult, 
 }
 
 type SMTPHandler struct {
-	from        string
-	sender      emailSender
-	includeCC   bool
-	requireBody bool
+	senderFactory func(smtpSettings) emailSender
+	includeCC      bool
+	requireBody    bool
 }
 
 func (h SMTPHandler) Handle(ctx context.Context, task worker.TaskMessage) (worker.Result, error) {
+	settings, err := smtpSettingsFromTask(task.Settings)
+	if err != nil {
+		return worker.Result{}, err
+	}
+	senderFactory := h.senderFactory
+	if senderFactory == nil {
+		senderFactory = func(settings smtpSettings) emailSender {
+			return smtpSender{
+				host: settings.host,
+				port: settings.port,
+				auth: settings.auth,
+				tls:  settings.tls,
+			}
+		}
+	}
+	sender := senderFactory(settings)
+
 	to, _ := task.Input["to"].(string)
 	subject, _ := task.Input["subject"].(string)
 	body, _ := task.Input["body"].(string)
@@ -157,7 +183,7 @@ func (h SMTPHandler) Handle(ctx context.Context, task worker.TaskMessage) (worke
 	}
 
 	msg := emailMessage{
-		From:    h.from,
+		From:    settings.from,
 		To:      []string{to},
 		Subject: subject,
 		Body:    body,
@@ -172,7 +198,7 @@ func (h SMTPHandler) Handle(ctx context.Context, task worker.TaskMessage) (worke
 		slog.String("reply_to", task.ReplyTo),
 	)
 
-	sendResult, err := h.sender.Send(ctx, msg)
+	sendResult, err := sender.Send(ctx, msg)
 	if err != nil {
 		log.Error("SMTP handler send error",
 			slog.Int("workflow_run_id", int(task.WorkflowRunID)),
@@ -226,26 +252,103 @@ func stringsFromInput(value any) []string {
 	}
 }
 
-func smtpVariants(cfg config.Config, sender emailSender) map[string]worker.Variant {
-	if sender == nil {
-		sender = smtpSender{
-			host: cfg.SMTP.Host,
-			port: cfg.SMTP.Port,
-			auth: cfg.SMTP.Auth,
-			tls:  cfg.SMTP.TLS,
-		}
+func smtpSettingsFromTask(settings map[string]any) (smtpSettings, error) {
+	host, ok := stringSetting(settings, "host")
+	if !ok {
+		return smtpSettings{}, fmt.Errorf("missing required smtp setting: host")
 	}
+	port, ok := intSetting(settings, "port")
+	if !ok || port <= 0 {
+		return smtpSettings{}, fmt.Errorf("missing required smtp setting: port")
+	}
+	from, ok := stringSetting(settings, "from")
+	if !ok {
+		return smtpSettings{}, fmt.Errorf("missing required smtp setting: from")
+	}
+	auth, _ := stringSetting(settings, "auth")
+	if auth == "" {
+		auth = "none"
+	}
+	tlsMode, _ := stringSetting(settings, "tls")
+	if tlsMode == "" {
+		tlsMode = "none"
+	}
+	return smtpSettings{
+		host: host,
+		port: port,
+		from: from,
+		auth: auth,
+		tls:  tlsMode,
+	}, nil
+}
 
+func stringSetting(settings map[string]any, key string) (string, bool) {
+	value, ok := settings[key]
+	if !ok {
+		return "", false
+	}
+	text, ok := value.(string)
+	if !ok {
+		return "", false
+	}
+	text = strings.TrimSpace(text)
+	return text, text != ""
+}
+
+func intSetting(settings map[string]any, key string) (int, bool) {
+	value, ok := settings[key]
+	if !ok {
+		return 0, false
+	}
+	switch typed := value.(type) {
+	case int:
+		return typed, true
+	case int32:
+		return int(typed), true
+	case int64:
+		if typed > math.MaxInt || typed < math.MinInt {
+			return 0, false
+		}
+		return int(typed), true
+	case float64:
+		if typed != math.Trunc(typed) || typed > float64(math.MaxInt) || typed < float64(math.MinInt) {
+			return 0, false
+		}
+		return int(typed), true
+	case float32:
+		f64 := float64(typed)
+		if f64 != math.Trunc(f64) || f64 > float64(math.MaxInt) || f64 < float64(math.MinInt) {
+			return 0, false
+		}
+		return int(typed), true
+	case json.Number:
+		parsed, err := typed.Int64()
+		if err != nil || parsed > math.MaxInt || parsed < math.MinInt {
+			return 0, false
+		}
+		return int(parsed), true
+	case string:
+		parsed, err := strconv.Atoi(strings.TrimSpace(typed))
+		if err != nil {
+			return 0, false
+		}
+		return parsed, true
+	default:
+		return 0, false
+	}
+}
+
+func smtpVariants(senderFactory func(smtpSettings) emailSender) map[string]worker.Variant {
 	return map[string]worker.Variant{
 		"basic": {
 			Name:     "basic",
 			Manifest: basicSMTPManifest(),
-			Handler:  SMTPHandler{from: cfg.SMTP.From, sender: sender},
+			Handler:  SMTPHandler{senderFactory: senderFactory},
 		},
 		"auth": {
 			Name:     "auth",
 			Manifest: authSMTPManifest(),
-			Handler:  SMTPHandler{from: cfg.SMTP.From, sender: sender, includeCC: true, requireBody: true},
+			Handler:  SMTPHandler{senderFactory: senderFactory, includeCC: true, requireBody: true},
 		},
 	}
 }

@@ -1,5 +1,7 @@
 package wshub
 
+import "github.com/zalberix/cactus/apps/core/internal/domain/message"
+
 // AuthMessage -- client sends this as first WS message (per D-13).
 // Token field carries either a JWT string OR a system token in
 // "public_token:private_token" format (colon-separated).
@@ -16,9 +18,8 @@ type AuthOK struct {
 // SnapshotEvent -- sent once after auth_ok (per D-14).
 // Contains current state from DB.
 type SnapshotEvent struct {
-	Type           string         `json:"type"`            // "snapshot"
-	WorkflowStatus string         `json:"workflow_status"` // "running", "completed", "failed", etc.
-	Steps          []SnapshotStep `json:"steps"`
+	Type   string                         `json:"type"` // "snapshot"
+	Detail *message.MessageDetailResponse `json:"detail"`
 }
 
 // SnapshotStep -- step in snapshot.

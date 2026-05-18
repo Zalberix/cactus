@@ -221,6 +221,14 @@ func TestTaskFilterSubjectIncludesOrgAndWorkType(t *testing.T) {
 	}
 }
 
+func TestTaskConsumerConfigDoesNotExpireDurableWorker(t *testing.T) {
+	cfg := taskConsumerConfig("worker-42", "task.org.12.work_type.3.>")
+
+	if cfg.InactiveThreshold != 0 {
+		t.Fatalf("durable worker consumer must not expire while worker is alive, got %s", cfg.InactiveThreshold)
+	}
+}
+
 func TestLoadOrRegisterUpdatesWorkerIDFileWhenManagerReturnsDifferentID(t *testing.T) {
 	idPath := filepath.Join(t.TempDir(), "worker-id")
 	if err := os.WriteFile(idPath, []byte("7"), 0o600); err != nil {

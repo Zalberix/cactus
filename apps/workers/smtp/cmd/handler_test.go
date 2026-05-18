@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/zalberix/cactus/apps/workers/smtp/config"
 	"github.com/zalberix/cactus/libs/worker"
 )
 
 type recordingSender struct {
 	messages []emailMessage
+	settings smtpSettings
 }
 
 func (s *recordingSender) Send(_ context.Context, msg emailMessage) (emailSendResult, error) {
@@ -23,7 +23,7 @@ func (s *recordingSender) Send(_ context.Context, msg emailMessage) (emailSendRe
 }
 
 func TestSMTPVariantsExposeDifferentManifests(t *testing.T) {
-	variants := smtpVariants(config.Config{}, &recordingSender{})
+	variants := smtpVariants(nil)
 
 	basic, err := worker.SelectVariant(variants, "basic")
 	if err != nil {
@@ -56,13 +56,23 @@ func TestSMTPVariantsExposeDifferentManifests(t *testing.T) {
 
 func TestRichSMTPHandlerUsesCCRecipients(t *testing.T) {
 	sender := &recordingSender{}
-	variants := smtpVariants(config.Config{}, sender)
+	variants := smtpVariants(func(settings smtpSettings) emailSender {
+		sender.settings = settings
+		return sender
+	})
 	auth, err := worker.SelectVariant(variants, "auth")
 	if err != nil {
 		t.Fatalf("select auth: %v", err)
 	}
 
 	result, err := auth.Handler.Handle(context.Background(), worker.TaskMessage{
+		Settings: map[string]any{
+			"host": "smtp.from.nats",
+			"port": float64(2525),
+			"from": "noreply@example.test",
+			"auth": "none",
+			"tls":  "none",
+		},
 		Input: map[string]any{
 			"to":      "a@example.test",
 			"cc":      []any{"b@example.test", "c@example.test"},
@@ -85,10 +95,54 @@ func TestRichSMTPHandlerUsesCCRecipients(t *testing.T) {
 	if len(sender.messages[0].CC) != 2 {
 		t.Fatalf("expected two cc recipients, got %#v", sender.messages[0].CC)
 	}
+	if sender.messages[0].From != "noreply@example.test" {
+		t.Fatalf("expected from from task settings, got %q", sender.messages[0].From)
+	}
+}
+
+func TestSMTPHandlerUsesTaskSettingsFromNATS(t *testing.T) {
+	recorder := &recordingSender{}
+	handler := SMTPHandler{
+		senderFactory: func(settings smtpSettings) emailSender {
+			recorder.settings = settings
+			return recorder
+		},
+	}
+
+	_, err := handler.Handle(context.Background(), worker.TaskMessage{
+		Settings: map[string]any{
+			"host": "smtp.from.nats",
+			"port": float64(2525),
+			"from": "noreply@example.test",
+			"auth": "none",
+			"tls":  "none",
+		},
+		Input: map[string]any{
+			"to":      "a@example.test",
+			"subject": "Subject",
+			"body":    "Body",
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("Handle returned error: %v", err)
+	}
+	if recorder.settings.host != "smtp.from.nats" {
+		t.Fatalf("expected host from task settings, got %q", recorder.settings.host)
+	}
+	if recorder.settings.port != 2525 {
+		t.Fatalf("expected port 2525, got %d", recorder.settings.port)
+	}
+	if len(recorder.messages) != 1 {
+		t.Fatalf("expected one sent message, got %d", len(recorder.messages))
+	}
+	if recorder.messages[0].From != "noreply@example.test" {
+		t.Fatalf("expected from from task settings, got %q", recorder.messages[0].From)
+	}
 }
 
 func TestSMTPVariantsRejectUnknownVariant(t *testing.T) {
-	_, err := worker.SelectVariant(smtpVariants(config.Config{}, &recordingSender{}), "missing")
+	_, err := worker.SelectVariant(smtpVariants(nil), "missing")
 	if err == nil {
 		t.Fatal("expected unknown variant error")
 	}

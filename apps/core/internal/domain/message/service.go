@@ -156,6 +156,9 @@ func (s *Service) buildDAGInput(ctx context.Context, versionID, messageID int32,
 		if step.ControlKind.Valid {
 			sd.ControlKind = step.ControlKind.String
 		}
+		if len(step.ControlSettings) > 0 {
+			sd.ControlSettings = step.ControlSettings
+		}
 		if step.WorkTypeID.Valid {
 			sd.WorkTypeID = step.WorkTypeID.Int32
 		}
@@ -307,4 +310,177 @@ func (s *Service) GetMessageStatus(ctx context.Context, messageID int32) (*Statu
 	}
 
 	return resp, nil
+}
+
+func (s *Service) GetMessageDetail(ctx context.Context, messageID int32) (*MessageDetailResponse, error) {
+	row, err := s.store.GetMessageDetailByID(ctx, messageID)
+	if err != nil {
+		return nil, fmt.Errorf("message detail not found: %w", err)
+	}
+
+	resp := buildMessageDetailBase(row)
+	if !row.WorkflowRunID.Valid {
+		return resp, nil
+	}
+
+	versionID := row.WorkflowVersionID.Int32
+	steps, err := s.store.ListEnrichedStepsByVersionID(ctx, versionID)
+	if err != nil {
+		return nil, fmt.Errorf("list run graph steps: %w", err)
+	}
+	deps, err := s.store.ListDependenciesByVersionID(ctx, versionID)
+	if err != nil {
+		return nil, fmt.Errorf("list run graph dependencies: %w", err)
+	}
+	runSteps, err := s.store.ListWorkflowRunStepDetailsByRunID(ctx, row.WorkflowRunID.Int32)
+	if err != nil {
+		return nil, fmt.Errorf("list run step details: %w", err)
+	}
+
+	resp.Graph = buildMessageGraph(versionID, steps, deps)
+	resp.RunSteps = buildRunStepDetails(runSteps)
+	return resp, nil
+}
+
+func buildMessageDetailBase(row db.GetMessageDetailByIDRow) *MessageDetailResponse {
+	messageValue := jsonObjectFromBytes(row.MessageValue)
+	if messageValue == nil {
+		messageValue = map[string]any{}
+	}
+
+	resp := &MessageDetailResponse{
+		MessageID:     row.ID,
+		WorkflowID:    row.WorkflowID,
+		WorkflowName:  row.WorkflowName,
+		MessageStatus: row.MessageStatus,
+		MessageValue:  messageValue,
+		CreatedAt:     row.CreatedAt.Time,
+		UpdatedAt:     row.UpdatedAt.Time,
+		Graph: MessageGraphDTO{
+			Steps:        []GraphStepDTO{},
+			Dependencies: []GraphDependencyDTO{},
+		},
+		RunSteps: []StepRunDetailDTO{},
+	}
+
+	if !row.WorkflowRunID.Valid {
+		return resp
+	}
+
+	run := &WorkflowRunStatus{
+		ID:     row.WorkflowRunID.Int32,
+		Status: row.WorkflowStatus.String,
+	}
+	if row.RunStartedAt.Valid {
+		t := row.RunStartedAt.Time
+		run.StartedAt = &t
+	}
+	if row.RunCompletedAt.Valid {
+		t := row.RunCompletedAt.Time
+		run.CompletedAt = &t
+	}
+	if row.RunErrorMessage.Valid {
+		run.ErrorMessage = &row.RunErrorMessage.String
+	}
+	resp.WorkflowRun = run
+	return resp
+}
+
+func buildMessageGraph(versionID int32, steps []db.ListEnrichedStepsByVersionIDRow, deps []db.WorkflowStepDependency) MessageGraphDTO {
+	graph := MessageGraphDTO{
+		VersionID:    versionID,
+		Steps:        make([]GraphStepDTO, 0, len(steps)),
+		Dependencies: make([]GraphDependencyDTO, 0, len(deps)),
+	}
+
+	for _, step := range steps {
+		dto := GraphStepDTO{
+			ID:             step.ID,
+			StepType:       step.StepType,
+			WorkTypeMeta:   jsonObjectFromBytes(step.WorkTypeMeta),
+			InputMapping:   mappingFromRawJSON(step.InputMapping),
+			CanvasPosition: jsonObjectFromBytes(step.CanvasPosition),
+			InputSchema:    jsonObjectFromBytes(step.InputSchema),
+			OutputSchema:   jsonObjectFromBytes(step.OutputSchema),
+		}
+		if step.ControlKind.Valid {
+			dto.ControlKind = &step.ControlKind.String
+		}
+		if step.WorkTypeID.Valid {
+			dto.WorkTypeID = &step.WorkTypeID.Int32
+		}
+		if step.WorkTypeName.Valid {
+			dto.WorkTypeName = &step.WorkTypeName.String
+		}
+		if step.WorkTypeCode.Valid {
+			dto.WorkTypeCode = &step.WorkTypeCode.String
+		}
+		graph.Steps = append(graph.Steps, dto)
+	}
+
+	for _, dep := range deps {
+		outcome := ""
+		if dep.Outcome.Valid {
+			outcome = dep.Outcome.String
+		}
+		graph.Dependencies = append(graph.Dependencies, GraphDependencyDTO{
+			StepID:          dep.StepID,
+			DependsOnStepID: dep.DependsOnStepID,
+			Outcome:         outcome,
+			OutputIndex:     dep.OutputIndex,
+		})
+	}
+
+	return graph
+}
+
+func buildRunStepDetails(runSteps []db.WorkflowRunStep) []StepRunDetailDTO {
+	result := make([]StepRunDetailDTO, 0, len(runSteps))
+	for _, step := range runSteps {
+		dto := StepRunDetailDTO{
+			ID:         step.ID,
+			StepID:     step.WorkflowStepID,
+			Status:     step.Status,
+			InputData:  jsonObjectFromBytes(step.InputData),
+			OutputData: jsonObjectFromBytes(step.OutputData),
+		}
+		if step.Outcome.Valid {
+			dto.Outcome = &step.Outcome.String
+		}
+		if step.StartedAt.Valid {
+			t := step.StartedAt.Time
+			dto.StartedAt = &t
+		}
+		if step.CompletedAt.Valid {
+			t := step.CompletedAt.Time
+			dto.CompletedAt = &t
+		}
+		if step.ErrorMessage.Valid {
+			dto.ErrorMessage = &step.ErrorMessage.String
+		}
+		result = append(result, dto)
+	}
+	return result
+}
+
+func jsonObjectFromBytes(raw []byte) map[string]any {
+	if len(raw) == 0 {
+		return nil
+	}
+	var value map[string]any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return nil
+	}
+	return value
+}
+
+func mappingFromRawJSON(raw []byte) []MappingDTO {
+	if len(raw) == 0 {
+		return []MappingDTO{}
+	}
+	var mapping []MappingDTO
+	if err := json.Unmarshal(raw, &mapping); err != nil {
+		return []MappingDTO{}
+	}
+	return mapping
 }

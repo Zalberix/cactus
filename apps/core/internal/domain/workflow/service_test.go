@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	dagpkg "github.com/zalberix/cactus/apps/core/internal/dag"
 	"github.com/zalberix/cactus/apps/core/internal/domain/workflow"
 	db "github.com/zalberix/cactus/apps/core/storage/db"
 )
@@ -31,6 +32,8 @@ type mockStorage struct {
 	maxVersionNumber  int32
 	workflow          db.Workflow
 	revisionsBySchema map[int32][]db.WorkerSettingsRevision
+	settingsSchema    db.WorkerSettingsSchema
+	settingsSchemaErr error
 
 	listVersionSummaries               []db.ListWorkflowVersionSummariesByWorkflowIDRow
 	listVersionSummariesErr            error
@@ -55,6 +58,7 @@ type mockStorage struct {
 	lastUpdateValidArg    db.UpdateWorkflowVersionValidParams
 	lastUpdateActiveArg   db.UpdateWorkflowVersionActiveParams
 	lastUpdateSchemaArg   db.UpdateWorkflowInputSchemaParams
+	lastUpdateStepArg     db.UpdateWorkflowStepParams
 	invalidatedWorkflowID int32
 }
 
@@ -205,8 +209,19 @@ func (m *mockStorage) ListWorkflowStepsByVersionID(_ context.Context, _ int32) (
 	return m.steps, nil
 }
 
-func (m *mockStorage) UpdateWorkflowStep(_ context.Context, _ db.UpdateWorkflowStepParams) (db.WorkflowStep, error) {
-	return db.WorkflowStep{}, nil
+func (m *mockStorage) UpdateWorkflowStep(_ context.Context, arg db.UpdateWorkflowStepParams) (db.WorkflowStep, error) {
+	m.lastUpdateStepArg = arg
+	return db.WorkflowStep{
+		ID:                       arg.ID,
+		WorkflowVersionID:        m.workflowStep.WorkflowVersionID,
+		StepType:                 arg.StepType,
+		WorkTypeID:               arg.WorkTypeID,
+		WorkerSettingsRevisionID: arg.WorkerSettingsRevisionID,
+		ControlKind:              arg.ControlKind,
+		ControlSettings:          arg.ControlSettings,
+		InputMapping:             arg.InputMapping,
+		CanvasPosition:           arg.CanvasPosition,
+	}, nil
 }
 func (m *mockStorage) DeleteWorkflowStepsByVersionID(_ context.Context, _ int32) error { return nil }
 func (m *mockStorage) SoftDeleteWorkflowStep(_ context.Context, _ int32) error         { return nil }
@@ -225,6 +240,10 @@ func (m *mockStorage) DeleteWorkflowStepDependency(_ context.Context, _ db.Delet
 
 func (m *mockStorage) ListWorkerSettingsSchemasByWorkTypeID(_ context.Context, _ int32) ([]db.WorkerSettingsSchema, error) {
 	return nil, nil
+}
+
+func (m *mockStorage) GetWorkerSettingsSchemaByID(_ context.Context, _ int32) (db.WorkerSettingsSchema, error) {
+	return m.settingsSchema, m.settingsSchemaErr
 }
 
 func (m *mockStorage) ListWorkerSettingsRevisionsBySchemaID(_ context.Context, schemaID int32) ([]db.WorkerSettingsRevision, error) {
@@ -305,6 +324,14 @@ func makeDBDep(stepID, dependsOnStepID int32, outcome string) db.WorkflowStepDep
 
 func ptrInt32(v int32) *int32 {
 	return &v
+}
+
+func collectWorkflowErrorTypes(errs []dagpkg.ValidationError) []string {
+	types := make([]string, 0, len(errs))
+	for _, err := range errs {
+		types = append(types, err.Type)
+	}
+	return types
 }
 
 // TestActivateVersion_GuardInvalid — нельзя активировать версию с is_valid=false.
@@ -407,6 +434,63 @@ func TestValidateVersion_ValidDAGSetsIsValid(t *testing.T) {
 	assert.True(t, resp.IsValid)
 	assert.Empty(t, resp.Errors)
 	assert.True(t, store.lastUpdateValidArg.IsValid)
+}
+
+func TestValidateVersion_InvalidPersistedControlSettingsReturnsError(t *testing.T) {
+	store := &mockStorage{
+		steps: []db.WorkflowStep{
+			{ID: 1, WorkflowVersionID: 20, StepType: "control", ControlKind: pgtype.Text{String: "start", Valid: true}},
+			{
+				ID:                2,
+				WorkflowVersionID: 20,
+				StepType:          "control",
+				ControlKind:       pgtype.Text{String: "delay", Valid: true},
+				ControlSettings:   []byte(`{"count":0,"unit":"sec"}`),
+			},
+			{ID: 3, WorkflowVersionID: 20, StepType: "task"},
+		},
+		deps: []db.WorkflowStepDependency{
+			{StepID: 2, DependsOnStepID: 1, Outcome: pgtype.Text{String: "success", Valid: true}},
+			{StepID: 3, DependsOnStepID: 2, Outcome: pgtype.Text{String: "success", Valid: true}},
+		},
+	}
+	svc := workflow.NewService(store)
+
+	resp, err := svc.ValidateVersion(context.Background(), 20)
+
+	require.NoError(t, err)
+	assert.False(t, resp.IsValid)
+	assert.Contains(t, collectWorkflowErrorTypes(resp.Errors), "invalid_control_settings")
+	assert.False(t, store.lastUpdateValidArg.IsValid)
+}
+
+func TestValidateVersionRejectsTaskWithMissingRequiredSettings(t *testing.T) {
+	store := &mockStorage{
+		version:  db.WorkflowVersion{ID: 20, WorkflowID: 100},
+		workflow: db.Workflow{ID: 100, InputSchema: []byte(`{"type":"object","properties":{}}`)},
+		steps: []db.WorkflowStep{
+			makeDBStartStep(1, 20),
+			makeDBTaskStep(2, 20, 7, 70),
+		},
+		enrichedSteps: []db.ListEnrichedStepsByVersionIDRow{
+			{
+				ID:             2,
+				StepType:       "task",
+				SettingsSchema: []byte(`{"type":"object","properties":{"host":{"type":"string","required":true}}}`),
+				Config:         []byte(`{}`),
+			},
+		},
+		deps: []db.WorkflowStepDependency{
+			makeDBDep(2, 1, "success"),
+		},
+	}
+	svc := workflow.NewService(store)
+
+	resp, err := svc.ValidateVersion(context.Background(), 20)
+
+	require.NoError(t, err)
+	assert.False(t, resp.IsValid)
+	assert.Contains(t, collectWorkflowErrorTypes(resp.Errors), "invalid_settings")
 }
 
 func TestListVersionSummaries_ActiveFirstThenNewest(t *testing.T) {
@@ -527,15 +611,88 @@ func TestCreateTaskStep_UsesSelectedSchemaAndCreatesPrivateRevision(t *testing.T
 	assert.JSONEq(t, `{"host":"smtp.example.com"}`, string(store.createdRevisionSettings))
 }
 
+func TestCreateDelayStep_RequiresValidControlSettings(t *testing.T) {
+	store := &mockStorage{}
+	svc := workflow.NewService(store)
+
+	_, err := svc.CreateStep(context.Background(), 10, workflow.CreateStepRequest{
+		StepType:        "control",
+		ControlKind:     ptrString("delay"),
+		ControlSettings: json.RawMessage(`{"count":"3","unit":"sec"}`),
+	})
+
+	assert.ErrorIs(t, err, workflow.ErrControlSettingsInvalid)
+}
+
+func TestCreateDelayStep_UsesDefaultControlSettingsWhenOmitted(t *testing.T) {
+	store := &mockStorage{}
+	svc := workflow.NewService(store)
+
+	step, err := svc.CreateStep(context.Background(), 10, workflow.CreateStepRequest{
+		StepType:    "control",
+		ControlKind: ptrString("delay"),
+	})
+
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"count":1,"unit":"sec"}`, string(step.ControlSettings))
+	assert.JSONEq(t, `{"count":1,"unit":"sec"}`, string(store.createWorkflowStepParams[0].ControlSettings))
+}
+
+func ptrString(v string) *string {
+	return &v
+}
+
 func TestSemanticStepMutation_InvalidatesVersion(t *testing.T) {
 	store := &mockStorage{
 		workflowStep: db.WorkflowStep{ID: 12, WorkflowVersionID: 99},
 	}
 	svc := workflow.NewService(store)
+	stepType := "task"
 
-	_, err := svc.UpdateStep(context.Background(), 12, workflow.UpdateStepRequest{StepType: "task"})
+	_, err := svc.UpdateStep(context.Background(), 12, workflow.UpdateStepRequest{StepType: &stepType})
 	require.NoError(t, err)
 	assert.Equal(t, int32(99), store.lastUpdateValidArg.ID)
+}
+
+func TestUpdateStep_PartialPayloadPreservesExistingFields(t *testing.T) {
+	store := &mockStorage{
+		workflowStep: db.WorkflowStep{
+			ID:                       12,
+			WorkflowVersionID:        99,
+			StepType:                 "control",
+			WorkTypeID:               pgtype.Int4{Int32: 7, Valid: true},
+			WorkerSettingsRevisionID: pgtype.Int4{Int32: 99, Valid: true},
+			ControlKind:              pgtype.Text{String: "condition", Valid: true},
+			ControlSettings:          []byte(`{"count":10,"unit":"sec"}`),
+			InputMapping:             []byte(`[{"target":"a","source":"b"}]`),
+			CanvasPosition:           []byte(`{"x":1,"y":2}`),
+		},
+	}
+	svc := workflow.NewService(store)
+
+	updated, err := svc.UpdateStep(context.Background(), 12, workflow.UpdateStepRequest{
+		ControlSettings: json.RawMessage(`{"count":20,"unit":"sec"}`),
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "control", store.lastUpdateStepArg.StepType)
+	assert.Equal(t, int32(7), store.lastUpdateStepArg.WorkTypeID.Int32)
+	assert.True(t, store.lastUpdateStepArg.WorkTypeID.Valid)
+	assert.Equal(t, int32(99), store.lastUpdateStepArg.WorkerSettingsRevisionID.Int32)
+	assert.True(t, store.lastUpdateStepArg.WorkerSettingsRevisionID.Valid)
+	assert.Equal(t, "condition", store.lastUpdateStepArg.ControlKind.String)
+	assert.True(t, store.lastUpdateStepArg.ControlKind.Valid)
+	assert.JSONEq(t, `{"count":20,"unit":"sec"}`, string(store.lastUpdateStepArg.ControlSettings))
+	assert.JSONEq(t, `[{"target":"a","source":"b"}]`, string(store.lastUpdateStepArg.InputMapping))
+	assert.JSONEq(t, `{"x":1,"y":2}`, string(store.lastUpdateStepArg.CanvasPosition))
+
+	assert.Equal(t, "control", updated.StepType)
+	assert.Equal(t, int32(99), updated.WorkflowVersionID)
+	assert.JSONEq(t, `{"count":20,"unit":"sec"}`, string(updated.ControlSettings))
+	assert.Equal(t, int32(7), updated.WorkTypeID.Int32)
+	assert.True(t, updated.WorkTypeID.Valid)
+	assert.True(t, updated.WorkerSettingsRevisionID.Valid)
+	assert.Equal(t, int32(99), updated.WorkerSettingsRevisionID.Int32)
 }
 
 func TestPositionMutation_DoesNotInvalidateVersion(t *testing.T) {
@@ -547,6 +704,103 @@ func TestPositionMutation_DoesNotInvalidateVersion(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Zero(t, store.lastUpdateValidArg.ID)
+}
+
+func TestUpdateTaskSettingsValidatesAndDoesNotUpdateInputMapping(t *testing.T) {
+	store := &mockStorage{
+		workflowStep: db.WorkflowStep{
+			ID:                       12,
+			WorkflowVersionID:        99,
+			StepType:                 "task",
+			WorkerSettingsRevisionID: pgtype.Int4{Int32: 44, Valid: true},
+			InputMapping:             []byte(`[{"target":"to","source":"$.message.value.email"}]`),
+		},
+		settingsSchema: db.WorkerSettingsSchema{
+			ID:             7,
+			SettingsSchema: []byte(`{"type":"object","properties":{"host":{"type":"string","required":true}}}`),
+		},
+		enrichedSteps: []db.ListEnrichedStepsByVersionIDRow{
+			{
+				ID:                     12,
+				WorkerSettingsSchemaID: pgtype.Int4{Int32: 7, Valid: true},
+			},
+		},
+	}
+	svc := workflow.NewService(store)
+
+	err := svc.UpdateTaskSettings(context.Background(), 12, workflow.UpdateTaskSettingsRequest{
+		SettingsData: json.RawMessage(`{"host":"smtp.local"}`),
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, int32(44), store.updateRevisionSettingsArg.ID)
+	assert.JSONEq(t, `{"host":"smtp.local"}`, string(store.updateRevisionSettingsArg.SettingsData))
+	assert.Zero(t, store.lastUpdateStepArg.ID)
+	assert.Equal(t, int32(99), store.lastUpdateValidArg.ID)
+}
+
+func TestUpdateTaskSettingsRejectsMissingRequiredSettings(t *testing.T) {
+	store := &mockStorage{
+		workflowStep: db.WorkflowStep{
+			ID:                       12,
+			WorkflowVersionID:        99,
+			StepType:                 "task",
+			WorkerSettingsRevisionID: pgtype.Int4{Int32: 44, Valid: true},
+		},
+		settingsSchema: db.WorkerSettingsSchema{
+			ID:             7,
+			SettingsSchema: []byte(`{"type":"object","properties":{"host":{"type":"string","required":true}}}`),
+		},
+		enrichedSteps: []db.ListEnrichedStepsByVersionIDRow{
+			{
+				ID:                     12,
+				WorkerSettingsSchemaID: pgtype.Int4{Int32: 7, Valid: true},
+			},
+		},
+	}
+	svc := workflow.NewService(store)
+
+	err := svc.UpdateTaskSettings(context.Background(), 12, workflow.UpdateTaskSettingsRequest{
+		SettingsData: json.RawMessage(`{}`),
+	})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, workflow.ErrInvalidSettings)
+	assert.Zero(t, store.updateRevisionSettingsArg.ID)
+	assert.Zero(t, store.lastUpdateStepArg.ID)
+}
+
+func TestUpdateTaskInputMappingDoesNotUpdateSettingsRevision(t *testing.T) {
+	store := &mockStorage{
+		version:  db.WorkflowVersion{ID: 99, WorkflowID: 100},
+		workflow: db.Workflow{ID: 100, InputSchema: []byte(`{"type":"object","properties":{}}`)},
+		workflowStep: db.WorkflowStep{
+			ID:                       12,
+			WorkflowVersionID:        99,
+			StepType:                 "task",
+			WorkerSettingsRevisionID: pgtype.Int4{Int32: 44, Valid: true},
+			InputMapping:             []byte(`[{"target":"old","source":"$.message.value.old"}]`),
+		},
+		enrichedSteps: []db.ListEnrichedStepsByVersionIDRow{
+			{
+				ID:           12,
+				StepType:     "task",
+				InputSchema:  []byte(`{"type":"object","properties":{}}`),
+				InputMapping: []byte(`[{"target":"old","source":"$.message.value.old"}]`),
+			},
+		},
+	}
+	svc := workflow.NewService(store)
+
+	err := svc.UpdateTaskInputMapping(context.Background(), 12, workflow.UpdateTaskInputMappingRequest{
+		InputMapping: json.RawMessage(`[]`),
+	})
+
+	require.NoError(t, err)
+	assert.Zero(t, store.updateRevisionSettingsArg.ID)
+	assert.Equal(t, int32(12), store.lastUpdateStepArg.ID)
+	assert.JSONEq(t, `[]`, string(store.lastUpdateStepArg.InputMapping))
+	assert.Equal(t, int32(99), store.lastUpdateValidArg.ID)
 }
 
 func TestUpdateTraffic_EqualModeSplitsActiveVersions(t *testing.T) {

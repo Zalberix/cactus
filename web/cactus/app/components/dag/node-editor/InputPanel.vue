@@ -65,13 +65,44 @@ function sourceNode(nodeId: string): SourceNode | null {
   }
 }
 
+function collectSourceNodesThroughControl(
+  nodeId: string,
+  visited: Set<string>,
+): SourceNode[] {
+  if (visited.has(nodeId)) return []
+  visited.add(nodeId)
+
+  const node = props.allNodes.find(n => n.id === nodeId)
+  if (!node) return []
+
+  const data = node.data as StepData
+  if (data.outputSchema && data.stepType !== 'control') {
+    return [sourceNode(nodeId)].filter((node): node is SourceNode => Boolean(node))
+  }
+
+  const output: SourceNode[] = []
+  for (const edge of props.allEdges.filter(e => e.target === nodeId)) {
+    const upstreamSources = collectSourceNodesThroughControl(edge.source, visited)
+    for (const upstreamSource of upstreamSources) {
+      output.push(upstreamSource)
+    }
+  }
+  return output
+}
+
 const directUpstreamNodes = computed<SourceNode[]>(() => {
   const upstreamEdges = props.allEdges.filter(e => e.target === props.stepId)
+  const visited = new Set<string>()
+  const collected = new Set<string>()
   const nodes: SourceNode[] = []
 
   for (const edge of upstreamEdges) {
-    const source = sourceNode(edge.source)
-    if (source) nodes.push(source)
+    const upstreamNodes = collectSourceNodesThroughControl(edge.source, visited)
+    for (const source of upstreamNodes) {
+      if (collected.has(source.id)) continue
+      collected.add(source.id)
+      nodes.push(source)
+    }
   }
 
   return nodes

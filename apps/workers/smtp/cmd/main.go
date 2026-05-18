@@ -24,7 +24,7 @@ func main() {
 	slog.SetDefault(logger.SetupLogger(cfg.Env, logger.WorkerSource("smtp", 0)))
 	log := slog.Default()
 
-	selectedVariant, err := worker.SelectVariant(smtpVariants(*cfg, nil), *workerVariant)
+	selectedVariant, err := worker.SelectVariant(smtpVariants(nil), *workerVariant)
 	if err != nil {
 		slog.Error("select worker variant", slog.String("variant", *workerVariant), slog.String("error", err.Error()))
 		os.Exit(1)

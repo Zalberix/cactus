@@ -10,6 +10,8 @@ import {
   TabsTrigger,
 } from '~/components/ui/tabs'
 import DynamicSettingsForm from '~/components/forms/DynamicSettingsForm.vue'
+import type { JsonSchema } from '~/components/forms/dynamic-settings-utils'
+import { validateSettingsData } from '~/components/forms/dynamic-settings-utils'
 import ExpressionField from './ExpressionField.vue'
 import { mappingRecordToEntries, setMappingExpression } from './mapping-utils'
 
@@ -18,7 +20,8 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  save: [settingsData: Record<string, unknown>, inputMapping: Array<{ target: string, source: string }>]
+  saveSettings: [settingsData: Record<string, unknown>]
+  saveInputMapping: [inputMapping: Array<{ target: string, source: string }>]
   createWorkflowInput: [field: string, property: Record<string, unknown>]
 }>()
 
@@ -37,6 +40,8 @@ const inputFields = computed(() => {
 const formData = ref<Record<string, unknown>>({})
 const mappingData = ref<Record<string, string>>({})
 const activeMappingField = ref<string | null>(null)
+const activeTab = ref('settings')
+const validationErrors = ref<string[]>([])
 
 watch(
   () => props.stepData,
@@ -65,8 +70,23 @@ const hasSettings = computed(() => {
 const hasMapping = computed(() => inputFields.value.length > 0)
 const defaultTab = computed(() => (hasMapping.value ? 'mapping' : 'settings'))
 
-function onSave() {
-  emit('save', { ...formData.value }, mappingRecordToEntries(mappingData.value))
+watch(defaultTab, (tab) => {
+  activeTab.value = tab
+}, { immediate: true })
+
+function onSaveSettings() {
+  validationErrors.value = validateSettingsData(settingsSchema.value as JsonSchema, formData.value)
+  if (validationErrors.value.length > 0) return
+  emit('saveSettings', { ...formData.value })
+}
+
+function onSaveInputMapping() {
+  emit('saveInputMapping', mappingRecordToEntries(mappingData.value))
+}
+
+function onSettingsUpdate(next: Record<string, unknown>) {
+  formData.value = next
+  validationErrors.value = []
 }
 
 function insertExpression(expr: string) {
@@ -90,7 +110,7 @@ defineExpose({ insertExpression })
       <h3 class="text-sm font-semibold">{{ t('nodeEditor.parameters') }}</h3>
     </div>
 
-    <Tabs :default-value="defaultTab" class="flex flex-1 flex-col overflow-hidden">
+    <Tabs v-model="activeTab" :default-value="defaultTab" class="flex flex-1 flex-col overflow-hidden">
       <TabsList class="mx-4 mt-2 w-auto shrink-0">
         <TabsTrigger v-if="hasMapping" value="mapping">
           {{ t('editor.inputMapping') }}
@@ -125,10 +145,17 @@ defineExpose({ insertExpression })
       <TabsContent v-if="hasSettings" value="settings" class="flex-1 overflow-hidden mt-0">
         <ScrollArea class="h-full">
           <div class="p-4">
+            <div
+              v-if="validationErrors.length"
+              data-testid="settings-validation-errors"
+              class="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+            >
+              {{ t('nodeEditor.settingsValidationFailed') }}: {{ validationErrors.join(', ') }}
+            </div>
             <DynamicSettingsForm
               :schema="settingsSchema"
               :model-value="formData"
-              @update:model-value="formData = $event"
+              @update:model-value="onSettingsUpdate"
             />
           </div>
         </ScrollArea>
@@ -139,9 +166,22 @@ defineExpose({ insertExpression })
       </div>
     </Tabs>
 
-    <div class="border-t p-4 shrink-0">
-      <Button class="w-full" @click="onSave">
-        {{ t('nodeEditor.save') }}
+    <div v-if="hasSettings || hasMapping" class="border-t p-4 shrink-0">
+      <Button
+        v-if="activeTab === 'mapping' && hasMapping"
+        data-testid="save-input-mapping"
+        class="w-full"
+        @click="onSaveInputMapping"
+      >
+        {{ t('nodeEditor.saveInputMapping') }}
+      </Button>
+      <Button
+        v-else-if="activeTab === 'settings' && hasSettings"
+        data-testid="save-settings"
+        class="w-full"
+        @click="onSaveSettings"
+      >
+        {{ t('nodeEditor.saveSettings') }}
       </Button>
     </div>
   </div>

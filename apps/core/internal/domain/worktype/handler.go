@@ -388,6 +388,10 @@ func (h *Handler) CreateWorkType(c *gin.Context) {
 
 	result, err := h.service.CreateWorkType(c.Request.Context(), req)
 	if err != nil {
+		if errors.Is(err, ErrControlWorkTypeReserved) {
+			response.Fail(c, http.StatusUnprocessableEntity, "CONTROL_WORK_TYPE_RESERVED", "Control work types are managed by core")
+			return
+		}
 		response.InternalError(c, "Ошибка создания типа работы")
 		return
 	}

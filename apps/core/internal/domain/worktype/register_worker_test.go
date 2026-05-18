@@ -14,15 +14,19 @@ import (
 )
 
 type registerWorkerStore struct {
-	bootstrapToken        db.WorkerBootstrapToken
-	revisions             []db.WorkerSettingsRevision
-	existingWorker        db.Worker
-	activeWorkerCount     int32
-	createdSchemaArg      db.CreateWorkerSettingsSchemaParams
-	createdRevision       db.CreateWorkerSettingsRevisionParams
-	createdWorkerArg      db.CreateNewWorkerParams
-	createdNATSSessionArg db.CreateWorkerNATSSessionParams
-	touchedTokenID        int32
+	bootstrapToken         db.WorkerBootstrapToken
+	revisions              []db.WorkerSettingsRevision
+	existingWorker         db.Worker
+	activeNATSSessions     []db.WorkerNatsSession
+	latestNATSSession      db.WorkerNatsSession
+	activeWorkerCount      int32
+	settingsSchema         db.WorkerSettingsSchema
+	createdSchemaArg       db.CreateWorkerSettingsSchemaParams
+	createdRevision        db.CreateWorkerSettingsRevisionParams
+	createdWorkerArg       db.CreateNewWorkerParams
+	createdNATSSessionArg  db.CreateWorkerNATSSessionParams
+	replacedNATSSessionArg db.ReplaceLatestWorkerNATSSessionByWorkerAndBootstrapTokenParams
+	touchedTokenID         int32
 }
 
 func (s *registerWorkerStore) CreateWorkType(context.Context, db.CreateWorkTypeParams) (db.WorkType, error) {
@@ -61,6 +65,37 @@ func (s *registerWorkerStore) CountActiveWorkersByBootstrapTokenExcludingWorker(
 func (s *registerWorkerStore) TouchWorkerBootstrapTokenUse(context.Context, int32) (db.WorkerBootstrapToken, error) {
 	s.touchedTokenID = s.bootstrapToken.ID
 	return s.bootstrapToken, nil
+}
+
+func (s *registerWorkerStore) GetActiveWorkerNATSSessionByWorkerAndBootstrapTokenForUpdate(_ context.Context, arg db.GetActiveWorkerNATSSessionByWorkerAndBootstrapTokenForUpdateParams) (db.WorkerNatsSession, error) {
+	for _, session := range s.activeNATSSessions {
+		if session.WorkerID == arg.WorkerID && session.BootstrapTokenID == arg.BootstrapTokenID {
+			return session, nil
+		}
+	}
+	return db.WorkerNatsSession{}, pgx.ErrNoRows
+}
+
+func (s *registerWorkerStore) ReplaceLatestWorkerNATSSessionByWorkerAndBootstrapToken(_ context.Context, arg db.ReplaceLatestWorkerNATSSessionByWorkerAndBootstrapTokenParams) (db.WorkerNatsSession, error) {
+	s.replacedNATSSessionArg = arg
+	session := s.latestNATSSession
+	if session.ID == 0 && len(s.activeNATSSessions) > 0 {
+		session = s.activeNATSSessions[0]
+	}
+	if session.ID == 0 {
+		return db.WorkerNatsSession{}, pgx.ErrNoRows
+	}
+	session.WorkerID = arg.WorkerID
+	session.BootstrapTokenID = arg.BootstrapTokenID
+	session.NatsAccountPublicKey = arg.NatsAccountPublicKey
+	session.NatsUserPublicKey = arg.NatsUserPublicKey
+	session.NatsUserJwt = arg.NatsUserJwt
+	session.NatsUserSeed = arg.NatsUserSeed
+	session.NatsUserCredentials = arg.NatsUserCredentials
+	session.Permissions = arg.Permissions
+	session.RevokedAt = pgtype.Timestamp{}
+	session.RevokedByUserID = pgtype.Int4{}
+	return session, nil
 }
 
 func (s *registerWorkerStore) WithRegistrationTx(_ context.Context, fn func(RegistrationTx) error) error {
@@ -107,11 +142,21 @@ func (s *registerWorkerStore) ListWorkflowUsagesByWorkerID(context.Context, int3
 
 func (s *registerWorkerStore) CreateWorkerNATSSession(_ context.Context, arg db.CreateWorkerNATSSessionParams) (db.WorkerNatsSession, error) {
 	s.createdNATSSessionArg = arg
-	return db.WorkerNatsSession{ID: 1, WorkerID: arg.WorkerID, BootstrapTokenID: arg.BootstrapTokenID}, nil
+	return db.WorkerNatsSession{
+		ID:                   1,
+		WorkerID:             arg.WorkerID,
+		BootstrapTokenID:     arg.BootstrapTokenID,
+		NatsAccountPublicKey: arg.NatsAccountPublicKey,
+		NatsUserPublicKey:    arg.NatsUserPublicKey,
+		NatsUserJwt:          arg.NatsUserJwt,
+		NatsUserSeed:         arg.NatsUserSeed,
+		NatsUserCredentials:  arg.NatsUserCredentials,
+		Permissions:          arg.Permissions,
+	}, nil
 }
 
 func (s *registerWorkerStore) ListActiveWorkerNATSSessionsByBootstrapToken(context.Context, int32) ([]db.WorkerNatsSession, error) {
-	return nil, nil
+	return s.activeNATSSessions, nil
 }
 
 func (s *registerWorkerStore) RevokeWorkerNATSSession(context.Context, db.RevokeWorkerNATSSessionParams) (db.WorkerNatsSession, error) {
@@ -128,7 +173,7 @@ func (s *registerWorkerStore) CreateWorkerSettingsSchema(_ context.Context, arg 
 }
 
 func (s *registerWorkerStore) GetWorkerSettingsSchemaByID(context.Context, int32) (db.WorkerSettingsSchema, error) {
-	return db.WorkerSettingsSchema{}, nil
+	return s.settingsSchema, nil
 }
 
 func (s *registerWorkerStore) GetWorkerSettingsSchemaByVersion(context.Context, db.GetWorkerSettingsSchemaByVersionParams) (db.WorkerSettingsSchema, error) {
@@ -211,6 +256,39 @@ func (s *registerWorkerStore) ListWorkflowTokensBySystemTokenID(context.Context,
 
 func (s *registerWorkerStore) ListWorkflowTokensByWorkflowID(context.Context, int32) ([]db.WorkflowToken, error) {
 	return nil, nil
+}
+
+type issuingNATSManager struct {
+	issueCalls int
+	creds      natsauth.WorkerCredentials
+}
+
+func (m *issuingNATSManager) IssueWorker(_ context.Context, scope natsauth.WorkerScope) (natsauth.WorkerCredentials, error) {
+	m.issueCalls++
+	if m.creds.UserJWT == "" {
+		return natsauth.WorkerCredentials{
+			AccountPublicKey: "ANEW",
+			UserPublicKey:    "UNEW",
+			UserJWT:          "new.jwt",
+			UserSeed:         "SUnewseed",
+			Creds:            []byte("new.creds"),
+			Permissions:      natsauth.WorkerPermissions(scope),
+		}, nil
+	}
+	return m.creds, nil
+}
+
+func (m *issuingNATSManager) RevokeWorker(context.Context, string) error {
+	return nil
+}
+
+func mustPermissionsJSON(t *testing.T, perms natsauth.Permissions) []byte {
+	t.Helper()
+	raw, err := json.Marshal(perms)
+	if err != nil {
+		t.Fatalf("marshal permissions: %v", err)
+	}
+	return raw
 }
 
 func TestRegisterWorkerSplitsManifestSchemasIntoColumns(t *testing.T) {
@@ -322,6 +400,181 @@ func TestRegisterWorkerUsesOrgScopedBootstrapTokenAndReturnsNATSCredentials(t *t
 	}
 	if store.createdNATSSessionArg.BootstrapTokenID != 9 {
 		t.Fatalf("expected bootstrap token 9 in nats session, got %#v", store.createdNATSSessionArg)
+	}
+}
+
+func TestRegisterWorkerReusesActiveNATSSessionForSameWorkerAndBootstrap(t *testing.T) {
+	store := &registerWorkerStore{
+		bootstrapToken: db.WorkerBootstrapToken{
+			ID:               9,
+			OrganizationID:   12,
+			WorkTypeID:       3,
+			Status:           "active",
+			MaxActiveWorkers: 1,
+		},
+		existingWorker: db.Worker{
+			ID:                     77,
+			OrganizationID:         12,
+			WorkTypeID:             3,
+			Name:                   "smtp-worker",
+			WorkerSettingsSchemaID: 55,
+		},
+		activeNATSSessions: []db.WorkerNatsSession{{
+			ID:                   44,
+			WorkerID:             77,
+			BootstrapTokenID:     9,
+			NatsAccountPublicKey: "AOLD",
+			NatsUserPublicKey:    "UOLD",
+			NatsUserJwt:          "old.jwt",
+			NatsUserSeed:         "SUoldseed",
+			NatsUserCredentials:  "old.creds",
+			Permissions: mustPermissionsJSON(t, natsauth.WorkerPermissions(natsauth.WorkerScope{
+				OrganizationID: 12,
+				WorkTypeID:     3,
+				WorkerID:       77,
+			})),
+		}},
+		revisions: []db.WorkerSettingsRevision{{ID: 73, WorkerSettingsSchemaID: 55}},
+	}
+	manager := &issuingNATSManager{}
+	service := NewService(store, manager)
+
+	registration, err := service.RegisterWorker(context.Background(), RegisterWorkerRequest{
+		BootstrapToken: "token",
+		Name:           "smtp-worker",
+		Manifest:       validManifestJSON(),
+	})
+	if err != nil {
+		t.Fatalf("RegisterWorker error: %v", err)
+	}
+
+	if manager.issueCalls != 0 {
+		t.Fatalf("expected active NATS session reuse without issuing credentials, got %d calls", manager.issueCalls)
+	}
+	if store.createdNATSSessionArg.WorkerID != 0 {
+		t.Fatalf("expected no new NATS session, got %#v", store.createdNATSSessionArg)
+	}
+	if registration.NATS.UserJWT != "old.jwt" {
+		t.Fatalf("expected previous NATS JWT, got %q", registration.NATS.UserJWT)
+	}
+	if registration.NATS.UserSeed != "SUoldseed" || registration.NATS.Credentials != "old.creds" {
+		t.Fatalf("expected previous NATS credentials, got %#v", registration.NATS)
+	}
+}
+
+func TestRegisterWorkerReplacesActiveNATSSessionWhenPermissionsAreStale(t *testing.T) {
+	stalePerms := natsauth.Permissions{
+		PublishAllow: []string{
+			"result.org.12.>",
+			"config.request.org.12.work_type.3.>",
+			"$JS.API.CONSUMER.CREATE.TASKS.worker-77.task.org.12.work_type.3.>",
+			"$JS.API.CONSUMER.MSG.NEXT.TASKS.worker-77",
+			"$JS.ACK.TASKS.worker-77.>",
+			"_INBOX.>",
+		},
+		SubscribeAllow: []string{"task.org.12.work_type.3.>", "config.org.12.work_type.3.>", "_INBOX.>"},
+	}
+	store := &registerWorkerStore{
+		bootstrapToken: db.WorkerBootstrapToken{
+			ID:               9,
+			OrganizationID:   12,
+			WorkTypeID:       3,
+			Status:           "active",
+			MaxActiveWorkers: 1,
+		},
+		existingWorker: db.Worker{
+			ID:                     77,
+			OrganizationID:         12,
+			WorkTypeID:             3,
+			Name:                   "smtp-worker",
+			WorkerSettingsSchemaID: 55,
+		},
+		activeNATSSessions: []db.WorkerNatsSession{{
+			ID:                   44,
+			WorkerID:             77,
+			BootstrapTokenID:     9,
+			NatsAccountPublicKey: "AOLD",
+			NatsUserPublicKey:    "UOLD",
+			NatsUserJwt:          "old.jwt",
+			NatsUserSeed:         "SUoldseed",
+			NatsUserCredentials:  "old.creds",
+			Permissions:          mustPermissionsJSON(t, stalePerms),
+		}},
+		revisions: []db.WorkerSettingsRevision{{ID: 73, WorkerSettingsSchemaID: 55}},
+	}
+	manager := &issuingNATSManager{}
+	service := NewService(store, manager)
+
+	registration, err := service.RegisterWorker(context.Background(), RegisterWorkerRequest{
+		BootstrapToken: "token",
+		Name:           "smtp-worker",
+		Manifest:       validManifestJSON(),
+	})
+	if err != nil {
+		t.Fatalf("RegisterWorker error: %v", err)
+	}
+
+	if manager.issueCalls != 1 {
+		t.Fatalf("expected stale NATS permissions to trigger credential replacement, got %d issues", manager.issueCalls)
+	}
+	if store.createdNATSSessionArg.WorkerID != 0 {
+		t.Fatalf("expected stale active NATS session replacement without create, got %#v", store.createdNATSSessionArg)
+	}
+	if store.replacedNATSSessionArg.WorkerID != 77 || store.replacedNATSSessionArg.BootstrapTokenID != 9 {
+		t.Fatalf("expected replacement for worker/bootstrap, got %#v", store.replacedNATSSessionArg)
+	}
+	if registration.NATS.UserJWT != "new.jwt" || registration.NATS.UserSeed != "SUnewseed" {
+		t.Fatalf("expected new NATS credentials from replacement, got %#v", registration.NATS)
+	}
+}
+
+func TestRegisterWorkerReplacesInactiveNATSSessionForSameWorkerAndBootstrap(t *testing.T) {
+	store := &registerWorkerStore{
+		bootstrapToken: db.WorkerBootstrapToken{
+			ID:               9,
+			OrganizationID:   12,
+			WorkTypeID:       3,
+			Status:           "active",
+			MaxActiveWorkers: 1,
+		},
+		existingWorker: db.Worker{
+			ID:                     77,
+			OrganizationID:         12,
+			WorkTypeID:             3,
+			Name:                   "smtp-worker",
+			WorkerSettingsSchemaID: 55,
+		},
+		latestNATSSession: db.WorkerNatsSession{
+			ID:               44,
+			WorkerID:         77,
+			BootstrapTokenID: 9,
+			RevokedAt:        pgtype.Timestamp{Valid: true},
+		},
+		revisions: []db.WorkerSettingsRevision{{ID: 73, WorkerSettingsSchemaID: 55}},
+	}
+	manager := &issuingNATSManager{}
+	service := NewService(store, manager)
+
+	registration, err := service.RegisterWorker(context.Background(), RegisterWorkerRequest{
+		BootstrapToken: "token",
+		Name:           "smtp-worker",
+		Manifest:       validManifestJSON(),
+	})
+	if err != nil {
+		t.Fatalf("RegisterWorker error: %v", err)
+	}
+
+	if manager.issueCalls != 1 {
+		t.Fatalf("expected one NATS credential issue for inactive session replacement, got %d", manager.issueCalls)
+	}
+	if store.createdNATSSessionArg.WorkerID != 0 {
+		t.Fatalf("expected inactive NATS session replacement without create, got %#v", store.createdNATSSessionArg)
+	}
+	if store.replacedNATSSessionArg.WorkerID != 77 || store.replacedNATSSessionArg.BootstrapTokenID != 9 {
+		t.Fatalf("expected replacement for worker/bootstrap, got %#v", store.replacedNATSSessionArg)
+	}
+	if registration.NATS.UserJWT != "new.jwt" || registration.NATS.UserSeed != "SUnewseed" {
+		t.Fatalf("expected new NATS credentials from replacement, got %#v", registration.NATS)
 	}
 }
 

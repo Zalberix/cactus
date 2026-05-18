@@ -14,10 +14,11 @@ import (
 const createWorkerNATSSession = `-- name: CreateWorkerNATSSession :one
 INSERT INTO "worker_nats_session" (
     worker_id, bootstrap_token_id, nats_account_public_key,
-    nats_user_public_key, nats_user_jwt, permissions
+    nats_user_public_key, nats_user_jwt, nats_user_seed,
+    nats_user_credentials, permissions
 )
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, worker_id, bootstrap_token_id, nats_account_public_key, nats_user_public_key, nats_user_jwt, permissions, revoked_at, revoked_by_user_id, created_at
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, worker_id, bootstrap_token_id, nats_account_public_key, nats_user_public_key, nats_user_jwt, permissions, revoked_at, revoked_by_user_id, created_at, nats_user_seed, nats_user_credentials
 `
 
 type CreateWorkerNATSSessionParams struct {
@@ -26,6 +27,8 @@ type CreateWorkerNATSSessionParams struct {
 	NatsAccountPublicKey string `json:"nats_account_public_key"`
 	NatsUserPublicKey    string `json:"nats_user_public_key"`
 	NatsUserJwt          string `json:"nats_user_jwt"`
+	NatsUserSeed         string `json:"nats_user_seed"`
+	NatsUserCredentials  string `json:"nats_user_credentials"`
 	Permissions          []byte `json:"permissions"`
 }
 
@@ -36,6 +39,8 @@ func (q *Queries) CreateWorkerNATSSession(ctx context.Context, arg CreateWorkerN
 		arg.NatsAccountPublicKey,
 		arg.NatsUserPublicKey,
 		arg.NatsUserJwt,
+		arg.NatsUserSeed,
+		arg.NatsUserCredentials,
 		arg.Permissions,
 	)
 	var i WorkerNatsSession
@@ -50,12 +55,50 @@ func (q *Queries) CreateWorkerNATSSession(ctx context.Context, arg CreateWorkerN
 		&i.RevokedAt,
 		&i.RevokedByUserID,
 		&i.CreatedAt,
+		&i.NatsUserSeed,
+		&i.NatsUserCredentials,
+	)
+	return i, err
+}
+
+const getActiveWorkerNATSSessionByWorkerAndBootstrapTokenForUpdate = `-- name: GetActiveWorkerNATSSessionByWorkerAndBootstrapTokenForUpdate :one
+SELECT id, worker_id, bootstrap_token_id, nats_account_public_key, nats_user_public_key, nats_user_jwt, permissions, revoked_at, revoked_by_user_id, created_at, nats_user_seed, nats_user_credentials
+FROM "worker_nats_session"
+WHERE worker_id = $1
+  AND bootstrap_token_id = $2
+  AND revoked_at IS NULL
+ORDER BY created_at DESC, id DESC
+LIMIT 1
+FOR UPDATE
+`
+
+type GetActiveWorkerNATSSessionByWorkerAndBootstrapTokenForUpdateParams struct {
+	WorkerID         int32 `json:"worker_id"`
+	BootstrapTokenID int32 `json:"bootstrap_token_id"`
+}
+
+func (q *Queries) GetActiveWorkerNATSSessionByWorkerAndBootstrapTokenForUpdate(ctx context.Context, arg GetActiveWorkerNATSSessionByWorkerAndBootstrapTokenForUpdateParams) (WorkerNatsSession, error) {
+	row := q.db.QueryRow(ctx, getActiveWorkerNATSSessionByWorkerAndBootstrapTokenForUpdate, arg.WorkerID, arg.BootstrapTokenID)
+	var i WorkerNatsSession
+	err := row.Scan(
+		&i.ID,
+		&i.WorkerID,
+		&i.BootstrapTokenID,
+		&i.NatsAccountPublicKey,
+		&i.NatsUserPublicKey,
+		&i.NatsUserJwt,
+		&i.Permissions,
+		&i.RevokedAt,
+		&i.RevokedByUserID,
+		&i.CreatedAt,
+		&i.NatsUserSeed,
+		&i.NatsUserCredentials,
 	)
 	return i, err
 }
 
 const listActiveWorkerNATSSessionsByBootstrapToken = `-- name: ListActiveWorkerNATSSessionsByBootstrapToken :many
-SELECT id, worker_id, bootstrap_token_id, nats_account_public_key, nats_user_public_key, nats_user_jwt, permissions, revoked_at, revoked_by_user_id, created_at
+SELECT id, worker_id, bootstrap_token_id, nats_account_public_key, nats_user_public_key, nats_user_jwt, permissions, revoked_at, revoked_by_user_id, created_at, nats_user_seed, nats_user_credentials
 FROM "worker_nats_session"
 WHERE bootstrap_token_id = $1
   AND revoked_at IS NULL
@@ -82,6 +125,8 @@ func (q *Queries) ListActiveWorkerNATSSessionsByBootstrapToken(ctx context.Conte
 			&i.RevokedAt,
 			&i.RevokedByUserID,
 			&i.CreatedAt,
+			&i.NatsUserSeed,
+			&i.NatsUserCredentials,
 		); err != nil {
 			return nil, err
 		}
@@ -93,13 +138,76 @@ func (q *Queries) ListActiveWorkerNATSSessionsByBootstrapToken(ctx context.Conte
 	return items, nil
 }
 
+const replaceLatestWorkerNATSSessionByWorkerAndBootstrapToken = `-- name: ReplaceLatestWorkerNATSSessionByWorkerAndBootstrapToken :one
+UPDATE "worker_nats_session" AS s
+SET nats_account_public_key = $1,
+    nats_user_public_key = $2,
+    nats_user_jwt = $3,
+    nats_user_seed = $4,
+    nats_user_credentials = $5,
+    permissions = $6,
+    revoked_at = NULL,
+    revoked_by_user_id = NULL,
+    created_at = CURRENT_TIMESTAMP
+WHERE s.id = (
+    SELECT latest.id
+    FROM "worker_nats_session" AS latest
+    WHERE latest.worker_id = $7
+      AND latest.bootstrap_token_id = $8
+    ORDER BY latest.created_at DESC, latest.id DESC
+    LIMIT 1
+    FOR UPDATE
+)
+RETURNING id, worker_id, bootstrap_token_id, nats_account_public_key, nats_user_public_key, nats_user_jwt, permissions, revoked_at, revoked_by_user_id, created_at, nats_user_seed, nats_user_credentials
+`
+
+type ReplaceLatestWorkerNATSSessionByWorkerAndBootstrapTokenParams struct {
+	NatsAccountPublicKey string `json:"nats_account_public_key"`
+	NatsUserPublicKey    string `json:"nats_user_public_key"`
+	NatsUserJwt          string `json:"nats_user_jwt"`
+	NatsUserSeed         string `json:"nats_user_seed"`
+	NatsUserCredentials  string `json:"nats_user_credentials"`
+	Permissions          []byte `json:"permissions"`
+	WorkerID             int32  `json:"worker_id"`
+	BootstrapTokenID     int32  `json:"bootstrap_token_id"`
+}
+
+func (q *Queries) ReplaceLatestWorkerNATSSessionByWorkerAndBootstrapToken(ctx context.Context, arg ReplaceLatestWorkerNATSSessionByWorkerAndBootstrapTokenParams) (WorkerNatsSession, error) {
+	row := q.db.QueryRow(ctx, replaceLatestWorkerNATSSessionByWorkerAndBootstrapToken,
+		arg.NatsAccountPublicKey,
+		arg.NatsUserPublicKey,
+		arg.NatsUserJwt,
+		arg.NatsUserSeed,
+		arg.NatsUserCredentials,
+		arg.Permissions,
+		arg.WorkerID,
+		arg.BootstrapTokenID,
+	)
+	var i WorkerNatsSession
+	err := row.Scan(
+		&i.ID,
+		&i.WorkerID,
+		&i.BootstrapTokenID,
+		&i.NatsAccountPublicKey,
+		&i.NatsUserPublicKey,
+		&i.NatsUserJwt,
+		&i.Permissions,
+		&i.RevokedAt,
+		&i.RevokedByUserID,
+		&i.CreatedAt,
+		&i.NatsUserSeed,
+		&i.NatsUserCredentials,
+	)
+	return i, err
+}
+
 const revokeWorkerNATSSession = `-- name: RevokeWorkerNATSSession :one
 UPDATE "worker_nats_session"
 SET revoked_at = CURRENT_TIMESTAMP,
     revoked_by_user_id = $2
 WHERE id = $1
   AND revoked_at IS NULL
-RETURNING id, worker_id, bootstrap_token_id, nats_account_public_key, nats_user_public_key, nats_user_jwt, permissions, revoked_at, revoked_by_user_id, created_at
+RETURNING id, worker_id, bootstrap_token_id, nats_account_public_key, nats_user_public_key, nats_user_jwt, permissions, revoked_at, revoked_by_user_id, created_at, nats_user_seed, nats_user_credentials
 `
 
 type RevokeWorkerNATSSessionParams struct {
@@ -121,6 +229,8 @@ func (q *Queries) RevokeWorkerNATSSession(ctx context.Context, arg RevokeWorkerN
 		&i.RevokedAt,
 		&i.RevokedByUserID,
 		&i.CreatedAt,
+		&i.NatsUserSeed,
+		&i.NatsUserCredentials,
 	)
 	return i, err
 }
@@ -131,7 +241,7 @@ SET revoked_at = CURRENT_TIMESTAMP,
     revoked_by_user_id = $2
 WHERE bootstrap_token_id = $1
   AND revoked_at IS NULL
-RETURNING id, worker_id, bootstrap_token_id, nats_account_public_key, nats_user_public_key, nats_user_jwt, permissions, revoked_at, revoked_by_user_id, created_at
+RETURNING id, worker_id, bootstrap_token_id, nats_account_public_key, nats_user_public_key, nats_user_jwt, permissions, revoked_at, revoked_by_user_id, created_at, nats_user_seed, nats_user_credentials
 `
 
 type RevokeWorkerNATSSessionsByBootstrapTokenParams struct {
@@ -159,6 +269,8 @@ func (q *Queries) RevokeWorkerNATSSessionsByBootstrapToken(ctx context.Context, 
 			&i.RevokedAt,
 			&i.RevokedByUserID,
 			&i.CreatedAt,
+			&i.NatsUserSeed,
+			&i.NatsUserCredentials,
 		); err != nil {
 			return nil, err
 		}

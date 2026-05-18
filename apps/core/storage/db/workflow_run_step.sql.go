@@ -99,6 +99,91 @@ func (q *Queries) GetWorkflowRunStepByID(ctx context.Context, id int32) (Workflo
 	return i, err
 }
 
+const getWorkflowRunStepByRunAndStepID = `-- name: GetWorkflowRunStepByRunAndStepID :one
+SELECT id, workflow_run_id, workflow_step_id, worker_id, temporal_step_id, status, outcome, input_data, output_data, started_at, completed_at, error_message
+FROM "workflow_run_step"
+WHERE workflow_run_id = $1 AND workflow_step_id = $2
+ORDER BY id DESC
+LIMIT 1
+`
+
+type GetWorkflowRunStepByRunAndStepIDParams struct {
+	WorkflowRunID  int32 `json:"workflow_run_id"`
+	WorkflowStepID int32 `json:"workflow_step_id"`
+}
+
+func (q *Queries) GetWorkflowRunStepByRunAndStepID(ctx context.Context, arg GetWorkflowRunStepByRunAndStepIDParams) (WorkflowRunStep, error) {
+	row := q.db.QueryRow(ctx, getWorkflowRunStepByRunAndStepID, arg.WorkflowRunID, arg.WorkflowStepID)
+	var i WorkflowRunStep
+	err := row.Scan(
+		&i.ID,
+		&i.WorkflowRunID,
+		&i.WorkflowStepID,
+		&i.WorkerID,
+		&i.TemporalStepID,
+		&i.Status,
+		&i.Outcome,
+		&i.InputData,
+		&i.OutputData,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.ErrorMessage,
+	)
+	return i, err
+}
+
+const listWorkflowRunStepDetailsByRunID = `-- name: ListWorkflowRunStepDetailsByRunID :many
+SELECT
+    wrs.id,
+    wrs.workflow_run_id,
+    wrs.workflow_step_id,
+    wrs.worker_id,
+    wrs.temporal_step_id,
+    wrs.status,
+    wrs.outcome,
+    wrs.input_data,
+    wrs.output_data,
+    wrs.started_at,
+    wrs.completed_at,
+    wrs.error_message
+FROM "workflow_run_step" wrs
+WHERE wrs.workflow_run_id = $1
+ORDER BY wrs.workflow_step_id, wrs.id
+`
+
+func (q *Queries) ListWorkflowRunStepDetailsByRunID(ctx context.Context, workflowRunID int32) ([]WorkflowRunStep, error) {
+	rows, err := q.db.Query(ctx, listWorkflowRunStepDetailsByRunID, workflowRunID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkflowRunStep
+	for rows.Next() {
+		var i WorkflowRunStep
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkflowRunID,
+			&i.WorkflowStepID,
+			&i.WorkerID,
+			&i.TemporalStepID,
+			&i.Status,
+			&i.Outcome,
+			&i.InputData,
+			&i.OutputData,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.ErrorMessage,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkflowRunStepStatusesByRunID = `-- name: ListWorkflowRunStepStatusesByRunID :many
 SELECT wrs.id, wrs.workflow_step_id, wrs.status, wrs.outcome,
        wrs.started_at, wrs.completed_at, wrs.error_message,
@@ -191,18 +276,19 @@ func (q *Queries) ListWorkflowRunStepsByRunID(ctx context.Context, workflowRunID
 
 const updateWorkflowRunStepStarted = `-- name: UpdateWorkflowRunStepStarted :one
 UPDATE "workflow_run_step"
-SET status = 'running', worker_id = $2, started_at = CURRENT_TIMESTAMP
+SET status = 'running', worker_id = $2, input_data = $3, started_at = CURRENT_TIMESTAMP
 WHERE id = $1
 RETURNING id, workflow_run_id, workflow_step_id, worker_id, temporal_step_id, status, outcome, input_data, output_data, started_at, completed_at, error_message
 `
 
 type UpdateWorkflowRunStepStartedParams struct {
-	ID       int32       `json:"id"`
-	WorkerID pgtype.Int4 `json:"worker_id"`
+	ID        int32       `json:"id"`
+	WorkerID  pgtype.Int4 `json:"worker_id"`
+	InputData []byte      `json:"input_data"`
 }
 
 func (q *Queries) UpdateWorkflowRunStepStarted(ctx context.Context, arg UpdateWorkflowRunStepStartedParams) (WorkflowRunStep, error) {
-	row := q.db.QueryRow(ctx, updateWorkflowRunStepStarted, arg.ID, arg.WorkerID)
+	row := q.db.QueryRow(ctx, updateWorkflowRunStepStarted, arg.ID, arg.WorkerID, arg.InputData)
 	var i WorkflowRunStep
 	err := row.Scan(
 		&i.ID,
@@ -223,7 +309,7 @@ func (q *Queries) UpdateWorkflowRunStepStarted(ctx context.Context, arg UpdateWo
 
 const updateWorkflowRunStepStatus = `-- name: UpdateWorkflowRunStepStatus :one
 UPDATE "workflow_run_step"
-SET status = $2, outcome = $3, output_data = $4, completed_at = $5, error_message = $6
+SET status = $2, outcome = $3, output_data = $4, completed_at = $5, error_message = $6, started_at = COALESCE(started_at, $7)
 WHERE id = $1
 RETURNING id, workflow_run_id, workflow_step_id, worker_id, temporal_step_id, status, outcome, input_data, output_data, started_at, completed_at, error_message
 `
@@ -235,6 +321,7 @@ type UpdateWorkflowRunStepStatusParams struct {
 	OutputData   []byte           `json:"output_data"`
 	CompletedAt  pgtype.Timestamp `json:"completed_at"`
 	ErrorMessage pgtype.Text      `json:"error_message"`
+	StartedAt    pgtype.Timestamp `json:"started_at"`
 }
 
 func (q *Queries) UpdateWorkflowRunStepStatus(ctx context.Context, arg UpdateWorkflowRunStepStatusParams) (WorkflowRunStep, error) {
@@ -245,6 +332,7 @@ func (q *Queries) UpdateWorkflowRunStepStatus(ctx context.Context, arg UpdateWor
 		arg.OutputData,
 		arg.CompletedAt,
 		arg.ErrorMessage,
+		arg.StartedAt,
 	)
 	var i WorkflowRunStep
 	err := row.Scan(

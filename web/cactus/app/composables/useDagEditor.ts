@@ -13,7 +13,7 @@ export interface StepData {
   controlKind?: string
   config?: Record<string, unknown>
   controlSettings?: Record<string, unknown>
-  inputMapping?: Record<string, string>
+  inputMapping?: Record<string, string> | Array<{ target: string, source: string }>
   settingsSchema?: Record<string, unknown>
   inputSchema?: Record<string, unknown>
   outputSchema?: Record<string, unknown>
@@ -39,6 +39,7 @@ export function useDagEditor(
     createStep,
     updateStep,
     updateTaskSettings,
+    updateTaskInputMapping,
     updateStepPosition,
     deleteStep: apiDeleteStep,
     createDependency,
@@ -372,14 +373,20 @@ export function useDagEditor(
   async function updateTaskSettingsOnServer(
     stepId: string,
     settingsData: Record<string, unknown>,
+  ): Promise<void> {
+    if (isReadOnly.value) return
+
+    await updateTaskSettings(Number(stepId), settingsData)
+    isDirty.value = true
+  }
+
+  async function updateTaskInputMappingOnServer(
+    stepId: string,
     inputMapping: Array<{ target: string, source: string }>,
   ): Promise<void> {
     if (isReadOnly.value) return
 
-    await updateTaskSettings(Number(stepId), {
-      settings_data: settingsData,
-      input_mapping: inputMapping,
-    })
+    await updateTaskInputMapping(Number(stepId), inputMapping)
     isDirty.value = true
   }
 
@@ -406,5 +413,6 @@ export function useDagEditor(
     selectEdge,
     updateStepOnServer,
     updateTaskSettingsOnServer,
+    updateTaskInputMappingOnServer,
   }
 }

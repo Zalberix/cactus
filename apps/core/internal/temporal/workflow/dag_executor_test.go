@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -57,4 +58,11 @@ func TestDAGExecutorWaitsForTaskLaunchedByCompletedTask(t *testing.T) {
 	require.True(t, env.IsWorkflowCompleted())
 	require.Error(t, env.GetWorkflowError())
 	env.AssertExpectations(t)
+}
+
+func TestParseDelayDurationUsesNumericCountAndUnit(t *testing.T) {
+	delay, err := parseDelayDuration([]byte(`{"count":1.5,"unit":"hour"}`))
+
+	require.NoError(t, err)
+	require.Equal(t, 90*time.Minute, delay)
 }

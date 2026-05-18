@@ -122,28 +122,46 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 
 	inputDataJSON, _ := json.Marshal(resolvedInput)
 
-	runStep, err := a.store.CreateWorkflowRunStep(ctx, db.CreateWorkflowRunStepParams{
+	runStep, err := a.store.GetWorkflowRunStepByRunAndStepID(ctx, db.GetWorkflowRunStepByRunAndStepIDParams{
 		WorkflowRunID:  input.WorkflowRunID,
 		WorkflowStepID: input.Step.ID,
-		WorkerID:       pgtype.Int4{},
-		TemporalStepID: pgtype.Text{String: fmt.Sprintf("step-%d", input.Step.ID), Valid: true},
-		Status:         temporaltypes.StepStatusRunning,
-		InputData:      inputDataJSON,
 	})
 	if err != nil {
-		return temporaltypes.StepResult{}, fmt.Errorf("create workflow_run_step: %w", err)
+		runStep, err = a.store.CreateWorkflowRunStep(ctx, db.CreateWorkflowRunStepParams{
+			WorkflowRunID:  input.WorkflowRunID,
+			WorkflowStepID: input.Step.ID,
+			WorkerID:       pgtype.Int4{},
+			TemporalStepID: pgtype.Text{String: fmt.Sprintf("step-%d", input.Step.ID), Valid: true},
+			Status:         temporaltypes.StepStatusPending,
+			InputData:      inputDataJSON,
+		})
+		if err != nil {
+			return temporaltypes.StepResult{}, fmt.Errorf("create workflow_run_step: %w", err)
+		}
 	}
-	a.logger.Info("RunTaskStep created run_step",
+
+	runStep, err = a.store.UpdateWorkflowRunStepStarted(ctx, db.UpdateWorkflowRunStepStartedParams{
+		ID:        runStep.ID,
+		WorkerID:  pgtype.Int4{},
+		InputData: inputDataJSON,
+	})
+	if err != nil {
+		return temporaltypes.StepResult{}, fmt.Errorf("mark workflow_run_step started: %w", err)
+	}
+	a.logger.Info("RunTaskStep marked run_step running",
 		slog.Int("workflow_run_id", int(input.WorkflowRunID)),
 		slog.Int("step_id", int(input.Step.ID)),
 		slog.Any("run_step_id", runStep.ID),
 	)
 
 	a.publishWorkflowEvent(ctx, input.MessageID, temporaltypes.WorkflowEvent{
-		Type:     "step_update",
-		StepID:   input.Step.ID,
-		StepType: input.Step.StepType,
-		Status:   temporaltypes.StepStatusRunning,
+		Type:      "step_update",
+		StepID:    input.Step.ID,
+		RunStepID: runStep.ID,
+		StepType:  input.Step.StepType,
+		Status:    temporaltypes.StepStatusRunning,
+		InputData: resolvedInput,
+		StartedAt: runStep.StartedAt.Time.Format(time.RFC3339),
 	})
 
 	stepAttempt, err := a.store.CreateWorkflowRunStepAttempt(ctx, db.CreateWorkflowRunStepAttemptParams{
@@ -228,6 +246,21 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 			OutputData:   nil,
 			CompletedAt:  now,
 		})
+		_, _ = a.store.UpdateWorkflowRunStepStatus(ctx, db.UpdateWorkflowRunStepStatusParams{
+			ID:           runStep.ID,
+			Status:       temporaltypes.StepStatusFailed,
+			CompletedAt:  now,
+			ErrorMessage: pgtype.Text{String: err.Error(), Valid: true},
+		})
+		a.publishWorkflowEvent(ctx, input.MessageID, temporaltypes.WorkflowEvent{
+			Type:        "step_update",
+			StepID:      input.Step.ID,
+			RunStepID:   runStep.ID,
+			StepType:    input.Step.StepType,
+			Status:      temporaltypes.StepStatusFailed,
+			CompletedAt: now.Time.Format(time.RFC3339),
+			Error:       err.Error(),
+		})
 		return temporaltypes.StepResult{}, fmt.Errorf("wait for result step %d: %w", input.Step.ID, err)
 	}
 
@@ -261,10 +294,13 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 		})
 
 		a.publishWorkflowEvent(ctx, input.MessageID, temporaltypes.WorkflowEvent{
-			Type:     "step_update",
-			StepID:   input.Step.ID,
-			StepType: input.Step.StepType,
-			Status:   temporaltypes.StepStatusCompleted,
+			Type:        "step_update",
+			StepID:      input.Step.ID,
+			RunStepID:   runStep.ID,
+			StepType:    input.Step.StepType,
+			Status:      temporaltypes.StepStatusCompleted,
+			OutputData:  workerResult.Output,
+			CompletedAt: now.Time.Format(time.RFC3339),
 		})
 
 		return temporaltypes.StepResult{
@@ -291,11 +327,13 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 	})
 
 	a.publishWorkflowEvent(ctx, input.MessageID, temporaltypes.WorkflowEvent{
-		Type:     "step_update",
-		StepID:   input.Step.ID,
-		StepType: input.Step.StepType,
-		Status:   temporaltypes.StepStatusFailed,
-		Error:    workerResult.Error,
+		Type:        "step_update",
+		StepID:      input.Step.ID,
+		RunStepID:   runStep.ID,
+		StepType:    input.Step.StepType,
+		Status:      temporaltypes.StepStatusFailed,
+		CompletedAt: now.Time.Format(time.RFC3339),
+		Error:       workerResult.Error,
 	})
 	a.logger.Warn("RunTaskStep worker reported failure",
 		slog.Int("workflow_run_id", int(input.WorkflowRunID)),
@@ -322,7 +360,7 @@ func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordS
 
 	switch input.Status {
 	case temporaltypes.StepStatusPending:
-		_, err := a.store.CreateWorkflowRunStep(ctx, db.CreateWorkflowRunStepParams{
+		runStep, err := a.store.CreateWorkflowRunStep(ctx, db.CreateWorkflowRunStepParams{
 			WorkflowRunID:  input.WorkflowRunID,
 			WorkflowStepID: input.StepID,
 			Status:         temporaltypes.StepStatusPending,
@@ -332,9 +370,10 @@ func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordS
 		}
 
 		a.publishWorkflowEvent(ctx, input.MessageID, temporaltypes.WorkflowEvent{
-			Type:   "step_update",
-			StepID: input.StepID,
-			Status: temporaltypes.StepStatusPending,
+			Type:      "step_update",
+			StepID:    input.StepID,
+			RunStepID: runStep.ID,
+			Status:    temporaltypes.StepStatusPending,
 		})
 
 	case temporaltypes.StepStatusSkipped:
@@ -352,9 +391,11 @@ func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordS
 				})
 
 				a.publishWorkflowEvent(ctx, input.MessageID, temporaltypes.WorkflowEvent{
-					Type:   "step_update",
-					StepID: input.StepID,
-					Status: temporaltypes.StepStatusSkipped,
+					Type:        "step_update",
+					StepID:      input.StepID,
+					RunStepID:   s.ID,
+					Status:      temporaltypes.StepStatusSkipped,
+					CompletedAt: now.Time.Format(time.RFC3339),
 				})
 				break
 			}
@@ -372,13 +413,16 @@ func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordS
 					Status:      temporaltypes.StepStatusCompleted,
 					Outcome:     pgtype.Text{String: input.Outcome, Valid: input.Outcome != ""},
 					CompletedAt: now,
+					StartedAt:   now,
 				})
 
 				a.publishWorkflowEvent(ctx, input.MessageID, temporaltypes.WorkflowEvent{
-					Type:     "step_update",
-					StepID:   input.StepID,
-					Status:   temporaltypes.StepStatusCompleted,
-					StepType: "control",
+					Type:        "step_update",
+					StepID:      input.StepID,
+					RunStepID:   s.ID,
+					Status:      temporaltypes.StepStatusCompleted,
+					StepType:    "control",
+					CompletedAt: now.Time.Format(time.RFC3339),
 				})
 				break
 			}

@@ -15,6 +15,9 @@ const (
 )
 
 const ControlKindStart = "start"
+const ControlKindCondition = "condition"
+const ControlKindSwitch = "switch"
+const ControlKindDelay = "delay"
 
 // Step is a workflow DAG validation step.
 type Step struct {
@@ -59,6 +62,7 @@ func ValidateDAG(steps []Step, deps []Dependency) []ValidationError {
 	errors := validateStart(steps, inDegree, adj)
 	errors = append(errors, validateCycles(steps, inDegree, adj)...)
 	errors = append(errors, validateOutcomes(deps, stepMap)...)
+	errors = append(errors, validateRequiredControlOutcomes(steps, deps)...)
 	errors = append(errors, validateMappings(steps, predecessors, workflowInputs)...)
 
 	return errors
@@ -281,21 +285,75 @@ func validateDependencyOutcome(dep Dependency, dependsOnStep Step) []ValidationE
 			Message: fmt.Sprintf("Шаг %d: task-шаг (id=%d) поддерживает только исход 'success', получено '%s'", dep.StepID, dep.DependsOnStepID, dep.Outcome),
 		})
 	}
-	if isStartStep(dependsOnStep) && dep.Outcome != "success" {
-		errors = append(errors, ValidationError{
-			Type:    "invalid_outcome",
-			StepID:  dep.StepID,
-			Message: fmt.Sprintf("Шаг %d: start-шаг (id=%d) поддерживает только исход 'success', получено '%s'", dep.StepID, dep.DependsOnStepID, dep.Outcome),
-		})
-	}
-	if dependsOnStep.StepType == StepTypeControl && dep.Outcome == "" {
-		errors = append(errors, ValidationError{
-			Type:    "invalid_outcome",
-			StepID:  dep.StepID,
-			Message: fmt.Sprintf("Шаг %d: исход зависимости от control-шага (id=%d) не может быть пустым", dep.StepID, dep.DependsOnStepID),
-		})
+	if dependsOnStep.StepType == StepTypeControl {
+		switch {
+		case dep.Outcome == "":
+			errors = append(errors, ValidationError{
+				Type:    "invalid_outcome",
+				StepID:  dep.StepID,
+				Message: fmt.Sprintf("Шаг %d: исход зависимости от control-шага (id=%d) не может быть пустым", dep.StepID, dep.DependsOnStepID),
+			})
+		case !isControlOutcomeAllowed(dependsOnStep, dep.Outcome):
+			errors = append(errors, ValidationError{
+				Type:    "invalid_outcome",
+				StepID:  dep.StepID,
+				Message: fmt.Sprintf("Шаг %d: control-шаг (id=%d, kind=%s) не поддерживает исход '%s'", dep.StepID, dep.DependsOnStepID, dependsOnStep.ControlKind, dep.Outcome),
+			})
+		}
 	}
 	return errors
+}
+
+func isControlOutcomeAllowed(step Step, outcome string) bool {
+	switch step.ControlKind {
+	case ControlKindStart, ControlKindDelay:
+		return outcome == "success"
+	case ControlKindCondition:
+		return outcome == "true" || outcome == "false"
+	case ControlKindSwitch:
+		return outcome == "default"
+	default:
+		return true
+	}
+}
+
+func validateRequiredControlOutcomes(steps []Step, deps []Dependency) []ValidationError {
+	outcomesByStep := make(map[int32]map[string]struct{}, len(steps))
+	for _, dep := range deps {
+		if outcomesByStep[dep.DependsOnStepID] == nil {
+			outcomesByStep[dep.DependsOnStepID] = make(map[string]struct{})
+		}
+		outcomesByStep[dep.DependsOnStepID][dep.Outcome] = struct{}{}
+	}
+
+	var errors []ValidationError
+	for _, step := range steps {
+		for _, outcome := range requiredControlOutcomes(step) {
+			if _, ok := outcomesByStep[step.ID][outcome]; ok {
+				continue
+			}
+			errors = append(errors, ValidationError{
+				Type:    "missing_control_outcome",
+				StepID:  step.ID,
+				Message: fmt.Sprintf("Control-шаг %d (%s) должен иметь исход '%s'", step.ID, step.ControlKind, outcome),
+			})
+		}
+	}
+	return errors
+}
+
+func requiredControlOutcomes(step Step) []string {
+	if step.StepType != StepTypeControl {
+		return nil
+	}
+	switch step.ControlKind {
+	case ControlKindCondition:
+		return []string{"true", "false"}
+	case ControlKindSwitch:
+		return []string{"default"}
+	default:
+		return nil
+	}
 }
 
 func validateMappings(steps []Step, predecessors map[int32]map[int32]struct{}, workflowInputs map[string]struct{}) []ValidationError {

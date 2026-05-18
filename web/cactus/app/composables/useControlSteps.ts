@@ -1,4 +1,4 @@
-export interface ControlStepDefinition {
+﻿export interface ControlStepDefinition {
   kind: 'condition' | 'switch' | 'delay'
   name: string
   category: string
@@ -55,9 +55,20 @@ export function useControlSteps() {
       color: '#6366f1',
       settingsSchema: {
         type: 'object',
-        required: ['duration'],
+        required: ['count', 'unit'],
         properties: {
-          duration: { type: 'string', description: 'Delay duration, for example 10s or 5m' },
+          count: {
+            type: 'number',
+            minimum: 1,
+            title: 'Количество',
+            description: 'Значение задержки',
+          },
+          unit: {
+            type: 'string',
+            enum: ['sec', 'min', 'hour', 'day'],
+            title: 'Единица измерения',
+            description: 'Единицы измерения времени',
+          },
         },
       },
       handles: [

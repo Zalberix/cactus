@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "@vue-flow/core/dist/style.css";
 
 @custom-variant dark (&:is(.dark *));
 

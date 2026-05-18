@@ -34,6 +34,10 @@ type Storage interface {
 	GetMessageStatusByID(ctx context.Context, id int32) (db.GetMessageStatusByIDRow, error)
 	ListWorkflowRunStepStatusesByRunID(ctx context.Context, workflowRunID int32) ([]db.ListWorkflowRunStepStatusesByRunIDRow, error)
 
+	// Message detail API
+	GetMessageDetailByID(ctx context.Context, id int32) (db.GetMessageDetailByIDRow, error)
+	ListWorkflowRunStepDetailsByRunID(ctx context.Context, workflowRunID int32) ([]db.WorkflowRunStep, error)
+
 	// Message listing (per UI-12)
 	ListMessagesByOrganizationID(ctx context.Context, arg db.ListMessagesByOrganizationIDParams) ([]db.ListMessagesByOrganizationIDRow, error)
 	CountMessagesByOrganizationID(ctx context.Context, organizationID pgtype.Int4) (int64, error)

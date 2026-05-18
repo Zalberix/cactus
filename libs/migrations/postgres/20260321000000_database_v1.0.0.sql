@@ -204,6 +204,8 @@ CREATE TABLE "worker_nats_session" (
     revoked_at TIMESTAMP,
     revoked_by_user_id INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    nats_user_seed TEXT NOT NULL DEFAULT '',
+    nats_user_credentials TEXT NOT NULL DEFAULT '',
     CONSTRAINT worker_nats_session_worker_fkey FOREIGN KEY (worker_id) REFERENCES "worker"(id) ON DELETE CASCADE,
     CONSTRAINT worker_nats_session_bootstrap_fkey FOREIGN KEY (bootstrap_token_id) REFERENCES "worker_bootstrap_token"(id) ON DELETE CASCADE,
     CONSTRAINT worker_nats_session_revoked_by_fkey FOREIGN KEY (revoked_by_user_id) REFERENCES "user"(id) ON DELETE SET NULL,

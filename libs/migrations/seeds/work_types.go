@@ -13,7 +13,7 @@ const (
 	telegramOrgBootstrapTokenHash = "79b8a204126030209d98fa2f53e730e3da31f891e7691e82e7c419d337b69d67" //nolint:gosec // Seed stores SHA-256 hashes, not plaintext tokens.
 )
 
-// SeedWorkTypes вставляет базовые типы работ (smtp, telegram, control-типы)
+// SeedWorkTypes вставляет базовые типы работ (smtp, telegram, html).
 // и создаёт dev bootstrap-токены для них.
 func SeedWorkTypes(ctx context.Context, db *pgxpool.Pool) error {
 	workTypes := []struct {

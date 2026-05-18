@@ -14,15 +14,40 @@ ORDER BY id;
 
 -- name: UpdateWorkflowRunStepStatus :one
 UPDATE "workflow_run_step"
-SET status = $2, outcome = $3, output_data = $4, completed_at = $5, error_message = $6
+SET status = $2, outcome = $3, output_data = $4, completed_at = $5, error_message = $6, started_at = COALESCE(started_at, $7)
 WHERE id = $1
 RETURNING *;
 
 -- name: UpdateWorkflowRunStepStarted :one
 UPDATE "workflow_run_step"
-SET status = 'running', worker_id = $2, started_at = CURRENT_TIMESTAMP
+SET status = 'running', worker_id = $2, input_data = $3, started_at = CURRENT_TIMESTAMP
 WHERE id = $1
 RETURNING *;
+
+-- name: ListWorkflowRunStepDetailsByRunID :many
+SELECT
+    wrs.id,
+    wrs.workflow_run_id,
+    wrs.workflow_step_id,
+    wrs.worker_id,
+    wrs.temporal_step_id,
+    wrs.status,
+    wrs.outcome,
+    wrs.input_data,
+    wrs.output_data,
+    wrs.started_at,
+    wrs.completed_at,
+    wrs.error_message
+FROM "workflow_run_step" wrs
+WHERE wrs.workflow_run_id = $1
+ORDER BY wrs.workflow_step_id, wrs.id;
+
+-- name: GetWorkflowRunStepByRunAndStepID :one
+SELECT *
+FROM "workflow_run_step"
+WHERE workflow_run_id = $1 AND workflow_step_id = $2
+ORDER BY id DESC
+LIMIT 1;
 
 -- name: CountRunningStepsByRevisionInWindow :one
 SELECT COUNT(*) AS cnt

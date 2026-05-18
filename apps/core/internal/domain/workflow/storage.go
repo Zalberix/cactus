@@ -44,6 +44,7 @@ type Storage interface {
 
 	// Worker settings (for auto-resolving revision in CreateStep)
 	ListWorkerSettingsSchemasByWorkTypeID(ctx context.Context, workTypeID int32) ([]db.WorkerSettingsSchema, error)
+	GetWorkerSettingsSchemaByID(ctx context.Context, id int32) (db.WorkerSettingsSchema, error)
 	ListWorkerSettingsRevisionsBySchemaID(ctx context.Context, schemaID int32) ([]db.WorkerSettingsRevision, error)
 	CreateWorkerSettingsRevision(ctx context.Context, arg db.CreateWorkerSettingsRevisionParams) (db.WorkerSettingsRevision, error)
 	CloneWorkerSettingsRevision(ctx context.Context, arg db.CloneWorkerSettingsRevisionParams) (db.WorkerSettingsRevision, error)

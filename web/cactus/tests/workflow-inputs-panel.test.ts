@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { workflowInputFieldsFromSchema, workflowInputPath } from '../app/components/dag/node-editor/workflow-input-utils'
 import WorkflowInputsPanel from '../app/components/dag/node-editor/WorkflowInputsPanel.vue'
@@ -61,5 +61,30 @@ describe('workflow inputs panel', () => {
     expect(wrapper.emitted('editInput')).toEqual([[input]])
     expect(wrapper.emitted('deleteInput')).toEqual([[input]])
     expect(wrapper.emitted('insertExpression')).toBeUndefined()
+  })
+
+  it('mounts workflow input actions without leaking click listeners to the menu portal', async () => {
+    const input = {
+      name: 'email',
+      type: 'string' as const,
+      required: true,
+      description: 'Recipient address',
+    }
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const wrapper = mount(WorkflowInputsPanel, {
+      props: { inputs: [input] },
+      attachTo: document.body,
+    })
+
+    await flushPromises()
+
+    const portalWarnings = warn.mock.calls.filter(call =>
+      String(call[0]).includes('Extraneous non-emits event listeners')
+      && String(call[0]).includes('click'),
+    )
+
+    wrapper.unmount()
+    warn.mockRestore()
+    expect(portalWarnings).toEqual([])
   })
 })

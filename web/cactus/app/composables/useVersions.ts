@@ -40,7 +40,7 @@ export interface Step {
   control_kind?: string
   control_settings?: Record<string, unknown>
   config?: Record<string, unknown>
-  input_mapping?: Record<string, string>
+  input_mapping?: Record<string, string> | Array<{ target: string, source: string }>
   canvas_position?: { x: number; y: number }
   settings_schema?: Record<string, unknown>
   input_schema?: Record<string, unknown>
@@ -314,19 +314,29 @@ export function useVersions() {
     return resp.data
   }
 
-  async function updateTaskSettings(stepId: number, data: {
-    settings_data: Record<string, unknown>
-    input_mapping: Array<{ target: string, source: string }>
-  }): Promise<void> {
+  async function updateTaskSettings(stepId: number, settingsData: Record<string, unknown>): Promise<void> {
     const resp = await api<ApiResponse<null>>(
       `/steps/${stepId}/task-settings`,
       {
         method: 'PUT',
-        body: data,
+        body: { settings_data: settingsData },
       },
     )
     if (!resp.success) {
       throw new Error(resp.error?.message ?? 'Failed to update task settings')
+    }
+  }
+
+  async function updateTaskInputMapping(stepId: number, inputMapping: Array<{ target: string, source: string }>): Promise<void> {
+    const resp = await api<ApiResponse<null>>(
+      `/steps/${stepId}/input-mapping`,
+      {
+        method: 'PUT',
+        body: { input_mapping: inputMapping },
+      },
+    )
+    if (!resp.success) {
+      throw new Error(resp.error?.message ?? 'Failed to update input mapping')
     }
   }
 
@@ -404,6 +414,7 @@ export function useVersions() {
     createStep,
     updateStep,
     updateTaskSettings,
+    updateTaskInputMapping,
     updateStepPosition,
     deleteStep,
     createDependency,

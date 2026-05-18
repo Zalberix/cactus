@@ -10,6 +10,8 @@ func WorkerPermissions(scope WorkerScope) Permissions {
 		PublishAllow: []string{
 			fmt.Sprintf("result.org.%d.>", org),
 			fmt.Sprintf("config.request.org.%d.work_type.%d.>", org, wt),
+			"$JS.API.STREAM.INFO.CONFIGS",
+			fmt.Sprintf("$JS.API.DIRECT.GET.CONFIGS.config.org.%d.work_type.%d.>", org, wt),
 			fmt.Sprintf("$JS.API.CONSUMER.CREATE.TASKS.%s.task.org.%d.work_type.%d.>", consumer, org, wt),
 			fmt.Sprintf("$JS.API.CONSUMER.MSG.NEXT.TASKS.%s", consumer),
 			fmt.Sprintf("$JS.ACK.TASKS.%s.>", consumer),

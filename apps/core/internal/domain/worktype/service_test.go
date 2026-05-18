@@ -3,6 +3,7 @@ package worktype
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -167,6 +168,88 @@ func TestListWorkTypeCatalogFiltersSchemasWithoutWorkersAndIncludesDetails(t *te
 		t.Fatalf("expected worker counts 1/1, got %#v", schemas[0])
 	}
 	assertJSONEqual(t, `{"type":"object","properties":{"host":{"type":"string"}}}`, schemas[0].SettingsSchema)
+}
+
+func TestListWorkTypesFiltersControlWorkTypes(t *testing.T) {
+	store := &catalogStore{
+		workTypes: []db.WorkType{
+			{
+				ID:   1,
+				Name: "SMTP",
+				Code: "smtp",
+				Meta: []byte(`{"color":"#1976d2"}`),
+			},
+			{
+				ID:   2,
+				Name: "Delay",
+				Code: "delay",
+				Meta: []byte(`{"kind":"control"}`),
+			},
+		},
+	}
+
+	workTypes, err := NewService(store, natsauth.NoopManager{}).ListWorkTypes(context.Background())
+	if err != nil {
+		t.Fatalf("ListWorkTypes error: %v", err)
+	}
+	if len(workTypes) != 1 {
+		t.Fatalf("expected only non-control work types, got %#v", workTypes)
+	}
+	if workTypes[0].ID != 1 || workTypes[0].Code != "smtp" {
+		t.Fatalf("expected SMTP work type, got %#v", workTypes[0])
+	}
+}
+
+func TestCreateWorkTypeRejectsControlWorkType(t *testing.T) {
+	_, err := NewService(&registerWorkerStore{}, natsauth.NoopManager{}).CreateWorkType(context.Background(), CreateWorkTypeRequest{
+		Name: "Delay",
+		Code: "delay",
+		Meta: json.RawMessage(`{"kind":"control"}`),
+	})
+
+	if !errors.Is(err, ErrControlWorkTypeReserved) {
+		t.Fatalf("expected ErrControlWorkTypeReserved, got %v", err)
+	}
+}
+
+func TestCreateSettingsRevisionRejectsMissingRequiredSettings(t *testing.T) {
+	store := &registerWorkerStore{
+		settingsSchema: db.WorkerSettingsSchema{
+			ID:             22,
+			SettingsSchema: []byte(`{"type":"object","properties":{"host":{"type":"string","required":true}}}`),
+		},
+	}
+	svc := NewService(store, natsauth.NoopManager{})
+
+	_, err := svc.CreateSettingsRevision(context.Background(), 22, CreateRevisionRequest{
+		SettingsData: json.RawMessage(`{}`),
+	})
+
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+}
+
+func TestCreateSettingsRevisionAcceptsValidSettings(t *testing.T) {
+	store := &registerWorkerStore{
+		settingsSchema: db.WorkerSettingsSchema{
+			ID:             22,
+			SettingsSchema: []byte(`{"type":"object","properties":{"host":{"type":"string","required":true}}}`),
+		},
+	}
+	svc := NewService(store, natsauth.NoopManager{})
+
+	revision, err := svc.CreateSettingsRevision(context.Background(), 22, CreateRevisionRequest{
+		SettingsData: json.RawMessage(`{"host":"smtp.local"}`),
+	})
+
+	if err != nil {
+		t.Fatalf("CreateSettingsRevision error: %v", err)
+	}
+	if revision.ID != 88 {
+		t.Fatalf("expected created revision 88, got %d", revision.ID)
+	}
+	assertJSONEqual(t, `{"host":"smtp.local"}`, store.createdRevision.SettingsData)
 }
 
 // TestGenerateBootstrapToken проверяет формат bootstrap-токена.

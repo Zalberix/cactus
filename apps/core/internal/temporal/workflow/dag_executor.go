@@ -1,7 +1,10 @@
 package workflow
 
 import (
+	"encoding/json"
+	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"go.temporal.io/sdk/temporal"
@@ -86,10 +89,67 @@ func DAGExecutorWorkflow(ctx workflow.Context, input temporaltypes.DAGInput) err
 		futures = append(futures, sf)
 	}
 
+	executeControlStep := func(step temporaltypes.StepDef) error {
+		if err := workflow.ExecuteActivity(ctx, "RecordStep", temporaltypes.RecordStepInput{
+			WorkflowRunID: input.WorkflowRunID,
+			MessageID:     input.MessageID,
+			StepID:        step.ID,
+			Status:        temporaltypes.StepStatusRunning,
+		}).Get(ctx, nil); err != nil {
+			return err
+		}
+
+		if step.ControlKind == "delay" {
+			delay, parseErr := parseDelayDuration(step.ControlSettings)
+			if parseErr != nil {
+				_ = workflow.ExecuteActivity(ctx, "RecordStep", temporaltypes.RecordStepInput{
+					WorkflowRunID: input.WorkflowRunID,
+					MessageID:     input.MessageID,
+					StepID:        step.ID,
+					Status:        temporaltypes.StepStatusFailed,
+					ErrorMessage:  parseErr.Error(),
+				}).Get(ctx, nil)
+				return parseErr
+			}
+			workflow.Sleep(ctx, delay)
+		}
+
+		if err := workflow.ExecuteActivity(ctx, "RecordStep", temporaltypes.RecordStepInput{
+			WorkflowRunID: input.WorkflowRunID,
+			MessageID:     input.MessageID,
+			StepID:        step.ID,
+			Status:        temporaltypes.StepStatusCompleted,
+			Outcome:       "success",
+		}).Get(ctx, nil); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	var failErr error
 	var processReadyStep func(stepID int32)
 	processReadyStep = func(stepID int32) {
 		step, ok := stepMap[stepID]
 		if !ok {
+			return
+		}
+		if isControlStep(step) && !isStartStep(step) {
+			if err := executeControlStep(step); err != nil {
+				failErr = err
+				return
+			}
+			stepResults[step.ID] = temporaltypes.StepResult{
+				StepID:  step.ID,
+				Success: true,
+				Outcome: "success",
+			}
+			delete(remaining, step.ID)
+			for _, childID := range children[step.ID] {
+				inDegree[childID]--
+				if inDegree[childID] == 0 {
+					processReadyStep(childID)
+				}
+			}
 			return
 		}
 		if !isStartStep(step) {
@@ -134,7 +194,6 @@ func DAGExecutorWorkflow(ctx workflow.Context, input temporaltypes.DAGInput) err
 		return selector
 	}
 
-	var failErr error
 	selector := buildSelector()
 
 	for len(futures) > 0 && failErr == nil {
@@ -231,6 +290,48 @@ func DAGExecutorWorkflow(ctx workflow.Context, input temporaltypes.DAGInput) err
 
 func isStartStep(step temporaltypes.StepDef) bool {
 	return step.StepType == "control" && step.ControlKind == "start"
+}
+
+func isControlStep(step temporaltypes.StepDef) bool {
+	return step.StepType == "control"
+}
+
+func parseDelayDuration(raw json.RawMessage) (time.Duration, error) {
+	type delaySettings struct {
+		Count float64 `json:"count"`
+		Unit  string  `json:"unit"`
+	}
+	var settings delaySettings
+	if err := json.Unmarshal(raw, &settings); err != nil {
+		return 0, err
+	}
+	if settings.Count <= 0 {
+		return 0, fmt.Errorf("invalid delay count: %g", settings.Count)
+	}
+	if strings.TrimSpace(settings.Unit) == "" {
+		return 0, fmt.Errorf("delay unit is required")
+	}
+
+	unit, ok := delayUnitMultiplier(strings.ToLower(strings.TrimSpace(settings.Unit)))
+	if !ok {
+		return 0, fmt.Errorf("unsupported delay unit: %s", settings.Unit)
+	}
+	return time.Duration(settings.Count * float64(unit)), nil
+}
+
+func delayUnitMultiplier(unit string) (time.Duration, bool) {
+	switch unit {
+	case "sec", "s", "seconds", "second":
+		return time.Second, true
+	case "min", "m", "minutes", "minute":
+		return time.Minute, true
+	case "hour", "h", "hours":
+		return time.Hour, true
+	case "day", "d", "days":
+		return 24 * time.Hour, true
+	default:
+		return 0, false
+	}
 }
 
 func buildGraph(

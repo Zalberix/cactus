@@ -256,6 +256,20 @@ func TestValidateDAG_ConditionTrueFalseOutcomesValid(t *testing.T) {
 	assert.Empty(t, errs)
 }
 
+func TestValidateDAG_ConditionRequiresTrueAndFalseOutcomes(t *testing.T) {
+	condition := makeStep(1, dag.StepTypeControl)
+	condition.ControlKind = "condition"
+	steps := []dag.Step{makeStart(), condition, makeStep(2, dag.StepTypeTask)}
+	deps := []dag.Dependency{
+		makeDep(1, 100, "success"),
+		makeDep(2, 1, "true"),
+	}
+
+	errs := dag.ValidateDAG(steps, deps)
+
+	assert.Contains(t, collectTypes(errs), "missing_control_outcome")
+}
+
 func TestValidateDAG_MultipleStartInvalid(t *testing.T) {
 	steps := []dag.Step{
 		makeStart(),

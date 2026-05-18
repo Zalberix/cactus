@@ -23,6 +23,25 @@ type Options struct {
 	CredentialsFile string
 }
 
+type StreamOption func(*jetstream.StreamConfig)
+
+func WithAllowDirect() StreamOption {
+	return func(cfg *jetstream.StreamConfig) {
+		cfg.AllowDirect = true
+	}
+}
+
+func newStreamConfig(name string, subjects []string, opts ...StreamOption) jetstream.StreamConfig {
+	cfg := jetstream.StreamConfig{
+		Name:     name,
+		Subjects: append([]string(nil), subjects...),
+	}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return cfg
+}
+
 func NewWithOptions(opts Options) (*Bus, error) {
 	natsOpts := []nats.Option{}
 	if opts.CAFile != "" {
@@ -64,11 +83,8 @@ func (b *Bus) Close() {
 // EnsureStream создаёт JetStream-стрим если не существует.
 // name — имя стрима (A-Z, 0-9, дефис, подчёркивание).
 // subjects — список NATS-субъектов, которые стрим перехватывает (например "messages.>").
-func (b *Bus) EnsureStream(ctx context.Context, name string, subjects []string) error {
-	_, err := b.js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
-		Name:     name,
-		Subjects: subjects,
-	})
+func (b *Bus) EnsureStream(ctx context.Context, name string, subjects []string, opts ...StreamOption) error {
+	_, err := b.js.CreateOrUpdateStream(ctx, newStreamConfig(name, subjects, opts...))
 	if err != nil {
 		return fmt.Errorf("не удалось создать/обновить стрим %s: %w", name, err)
 	}
@@ -77,11 +93,9 @@ func (b *Bus) EnsureStream(ctx context.Context, name string, subjects []string) 
 
 // EnsureStreamWithMaxAge создаёт JetStream-стрим с ограничением по возрасту сообщений.
 func (b *Bus) EnsureStreamWithMaxAge(ctx context.Context, name string, subjects []string, maxAge time.Duration) error {
-	_, err := b.js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
-		Name:     name,
-		Subjects: subjects,
-		MaxAge:   maxAge,
-	})
+	cfg := newStreamConfig(name, subjects)
+	cfg.MaxAge = maxAge
+	_, err := b.js.CreateOrUpdateStream(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("не удалось создать/обновить стрим %s: %w", name, err)
 	}

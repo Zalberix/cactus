@@ -20,6 +20,8 @@ type RegistrationTx interface {
 	CountActiveWorkersByBootstrapTokenExcludingWorker(ctx context.Context, arg db.CountActiveWorkersByBootstrapTokenExcludingWorkerParams) (int32, error)
 	UpdateNewWorkerHeartbeat(ctx context.Context, id int32) error
 	TouchWorkerBootstrapTokenUse(ctx context.Context, id int32) (db.WorkerBootstrapToken, error)
+	GetActiveWorkerNATSSessionByWorkerAndBootstrapTokenForUpdate(ctx context.Context, arg db.GetActiveWorkerNATSSessionByWorkerAndBootstrapTokenForUpdateParams) (db.WorkerNatsSession, error)
+	ReplaceLatestWorkerNATSSessionByWorkerAndBootstrapToken(ctx context.Context, arg db.ReplaceLatestWorkerNATSSessionByWorkerAndBootstrapTokenParams) (db.WorkerNatsSession, error)
 	CreateWorkerNATSSession(ctx context.Context, arg db.CreateWorkerNATSSessionParams) (db.WorkerNatsSession, error)
 }
 

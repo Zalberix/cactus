@@ -173,6 +173,8 @@ type WorkerNatsSession struct {
 	RevokedAt            pgtype.Timestamp `json:"revoked_at"`
 	RevokedByUserID      pgtype.Int4      `json:"revoked_by_user_id"`
 	CreatedAt            pgtype.Timestamp `json:"created_at"`
+	NatsUserSeed         string           `json:"nats_user_seed"`
+	NatsUserCredentials  string           `json:"nats_user_credentials"`
 }
 
 type WorkerSettingsRevision struct {
@@ -200,11 +202,11 @@ type Workflow struct {
 	SystemID    int32            `json:"system_id"`
 	Name        string           `json:"name"`
 	Priority    int32            `json:"priority"`
+	InputSchema []byte           `json:"input_schema"`
 	Description pgtype.Text      `json:"description"`
 	CreatedAt   pgtype.Timestamp `json:"created_at"`
 	UpdatedAt   pgtype.Timestamp `json:"updated_at"`
 	DeletedAt   pgtype.Timestamp `json:"deleted_at"`
-	InputSchema []byte           `json:"input_schema"`
 }
 
 type WorkflowRun struct {

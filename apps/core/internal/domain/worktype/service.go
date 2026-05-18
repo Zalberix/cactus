@@ -9,18 +9,21 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/zalberix/cactus/apps/core/internal/natsauth"
+	schemadialect "github.com/zalberix/cactus/apps/core/internal/schema"
 	db "github.com/zalberix/cactus/apps/core/storage/db"
 )
 
 var (
 	ErrWorkflowTokenSystemMismatch              = errors.New("system token and workflow belong to different systems")
 	ErrWorkerBootstrapActiveWorkerLimitExceeded = errors.New("worker bootstrap token active worker limit exceeded")
+	ErrControlWorkTypeReserved                  = errors.New("CONTROL_WORK_TYPE_RESERVED: control work types are managed by core")
 )
 
 // HeartbeatTimeout — таймаут для определения offline-статуса воркера.
@@ -159,6 +162,10 @@ type schemaWorkerStats struct {
 
 // CreateWorkType создаёт тип работы и генерирует bootstrap-токен.
 func (s *Service) CreateWorkType(ctx context.Context, req CreateWorkTypeRequest) (db.WorkType, error) {
+	if isControlWorkType(req.Meta) {
+		return db.WorkType{}, ErrControlWorkTypeReserved
+	}
+
 	wt, err := s.store.CreateWorkType(ctx, db.CreateWorkTypeParams{
 		Name: req.Name,
 		Code: req.Code,
@@ -182,6 +189,10 @@ func (s *Service) ListWorkTypes(ctx context.Context) ([]Response, error) {
 	}
 	result := make([]Response, 0, len(rows))
 	for _, r := range rows {
+		if isControlWorkType(r.Meta) {
+			continue
+		}
+
 		wt := Response{
 			ID:   r.ID,
 			Name: r.Name,
@@ -290,6 +301,28 @@ func timestampString(ts pgtype.Timestamp) string {
 		return ""
 	}
 	return ts.Time.Format(time.RFC3339)
+}
+
+func workerNATSSessionReusable(session db.WorkerNatsSession, expected natsauth.Permissions) bool {
+	if session.NatsUserJwt == "" || session.NatsUserSeed == "" {
+		return false
+	}
+	var actual natsauth.Permissions
+	if err := json.Unmarshal(session.Permissions, &actual); err != nil {
+		return false
+	}
+	return slices.Equal(actual.PublishAllow, expected.PublishAllow) &&
+		slices.Equal(actual.SubscribeAllow, expected.SubscribeAllow)
+}
+
+func (s *Service) natsCredentialsResponseFromSession(session db.WorkerNatsSession) NATSCredentialsResponse {
+	return NATSCredentialsResponse{
+		URL:         s.natsURL,
+		CAFile:      s.natsCAFile,
+		UserJWT:     session.NatsUserJwt,
+		UserSeed:    session.NatsUserSeed,
+		Credentials: session.NatsUserCredentials,
+	}
 }
 
 // --- Worker methods ---
@@ -413,11 +446,30 @@ func (s *Service) RegisterWorker(ctx context.Context, req RegisterWorkerRequest)
 			return fmt.Errorf("touch bootstrap token use: %w", err)
 		}
 
-		creds, err := s.natsAuth.IssueWorker(ctx, natsauth.WorkerScope{
+		workerScope := natsauth.WorkerScope{
 			OrganizationID: token.OrganizationID,
 			WorkTypeID:     token.WorkTypeID,
 			WorkerID:       worker.ID,
+		}
+		expectedPermissions := natsauth.WorkerPermissions(workerScope)
+
+		session, err := tx.GetActiveWorkerNATSSessionByWorkerAndBootstrapTokenForUpdate(ctx, db.GetActiveWorkerNATSSessionByWorkerAndBootstrapTokenForUpdateParams{
+			WorkerID:         worker.ID,
+			BootstrapTokenID: token.ID,
 		})
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("get active nats session: %w", err)
+		}
+		if err == nil && workerNATSSessionReusable(session, expectedPermissions) {
+			registration = RegisterWorkerResponse{
+				Worker:     worker,
+				RevisionID: revisionID,
+				NATS:       s.natsCredentialsResponseFromSession(session),
+			}
+			return nil
+		}
+
+		creds, err := s.natsAuth.IssueWorker(ctx, workerScope)
 		if err != nil {
 			return fmt.Errorf("issue nats credentials: %w", err)
 		}
@@ -425,27 +477,39 @@ func (s *Service) RegisterWorker(ctx context.Context, req RegisterWorkerRequest)
 		if err != nil {
 			return fmt.Errorf("marshal nats permissions: %w", err)
 		}
-		if _, err = tx.CreateWorkerNATSSession(ctx, db.CreateWorkerNATSSessionParams{
+
+		session, err = tx.ReplaceLatestWorkerNATSSessionByWorkerAndBootstrapToken(ctx, db.ReplaceLatestWorkerNATSSessionByWorkerAndBootstrapTokenParams{
 			WorkerID:             worker.ID,
 			BootstrapTokenID:     token.ID,
 			NatsAccountPublicKey: creds.AccountPublicKey,
 			NatsUserPublicKey:    creds.UserPublicKey,
 			NatsUserJwt:          creds.UserJWT,
+			NatsUserSeed:         creds.UserSeed,
+			NatsUserCredentials:  string(creds.Creds),
 			Permissions:          permissionsJSON,
-		}); err != nil {
-			return fmt.Errorf("create nats session: %w", err)
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			session, err = tx.CreateWorkerNATSSession(ctx, db.CreateWorkerNATSSessionParams{
+				WorkerID:             worker.ID,
+				BootstrapTokenID:     token.ID,
+				NatsAccountPublicKey: creds.AccountPublicKey,
+				NatsUserPublicKey:    creds.UserPublicKey,
+				NatsUserJwt:          creds.UserJWT,
+				NatsUserSeed:         creds.UserSeed,
+				NatsUserCredentials:  string(creds.Creds),
+				Permissions:          permissionsJSON,
+			})
+			if err != nil {
+				return fmt.Errorf("create nats session: %w", err)
+			}
+		} else if err != nil {
+			return fmt.Errorf("replace nats session: %w", err)
 		}
 
 		registration = RegisterWorkerResponse{
 			Worker:     worker,
 			RevisionID: revisionID,
-			NATS: NATSCredentialsResponse{
-				URL:         s.natsURL,
-				CAFile:      s.natsCAFile,
-				UserJWT:     creds.UserJWT,
-				UserSeed:    creds.UserSeed,
-				Credentials: string(creds.Creds),
-			},
+			NATS:       s.natsCredentialsResponseFromSession(session),
 		}
 		return nil
 	})
@@ -909,6 +973,14 @@ func (s *Service) GetSettingsSchema(ctx context.Context, schemaID int32) (db.Wor
 
 // CreateSettingsRevision создаёт ревизию настроек для схемы воркера.
 func (s *Service) CreateSettingsRevision(ctx context.Context, schemaID int32, req CreateRevisionRequest) (db.WorkerSettingsRevision, error) {
+	schema, err := s.store.GetWorkerSettingsSchemaByID(ctx, schemaID)
+	if err != nil {
+		return db.WorkerSettingsRevision{}, fmt.Errorf("get worker settings schema: %w", err)
+	}
+	if err := schemadialect.ValidateRaw(schema.SettingsSchema, req.SettingsData); err != nil {
+		return db.WorkerSettingsRevision{}, fmt.Errorf("invalid settings revision: %w", err)
+	}
+
 	return s.store.CreateWorkerSettingsRevision(ctx, db.CreateWorkerSettingsRevisionParams{
 		WorkerSettingsSchemaID: schemaID,
 		CreatedByUserID:        pgtype.Int4{},

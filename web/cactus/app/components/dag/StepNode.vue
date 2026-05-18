@@ -54,8 +54,11 @@ const statusIndicator = computed(() => {
   const map: Record<string, string> = {
     pending: 'bg-gray-300 dark:bg-gray-600',
     running: 'bg-blue-500 animate-pulse',
+    completed: 'bg-green-500',
     done: 'bg-green-500',
+    failed: 'bg-red-500',
     error: 'bg-red-500',
+    skipped: 'bg-amber-500',
   }
   return map[s] ?? map.pending
 })

@@ -56,3 +56,60 @@ type ListItem struct {
 	CreatedAt    string `json:"created_at"`
 	UpdatedAt    string `json:"updated_at"`
 }
+
+type MessageDetailResponse struct {
+	MessageID     int32              `json:"message_id"`
+	WorkflowID    int32              `json:"workflow_id"`
+	WorkflowName  string             `json:"workflow_name"`
+	MessageStatus string             `json:"message_status"`
+	MessageValue  map[string]any     `json:"message_value"`
+	CreatedAt     time.Time          `json:"created_at"`
+	UpdatedAt     time.Time          `json:"updated_at"`
+	WorkflowRun   *WorkflowRunStatus `json:"workflow_run,omitempty"`
+	Graph         MessageGraphDTO    `json:"graph"`
+	RunSteps      []StepRunDetailDTO `json:"run_steps"`
+}
+
+type MessageGraphDTO struct {
+	VersionID    int32                `json:"version_id"`
+	Steps        []GraphStepDTO       `json:"steps"`
+	Dependencies []GraphDependencyDTO `json:"dependencies"`
+}
+
+type GraphStepDTO struct {
+	ID             int32          `json:"id"`
+	StepType       string         `json:"step_type"`
+	ControlKind    *string        `json:"control_kind,omitempty"`
+	WorkTypeID     *int32         `json:"work_type_id,omitempty"`
+	WorkTypeName   *string        `json:"work_type_name,omitempty"`
+	WorkTypeCode   *string        `json:"work_type_code,omitempty"`
+	WorkTypeMeta   map[string]any `json:"work_type_meta,omitempty"`
+	InputMapping   []MappingDTO   `json:"input_mapping"`
+	CanvasPosition map[string]any `json:"canvas_position,omitempty"`
+	InputSchema    map[string]any `json:"input_schema,omitempty"`
+	OutputSchema   map[string]any `json:"output_schema,omitempty"`
+}
+
+type MappingDTO struct {
+	Target string `json:"target"`
+	Source string `json:"source"`
+}
+
+type GraphDependencyDTO struct {
+	StepID          int32  `json:"step_id"`
+	DependsOnStepID int32  `json:"depends_on_step_id"`
+	Outcome         string `json:"outcome"`
+	OutputIndex     int32  `json:"output_index"`
+}
+
+type StepRunDetailDTO struct {
+	ID           int32          `json:"id"`
+	StepID       int32          `json:"step_id"`
+	Status       string         `json:"status"`
+	Outcome      *string        `json:"outcome,omitempty"`
+	InputData    map[string]any `json:"input_data,omitempty"`
+	OutputData   map[string]any `json:"output_data,omitempty"`
+	StartedAt    *time.Time     `json:"started_at,omitempty"`
+	CompletedAt  *time.Time     `json:"completed_at,omitempty"`
+	ErrorMessage *string        `json:"error_message,omitempty"`
+}

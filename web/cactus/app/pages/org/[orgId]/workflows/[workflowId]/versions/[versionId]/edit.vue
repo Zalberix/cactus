@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import '@vue-flow/core/dist/style.css'
 import { Save, Play, Pause, AlertCircle, Copy, FileJson } from 'lucide-vue-next'
 import type { Connection } from '@vue-flow/core'
 import type { VersionSummary } from '~/composables/useVersions'
@@ -392,11 +391,29 @@ function onPanelOpenEditor(nodeId: string) {
   nodeEditor.open(nodeId)
 }
 
-function onNodeEditorSave(nodeId: string, settingsData: Record<string, unknown>, inputMapping: Array<{ target: string, source: string }>) {
+async function onNodeEditorSaveSettings(nodeId: string, settingsData: Record<string, unknown>) {
   if (isCurrentVersionReadOnly.value) return
-  const inputMappingRecord = Object.fromEntries(inputMapping.map(entry => [entry.target, entry.source]))
-  dagEditor.updateNodeData(nodeId, { config: settingsData, inputMapping: inputMappingRecord })
-  dagEditor.updateTaskSettingsOnServer(nodeId, settingsData, inputMapping)
+  try {
+    await dagEditor.updateTaskSettingsOnServer(nodeId, settingsData)
+    dagEditor.updateNodeData(nodeId, { config: settingsData })
+    toast({ title: t('nodeEditor.settingsSaved') })
+  }
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
+  }
+}
+
+async function onNodeEditorSaveInputMapping(nodeId: string, inputMapping: Array<{ target: string, source: string }>) {
+  if (isCurrentVersionReadOnly.value) return
+  try {
+    await dagEditor.updateTaskInputMappingOnServer(nodeId, inputMapping)
+    const inputMappingRecord = Object.fromEntries(inputMapping.map(entry => [entry.target, entry.source]))
+    dagEditor.updateNodeData(nodeId, { inputMapping: inputMappingRecord })
+    toast({ title: t('nodeEditor.inputMappingSaved') })
+  }
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
+  }
 }
 
 function dismissErrors() {
@@ -595,7 +612,8 @@ onMounted(() => {
       :version-id="selectedVersionId"
       :all-nodes="dagEditor.nodes.value"
       :all-edges="dagEditor.edges.value"
-      @save="onNodeEditorSave"
+      @save-settings="onNodeEditorSaveSettings"
+      @save-input-mapping="onNodeEditorSaveInputMapping"
       @workflow-inputs-changed="onWorkflowInputsChanged"
     />
 

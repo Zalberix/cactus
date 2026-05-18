@@ -3,11 +3,10 @@ import type { Node, Edge } from '@vue-flow/core'
 import type { StepData } from '~/composables/useDagEditor'
 import {
   Mail, MessageSquare, Bell, Workflow, GitBranch,
-  Clock, Split, Zap, X,
+  Clock, Split, Zap,
 } from 'lucide-vue-next'
 import type { Component } from 'vue'
 import { Badge } from '~/components/ui/badge'
-import { Button } from '~/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -37,7 +36,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
-  save: [nodeId: string, settingsData: Record<string, unknown>, inputMapping: Array<{ target: string, source: string }>]
+  saveSettings: [nodeId: string, settingsData: Record<string, unknown>]
+  saveInputMapping: [nodeId: string, inputMapping: Array<{ target: string, source: string }>]
   workflowInputsChanged: []
 }>()
 
@@ -67,9 +67,14 @@ const accentColor = computed(() =>
   stepData.value?.workTypeMeta?.color ?? '#607d8b',
 )
 
-function onSave(settingsData: Record<string, unknown>, inputMapping: Array<{ target: string, source: string }>) {
+function onSaveSettings(settingsData: Record<string, unknown>) {
   if (!props.nodeId) return
-  emit('save', props.nodeId, settingsData, inputMapping)
+  emit('saveSettings', props.nodeId, settingsData)
+}
+
+function onSaveInputMapping(inputMapping: Array<{ target: string, source: string }>) {
+  if (!props.nodeId) return
+  emit('saveInputMapping', props.nodeId, inputMapping)
 }
 
 const parametersRef = ref<InstanceType<typeof ParametersPanel> | null>(null)
@@ -113,9 +118,6 @@ function onCreateWorkflowInput(field: string, property: Record<string, unknown>)
             </Badge>
           </div>
         </div>
-        <Button variant="ghost" size="icon" class="h-8 w-8 shrink-0" @click="dialogOpen = false">
-          <X class="h-4 w-4" />
-        </Button>
       </div>
 
       <div v-if="stepData && nodeId" class="flex flex-1 overflow-hidden">
@@ -136,7 +138,8 @@ function onCreateWorkflowInput(field: string, property: Record<string, unknown>)
             ref="parametersRef"
             :step-data="stepData"
             @create-workflow-input="onCreateWorkflowInput"
-            @save="onSave"
+            @save-settings="onSaveSettings"
+            @save-input-mapping="onSaveInputMapping"
           />
         </div>
       </div>

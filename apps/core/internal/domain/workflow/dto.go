@@ -34,7 +34,7 @@ type CreateStepRequest struct {
 
 // UpdateStepRequest — запрос на обновление шага.
 type UpdateStepRequest struct {
-	StepType                 string          `json:"step_type" binding:"required,oneof=task control"`
+	StepType                 *string         `json:"step_type" binding:"omitempty,oneof=task control"`
 	WorkTypeID               *int32          `json:"work_type_id"`
 	WorkerSettingsRevisionID *int32          `json:"worker_settings_revision_id"`
 	WorkerSettingsSchemaID   *int32          `json:"worker_settings_schema_id"`
@@ -139,5 +139,8 @@ type InputSchemaResponse struct {
 
 type UpdateTaskSettingsRequest struct {
 	SettingsData json.RawMessage `json:"settings_data" binding:"required"`
-	InputMapping json.RawMessage `json:"input_mapping"`
+}
+
+type UpdateTaskInputMappingRequest struct {
+	InputMapping json.RawMessage `json:"input_mapping" binding:"required"`
 }

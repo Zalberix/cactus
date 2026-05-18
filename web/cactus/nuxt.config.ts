@@ -73,6 +73,14 @@ export default defineNuxtConfig({
   },
   vite: {
     plugins: [tailwindcss()],
+    optimizeDeps: {
+      include: [
+        '@tanstack/vue-table',
+        '@vee-validate/zod',
+        'vee-validate',
+        'zod',
+      ],
+    },
     server: {
       watch: {
         awaitWriteFinish: {
@@ -82,8 +90,8 @@ export default defineNuxtConfig({
       },
       hmr: {
         protocol: 'ws',
-        host: 'localhost',
-        clientPort: 80,
+        host: '127.0.0.1',
+        clientPort: 3000,
       },
     },
   },

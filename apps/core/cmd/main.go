@@ -112,7 +112,7 @@ func registerNATSStreams(lc fx.Lifecycle, b *bus.Bus) {
 			if err := b.EnsureStreamWithMaxAge(ctx, "RESULTS", []string{"result.>"}, time.Hour); err != nil {
 				return fmt.Errorf("ensure RESULTS stream: %w", err)
 			}
-			if err := b.EnsureStream(ctx, "CONFIGS", []string{"config.org.*.work_type.*.revision.*"}); err != nil {
+			if err := b.EnsureStream(ctx, "CONFIGS", []string{"config.org.*.work_type.*.revision.*"}, bus.WithAllowDirect()); err != nil {
 				return fmt.Errorf("ensure CONFIGS stream: %w", err)
 			}
 			slog.Info("NATS JetStream streams ensured", slog.String("streams", "MESSAGES, EVENTS, TASKS, RESULTS, CONFIGS"))

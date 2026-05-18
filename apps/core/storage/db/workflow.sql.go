@@ -14,7 +14,7 @@ import (
 const createWorkflow = `-- name: CreateWorkflow :one
 INSERT INTO "workflow" (system_id, "name", priority, input_schema, description)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, system_id, name, priority, description, created_at, updated_at, deleted_at, input_schema
+RETURNING id, system_id, name, priority, input_schema, description, created_at, updated_at, deleted_at
 `
 
 type CreateWorkflowParams struct {
@@ -39,17 +39,17 @@ func (q *Queries) CreateWorkflow(ctx context.Context, arg CreateWorkflowParams) 
 		&i.SystemID,
 		&i.Name,
 		&i.Priority,
+		&i.InputSchema,
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
-		&i.InputSchema,
 	)
 	return i, err
 }
 
 const getWorkflowByID = `-- name: GetWorkflowByID :one
-SELECT id, system_id, name, priority, description, created_at, updated_at, deleted_at, input_schema FROM "workflow"
+SELECT id, system_id, name, priority, input_schema, description, created_at, updated_at, deleted_at FROM "workflow"
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -61,17 +61,17 @@ func (q *Queries) GetWorkflowByID(ctx context.Context, id int32) (Workflow, erro
 		&i.SystemID,
 		&i.Name,
 		&i.Priority,
+		&i.InputSchema,
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
-		&i.InputSchema,
 	)
 	return i, err
 }
 
 const listWorkflowsBySystemID = `-- name: ListWorkflowsBySystemID :many
-SELECT id, system_id, name, priority, description, created_at, updated_at, deleted_at, input_schema FROM "workflow"
+SELECT id, system_id, name, priority, input_schema, description, created_at, updated_at, deleted_at FROM "workflow"
 WHERE system_id = $1 AND deleted_at IS NULL
 ORDER BY id
 `
@@ -90,11 +90,11 @@ func (q *Queries) ListWorkflowsBySystemID(ctx context.Context, systemID int32) (
 			&i.SystemID,
 			&i.Name,
 			&i.Priority,
+			&i.InputSchema,
 			&i.Description,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
-			&i.InputSchema,
 		); err != nil {
 			return nil, err
 		}
@@ -121,7 +121,7 @@ const updateWorkflow = `-- name: UpdateWorkflow :one
 UPDATE "workflow"
 SET "name" = $2, priority = $3, description = $4, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, system_id, name, priority, description, created_at, updated_at, deleted_at, input_schema
+RETURNING id, system_id, name, priority, input_schema, description, created_at, updated_at, deleted_at
 `
 
 type UpdateWorkflowParams struct {
@@ -144,11 +144,11 @@ func (q *Queries) UpdateWorkflow(ctx context.Context, arg UpdateWorkflowParams) 
 		&i.SystemID,
 		&i.Name,
 		&i.Priority,
+		&i.InputSchema,
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
-		&i.InputSchema,
 	)
 	return i, err
 }
@@ -157,7 +157,7 @@ const updateWorkflowInputSchema = `-- name: UpdateWorkflowInputSchema :one
 UPDATE "workflow"
 SET input_schema = $2, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, system_id, name, priority, description, created_at, updated_at, deleted_at, input_schema
+RETURNING id, system_id, name, priority, input_schema, description, created_at, updated_at, deleted_at
 `
 
 type UpdateWorkflowInputSchemaParams struct {
@@ -173,11 +173,11 @@ func (q *Queries) UpdateWorkflowInputSchema(ctx context.Context, arg UpdateWorkf
 		&i.SystemID,
 		&i.Name,
 		&i.Priority,
+		&i.InputSchema,
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
-		&i.InputSchema,
 	)
 	return i, err
 }

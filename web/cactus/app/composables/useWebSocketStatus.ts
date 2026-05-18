@@ -1,4 +1,5 @@
 import { toast } from '~/components/ui/toast/use-toast'
+import type { MessageDetail, StepRunDetail } from './useMessages'
 
 export interface WsStepStatus {
   step_id: number
@@ -13,8 +14,10 @@ export function useWebSocketStatus(messageId: Ref<number>) {
   const authStore = useAuthStore()
   const { t } = useI18n()
 
-  const steps = ref<Map<number, WsStepStatus>>(new Map())
-  const workflowStatus = ref<string>('pending')
+  const detail = ref<MessageDetail | null>(null)
+  const runSteps = ref<Map<number, StepRunDetail>>(new Map())
+  const terminalStatus = ref<string | null>(null)
+  const workflowStatus = computed(() => detail.value?.workflow_run?.status ?? terminalStatus.value ?? 'pending')
   const isConnected = ref(false)
   const error = ref<string | null>(null)
 
@@ -29,6 +32,14 @@ export function useWebSocketStatus(messageId: Ref<number>) {
     const base = 3000
     const delay = base * Math.pow(2, reconnectAttempts)
     return Math.min(delay, MAX_RECONNECT_DELAY)
+  }
+
+  function rebuildRunSteps(steps: StepRunDetail[] = []) {
+    const next = new Map<number, StepRunDetail>()
+    for (const step of steps) {
+      next.set(step.step_id, step)
+    }
+    runSteps.value = next
   }
 
   function connect() {
@@ -71,46 +82,51 @@ export function useWebSocketStatus(messageId: Ref<number>) {
           break
 
         case 'snapshot':
-          workflowStatus.value = msg.workflow_status as string
-          steps.value = new Map()
-          if (Array.isArray(msg.steps)) {
-            for (const s of msg.steps) {
-              steps.value.set(s.step_id as number, {
-                step_id: s.step_id as number,
-                step_type: s.step_type as string,
-                status: s.status as string,
-                started_at: s.started_at as string | undefined,
-                completed_at: s.completed_at as string | undefined,
-              })
-            }
-          }
-          // Trigger reactivity by reassigning the Map
-          steps.value = new Map(steps.value)
+          detail.value = msg.detail as MessageDetail
+          terminalStatus.value = null
+          rebuildRunSteps(detail.value?.run_steps ?? [])
           break
 
         case 'step_update': {
-          const existing = steps.value.get(msg.step_id as number)
-          steps.value.set(msg.step_id as number, {
-            step_id: msg.step_id as number,
-            step_type: (existing?.step_type ?? msg.step_type ?? '') as string,
-            status: msg.status as string,
-            started_at: (msg.started_at ?? existing?.started_at) as string | undefined,
-            completed_at: (msg.completed_at ?? existing?.completed_at) as string | undefined,
-            error: (msg.error ?? existing?.error) as string | undefined,
+          const update = msg as {
+            step_id: number
+            run_step_id?: number
+            status?: string
+            input_data?: Record<string, unknown>
+            output_data?: Record<string, unknown>
+            started_at?: string
+            completed_at?: string
+            error?: string
+          }
+          const existing = runSteps.value.get(update.step_id) ?? {
+            id: update.run_step_id ?? 0,
+            step_id: update.step_id,
+            status: update.status ?? 'pending',
+          }
+          runSteps.value.set(update.step_id, {
+            ...existing,
+            id: update.run_step_id ?? existing.id,
+            status: update.status ?? existing.status,
+            input_data: update.input_data ?? existing.input_data,
+            output_data: update.output_data ?? existing.output_data,
+            started_at: update.started_at ?? existing.started_at,
+            completed_at: update.completed_at ?? existing.completed_at,
+            error_message: update.error ?? existing.error_message,
           })
-          // Trigger reactivity
-          steps.value = new Map(steps.value)
+          runSteps.value = new Map(runSteps.value)
           break
         }
 
         case 'workflow_done':
-          workflowStatus.value = 'completed'
+          terminalStatus.value = 'completed'
+          if (detail.value?.workflow_run) detail.value.workflow_run.status = 'completed'
           isTerminal = true
           toast({ title: t('messages.detail.workflowCompleted') })
           break
 
         case 'workflow_failed':
-          workflowStatus.value = 'failed'
+          terminalStatus.value = 'failed'
+          if (detail.value?.workflow_run) detail.value.workflow_run.status = 'failed'
           error.value = (msg.error as string) ?? null
           isTerminal = true
           toast({
@@ -171,7 +187,8 @@ export function useWebSocketStatus(messageId: Ref<number>) {
   })
 
   return {
-    steps: readonly(steps),
+    detail: readonly(detail),
+    runSteps: readonly(runSteps),
     workflowStatus: readonly(workflowStatus),
     isConnected: readonly(isConnected),
     error: readonly(error),

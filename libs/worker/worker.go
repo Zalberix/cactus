@@ -15,11 +15,22 @@ const (
 	defaultHeartbeatInterval = 30 * time.Second
 	defaultAckWait           = 30 * time.Second
 	defaultMaxDeliver        = 5
-	defaultInactiveThreshold = 5 * time.Minute
+	defaultConsumeRetryDelay = time.Second
 )
 
 func taskFilterSubject(orgID, workTypeID int32) string {
 	return fmt.Sprintf("task.org.%d.work_type.%d.>", orgID, workTypeID)
+}
+
+func taskConsumerConfig(consumerName, subject string) jetstream.ConsumerConfig {
+	return jetstream.ConsumerConfig{
+		Durable:       consumerName,
+		FilterSubject: subject,
+		AckPolicy:     jetstream.AckExplicitPolicy,
+		DeliverPolicy: jetstream.DeliverAllPolicy,
+		MaxDeliver:    defaultMaxDeliver,
+		AckWait:       defaultAckWait,
+	}
 }
 
 // Worker --- SDK для подключения воркеров к Manager через NATS JetStream.
@@ -157,18 +168,31 @@ func (w *Worker) registerWithRetry(ctx context.Context) error {
 
 // consumeLoop подписывается на TASKS stream и обрабатывает сообщения.
 func (w *Worker) consumeLoop(ctx context.Context) error {
+	for {
+		if err := w.consumeOnce(ctx); err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			w.logger.Warn("task consumer stopped, recreating",
+				slog.String("error", err.Error()),
+				slog.Duration("retry_in", defaultConsumeRetryDelay),
+			)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(defaultConsumeRetryDelay):
+			}
+			continue
+		}
+		return nil
+	}
+}
+
+func (w *Worker) consumeOnce(ctx context.Context) error {
 	subject := taskFilterSubject(w.cfg.OrganizationID, w.cfg.WorkTypeID)
 	consumerName := fmt.Sprintf("worker-%d", w.workerID)
 
-	cons, err := w.js.CreateOrUpdateConsumer(ctx, "TASKS", jetstream.ConsumerConfig{
-		Durable:           consumerName,
-		FilterSubject:     subject,
-		AckPolicy:         jetstream.AckExplicitPolicy,
-		DeliverPolicy:     jetstream.DeliverAllPolicy,
-		MaxDeliver:        defaultMaxDeliver,
-		AckWait:           defaultAckWait,
-		InactiveThreshold: defaultInactiveThreshold,
-	})
+	cons, err := w.js.CreateOrUpdateConsumer(ctx, "TASKS", taskConsumerConfig(consumerName, subject))
 	if err != nil {
 		return fmt.Errorf("create consumer: %w", err)
 	}
@@ -196,8 +220,7 @@ func (w *Worker) consumeLoop(ctx context.Context) error {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			w.logger.Error("fetch next message", slog.String("error", err.Error()))
-			continue
+			return fmt.Errorf("fetch next message: %w", err)
 		}
 
 		w.processMessage(ctx, msg)

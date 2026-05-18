@@ -107,23 +107,24 @@ func (h *Hub) HandleWS(c *gin.Context) { //nolint:gocognit // WS lifecycle keeps
 		return
 	}
 
-	// 5. Snapshot (per D-14): query current status from DB.
-	status, err := h.msgService.GetMessageStatus(ctx, msgID)
+	// 5. Snapshot (per D-14): query current detail from DB.
+	detail, err := h.msgService.GetMessageDetail(ctx, msgID)
 	if err != nil {
-		h.logger.Error("get message status failed", slog.String("error", err.Error()), slog.Int("messageID", int(msgID)))
+		h.logger.Error("get message detail failed", slog.String("error", err.Error()), slog.Int("messageID", int(msgID)))
 		conn.Close(websocket.StatusInternalError, "message not found")
 		return
 	}
 
-	snapshot := h.buildSnapshot(status)
+	snapshot := h.buildSnapshot(detail)
 	if err := wsjson.Write(ctx, conn, snapshot); err != nil {
 		return
 	}
 
 	// 6. Terminal check (per D-18): if already done/failed, send terminal event and close.
-	if snapshot.WorkflowStatus == temporaltypes.RunStatusCompleted ||
-		snapshot.WorkflowStatus == temporaltypes.RunStatusFailed {
-		h.sendTerminalEvent(ctx, conn, snapshot.WorkflowStatus, status)
+	if detail.WorkflowRun != nil &&
+		(detail.WorkflowRun.Status == temporaltypes.RunStatusCompleted ||
+			detail.WorkflowRun.Status == temporaltypes.RunStatusFailed) {
+		h.sendTerminalEvent(ctx, conn, detail.WorkflowRun.Status, detail)
 		conn.Close(websocket.StatusNormalClosure, "workflow finished")
 		return
 	}
@@ -225,59 +226,39 @@ func (h *Hub) HandleWS(c *gin.Context) { //nolint:gocognit // WS lifecycle keeps
 	}
 }
 
-// buildSnapshot constructs a SnapshotEvent from the DB status response.
-func (h *Hub) buildSnapshot(status *message.StatusResponse) SnapshotEvent {
-	workflowStatus := "pending"
-	if status.WorkflowRun != nil {
-		workflowStatus = status.WorkflowRun.Status
-	}
-
-	steps := make([]SnapshotStep, 0, len(status.Steps))
-	for _, s := range status.Steps {
-		step := SnapshotStep{
-			StepID:   s.StepID,
-			StepType: s.StepType,
-			Status:   s.Status,
-		}
-		if s.StartedAt != nil {
-			ts := s.StartedAt.Format(time.RFC3339)
-			step.StartedAt = &ts
-		}
-		if s.CompletedAt != nil {
-			ts := s.CompletedAt.Format(time.RFC3339)
-			step.CompletedAt = &ts
-		}
-		steps = append(steps, step)
-	}
-
+// buildSnapshot constructs a SnapshotEvent from the DB detail response.
+func (h *Hub) buildSnapshot(detail *message.MessageDetailResponse) SnapshotEvent {
 	return SnapshotEvent{
-		Type:           "snapshot",
-		WorkflowStatus: workflowStatus,
-		Steps:          steps,
+		Type:   "snapshot",
+		Detail: detail,
 	}
 }
 
 // sendTerminalEvent sends the appropriate terminal event based on workflow status.
-func (h *Hub) sendTerminalEvent(ctx context.Context, conn *websocket.Conn, status string, msgStatus *message.StatusResponse) {
+func (h *Hub) sendTerminalEvent(ctx context.Context, conn *websocket.Conn, status string, detail *message.MessageDetailResponse) {
 	now := time.Now().UTC().Format(time.RFC3339)
+	_ = wsjson.Write(ctx, conn, terminalEventForStatus(status, detail, now))
+}
 
+func terminalEventForStatus(status string, detail *message.MessageDetailResponse, timestamp string) any {
 	switch status {
 	case temporaltypes.RunStatusCompleted:
-		_ = wsjson.Write(ctx, conn, WorkflowDoneEvent{
+		return WorkflowDoneEvent{
 			Type:      "workflow_done",
-			Timestamp: now,
-		})
+			Timestamp: timestamp,
+		}
 	case temporaltypes.RunStatusFailed:
 		errMsg := ""
-		if msgStatus.WorkflowRun != nil && msgStatus.WorkflowRun.ErrorMessage != nil {
-			errMsg = *msgStatus.WorkflowRun.ErrorMessage
+		if detail != nil && detail.WorkflowRun != nil && detail.WorkflowRun.ErrorMessage != nil {
+			errMsg = *detail.WorkflowRun.ErrorMessage
 		}
-		_ = wsjson.Write(ctx, conn, WorkflowFailedEvent{
+		return WorkflowFailedEvent{
 			Type:      "workflow_failed",
 			Error:     errMsg,
-			Timestamp: now,
-		})
+			Timestamp: timestamp,
+		}
 	}
+	return map[string]string{"type": "workflow_unknown", "timestamp": timestamp}
 }
 
 // authenticateWS validates the auth token from the WS handshake.

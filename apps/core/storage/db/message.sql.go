@@ -63,6 +63,66 @@ func (q *Queries) CreateNewMessage(ctx context.Context, arg CreateNewMessagePara
 	return i, err
 }
 
+const getMessageDetailByID = `-- name: GetMessageDetailByID :one
+SELECT
+    m.id,
+    m.workflow_id,
+    w.name AS workflow_name,
+    m.value AS message_value,
+    m.status AS message_status,
+    m.created_at,
+    m.updated_at,
+    wr.id AS workflow_run_id,
+    wr.workflow_version_id,
+    wr.status AS workflow_status,
+    wr.started_at AS run_started_at,
+    wr.completed_at AS run_completed_at,
+    wr.error_message AS run_error_message
+FROM "message" m
+JOIN "workflow" w ON w.id = m.workflow_id AND w.deleted_at IS NULL
+LEFT JOIN "workflow_run" wr ON wr.message_id = m.id
+WHERE m.id = $1 AND m.deleted_at IS NULL
+ORDER BY wr.id DESC
+LIMIT 1
+`
+
+type GetMessageDetailByIDRow struct {
+	ID                int32            `json:"id"`
+	WorkflowID        int32            `json:"workflow_id"`
+	WorkflowName      string           `json:"workflow_name"`
+	MessageValue      []byte           `json:"message_value"`
+	MessageStatus     string           `json:"message_status"`
+	CreatedAt         pgtype.Timestamp `json:"created_at"`
+	UpdatedAt         pgtype.Timestamp `json:"updated_at"`
+	WorkflowRunID     pgtype.Int4      `json:"workflow_run_id"`
+	WorkflowVersionID pgtype.Int4      `json:"workflow_version_id"`
+	WorkflowStatus    pgtype.Text      `json:"workflow_status"`
+	RunStartedAt      pgtype.Timestamp `json:"run_started_at"`
+	RunCompletedAt    pgtype.Timestamp `json:"run_completed_at"`
+	RunErrorMessage   pgtype.Text      `json:"run_error_message"`
+}
+
+func (q *Queries) GetMessageDetailByID(ctx context.Context, id int32) (GetMessageDetailByIDRow, error) {
+	row := q.db.QueryRow(ctx, getMessageDetailByID, id)
+	var i GetMessageDetailByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.WorkflowID,
+		&i.WorkflowName,
+		&i.MessageValue,
+		&i.MessageStatus,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.WorkflowRunID,
+		&i.WorkflowVersionID,
+		&i.WorkflowStatus,
+		&i.RunStartedAt,
+		&i.RunCompletedAt,
+		&i.RunErrorMessage,
+	)
+	return i, err
+}
+
 const getMessageStatusByID = `-- name: GetMessageStatusByID :one
 SELECT m.id, m.status AS message_status, m.created_at,
        wr.id AS workflow_run_id, wr.status AS workflow_status,

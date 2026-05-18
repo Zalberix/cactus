@@ -1,157 +1,126 @@
-import type { Node, Edge } from '@vue-flow/core'
-import type { WsStepStatus } from './useWebSocketStatus'
-import type { StepStatus } from './useMessages'
+import type { Edge, Node } from '@vue-flow/core'
+import type { MessageDetail, StepRunDetail } from './useMessages'
 
 const NODE_WIDTH = 200
 const NODE_HEIGHT = 60
 const NODE_GAP_X = 40
 const NODE_GAP_Y = 80
+const DEFAULT_COLUMNS = 4
+
+export function normalizeRuntimeStatus(status?: string): string {
+  const normalized = status ?? 'pending'
+  if (normalized === 'done') return 'completed'
+  if (normalized === 'error') return 'failed'
+  if (['pending', 'running', 'completed', 'failed', 'skipped'].includes(normalized)) {
+    return normalized
+  }
+  return 'pending'
+}
+
+export function toCanvasPosition(
+  raw: Record<string, unknown> | undefined,
+  index: number,
+): { x: number; y: number } {
+  if (typeof raw?.x === 'number' && Number.isFinite(raw.x)
+    && typeof raw?.y === 'number' && Number.isFinite(raw.y)) {
+    return { x: raw.x, y: raw.y }
+  }
+
+  const col = index % DEFAULT_COLUMNS
+  const row = Math.floor(index / DEFAULT_COLUMNS)
+  return {
+    x: col * (NODE_WIDTH + NODE_GAP_X) + 50,
+    y: row * (NODE_HEIGHT + NODE_GAP_Y) + 50,
+  }
+}
+
+export function runtimeStepMap(steps: StepRunDetail[] = []): Map<number, StepRunDetail> {
+  const map = new Map<number, StepRunDetail>()
+  for (const step of steps) {
+    map.set(step.step_id, step)
+  }
+  return map
+}
 
 export function useDagViewer(messageId: Ref<number>) {
-  const { fetchMessageStatus } = useMessages()
+  const { fetchMessageDetail } = useMessages()
 
   const {
-    steps: wsSteps,
+    detail: wsDetail,
+    runSteps: wsRunSteps,
     workflowStatus,
     isConnected,
     error,
   } = useWebSocketStatus(messageId)
 
-  const staticSteps = ref<StepStatus[]>([])
+  const restDetail = ref<MessageDetail | null>(null)
   const selectedStep = ref<number | null>(null)
   const initialLoading = ref(true)
 
-  // Fetch initial status from REST API for the step list structure
-  async function loadInitialStatus() {
+  const detail = computed(() => wsDetail.value ?? restDetail.value)
+  const runSteps = computed(() => {
+    if (wsRunSteps.value.size > 0) return wsRunSteps.value
+    return runtimeStepMap(detail.value?.run_steps ?? [])
+  })
+
+  async function loadInitialDetail() {
     try {
-      const status = await fetchMessageStatus(messageId.value)
-      staticSteps.value = status.steps
+      restDetail.value = await fetchMessageDetail(messageId.value)
     }
     catch {
-      // Will rely on WebSocket snapshot
+      // WebSocket snapshot can still populate the same detail contract.
     }
     finally {
       initialLoading.value = false
     }
   }
 
-  // Load saved positions from localStorage
-  function loadPositions(): Record<string, { x: number; y: number }> {
-    try {
-      const saved = localStorage.getItem(`dag-viewer-${messageId.value}`)
-      if (saved) {
-        return JSON.parse(saved)
-      }
-    }
-    catch {
-      // Ignore parse errors
-    }
-    return {}
-  }
-
-  // Generate default grid layout positions
-  function defaultPosition(index: number, total: number): { x: number; y: number } {
-    const cols = Math.max(1, Math.ceil(Math.sqrt(total)))
-    const row = Math.floor(index / cols)
-    const col = index % cols
-
-    return {
-      x: col * (NODE_WIDTH + NODE_GAP_X) + 50,
-      y: row * (NODE_HEIGHT + NODE_GAP_Y) + 50,
-    }
-  }
-
-  // Merge static step data with live WS status
-  function getMergedStep(stepId: number): WsStepStatus | StepStatus | undefined {
-    const wsStep = wsSteps.value.get(stepId)
-    if (wsStep) return wsStep
-
-    return staticSteps.value.find(s => s.step_id === stepId)
-  }
-
-  const nodes = computed<Node[]>(() => {
-    const savedPositions = loadPositions()
-
-    // Build from WS steps if available, otherwise from static
-    const stepList: Array<{ step_id: number; step_type: string }> = []
-
-    if (wsSteps.value.size > 0) {
-      for (const [, step] of wsSteps.value) {
-        stepList.push({ step_id: step.step_id, step_type: step.step_type })
-      }
-    }
-    else {
-      for (const step of staticSteps.value) {
-        stepList.push({ step_id: step.step_id, step_type: step.step_type })
-      }
-    }
-
-    return stepList.map((step, index) => {
-      const merged = getMergedStep(step.step_id)
-      const status = merged?.status ?? 'pending'
-      const nodeId = String(step.step_id)
-
-      const staticStep = staticSteps.value.find(s => s.step_id === step.step_id)
-      const label = `Step ${step.step_id}`
-
+  const nodes = computed<Node[]>(() =>
+    (detail.value?.graph.steps ?? []).map((step, index) => {
+      const runtime = runSteps.value.get(step.id)
       return {
-        id: nodeId,
+        id: String(step.id),
         type: 'step',
-        position: savedPositions[nodeId] ?? defaultPosition(index, stepList.length),
+        position: toCanvasPosition(step.canvas_position, index),
+        draggable: false,
         data: {
-          label,
+          label: step.control_kind === 'start'
+            ? 'System Trigger'
+            : step.work_type_name ?? step.control_kind ?? `Step ${step.id}`,
           stepType: step.step_type,
-          status,
-          error_message: (merged as StepStatus)?.error_message
-            ?? (merged as WsStepStatus)?.error,
-          started_at: (merged as StepStatus)?.started_at
-            ?? (merged as WsStepStatus)?.started_at,
-          completed_at: (merged as StepStatus)?.completed_at
-            ?? (merged as WsStepStatus)?.completed_at,
+          controlKind: step.control_kind,
+          workTypeName: step.work_type_name,
+          workTypeCode: step.work_type_code,
+          workTypeMeta: step.work_type_meta,
+          inputMapping: step.input_mapping,
+          inputSchema: step.input_schema,
+          outputSchema: step.output_schema,
+          status: normalizeRuntimeStatus(runtime?.status),
+          error_message: runtime?.error_message,
+          started_at: runtime?.started_at,
+          completed_at: runtime?.completed_at,
         },
       } satisfies Node
-    })
-  })
+    }),
+  )
 
-  // Build edges from step dependencies (based on step order for now)
-  // The real edges would come from the workflow DAG definition,
-  // but the status API only returns step status, not structure.
-  // For the viewer, steps are arranged as a sequence.
-  const edges = computed<Edge[]>(() => {
-    const edgeList: Edge[] = []
-
-    const stepIds: number[] = []
-    if (wsSteps.value.size > 0) {
-      for (const [id] of wsSteps.value) {
-        stepIds.push(id)
-      }
-    }
-    else {
-      for (const step of staticSteps.value) {
-        stepIds.push(step.step_id)
-      }
-    }
-
-    stepIds.sort((a, b) => a - b)
-
-    for (let i = 0; i < stepIds.length - 1; i++) {
-      edgeList.push({
-        id: `e-${stepIds[i]}-${stepIds[i + 1]}`,
-        source: String(stepIds[i]),
-        target: String(stepIds[i + 1]),
-        sourceHandle: 'success',
-        type: 'step',
-      })
-    }
-
-    return edgeList
-  })
+  const edges = computed<Edge[]>(() =>
+    (detail.value?.graph.dependencies ?? []).map(dep => ({
+      id: `e-${dep.depends_on_step_id}-${dep.step_id}-${dep.outcome || 'success'}-${dep.output_index}`,
+      source: String(dep.depends_on_step_id),
+      target: String(dep.step_id),
+      sourceHandle: dep.outcome || 'success',
+      type: 'step',
+    } satisfies Edge)),
+  )
 
   onMounted(() => {
-    loadInitialStatus()
+    loadInitialDetail()
   })
 
   return {
+    detail,
+    runSteps,
     nodes,
     edges,
     workflowStatus,

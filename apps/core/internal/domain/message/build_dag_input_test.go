@@ -68,6 +68,14 @@ func (buildDAGInputStore) ListWorkflowRunStepStatusesByRunID(context.Context, in
 	return nil, nil
 }
 
+func (buildDAGInputStore) GetMessageDetailByID(context.Context, int32) (db.GetMessageDetailByIDRow, error) {
+	return db.GetMessageDetailByIDRow{}, nil
+}
+
+func (buildDAGInputStore) ListWorkflowRunStepDetailsByRunID(context.Context, int32) ([]db.WorkflowRunStep, error) {
+	return nil, nil
+}
+
 func (buildDAGInputStore) ListMessagesByOrganizationID(context.Context, db.ListMessagesByOrganizationIDParams) ([]db.ListMessagesByOrganizationIDRow, error) {
 	return nil, nil
 }

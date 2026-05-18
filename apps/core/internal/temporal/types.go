@@ -1,6 +1,9 @@
 package temporal
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // DAGInput — input для DAGExecutorWorkflow (передаётся в Temporal).
 type DAGInput struct {
@@ -16,6 +19,7 @@ type StepDef struct {
 	ID                       int32          `json:"id"`        // workflow_step.id
 	StepType                 string         `json:"step_type"` // "task" или "control"
 	ControlKind              string         `json:"control_kind,omitempty"`
+	ControlSettings          json.RawMessage `json:"control_settings,omitempty"`
 	OrganizationID           int32          `json:"organization_id,omitempty"`
 	WorkTypeID               int32          `json:"work_type_id,omitempty"`
 	WorkerSettingsSchemaID   int32          `json:"worker_settings_schema_id,omitempty"`
@@ -119,10 +123,15 @@ const (
 // Published to subject: event.workflow.{messageID}
 // Hub forwards these directly to WS clients without transformation.
 type WorkflowEvent struct {
-	Type      string `json:"type"`                // "step_update", "workflow_done", "workflow_failed"
-	StepID    int32  `json:"step_id,omitempty"`   // for step_update
-	StepType  string `json:"step_type,omitempty"` // for step_update: "task" or "control"
-	Status    string `json:"status,omitempty"`    // for step_update
-	Error     string `json:"error,omitempty"`     // for workflow_failed
-	Timestamp string `json:"timestamp"`           // RFC3339
+	Type        string         `json:"type"`                  // "step_update", "workflow_done", "workflow_failed"
+	StepID      int32          `json:"step_id,omitempty"`     // for step_update
+	RunStepID   int32          `json:"run_step_id,omitempty"` // workflow_run_step.id
+	StepType    string         `json:"step_type,omitempty"`   // for step_update: "task" or "control"
+	Status      string         `json:"status,omitempty"`      // for step_update
+	InputData   map[string]any `json:"input_data,omitempty"`
+	OutputData  map[string]any `json:"output_data,omitempty"`
+	StartedAt   string         `json:"started_at,omitempty"`   // RFC3339
+	CompletedAt string         `json:"completed_at,omitempty"` // RFC3339
+	Error       string         `json:"error,omitempty"`        // for workflow_failed or failed step
+	Timestamp   string         `json:"timestamp"`              // RFC3339
 }
