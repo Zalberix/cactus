@@ -17,8 +17,21 @@ type Bus struct {
 	js jetstream.JetStream
 }
 
-func New(url string) (*Bus, error) {
-	nc, err := nats.Connect(url)
+type Options struct {
+	URL             string
+	CAFile          string
+	CredentialsFile string
+}
+
+func NewWithOptions(opts Options) (*Bus, error) {
+	natsOpts := []nats.Option{}
+	if opts.CAFile != "" {
+		natsOpts = append(natsOpts, nats.RootCAs(opts.CAFile))
+	}
+	if opts.CredentialsFile != "" {
+		natsOpts = append(natsOpts, nats.UserCredentials(opts.CredentialsFile))
+	}
+	nc, err := nats.Connect(opts.URL, natsOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("не удалось подключиться к NATS: %w", err)
 	}
@@ -32,8 +45,16 @@ func New(url string) (*Bus, error) {
 	return &Bus{nc: nc, js: js}, nil
 }
 
+func New(url string) (*Bus, error) {
+	return NewWithOptions(Options{URL: url})
+}
+
 func NewFx(cfg *config.Config) (*Bus, error) {
-	return New(cfg.Nats.URL)
+	return NewWithOptions(Options{
+		URL:             cfg.Nats.URL,
+		CAFile:          cfg.Nats.CAFile,
+		CredentialsFile: cfg.Nats.CredentialsFile,
+	})
 }
 
 func (b *Bus) Close() {
@@ -104,6 +125,14 @@ func (b *Bus) Subscribe(subject string, handler func(data []byte)) (*nats.Subscr
 }
 
 // JS возвращает JetStream интерфейс для прямого доступа (consumers, streams).
+func (b *Bus) SubscribeMsg(subject string, handler func(msg *nats.Msg)) (*nats.Subscription, error) {
+	sub, err := b.nc.Subscribe(subject, handler)
+	if err != nil {
+		return nil, fmt.Errorf("РѕС€РёР±РєР° РїРѕРґРїРёСЃРєРё РЅР° %s: %w", subject, err)
+	}
+	return sub, nil
+}
+
 func (b *Bus) JS() jetstream.JetStream {
 	return b.js
 }

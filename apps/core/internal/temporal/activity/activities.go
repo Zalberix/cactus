@@ -2,6 +2,8 @@ package activity
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -10,6 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.temporal.io/sdk/activity"
 
+	"github.com/zalberix/cactus/apps/core/internal/configpub"
+	"github.com/zalberix/cactus/apps/core/internal/natssubjects"
 	"github.com/zalberix/cactus/apps/core/internal/store"
 	temporaltypes "github.com/zalberix/cactus/apps/core/internal/temporal"
 	"github.com/zalberix/cactus/apps/core/storage/db"
@@ -18,18 +22,61 @@ import (
 
 // Activities contains activity implementations for Temporal worker.
 type Activities struct {
-	store  *store.Store
-	bus    *bus.Bus
-	logger *slog.Logger
+	store           *store.Store
+	bus             *bus.Bus
+	configPublisher *configpub.Service
+	logger          *slog.Logger
 }
 
 // New creates Activities with dependencies.
-func New(store *store.Store, bus *bus.Bus) *Activities {
+func New(store *store.Store, bus *bus.Bus, configPublisher *configpub.Service) *Activities {
 	return &Activities{
-		store:  store,
-		bus:    bus,
-		logger: slog.Default(),
+		store:           store,
+		bus:             bus,
+		configPublisher: configPublisher,
+		logger:          slog.Default(),
 	}
+}
+
+func configHash(settings []byte) string {
+	sum := sha256.Sum256(settings)
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func buildTaskDispatch(input temporaltypes.RunTaskStepInput, attempt int32, resolvedInput map[string]any, settingsData []byte) (string, temporaltypes.TaskMessage) {
+	scope := natssubjects.WorkerScope{
+		OrganizationID: input.Step.OrganizationID,
+		WorkTypeID:     input.Step.WorkTypeID,
+	}
+	replyTo := natssubjects.Result(input.Step.OrganizationID, input.WorkflowRunID, input.Step.ID)
+	configSubject := natssubjects.Config(
+		input.Step.OrganizationID,
+		input.Step.WorkTypeID,
+		input.Step.WorkerSettingsRevisionID,
+	)
+	taskMsg := temporaltypes.TaskMessage{
+		WorkflowRunID: input.WorkflowRunID,
+		StepID:        input.Step.ID,
+		Attempt:       attempt,
+		ReplyTo:       replyTo,
+		Input:         resolvedInput,
+		ConfigRef: temporaltypes.ConfigRef{
+			OrganizationID: input.Step.OrganizationID,
+			WorkTypeID:     input.Step.WorkTypeID,
+			SchemaID:       input.Step.WorkerSettingsSchemaID,
+			RevisionID:     input.Step.WorkerSettingsRevisionID,
+			ConfigHash:     configHash(settingsData),
+			ConfigSubject:  configSubject,
+		},
+		IdempotencyKey: fmt.Sprintf("%d.%d.%d", input.WorkflowRunID, input.Step.ID, attempt),
+	}
+	subject := natssubjects.Task(
+		scope,
+		input.Step.WorkerSettingsSchemaID,
+		input.Step.WorkerSettingsRevisionID,
+		input.WorkflowRunID,
+	)
+	return subject, taskMsg
 }
 
 // publishWorkflowEvent publishes a workflow event to NATS for WebSocket Hub.
@@ -115,31 +162,31 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 		slog.Int("attempt_number", int(attempt)),
 	)
 
-	replyTo := fmt.Sprintf("result.%d.%d", input.WorkflowRunID, input.Step.ID)
-	idempotencyKey := fmt.Sprintf("%d.%d.%d", input.WorkflowRunID, input.Step.ID, attempt)
-
-	taskMsg := temporaltypes.TaskMessage{
-		WorkflowRunID:  input.WorkflowRunID,
-		StepID:         input.Step.ID,
-		Attempt:        attempt,
-		ReplyTo:        replyTo,
-		Input:          resolvedInput,
-		IdempotencyKey: idempotencyKey,
+	revision, err := a.store.GetWorkerSettingsRevisionByID(ctx, input.Step.WorkerSettingsRevisionID)
+	if err != nil {
+		return temporaltypes.StepResult{}, fmt.Errorf("get worker settings revision %d: %w", input.Step.WorkerSettingsRevisionID, err)
 	}
-
-	subject := fmt.Sprintf("task.%d.%d.%d.%d",
-		input.Step.WorkTypeID,
-		input.Step.WorkerSettingsSchemaID,
-		input.Step.WorkerSettingsRevisionID,
-		input.WorkflowRunID,
-	)
+	subject, taskMsg := buildTaskDispatch(input, attempt, resolvedInput, revision.SettingsData)
+	replyTo := taskMsg.ReplyTo
+	if a.configPublisher != nil {
+		if err := a.configPublisher.PublishRevision(
+			ctx,
+			input.Step.OrganizationID,
+			input.Step.WorkTypeID,
+			input.Step.WorkerSettingsSchemaID,
+			input.Step.WorkerSettingsRevisionID,
+			revision.SettingsData,
+		); err != nil {
+			return temporaltypes.StepResult{}, fmt.Errorf("publish config revision: %w", err)
+		}
+	}
 	a.logger.Info("RunTaskStep dispatching task",
 		slog.Int("workflow_run_id", int(input.WorkflowRunID)),
 		slog.Int("step_id", int(input.Step.ID)),
 		slog.Int("attempt", int(attempt)),
 		slog.String("subject", subject),
 		slog.String("reply_to", replyTo),
-		slog.String("idempotency_key", idempotencyKey),
+		slog.String("idempotency_key", taskMsg.IdempotencyKey),
 	)
 	if err := a.bus.PublishJS(ctx, subject, taskMsg); err != nil {
 		a.logger.Error("RunTaskStep failed to publish task",

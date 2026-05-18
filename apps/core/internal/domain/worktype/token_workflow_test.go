@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/zalberix/cactus/apps/core/internal/natsauth"
 	"github.com/zalberix/cactus/apps/core/storage/db"
 )
 
@@ -27,12 +28,37 @@ func (s *tokenWorkflowStore) GetWorkTypeByID(context.Context, int32) (db.WorkTyp
 }
 func (s *tokenWorkflowStore) ListWorkTypes(context.Context) ([]db.WorkType, error) { return nil, nil }
 func (s *tokenWorkflowStore) SoftDeleteWorkType(context.Context, int32) error      { return nil }
-func (s *tokenWorkflowStore) CreateWorkTypeToken(context.Context, db.CreateWorkTypeTokenParams) (db.WorkTypeToken, error) {
-	return db.WorkTypeToken{}, nil
+
+func (s *tokenWorkflowStore) CreateWorkerBootstrapToken(context.Context, db.CreateWorkerBootstrapTokenParams) (db.WorkerBootstrapToken, error) {
+	return db.WorkerBootstrapToken{}, nil
 }
 
-func (s *tokenWorkflowStore) GetActiveWorkTypeTokenByHash(context.Context, string) (db.WorkTypeToken, error) {
-	return db.WorkTypeToken{}, nil
+func (s *tokenWorkflowStore) GetActiveWorkerBootstrapTokenByHash(context.Context, string) (db.WorkerBootstrapToken, error) {
+	return db.WorkerBootstrapToken{}, nil
+}
+
+func (s *tokenWorkflowStore) GetActiveWorkerBootstrapTokenByHashForUpdate(context.Context, string) (db.WorkerBootstrapToken, error) {
+	return db.WorkerBootstrapToken{}, nil
+}
+
+func (s *tokenWorkflowStore) ListWorkerBootstrapTokensByOrganization(context.Context, int32) ([]db.ListWorkerBootstrapTokensByOrganizationRow, error) {
+	return nil, nil
+}
+
+func (s *tokenWorkflowStore) CountActiveWorkersByBootstrapTokenExcludingWorker(context.Context, db.CountActiveWorkersByBootstrapTokenExcludingWorkerParams) (int32, error) {
+	return 0, nil
+}
+
+func (s *tokenWorkflowStore) TouchWorkerBootstrapTokenUse(context.Context, int32) (db.WorkerBootstrapToken, error) {
+	return db.WorkerBootstrapToken{}, nil
+}
+
+func (s *tokenWorkflowStore) WithRegistrationTx(_ context.Context, fn func(RegistrationTx) error) error {
+	return fn(s)
+}
+
+func (s *tokenWorkflowStore) RevokeWorkerBootstrapToken(context.Context, db.RevokeWorkerBootstrapTokenParams) (db.WorkerBootstrapToken, error) {
+	return db.WorkerBootstrapToken{}, nil
 }
 
 func (s *tokenWorkflowStore) CreateNewWorker(context.Context, db.CreateNewWorkerParams) (db.Worker, error) {
@@ -43,11 +69,14 @@ func (s *tokenWorkflowStore) GetNewWorkerByID(context.Context, int32) (db.Worker
 	return db.Worker{}, nil
 }
 
-func (s *tokenWorkflowStore) GetWorkerByWorkTypeAndName(context.Context, db.GetWorkerByWorkTypeAndNameParams) (db.Worker, error) {
+func (s *tokenWorkflowStore) GetWorkerByOrgWorkTypeAndName(context.Context, db.GetWorkerByOrgWorkTypeAndNameParams) (db.Worker, error) {
 	return db.Worker{}, nil
 }
 
 func (s *tokenWorkflowStore) ListNewWorkersByWorkTypeID(context.Context, int32) ([]db.Worker, error) {
+	return nil, nil
+}
+func (s *tokenWorkflowStore) ListNewWorkersByOrganizationID(context.Context, int32) ([]db.Worker, error) {
 	return nil, nil
 }
 func (s *tokenWorkflowStore) UpdateNewWorkerHeartbeat(context.Context, int32) error { return nil }
@@ -58,6 +87,22 @@ func (s *tokenWorkflowStore) UpdateNewWorkerSchema(context.Context, db.UpdateNew
 func (s *tokenWorkflowStore) DeleteWorker(context.Context, int32) error { return nil }
 
 func (s *tokenWorkflowStore) ListWorkflowUsagesByWorkerID(context.Context, int32) ([]db.ListWorkflowUsagesByWorkerIDRow, error) {
+	return nil, nil
+}
+
+func (s *tokenWorkflowStore) CreateWorkerNATSSession(context.Context, db.CreateWorkerNATSSessionParams) (db.WorkerNatsSession, error) {
+	return db.WorkerNatsSession{}, nil
+}
+
+func (s *tokenWorkflowStore) ListActiveWorkerNATSSessionsByBootstrapToken(context.Context, int32) ([]db.WorkerNatsSession, error) {
+	return nil, nil
+}
+
+func (s *tokenWorkflowStore) RevokeWorkerNATSSession(context.Context, db.RevokeWorkerNATSSessionParams) (db.WorkerNatsSession, error) {
+	return db.WorkerNatsSession{}, nil
+}
+
+func (s *tokenWorkflowStore) RevokeWorkerNATSSessionsByBootstrapToken(context.Context, db.RevokeWorkerNATSSessionsByBootstrapTokenParams) ([]db.WorkerNatsSession, error) {
 	return nil, nil
 }
 
@@ -160,7 +205,7 @@ func TestBindWorkflowToTokenRejectsDifferentSystems(t *testing.T) {
 		token:    db.SystemToken{SystemID: 10},
 		workflow: db.Workflow{SystemID: 20},
 	}
-	service := NewService(store)
+	service := NewService(store, natsauth.NoopManager{})
 
 	err := service.BindWorkflowToToken(context.Background(), 1, 2)
 
@@ -177,7 +222,7 @@ func TestBindWorkflowToTokenGrantsWhenSystemsMatch(t *testing.T) {
 		token:    db.SystemToken{SystemID: 10},
 		workflow: db.Workflow{SystemID: 10},
 	}
-	service := NewService(store)
+	service := NewService(store, natsauth.NoopManager{})
 
 	err := service.BindWorkflowToToken(context.Background(), 7, 8)
 	if err != nil {
@@ -189,7 +234,7 @@ func TestBindWorkflowToTokenGrantsWhenSystemsMatch(t *testing.T) {
 }
 
 func TestListTokenWorkflowsReturnsEmptySliceWhenNoLinks(t *testing.T) {
-	service := NewService(&tokenWorkflowStore{})
+	service := NewService(&tokenWorkflowStore{}, natsauth.NoopManager{})
 
 	links, err := service.ListTokenWorkflows(context.Background(), 1)
 	if err != nil {
@@ -201,7 +246,7 @@ func TestListTokenWorkflowsReturnsEmptySliceWhenNoLinks(t *testing.T) {
 }
 
 func TestListWorkflowTokensReturnsEmptySliceWhenNoLinks(t *testing.T) {
-	service := NewService(&tokenWorkflowStore{})
+	service := NewService(&tokenWorkflowStore{}, natsauth.NoopManager{})
 
 	links, err := service.ListWorkflowTokens(context.Background(), 1)
 	if err != nil {

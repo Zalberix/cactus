@@ -1,4 +1,11 @@
-env: "local" #local, prod, dev
-token: "decedb9c-3a96-4b0f-9638-f2276ec624dd"
-nats:
-  url: "nats://localhost:4222"
+env: "local"
+manager_url: "http://localhost:3009"
+bootstrap_token: "dev-smtp-org-1-bootstrap-token"
+nats_ca_file: "configs/nats/certs/ca.pem"
+
+smtp:
+  host: "localhost"
+  port: 1025
+  from: "noreply@cactus.local"
+  auth: "none"
+  tls: "none"

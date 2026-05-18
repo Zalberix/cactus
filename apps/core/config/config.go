@@ -37,7 +37,15 @@ type Database struct {
 }
 
 type Nats struct {
-	URL string `yaml:"url" env-default:"nats://localhost:4222"`
+	URL                      string `yaml:"url" env-default:"tls://localhost:4222"`
+	CAFile                   string `yaml:"ca_file"`
+	CredentialsFile          string `yaml:"credentials_file"`
+	AccountPublicKey         string `yaml:"account_public_key"`
+	AccountJWTFile           string `yaml:"account_jwt_file"`
+	AccountSeedEnv           string `yaml:"account_seed_env" env-default:"NATS_ACCOUNT_SEED"`
+	AccountSeedFile          string `yaml:"account_seed_file"`
+	SystemCredentialsFile    string `yaml:"system_credentials_file"`
+	WorkerCredentialsEnabled bool   `yaml:"worker_credentials_enabled" env-default:"true"`
 }
 
 type Temporal struct {

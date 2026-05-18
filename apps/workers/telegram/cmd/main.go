@@ -39,9 +39,9 @@ func main() {
 	}
 
 	workerCore := worker.New(worker.Config{
-		NatsURL:        conf.NatsURL,
 		ManagerURL:     conf.ManagerURL,
 		BootstrapToken: bootstrapToken,
+		NatsCAFile:     conf.NatsCAFile,
 		WorkerIDPath:   *workerIDPath,
 		WorkerName:     telegramWorkerName(selectedVariant.Name, *workerName),
 		OnWorkerID: func(workerID int32) *slog.Logger {

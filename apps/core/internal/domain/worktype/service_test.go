@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/zalberix/cactus/apps/core/internal/natsauth"
 	db "github.com/zalberix/cactus/apps/core/storage/db"
 )
 
@@ -145,7 +146,7 @@ func TestListWorkTypeCatalogFiltersSchemasWithoutWorkersAndIncludesDetails(t *te
 		},
 	}
 
-	catalog, err := NewService(store).ListWorkTypeCatalog(context.Background())
+	catalog, err := NewService(store, natsauth.NoopManager{}).ListWorkTypeCatalog(context.Background())
 	if err != nil {
 		t.Fatalf("ListWorkTypeCatalog error: %v", err)
 	}
@@ -252,7 +253,7 @@ func TestDeleteWorkerDeletesOfflineUnusedWorker(t *testing.T) {
 			LastHeartbeatAt: pgtype.Timestamp{Time: time.Now().Add(-2 * time.Minute), Valid: true},
 		},
 	}
-	resp, err := NewService(store).DeleteWorker(context.Background(), 10)
+	resp, err := NewService(store, natsauth.NoopManager{}).DeleteWorker(context.Background(), 10)
 	if err != nil {
 		t.Fatalf("DeleteWorker error: %v", err)
 	}
@@ -271,7 +272,7 @@ func TestDeleteWorkerKeepsOnlineWorker(t *testing.T) {
 			LastHeartbeatAt: pgtype.Timestamp{Time: time.Now(), Valid: true},
 		},
 	}
-	resp, err := NewService(store).DeleteWorker(context.Background(), 11)
+	resp, err := NewService(store, natsauth.NoopManager{}).DeleteWorker(context.Background(), 11)
 	if err != nil {
 		t.Fatalf("DeleteWorker error: %v", err)
 	}
@@ -293,7 +294,7 @@ func TestDeleteWorkerReturnsWorkflowUsages(t *testing.T) {
 			{WorkflowID: 101, WorkflowName: "Welcome", SystemID: 7, WorkflowVersionID: 201, WorkflowVersionNumber: 3},
 		},
 	}
-	resp, err := NewService(store).DeleteWorker(context.Background(), 12)
+	resp, err := NewService(store, natsauth.NoopManager{}).DeleteWorker(context.Background(), 12)
 	if err != nil {
 		t.Fatalf("DeleteWorker error: %v", err)
 	}
@@ -310,7 +311,7 @@ func TestDeleteWorkerReturnsWorkflowUsages(t *testing.T) {
 
 func TestDeleteWorkerReturnsNotFoundBody(t *testing.T) {
 	store := &deleteWorkerStore{getWorkerErr: pgx.ErrNoRows}
-	resp, err := NewService(store).DeleteWorker(context.Background(), 99)
+	resp, err := NewService(store, natsauth.NoopManager{}).DeleteWorker(context.Background(), 99)
 	if err != nil {
 		t.Fatalf("DeleteWorker error: %v", err)
 	}

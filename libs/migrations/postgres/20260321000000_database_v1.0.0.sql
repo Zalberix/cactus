@@ -104,16 +104,38 @@ CREATE TABLE "work_type" (
     CONSTRAINT work_type_code_key UNIQUE (code)
 );
 
-CREATE TABLE "work_type_token" (
+CREATE TABLE "worker_bootstrap_token" (
     id SERIAL PRIMARY KEY,
+    organization_id INT NOT NULL,
     work_type_id INT NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
     token_hash VARCHAR(512) NOT NULL,
-    is_active BOOLEAN DEFAULT TRUE NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'revoked')),
+    max_active_workers INT NOT NULL DEFAULT 1 CHECK (max_active_workers > 0),
+    total_registration_count INT NOT NULL DEFAULT 0 CHECK (total_registration_count >= 0),
+    expires_at TIMESTAMP,
+    last_used_at TIMESTAMP,
+    created_by_user_id INT,
+    revoked_at TIMESTAMP,
+    revoked_by_user_id INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    deleted_at TIMESTAMP DEFAULT NULL,
-    CONSTRAINT work_type_token_work_type_id_key UNIQUE (work_type_id),
-    CONSTRAINT work_type_token_work_type_id_fkey FOREIGN KEY (work_type_id) REFERENCES "work_type"(id) ON DELETE CASCADE
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP,
+    CONSTRAINT worker_bootstrap_token_org_fkey FOREIGN KEY (organization_id) REFERENCES "organization"(id) ON DELETE CASCADE,
+    CONSTRAINT worker_bootstrap_token_work_type_fkey FOREIGN KEY (work_type_id) REFERENCES "work_type"(id) ON DELETE CASCADE,
+    CONSTRAINT worker_bootstrap_token_created_by_fkey FOREIGN KEY (created_by_user_id) REFERENCES "user"(id) ON DELETE SET NULL,
+    CONSTRAINT worker_bootstrap_token_revoked_by_fkey FOREIGN KEY (revoked_by_user_id) REFERENCES "user"(id) ON DELETE SET NULL,
+    CONSTRAINT worker_bootstrap_token_hash_key UNIQUE (token_hash)
 );
+
+CREATE INDEX worker_bootstrap_token_org_idx
+    ON "worker_bootstrap_token" (organization_id, work_type_id)
+    WHERE deleted_at IS NULL;
+
+CREATE INDEX worker_bootstrap_token_active_hash_idx
+    ON "worker_bootstrap_token" (token_hash)
+    WHERE deleted_at IS NULL AND status = 'active';
 
 -- ============================================================
 -- Схемы и ревизии настроек работников
@@ -156,15 +178,41 @@ CREATE TABLE "revision_rate_limit" (
 -- ============================================================
 CREATE TABLE "worker" (
     id SERIAL PRIMARY KEY,
+    organization_id INT NOT NULL,
     work_type_id INT NOT NULL,
     worker_settings_schema_id INT NOT NULL,
     "name" VARCHAR(255) NOT NULL,
     metadata JSONB,
     registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     last_heartbeat_at TIMESTAMP,
+    CONSTRAINT worker_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES "organization"(id) ON DELETE CASCADE,
     CONSTRAINT worker_work_type_id_fkey FOREIGN KEY (work_type_id) REFERENCES "work_type"(id) ON DELETE CASCADE,
     CONSTRAINT worker_schema_id_fkey FOREIGN KEY (worker_settings_schema_id) REFERENCES "worker_settings_schema"(id) ON DELETE CASCADE
 );
+
+CREATE UNIQUE INDEX worker_org_work_type_name_uq
+    ON "worker" (organization_id, work_type_id, "name");
+
+CREATE TABLE "worker_nats_session" (
+    id SERIAL PRIMARY KEY,
+    worker_id INT NOT NULL,
+    bootstrap_token_id INT NOT NULL,
+    nats_account_public_key VARCHAR(128) NOT NULL,
+    nats_user_public_key VARCHAR(128) NOT NULL,
+    nats_user_jwt TEXT NOT NULL,
+    permissions JSONB NOT NULL DEFAULT '{}',
+    revoked_at TIMESTAMP,
+    revoked_by_user_id INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT worker_nats_session_worker_fkey FOREIGN KEY (worker_id) REFERENCES "worker"(id) ON DELETE CASCADE,
+    CONSTRAINT worker_nats_session_bootstrap_fkey FOREIGN KEY (bootstrap_token_id) REFERENCES "worker_bootstrap_token"(id) ON DELETE CASCADE,
+    CONSTRAINT worker_nats_session_revoked_by_fkey FOREIGN KEY (revoked_by_user_id) REFERENCES "user"(id) ON DELETE SET NULL,
+    CONSTRAINT worker_nats_session_user_key_uq UNIQUE (nats_user_public_key)
+);
+
+CREATE INDEX worker_nats_session_active_worker_idx
+    ON "worker_nats_session" (worker_id)
+    WHERE revoked_at IS NULL;
 
 -- ============================================================
 -- Токены системы
@@ -191,7 +239,7 @@ CREATE TABLE "workflow" (
     system_id INT NOT NULL,
     "name" VARCHAR(255) NOT NULL,
     priority INT NOT NULL DEFAULT 2,
-    input_validation JSONB,
+    input_schema JSONB DEFAULT '{"type":"object","properties":{}}'::jsonb NOT NULL,
     description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -223,20 +271,6 @@ CREATE TABLE "workflow_version" (
     deleted_at TIMESTAMP DEFAULT NULL,
     CONSTRAINT workflow_version_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES "workflow"(id) ON DELETE CASCADE,
     CONSTRAINT workflow_version_user_id_fkey FOREIGN KEY (created_by_user_id) REFERENCES "user"(id) ON DELETE SET NULL
-);
-
-CREATE TABLE "workflow_version_input" (
-    id SERIAL PRIMARY KEY,
-    workflow_version_id INT NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    type VARCHAR(50) NOT NULL CHECK (type IN ('string', 'number', 'integer', 'boolean', 'object', 'array')),
-    required BOOLEAN DEFAULT TRUE NOT NULL,
-    description TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP DEFAULT NULL,
-    CONSTRAINT workflow_version_input_version_id_fkey FOREIGN KEY (workflow_version_id) REFERENCES "workflow_version"(id) ON DELETE CASCADE,
-    CONSTRAINT workflow_version_input_name_uq UNIQUE (workflow_version_id, name)
 );
 
 -- ============================================================
@@ -374,16 +408,16 @@ DROP TABLE IF EXISTS "workflow_run" CASCADE;
 DROP TABLE IF EXISTS "message" CASCADE;
 DROP TABLE IF EXISTS "workflow_step_dependency" CASCADE;
 DROP TABLE IF EXISTS "workflow_step" CASCADE;
-DROP TABLE IF EXISTS "workflow_version_input" CASCADE;
 DROP TABLE IF EXISTS "workflow_version" CASCADE;
 DROP TABLE IF EXISTS "workflow_token" CASCADE;
 DROP TABLE IF EXISTS "workflow" CASCADE;
 DROP TABLE IF EXISTS "system_token" CASCADE;
+DROP TABLE IF EXISTS "worker_nats_session" CASCADE;
 DROP TABLE IF EXISTS "worker" CASCADE;
 DROP TABLE IF EXISTS "revision_rate_limit" CASCADE;
 DROP TABLE IF EXISTS "worker_settings_revision" CASCADE;
 DROP TABLE IF EXISTS "worker_settings_schema" CASCADE;
-DROP TABLE IF EXISTS "work_type_token" CASCADE;
+DROP TABLE IF EXISTS "worker_bootstrap_token" CASCADE;
 DROP TABLE IF EXISTS "work_type" CASCADE;
 DROP TABLE IF EXISTS "system" CASCADE;
 DROP TABLE IF EXISTS "role_user" CASCADE;

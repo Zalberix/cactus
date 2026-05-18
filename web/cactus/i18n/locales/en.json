@@ -17,7 +17,8 @@
     "users": "Users",
     "roles": "Roles",
     "systems": "Systems",
-    "tokens": "Tokens"
+    "tokens": "Tokens",
+    "workerTokens": "Worker Tokens"
   },
   "workflows": {
     "create": "Create Workflow",
@@ -283,6 +284,33 @@
     "validation": {
       "nameRequired": "Token name is required"
     }
+  },
+  "workerTokens": {
+    "title": "Worker Bootstrap Tokens",
+    "description": "Issue and revoke organization-scoped tokens used when workers register.",
+    "create": "Create token",
+    "createDescription": "Create a show-once bootstrap token for workers of a specific work type.",
+    "name": "Name",
+    "namePlaceholder": "SMTP production pool",
+    "workType": "Work type",
+    "selectWorkType": "Select a work type",
+    "status": "Status",
+    "expiresAt": "Expires",
+    "activeWorkers": "Active workers",
+    "maxActiveWorkers": "Max active workers",
+    "lastUsedAt": "Last used",
+    "createdAt": "Created",
+    "descriptionField": "Description",
+    "descriptionPlaceholder": "Optional usage notes",
+    "token": "Bootstrap token",
+    "revoke": "Revoke",
+    "revokeDescription": "Revoked bootstrap tokens cannot register new workers.",
+    "created": "Token created",
+    "revoked": "Token revoked",
+    "emptyTitle": "No worker bootstrap tokens",
+    "emptyBody": "Create a scoped token before starting workers for this organization.",
+    "plaintextWarning": "This token is shown once. Store it before closing this dialog.",
+    "revokeActiveSessions": "Also revoke active worker sessions created by this token"
   },
   "workers": {
     "title": "Workers",

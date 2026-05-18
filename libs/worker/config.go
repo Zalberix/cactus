@@ -4,88 +4,88 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"log/slog"
-	"net/http"
-	"strings"
-
-	"github.com/nats-io/nats.go"
 )
 
-// fetchConfig получает текущую конфигурацию ревизии от Manager через HTTP.
-// GET {ManagerURL}/api/v1/workers/{workerID}/config
-// Header: X-Bootstrap-Token: {bootstrapToken}
-func (w *Worker) fetchConfig(ctx context.Context) (map[string]any, error) {
-	url := fmt.Sprintf("%s/api/v1/workers/%d/config",
-		strings.TrimRight(w.cfg.ManagerURL, "/"),
-		w.workerID,
-	)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("create config request: %w", err)
-	}
-	req.Header.Set("X-Bootstrap-Token", w.cfg.BootstrapToken)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("send config request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read config response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("config fetch failed: status %d, body: %s", resp.StatusCode, string(body))
-	}
-
-	var envelope struct {
-		Success bool           `json:"success"`
-		Data    map[string]any `json:"data"`
-	}
-	if err := json.Unmarshal(body, &envelope); err != nil {
-		return nil, fmt.Errorf("unmarshal config response: %w", err)
-	}
-
-	if !envelope.Success {
-		return nil, fmt.Errorf("config fetch rejected: %s", string(body))
-	}
-
-	return envelope.Data, nil
+type configPayload struct {
+	OrganizationID int32          `json:"organization_id"`
+	WorkTypeID     int32          `json:"work_type_id"`
+	SchemaID       int32          `json:"schema_id"`
+	RevisionID     int32          `json:"revision_id"`
+	ConfigHash     string         `json:"config_hash"`
+	SettingsData   map[string]any `json:"settings_data"`
 }
 
-// subscribeConfigReload подписывается на NATS subject event.config.{manifest.Kind}
-// для hot-reload уведомлений. При получении сообщения --- запрашивает свежий конфиг.
-func (w *Worker) subscribeConfigReload(ctx context.Context) error {
-	subject := "event.config." + w.cfg.Manifest.Kind
-
-	_, err := w.nc.Subscribe(subject, func(_ *nats.Msg) {
-		w.logger.Info("config reload notification received",
-			slog.String("subject", subject),
-		)
-
-		cfg, fetchErr := w.fetchConfig(ctx)
-		if fetchErr != nil {
-			w.logger.Error("config reload fetch failed",
-				slog.String("error", fetchErr.Error()),
-			)
-			return
-		}
-
-		w.logger.Info("config reloaded successfully",
-			slog.Any("config", cfg),
-		)
-	})
-	if err != nil {
-		return fmt.Errorf("subscribe config reload on %s: %w", subject, err)
+func (w *Worker) resolveSettings(ctx context.Context, ref ConfigRef) (map[string]any, error) {
+	if ref.OrganizationID != w.cfg.OrganizationID || ref.WorkTypeID != w.cfg.WorkTypeID {
+		return nil, fmt.Errorf("config_ref scope mismatch")
 	}
+	if settings, ok := w.configCache.get(ref); ok {
+		return settings, nil
+	}
+	payload, err := w.readConfigFromNATS(ctx, ref)
+	if err != nil {
+		return nil, err
+	}
+	w.configCache.set(ref, payload.SettingsData)
+	return payload.SettingsData, nil
+}
 
-	w.logger.Info("subscribed to config reload",
-		slog.String("subject", subject),
-	)
+func (w *Worker) readConfigFromNATS(ctx context.Context, ref ConfigRef) (configPayload, error) {
+	payload, err := w.readConfigFromStream(ctx, ref)
+	if err == nil {
+		return payload, nil
+	}
+	payload, err = w.requestConfig(ctx, ref)
+	if err != nil {
+		return configPayload{}, err
+	}
+	return payload, nil
+}
 
-	return nil
+func (w *Worker) readConfigFromStream(ctx context.Context, ref ConfigRef) (configPayload, error) {
+	stream, err := w.js.Stream(ctx, "CONFIGS")
+	if err != nil {
+		return configPayload{}, fmt.Errorf("open CONFIGS stream: %w", err)
+	}
+	raw, err := stream.GetLastMsgForSubject(ctx, configSubject(ref))
+	if err != nil {
+		return configPayload{}, fmt.Errorf("read config subject: %w", err)
+	}
+	return decodeConfigPayload(raw.Data, ref)
+}
+
+func (w *Worker) requestConfig(ctx context.Context, ref ConfigRef) (configPayload, error) {
+	msg, err := w.nc.RequestWithContext(ctx, configRequestSubject(ref), nil)
+	if err != nil {
+		return configPayload{}, fmt.Errorf("request config: %w", err)
+	}
+	return decodeConfigPayload(msg.Data, ref)
+}
+
+func decodeConfigPayload(data []byte, ref ConfigRef) (configPayload, error) {
+	var payload configPayload
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return configPayload{}, fmt.Errorf("unmarshal config payload: %w", err)
+	}
+	if payload.OrganizationID != ref.OrganizationID ||
+		payload.WorkTypeID != ref.WorkTypeID ||
+		payload.SchemaID != ref.SchemaID ||
+		payload.RevisionID != ref.RevisionID {
+		return configPayload{}, fmt.Errorf("config payload scope mismatch")
+	}
+	if payload.ConfigHash != ref.ConfigHash {
+		return configPayload{}, fmt.Errorf("config payload hash mismatch")
+	}
+	return payload, nil
+}
+
+func configSubject(ref ConfigRef) string {
+	if ref.ConfigSubject != "" {
+		return ref.ConfigSubject
+	}
+	return fmt.Sprintf("config.org.%d.work_type.%d.revision.%d", ref.OrganizationID, ref.WorkTypeID, ref.RevisionID)
+}
+
+func configRequestSubject(ref ConfigRef) string {
+	return fmt.Sprintf("config.request.org.%d.work_type.%d.revision.%d", ref.OrganizationID, ref.WorkTypeID, ref.RevisionID)
 }

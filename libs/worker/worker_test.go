@@ -69,7 +69,7 @@ func topLevelKeys(m map[string]json.RawMessage) []string {
 // TestRegisterResponseUnmarshal verifies that registerResponse correctly parses
 // the Manager API envelope, extracting Data.ID (db.Worker.ID).
 func TestRegisterResponseUnmarshal(t *testing.T) {
-	raw := `{"success":true,"data":{"id":42,"work_type_id":12,"revision_id":99,"worker_settings_schema_id":3,"name":"smtp-worker","metadata":"e30=","registered_at":"2026-01-01T00:00:00Z","last_heartbeat_at":"2026-01-01T00:00:00Z"}}`
+	raw := `{"success":true,"data":{"id":42,"organization_id":9,"work_type_id":12,"revision_id":99,"worker_settings_schema_id":3,"name":"smtp-worker","nats":{"url":"tls://localhost:4222","user_jwt":"jwt","user_seed":"seed","credentials":"creds"},"metadata":"e30=","registered_at":"2026-01-01T00:00:00Z","last_heartbeat_at":"2026-01-01T00:00:00Z"}}`
 
 	var resp registerResponse
 	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
@@ -82,6 +82,9 @@ func TestRegisterResponseUnmarshal(t *testing.T) {
 	if resp.Data.ID != int32(42) {
 		t.Errorf("expected Data.ID == 42, got %d", resp.Data.ID)
 	}
+	if resp.Data.OrganizationID != int32(9) {
+		t.Errorf("expected Data.OrganizationID == 9, got %d", resp.Data.OrganizationID)
+	}
 	if resp.Data.WorkTypeID != int32(12) {
 		t.Errorf("expected Data.WorkTypeID == 12, got %d", resp.Data.WorkTypeID)
 	}
@@ -90,6 +93,9 @@ func TestRegisterResponseUnmarshal(t *testing.T) {
 	}
 	if resp.Data.RevisionID != int32(99) {
 		t.Errorf("expected Data.RevisionID == 99, got %d", resp.Data.RevisionID)
+	}
+	if resp.Data.NATS.UserJWT != "jwt" || resp.Data.NATS.UserSeed != "seed" {
+		t.Errorf("expected NATS credentials, got %#v", resp.Data.NATS)
 	}
 }
 
@@ -153,7 +159,7 @@ func TestSendRegistration(t *testing.T) {
 		// Respond with envelope
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"success":true,"data":{"id":7,"work_type_id":12,"worker_settings_schema_id":3,"revision_id":99,"name":"test-worker"}}`))
+		_, _ = w.Write([]byte(`{"success":true,"data":{"id":7,"organization_id":9,"work_type_id":12,"worker_settings_schema_id":3,"revision_id":99,"name":"test-worker","nats":{"url":"tls://localhost:4222","user_jwt":"jwt","user_seed":"seed","credentials":"creds"}}}`))
 	}))
 	defer srv.Close()
 
@@ -181,11 +187,17 @@ func TestSendRegistration(t *testing.T) {
 	if wk.cfg.WorkTypeID != int32(12) {
 		t.Errorf("expected runtime WorkTypeID == 12, got %d", wk.cfg.WorkTypeID)
 	}
+	if wk.cfg.OrganizationID != int32(9) {
+		t.Errorf("expected runtime OrganizationID == 9, got %d", wk.cfg.OrganizationID)
+	}
 	if wk.cfg.WorkerSettingsSchemaID != int32(3) {
 		t.Errorf("expected runtime WorkerSettingsSchemaID == 3, got %d", wk.cfg.WorkerSettingsSchemaID)
 	}
 	if wk.cfg.RevisionID != int32(99) {
 		t.Errorf("expected runtime RevisionID == 99, got %d", wk.cfg.RevisionID)
+	}
+	if wk.natsCreds.UserJWT != "jwt" || wk.natsCreds.UserSeed != "seed" {
+		t.Errorf("expected runtime NATS credentials, got %#v", wk.natsCreds)
 	}
 }
 
@@ -196,14 +208,14 @@ func TestRequireRoutingConfiguredRejectsMissingRegistrationIDs(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected missing routing IDs error")
 	}
-	if !strings.Contains(err.Error(), "registration response missing work_type_id, worker_settings_schema_id or revision_id") {
+	if !strings.Contains(err.Error(), "registration response missing organization_id, work_type_id, worker_settings_schema_id or revision_id") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
-func TestTaskFilterSubjectIncludesSchemaID(t *testing.T) {
+func TestTaskFilterSubjectIncludesOrgAndWorkType(t *testing.T) {
 	got := taskFilterSubject(12, 3)
-	want := "task.12.3.>"
+	want := "task.org.12.work_type.3.>"
 	if got != want {
 		t.Fatalf("taskFilterSubject() = %q, want %q", got, want)
 	}

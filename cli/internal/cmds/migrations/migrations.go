@@ -22,8 +22,9 @@ import (
 
 func Command() *cli.Command {
 	return &cli.Command{
-		Name:  "migration",
-		Usage: "Database migration commands",
+		Name:    "migration",
+		Aliases: []string{"migrations"},
+		Usage:   "Database migration commands",
 		Subcommands: []*cli.Command{
 			UpMigrationCmd,
 			DownMigrationCmd,

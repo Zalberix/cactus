@@ -31,9 +31,9 @@ func main() {
 	}
 
 	w := worker.New(worker.Config{
-		NatsURL:        cfg.NatsURL,
 		ManagerURL:     cfg.ManagerURL,
 		BootstrapToken: cfg.BootstrapToken,
+		NatsCAFile:     cfg.NatsCAFile,
 		WorkerIDPath:   *workerIDPath,
 		WorkerName:     templateWorkerName(selectedVariant.Name, *workerName),
 		OnWorkerID: func(workerID int32) *slog.Logger {

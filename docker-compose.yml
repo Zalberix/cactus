@@ -72,7 +72,10 @@ services:
     restart: unless-stopped
     volumes:
       - ./configs/nats.conf:/etc/nats/nats.conf:ro
+      - ./configs/nats/certs:/etc/nats/certs:ro
+      - ./configs/nats/jwt:/etc/nats/jwt:ro
       - ./docker/assets/nats:/data
+      - ./docker/assets/nats-jwt:/data/jwt
     ports:
       - "4222:4222"
       - "8222:8222"

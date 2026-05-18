@@ -13,6 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/zalberix/cactus/apps/core/config"
+	"github.com/zalberix/cactus/apps/core/internal/configpub"
 	"github.com/zalberix/cactus/apps/core/internal/domain/auth"
 	"github.com/zalberix/cactus/apps/core/internal/domain/message"
 	"github.com/zalberix/cactus/apps/core/internal/domain/rbac"
@@ -20,6 +21,7 @@ import (
 	"github.com/zalberix/cactus/apps/core/internal/domain/worktype"
 	apphttp "github.com/zalberix/cactus/apps/core/internal/http"
 	"github.com/zalberix/cactus/apps/core/internal/http/middleware"
+	"github.com/zalberix/cactus/apps/core/internal/natsauth"
 	"github.com/zalberix/cactus/apps/core/internal/pkg/wshub"
 	"github.com/zalberix/cactus/apps/core/internal/store"
 	temporalactivity "github.com/zalberix/cactus/apps/core/internal/temporal/activity"
@@ -40,12 +42,14 @@ func main() {
 			pkgdb.NewFx,
 			store.New,
 			bus.NewFx,
+			newConfigPubService,
 			apphttp.NewRouter,
 			apphttp.NewHTTPServer,
 			newAuthService,
 			auth.NewHandler,
 			newRBACService,
 			rbac.NewHandler,
+			newNATSAuthManager,
 			newWorktypeService,
 			newWorktypeHandler,
 			newWorkflowService,
@@ -58,6 +62,7 @@ func main() {
 		),
 		fx.Invoke(
 			registerNATSStreams,
+			registerConfigRequestListener,
 			registerAuthRoutes,
 			registerRBACRoutes,
 			registerWorkTypeRoutes,
@@ -107,13 +112,31 @@ func registerNATSStreams(lc fx.Lifecycle, b *bus.Bus) {
 			if err := b.EnsureStreamWithMaxAge(ctx, "RESULTS", []string{"result.>"}, time.Hour); err != nil {
 				return fmt.Errorf("ensure RESULTS stream: %w", err)
 			}
-			slog.Info("NATS JetStream streams ensured", slog.String("streams", "MESSAGES, EVENTS, TASKS, RESULTS"))
+			if err := b.EnsureStream(ctx, "CONFIGS", []string{"config.org.*.work_type.*.revision.*"}); err != nil {
+				return fmt.Errorf("ensure CONFIGS stream: %w", err)
+			}
+			slog.Info("NATS JetStream streams ensured", slog.String("streams", "MESSAGES, EVENTS, TASKS, RESULTS, CONFIGS"))
 			return nil
 		},
 	})
 }
 
 // newRBACService создаёт rbac.Service, передавая store как Storage и authService как AuthService.
+func newConfigPubService(s *store.Store, b *bus.Bus) *configpub.Service {
+	return configpub.New(s, b)
+}
+
+func registerConfigRequestListener(lc fx.Lifecycle, svc *configpub.Service) {
+	lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			return svc.Start(ctx)
+		},
+		OnStop: func(ctx context.Context) error {
+			return svc.Stop(ctx)
+		},
+	})
+}
+
 func newRBACService(s *store.Store, authSvc *auth.Service) *rbac.Service {
 	return rbac.NewService(s, authSvc)
 }
@@ -125,8 +148,39 @@ func registerRBACRoutes(r *gin.Engine, h *rbac.Handler, authSvc *auth.Service, s
 }
 
 // newWorktypeService создаёт worktype.Service, передавая store как Storage.
-func newWorktypeService(s *store.Store) *worktype.Service {
-	return worktype.NewService(s)
+func newNATSAuthManager(lc fx.Lifecycle, cfg *config.Config) natsauth.Manager {
+	if !cfg.Nats.WorkerCredentialsEnabled {
+		return natsauth.NoopManager{}
+	}
+	updater, err := natsauth.NewResolverUpdater(
+		cfg.Nats.URL,
+		cfg.Nats.CAFile,
+		cfg.Nats.SystemCredentialsFile,
+	)
+	if err != nil {
+		panic(err)
+	}
+	lc.Append(fx.Hook{
+		OnStop: func(context.Context) error {
+			return updater.Close()
+		},
+	})
+	return natsauth.NewJWTManager(
+		cfg.Nats.AccountPublicKey,
+		cfg.Nats.AccountJWTFile,
+		cfg.Nats.AccountSeedEnv,
+		cfg.Nats.AccountSeedFile,
+		updater,
+	)
+}
+
+func newWorktypeService(cfg *config.Config, s *store.Store, auth natsauth.Manager) *worktype.Service {
+	return worktype.NewService(
+		s,
+		auth,
+		worktype.WithNATSURL(cfg.Nats.URL),
+		worktype.WithNATSCAFile(cfg.Nats.CAFile),
+	)
 }
 
 // newWorktypeHandler создаёт worktype.Handler.

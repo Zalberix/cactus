@@ -1,7 +1,8 @@
-﻿package worktype
+package worktype
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -72,6 +73,12 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc, _ middle
 		middleware.RequirePermission(h.permChecker, permissions.WorkerRead), h.ListWorkers)
 	v1.DELETE("/workers/:workerId",
 		middleware.RequirePermission(h.permChecker, permissions.WorkerWrite), h.DeleteWorker)
+	v1.GET("/organizations/:orgId/worker-bootstrap-tokens",
+		middleware.RequirePermission(h.permChecker, permissions.WorkerRead), h.ListWorkerBootstrapTokens)
+	v1.POST("/organizations/:orgId/worker-bootstrap-tokens",
+		middleware.RequirePermission(h.permChecker, permissions.WorkerWrite), h.CreateWorkerBootstrapToken)
+	v1.POST("/worker-bootstrap-tokens/:tokenId/revoke",
+		middleware.RequirePermission(h.permChecker, permissions.WorkerWrite), h.RevokeWorkerBootstrapToken)
 
 	// Settings Schemas
 	v1.GET("/worker-settings-schemas/:schemaId",
@@ -114,7 +121,7 @@ func (h *Handler) ListSystems(c *gin.Context) {
 
 		systems, total, err := h.service.ListSystemsPaginated(c.Request.Context(), orgID, page, perPage)
 		if err != nil {
-            response.InternalError(c, "Ошибка получения систем")
+			response.InternalError(c, "Ошибка получения систем")
 			return
 		}
 		response.OKPaginated(c, systems, total, page, perPage)
@@ -123,7 +130,7 @@ func (h *Handler) ListSystems(c *gin.Context) {
 
 	systems, err := h.service.ListSystems(c.Request.Context(), orgID)
 	if err != nil {
-        response.InternalError(c, "Ошибка получения систем")
+		response.InternalError(c, "Ошибка получения систем")
 		return
 	}
 	response.OK(c, systems)
@@ -144,7 +151,7 @@ func (h *Handler) CreateSystem(c *gin.Context) {
 
 	system, err := h.service.CreateSystem(c.Request.Context(), orgID, req)
 	if err != nil {
-        response.InternalError(c, "Ошибка создания системы")
+		response.InternalError(c, "Ошибка создания системы")
 		return
 	}
 	response.Created(c, system)
@@ -165,7 +172,7 @@ func (h *Handler) UpdateSystem(c *gin.Context) {
 
 	system, err := h.service.UpdateSystem(c.Request.Context(), id, req)
 	if err != nil {
-        response.InternalError(c, "Ошибка обновления системы")
+		response.InternalError(c, "Ошибка обновления системы")
 		return
 	}
 	response.OK(c, system)
@@ -180,7 +187,7 @@ func (h *Handler) DeleteSystem(c *gin.Context) {
 	}
 
 	if err := h.service.DeleteSystem(c.Request.Context(), id); err != nil {
-        response.InternalError(c, "Ошибка удаления системы")
+		response.InternalError(c, "Ошибка удаления системы")
 		return
 	}
 	response.OK(c, gin.H{"message": "Система удалена"})
@@ -204,7 +211,7 @@ func (h *Handler) CreateToken(c *gin.Context) {
 
 	tokenResp, err := h.service.CreateSystemToken(c.Request.Context(), systemID, req.Name)
 	if err != nil {
-        response.InternalError(c, "Ошибка создания токена")
+		response.InternalError(c, "Ошибка создания токена")
 		return
 	}
 	response.Created(c, tokenResp)
@@ -220,7 +227,7 @@ func (h *Handler) ListTokens(c *gin.Context) {
 
 	tokens, err := h.service.ListSystemTokens(c.Request.Context(), systemID)
 	if err != nil {
-        response.InternalError(c, "Ошибка получения токенов")
+		response.InternalError(c, "Ошибка получения токенов")
 		return
 	}
 	response.OK(c, tokens)
@@ -235,7 +242,7 @@ func (h *Handler) DeactivateToken(c *gin.Context) {
 	}
 
 	if err := h.service.DeactivateSystemToken(c.Request.Context(), tokenID); err != nil {
-        response.InternalError(c, "Ошибка деактивации токена")
+		response.InternalError(c, "Ошибка деактивации токена")
 		return
 	}
 	response.OK(c, gin.H{"message": "Токен деактивирован"})
@@ -250,7 +257,7 @@ func (h *Handler) ActivateToken(c *gin.Context) {
 	}
 
 	if err := h.service.ActivateSystemToken(c.Request.Context(), tokenID); err != nil {
-        response.InternalError(c, "Ошибка активации токена")
+		response.InternalError(c, "Ошибка активации токена")
 		return
 	}
 	response.OK(c, gin.H{"message": "Токен активирован"})
@@ -273,7 +280,7 @@ func (h *Handler) BindWorkflow(c *gin.Context) {
 			response.BadRequest(c, "SYSTEM_MISMATCH", "System token and workflow must belong to the same system")
 			return
 		}
-        response.InternalError(c, "Ошибка привязки workflow к токену")
+		response.InternalError(c, "Ошибка привязки workflow к токену")
 		return
 	}
 	response.OK(c, gin.H{"message": "Workflow привязан к токену"})
@@ -296,7 +303,7 @@ func (h *Handler) UnbindWorkflow(c *gin.Context) {
 			response.BadRequest(c, "SYSTEM_MISMATCH", "System token and workflow must belong to the same system")
 			return
 		}
-        response.InternalError(c, "Ошибка отвязки workflow от токена")
+		response.InternalError(c, "Ошибка отвязки workflow от токена")
 		return
 	}
 	response.OK(c, gin.H{"message": "Workflow отвязан от токена"})
@@ -341,7 +348,7 @@ func (h *Handler) ListWorkflowTokens(c *gin.Context) {
 func (h *Handler) ListWorkTypes(c *gin.Context) {
 	workTypes, err := h.service.ListWorkTypes(c.Request.Context())
 	if err != nil {
-        response.InternalError(c, "Ошибка получения типов работ")
+		response.InternalError(c, "Ошибка получения типов работ")
 		return
 	}
 	response.OK(c, workTypes)
@@ -381,7 +388,7 @@ func (h *Handler) CreateWorkType(c *gin.Context) {
 
 	result, err := h.service.CreateWorkType(c.Request.Context(), req)
 	if err != nil {
-        response.InternalError(c, "Ошибка создания типа работы")
+		response.InternalError(c, "Ошибка создания типа работы")
 		return
 	}
 	response.Created(c, result)
@@ -397,7 +404,7 @@ func (h *Handler) ListWorkers(c *gin.Context) {
 
 	workers, err := h.service.ListWorkers(c.Request.Context(), workTypeID)
 	if err != nil {
-        response.InternalError(c, "Ошибка получения воркеров")
+		response.InternalError(c, "Ошибка получения воркеров")
 		return
 	}
 	response.OK(c, workers)
@@ -419,6 +426,64 @@ func (h *Handler) DeleteWorker(c *gin.Context) {
 	response.OK(c, result)
 }
 
+func (h *Handler) ListWorkerBootstrapTokens(c *gin.Context) {
+	orgID, ok := parseID(c, "orgId")
+	if !ok {
+		return
+	}
+	tokens, err := h.service.ListWorkerBootstrapTokens(c.Request.Context(), orgID)
+	if err != nil {
+		response.InternalError(c, "Error fetching worker bootstrap tokens")
+		return
+	}
+	response.OK(c, tokens)
+}
+
+func (h *Handler) CreateWorkerBootstrapToken(c *gin.Context) {
+	orgID, ok := parseID(c, "orgId")
+	if !ok {
+		return
+	}
+	var req CreateWorkerBootstrapTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "INVALID_BODY", err.Error())
+		return
+	}
+	var userID int32
+	if claims := middleware.GetClaims(c); claims != nil {
+		userID = claims.UserID
+	}
+	result, err := h.service.CreateWorkerBootstrapToken(c.Request.Context(), orgID, userID, req)
+	if err != nil {
+		response.InternalError(c, "Error creating worker bootstrap token")
+		return
+	}
+	response.Created(c, result)
+}
+
+func (h *Handler) RevokeWorkerBootstrapToken(c *gin.Context) {
+	tokenID, ok := parseID(c, "tokenId")
+	if !ok {
+		return
+	}
+	req := RevokeWorkerBootstrapTokenRequest{RevokeActiveSessions: true}
+	if c.Request.Body != nil && c.Request.ContentLength != 0 {
+		if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+			response.BadRequest(c, "INVALID_BODY", err.Error())
+			return
+		}
+	}
+	var userID int32
+	if claims := middleware.GetClaims(c); claims != nil {
+		userID = claims.UserID
+	}
+	if err := h.service.RevokeWorkerBootstrapToken(c.Request.Context(), tokenID, userID, req.RevokeActiveSessions); err != nil {
+		response.InternalError(c, "Error revoking worker bootstrap token")
+		return
+	}
+	response.OK(c, gin.H{"message": "Worker bootstrap token revoked"})
+}
+
 // --- Worker Registration handler ---
 
 // RegisterWorker godoc
@@ -433,6 +498,10 @@ func (h *Handler) RegisterWorker(c *gin.Context) {
 
 	worker, err := h.service.RegisterWorker(c.Request.Context(), req)
 	if err != nil {
+		if errors.Is(err, ErrWorkerBootstrapActiveWorkerLimitExceeded) {
+			response.Fail(c, http.StatusTooManyRequests, "WORKER_LIMIT_EXCEEDED", "Превышен лимит активных worker-ов для bootstrap-токена")
+			return
+		}
 		response.Fail(c, http.StatusUnauthorized, "INVALID_TOKEN", "Неверный bootstrap токен или ошибка регистрации")
 		return
 	}
@@ -455,7 +524,7 @@ func (h *Handler) GetSettingsSchema(c *gin.Context) {
 			response.NotFound(c, "Схема настроек не найдена")
 			return
 		}
-        response.InternalError(c, "Ошибка получения схемы настроек")
+		response.InternalError(c, "Ошибка получения схемы настроек")
 		return
 	}
 	response.OK(c, schema)
@@ -473,7 +542,7 @@ func (h *Handler) ListRevisions(c *gin.Context) {
 
 	revisions, err := h.service.ListSettingsRevisions(c.Request.Context(), schemaID)
 	if err != nil {
-        response.InternalError(c, "Ошибка получения ревизий настроек")
+		response.InternalError(c, "Ошибка получения ревизий настроек")
 		return
 	}
 	response.OK(c, revisions)
@@ -494,7 +563,7 @@ func (h *Handler) CreateRevision(c *gin.Context) {
 
 	revision, err := h.service.CreateSettingsRevision(c.Request.Context(), schemaID, req)
 	if err != nil {
-        response.InternalError(c, "Ошибка создания ревизии настроек")
+		response.InternalError(c, "Ошибка создания ревизии настроек")
 		return
 	}
 	response.Created(c, revision)

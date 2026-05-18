@@ -28,11 +28,13 @@ type registerRequest struct {
 type registerResponse struct {
 	Success bool `json:"success"`
 	Data    struct {
-		ID                     int32          `json:"id"`
-		WorkTypeID             int32          `json:"work_type_id"`
-		WorkerSettingsSchemaID int32          `json:"worker_settings_schema_id"`
-		RevisionID             int32          `json:"revision_id"`
-		Config                 map[string]any `json:"config,omitempty"`
+		ID                     int32           `json:"id"`
+		OrganizationID         int32           `json:"organization_id"`
+		WorkTypeID             int32           `json:"work_type_id"`
+		WorkerSettingsSchemaID int32           `json:"worker_settings_schema_id"`
+		RevisionID             int32           `json:"revision_id"`
+		NATS                   NATSCredentials `json:"nats"`
+		Config                 map[string]any  `json:"config,omitempty"`
 	} `json:"data"`
 }
 
@@ -149,12 +151,16 @@ func (w *Worker) sendRegistration(ctx context.Context) error {
 	if regResp.Data.WorkTypeID > 0 {
 		w.cfg.WorkTypeID = regResp.Data.WorkTypeID
 	}
+	if regResp.Data.OrganizationID > 0 {
+		w.cfg.OrganizationID = regResp.Data.OrganizationID
+	}
 	if regResp.Data.WorkerSettingsSchemaID > 0 {
 		w.cfg.WorkerSettingsSchemaID = regResp.Data.WorkerSettingsSchemaID
 	}
 	if regResp.Data.RevisionID > 0 {
 		w.cfg.RevisionID = regResp.Data.RevisionID
 	}
+	w.natsCreds = regResp.Data.NATS
 
 	return nil
 }

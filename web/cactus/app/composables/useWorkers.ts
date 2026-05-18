@@ -14,7 +14,6 @@ export interface WorkType {
   slug?: string
   description?: string
   meta?: WorkTypeMeta
-  bootstrap_token?: string
 }
 
 export interface Worker {
@@ -25,6 +24,35 @@ export interface Worker {
   status: 'working' | 'ready' | 'offline'
   last_heartbeat_at: string
   work_type_name?: string
+}
+
+export interface WorkerBootstrapToken {
+  id: number
+  organization_id: number
+  work_type_id: number
+  name: string
+  description?: string
+  status: 'active' | 'revoked'
+  expires_at?: string
+  max_active_workers: number
+  active_worker_count: number
+  total_registration_count: number
+  last_used_at?: string
+  created_at: string
+  revoked_at?: string
+}
+
+export interface CreateWorkerBootstrapTokenInput {
+  name: string
+  work_type_id: number
+  description?: string
+  expires_at?: string
+  max_active_workers: number
+}
+
+export interface CreateWorkerBootstrapTokenResponse {
+  token: WorkerBootstrapToken
+  plaintext: string
 }
 
 export interface WorkerWorkflowUsage {
@@ -129,6 +157,46 @@ export function useWorkers() {
     return allWorkers
   }
 
+  async function fetchWorkerBootstrapTokens(orgId: number): Promise<WorkerBootstrapToken[]> {
+    const resp = await api<ApiResponse<WorkerBootstrapToken[]>>(
+      `/organizations/${orgId}/worker-bootstrap-tokens`,
+    )
+    if (!resp.success || !resp.data) {
+      throw new Error(resp.error?.message ?? 'Failed to fetch worker bootstrap tokens')
+    }
+    return resp.data
+  }
+
+  async function createWorkerBootstrapToken(
+    orgId: number,
+    input: CreateWorkerBootstrapTokenInput,
+  ): Promise<CreateWorkerBootstrapTokenResponse> {
+    const resp = await api<ApiResponse<CreateWorkerBootstrapTokenResponse>>(
+      `/organizations/${orgId}/worker-bootstrap-tokens`,
+      { method: 'POST', body: input },
+    )
+    if (!resp.success || !resp.data) {
+      throw new Error(resp.error?.message ?? 'Failed to create worker bootstrap token')
+    }
+    return resp.data
+  }
+
+  async function revokeWorkerBootstrapToken(
+    tokenId: number,
+    revokeActiveSessions = true,
+  ): Promise<void> {
+    const resp = await api<ApiResponse<null>>(
+      `/worker-bootstrap-tokens/${tokenId}/revoke`,
+      {
+        method: 'POST',
+        body: { revoke_active_sessions: revokeActiveSessions },
+      },
+    )
+    if (!resp.success) {
+      throw new Error(resp.error?.message ?? 'Failed to revoke worker bootstrap token')
+    }
+  }
+
   async function deleteWorker(workerId: number): Promise<DeleteWorkerResponse> {
     const resp = await api<ApiResponse<DeleteWorkerResponse>>(
       `/workers/${workerId}`,
@@ -179,6 +247,9 @@ export function useWorkers() {
     fetchWorkTypeCatalog,
     fetchWorkers,
     fetchWorkersForOrg,
+    fetchWorkerBootstrapTokens,
+    createWorkerBootstrapToken,
+    revokeWorkerBootstrapToken,
     deleteWorker,
     fetchRevisions,
     createRevision,

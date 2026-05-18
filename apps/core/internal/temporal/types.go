@@ -16,6 +16,7 @@ type StepDef struct {
 	ID                       int32          `json:"id"`        // workflow_step.id
 	StepType                 string         `json:"step_type"` // "task" или "control"
 	ControlKind              string         `json:"control_kind,omitempty"`
+	OrganizationID           int32          `json:"organization_id,omitempty"`
 	WorkTypeID               int32          `json:"work_type_id,omitempty"`
 	WorkerSettingsSchemaID   int32          `json:"worker_settings_schema_id,omitempty"`
 	WorkerSettingsRevisionID int32          `json:"worker_settings_revision_id,omitempty"`
@@ -46,6 +47,15 @@ type StepResult struct {
 	Outcome  string         `json:"outcome"` // "success" для task шагов
 }
 
+type ConfigRef struct {
+	OrganizationID int32  `json:"organization_id"`
+	WorkTypeID     int32  `json:"work_type_id"`
+	SchemaID       int32  `json:"schema_id"`
+	RevisionID     int32  `json:"revision_id"`
+	ConfigHash     string `json:"config_hash"`
+	ConfigSubject  string `json:"config_subject"`
+}
+
 // TaskMessage — сообщение воркеру в NATS (per D-06).
 type TaskMessage struct {
 	WorkflowRunID  int32          `json:"workflow_run_id"`
@@ -53,6 +63,7 @@ type TaskMessage struct {
 	Attempt        int32          `json:"attempt"`
 	ReplyTo        string         `json:"reply_to"`
 	Input          map[string]any `json:"input"`
+	ConfigRef      ConfigRef      `json:"config_ref"`
 	IdempotencyKey string         `json:"idempotency_key"` // D-04: runID.stepID.attempt
 }
 

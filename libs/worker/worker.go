@@ -18,18 +18,20 @@ const (
 	defaultInactiveThreshold = 5 * time.Minute
 )
 
-func taskFilterSubject(workTypeID, schemaID int32) string {
-	return fmt.Sprintf("task.%d.%d.>", workTypeID, schemaID)
+func taskFilterSubject(orgID, workTypeID int32) string {
+	return fmt.Sprintf("task.org.%d.work_type.%d.>", orgID, workTypeID)
 }
 
 // Worker --- SDK для подключения воркеров к Manager через NATS JetStream.
 type Worker struct {
-	cfg      Config
-	handler  TaskHandler
-	nc       *nats.Conn
-	js       jetstream.JetStream
-	workerID int32
-	logger   *slog.Logger
+	cfg         Config
+	handler     TaskHandler
+	nc          *nats.Conn
+	js          jetstream.JetStream
+	workerID    int32
+	logger      *slog.Logger
+	natsCreds   NATSCredentials
+	configCache *configCache
 }
 
 // New создаёт Worker SDK instance. Не подключается к NATS до вызова Run.
@@ -41,9 +43,10 @@ func New(cfg Config, handler TaskHandler, logger *slog.Logger) *Worker {
 		logger = slog.Default()
 	}
 	return &Worker{
-		cfg:     cfg,
-		handler: handler,
-		logger:  logger,
+		cfg:         cfg,
+		handler:     handler,
+		logger:      logger,
+		configCache: newConfigCache(),
 	}
 }
 
@@ -52,7 +55,22 @@ func New(cfg Config, handler TaskHandler, logger *slog.Logger) *Worker {
 // Graceful shutdown: останавливает consumer, heartbeat, drains NATS.
 func (w *Worker) Run(ctx context.Context) error {
 	// 1. Подключение к NATS
-	nc, err := nats.Connect(w.cfg.NatsURL)
+	if err := w.registerWithRetry(ctx); err != nil {
+		return fmt.Errorf("registration: %w", err)
+	}
+	if err := w.requireRoutingConfigured(); err != nil {
+		return err
+	}
+
+	opts := []nats.Option{
+		nats.UserJWTAndSeed(w.natsCreds.UserJWT, w.natsCreds.UserSeed),
+	}
+	if w.natsCreds.CAFile != "" {
+		opts = append(opts, nats.RootCAs(w.natsCreds.CAFile))
+	} else if w.cfg.NatsCAFile != "" {
+		opts = append(opts, nats.RootCAs(w.cfg.NatsCAFile))
+	}
+	nc, err := nats.Connect(w.natsCreds.URL, opts...)
 	if err != nil {
 		return fmt.Errorf("connect to NATS: %w", err)
 	}
@@ -70,23 +88,12 @@ func (w *Worker) Run(ctx context.Context) error {
 	}()
 
 	// 2. Регистрация или загрузка workerID (с retry)
-	if err := w.registerWithRetry(ctx); err != nil {
-		return fmt.Errorf("registration: %w", err)
-	}
-	if err := w.requireRoutingConfigured(); err != nil {
-		return err
-	}
-
 	w.logger.Info("worker registered",
 		slog.Int("worker_id", int(w.workerID)),
 		slog.String("name", w.cfg.WorkerName),
 	)
 
 	// 3. Подписка на config reload
-	if err := w.subscribeConfigReload(ctx); err != nil {
-		w.logger.Warn("config reload subscription failed", slog.String("error", err.Error()))
-	}
-
 	// 4. Запуск heartbeat
 	go w.heartbeatLoop(ctx)
 
@@ -106,8 +113,11 @@ func (w *Worker) refreshLoggerAfterWorkerID() {
 // registerWithRetry пытается зарегистрироваться с экспоненциальным backoff.
 // Не сдаётся до отмены ctx.
 func (w *Worker) requireRoutingConfigured() error {
-	if w.cfg.WorkTypeID <= 0 || w.cfg.WorkerSettingsSchemaID <= 0 || w.cfg.RevisionID <= 0 {
-		return fmt.Errorf("registration response missing work_type_id, worker_settings_schema_id or revision_id")
+	if w.cfg.OrganizationID <= 0 || w.cfg.WorkTypeID <= 0 || w.cfg.WorkerSettingsSchemaID <= 0 || w.cfg.RevisionID <= 0 {
+		return fmt.Errorf("registration response missing organization_id, work_type_id, worker_settings_schema_id or revision_id")
+	}
+	if w.natsCreds.URL == "" || w.natsCreds.UserJWT == "" || w.natsCreds.UserSeed == "" {
+		return fmt.Errorf("registration response missing nats credentials")
 	}
 	return nil
 }
@@ -147,7 +157,7 @@ func (w *Worker) registerWithRetry(ctx context.Context) error {
 
 // consumeLoop подписывается на TASKS stream и обрабатывает сообщения.
 func (w *Worker) consumeLoop(ctx context.Context) error {
-	subject := taskFilterSubject(w.cfg.WorkTypeID, w.cfg.WorkerSettingsSchemaID)
+	subject := taskFilterSubject(w.cfg.OrganizationID, w.cfg.WorkTypeID)
 	consumerName := fmt.Sprintf("worker-%d", w.workerID)
 
 	cons, err := w.js.CreateOrUpdateConsumer(ctx, "TASKS", jetstream.ConsumerConfig{
@@ -213,6 +223,13 @@ func (w *Worker) processMessage(ctx context.Context, msg jetstream.Msg) {
 	)
 
 	// Вызов пользовательского handler
+	settings, err := w.resolveSettings(ctx, task.ConfigRef)
+	if err != nil {
+		w.publishResult(ctx, task.ReplyTo, Result{Success: false, Error: err.Error(), WorkerID: w.workerID}, msg)
+		return
+	}
+	task.Settings = settings
+
 	result, err := w.handler.Handle(ctx, task)
 	if err != nil {
 		result = Result{
@@ -225,6 +242,10 @@ func (w *Worker) processMessage(ctx context.Context, msg jetstream.Msg) {
 	}
 
 	// Публикация результата в ReplyTo subject (RESULTS stream)
+	w.publishResult(ctx, task.ReplyTo, result, msg)
+}
+
+func (w *Worker) publishResult(ctx context.Context, replyTo string, result Result, msg jetstream.Msg) {
 	resultJSON, marshalErr := json.Marshal(result)
 	if marshalErr != nil {
 		w.logger.Error("marshal result", slog.String("error", marshalErr.Error()))
@@ -232,9 +253,9 @@ func (w *Worker) processMessage(ctx context.Context, msg jetstream.Msg) {
 		return
 	}
 
-	if _, pubErr := w.js.Publish(ctx, task.ReplyTo, resultJSON); pubErr != nil {
+	if _, pubErr := w.js.Publish(ctx, replyTo, resultJSON); pubErr != nil {
 		w.logger.Error("publish result",
-			slog.String("reply_to", task.ReplyTo),
+			slog.String("reply_to", replyTo),
 			slog.String("error", pubErr.Error()),
 		)
 		_ = msg.Nak()
@@ -244,7 +265,6 @@ func (w *Worker) processMessage(ctx context.Context, msg jetstream.Msg) {
 	_ = msg.Ack()
 
 	w.logger.Info("task completed",
-		slog.Int("step_id", int(task.StepID)),
 		slog.Bool("success", result.Success),
 	)
 }

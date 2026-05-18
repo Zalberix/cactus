@@ -10,12 +10,13 @@ import (
 )
 
 const createNewWorker = `-- name: CreateNewWorker :one
-INSERT INTO "worker" (work_type_id, worker_settings_schema_id, "name", metadata)
-VALUES ($1, $2, $3, $4)
-RETURNING id, work_type_id, worker_settings_schema_id, name, metadata, registered_at, last_heartbeat_at
+INSERT INTO "worker" (organization_id, work_type_id, worker_settings_schema_id, "name", metadata)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, organization_id, work_type_id, worker_settings_schema_id, name, metadata, registered_at, last_heartbeat_at
 `
 
 type CreateNewWorkerParams struct {
+	OrganizationID         int32  `json:"organization_id"`
 	WorkTypeID             int32  `json:"work_type_id"`
 	WorkerSettingsSchemaID int32  `json:"worker_settings_schema_id"`
 	Name                   string `json:"name"`
@@ -24,6 +25,7 @@ type CreateNewWorkerParams struct {
 
 func (q *Queries) CreateNewWorker(ctx context.Context, arg CreateNewWorkerParams) (Worker, error) {
 	row := q.db.QueryRow(ctx, createNewWorker,
+		arg.OrganizationID,
 		arg.WorkTypeID,
 		arg.WorkerSettingsSchemaID,
 		arg.Name,
@@ -32,6 +34,7 @@ func (q *Queries) CreateNewWorker(ctx context.Context, arg CreateNewWorkerParams
 	var i Worker
 	err := row.Scan(
 		&i.ID,
+		&i.OrganizationID,
 		&i.WorkTypeID,
 		&i.WorkerSettingsSchemaID,
 		&i.Name,
@@ -53,7 +56,7 @@ func (q *Queries) DeleteWorker(ctx context.Context, id int32) error {
 }
 
 const getNewWorkerByID = `-- name: GetNewWorkerByID :one
-SELECT id, work_type_id, worker_settings_schema_id, name, metadata, registered_at, last_heartbeat_at FROM "worker"
+SELECT id, organization_id, work_type_id, worker_settings_schema_id, name, metadata, registered_at, last_heartbeat_at FROM "worker"
 WHERE id = $1
 `
 
@@ -62,6 +65,7 @@ func (q *Queries) GetNewWorkerByID(ctx context.Context, id int32) (Worker, error
 	var i Worker
 	err := row.Scan(
 		&i.ID,
+		&i.OrganizationID,
 		&i.WorkTypeID,
 		&i.WorkerSettingsSchemaID,
 		&i.Name,
@@ -72,22 +76,24 @@ func (q *Queries) GetNewWorkerByID(ctx context.Context, id int32) (Worker, error
 	return i, err
 }
 
-const getWorkerByWorkTypeAndName = `-- name: GetWorkerByWorkTypeAndName :one
-SELECT id, work_type_id, worker_settings_schema_id, name, metadata, registered_at, last_heartbeat_at FROM "worker"
-WHERE work_type_id = $1 AND "name" = $2
+const getWorkerByOrgWorkTypeAndName = `-- name: GetWorkerByOrgWorkTypeAndName :one
+SELECT id, organization_id, work_type_id, worker_settings_schema_id, name, metadata, registered_at, last_heartbeat_at FROM "worker"
+WHERE organization_id = $1 AND work_type_id = $2 AND "name" = $3
 LIMIT 1
 `
 
-type GetWorkerByWorkTypeAndNameParams struct {
-	WorkTypeID int32  `json:"work_type_id"`
-	Name       string `json:"name"`
+type GetWorkerByOrgWorkTypeAndNameParams struct {
+	OrganizationID int32  `json:"organization_id"`
+	WorkTypeID     int32  `json:"work_type_id"`
+	Name           string `json:"name"`
 }
 
-func (q *Queries) GetWorkerByWorkTypeAndName(ctx context.Context, arg GetWorkerByWorkTypeAndNameParams) (Worker, error) {
-	row := q.db.QueryRow(ctx, getWorkerByWorkTypeAndName, arg.WorkTypeID, arg.Name)
+func (q *Queries) GetWorkerByOrgWorkTypeAndName(ctx context.Context, arg GetWorkerByOrgWorkTypeAndNameParams) (Worker, error) {
+	row := q.db.QueryRow(ctx, getWorkerByOrgWorkTypeAndName, arg.OrganizationID, arg.WorkTypeID, arg.Name)
 	var i Worker
 	err := row.Scan(
 		&i.ID,
+		&i.OrganizationID,
 		&i.WorkTypeID,
 		&i.WorkerSettingsSchemaID,
 		&i.Name,
@@ -98,8 +104,43 @@ func (q *Queries) GetWorkerByWorkTypeAndName(ctx context.Context, arg GetWorkerB
 	return i, err
 }
 
+const listNewWorkersByOrganizationID = `-- name: ListNewWorkersByOrganizationID :many
+SELECT id, organization_id, work_type_id, worker_settings_schema_id, name, metadata, registered_at, last_heartbeat_at FROM "worker"
+WHERE organization_id = $1
+ORDER BY id
+`
+
+func (q *Queries) ListNewWorkersByOrganizationID(ctx context.Context, organizationID int32) ([]Worker, error) {
+	rows, err := q.db.Query(ctx, listNewWorkersByOrganizationID, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Worker
+	for rows.Next() {
+		var i Worker
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkTypeID,
+			&i.WorkerSettingsSchemaID,
+			&i.Name,
+			&i.Metadata,
+			&i.RegisteredAt,
+			&i.LastHeartbeatAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listNewWorkersByWorkTypeID = `-- name: ListNewWorkersByWorkTypeID :many
-SELECT id, work_type_id, worker_settings_schema_id, name, metadata, registered_at, last_heartbeat_at FROM "worker"
+SELECT id, organization_id, work_type_id, worker_settings_schema_id, name, metadata, registered_at, last_heartbeat_at FROM "worker"
 WHERE work_type_id = $1
 ORDER BY id
 `
@@ -115,6 +156,7 @@ func (q *Queries) ListNewWorkersByWorkTypeID(ctx context.Context, workTypeID int
 		var i Worker
 		if err := rows.Scan(
 			&i.ID,
+			&i.OrganizationID,
 			&i.WorkTypeID,
 			&i.WorkerSettingsSchemaID,
 			&i.Name,
@@ -204,7 +246,7 @@ const updateNewWorkerSchema = `-- name: UpdateNewWorkerSchema :one
 UPDATE "worker"
 SET worker_settings_schema_id = $2
 WHERE id = $1
-RETURNING id, work_type_id, worker_settings_schema_id, name, metadata, registered_at, last_heartbeat_at
+RETURNING id, organization_id, work_type_id, worker_settings_schema_id, name, metadata, registered_at, last_heartbeat_at
 `
 
 type UpdateNewWorkerSchemaParams struct {
@@ -217,6 +259,7 @@ func (q *Queries) UpdateNewWorkerSchema(ctx context.Context, arg UpdateNewWorker
 	var i Worker
 	err := row.Scan(
 		&i.ID,
+		&i.OrganizationID,
 		&i.WorkTypeID,
 		&i.WorkerSettingsSchemaID,
 		&i.Name,

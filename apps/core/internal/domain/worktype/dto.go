@@ -58,11 +58,6 @@ type SettingsSchemaBrief struct {
 }
 
 // CreateWorkTypeResponse — ответ с типом работы и bootstrap-токеном.
-type CreateWorkTypeResponse struct {
-	WorkType       db.WorkType `json:"work_type"`
-	BootstrapToken string      `json:"bootstrap_token"`
-}
-
 // --- Worker DTOs ---
 
 // RegisterWorkerRequest — запрос регистрации воркера.
@@ -74,7 +69,49 @@ type RegisterWorkerRequest struct {
 
 type RegisterWorkerResponse struct {
 	db.Worker
-	RevisionID int32 `json:"revision_id"`
+	RevisionID int32                   `json:"revision_id"`
+	NATS       NATSCredentialsResponse `json:"nats"`
+}
+
+type NATSCredentialsResponse struct {
+	URL         string `json:"url"`
+	CAFile      string `json:"ca_file,omitempty"`
+	UserJWT     string `json:"user_jwt"`
+	UserSeed    string `json:"user_seed"`
+	Credentials string `json:"credentials"`
+}
+
+type CreateWorkerBootstrapTokenRequest struct {
+	Name             string     `json:"name" binding:"required,min=1,max=255"`
+	WorkTypeID       int32      `json:"work_type_id" binding:"required"`
+	Description      string     `json:"description"`
+	ExpiresAt        *time.Time `json:"expires_at"`
+	MaxActiveWorkers int32      `json:"max_active_workers" binding:"required,min=1"`
+}
+
+type WorkerBootstrapTokenResponse struct {
+	ID                     int32      `json:"id"`
+	OrganizationID         int32      `json:"organization_id"`
+	WorkTypeID             int32      `json:"work_type_id"`
+	Name                   string     `json:"name"`
+	Description            string     `json:"description,omitempty"`
+	Status                 string     `json:"status"`
+	ExpiresAt              *time.Time `json:"expires_at,omitempty"`
+	MaxActiveWorkers       int32      `json:"max_active_workers"`
+	ActiveWorkerCount      int32      `json:"active_worker_count"`
+	TotalRegistrationCount int32      `json:"total_registration_count"`
+	LastUsedAt             *time.Time `json:"last_used_at,omitempty"`
+	CreatedAt              time.Time  `json:"created_at"`
+	RevokedAt              *time.Time `json:"revoked_at,omitempty"`
+}
+
+type CreateWorkerBootstrapTokenResponse struct {
+	Token     WorkerBootstrapTokenResponse `json:"token"`
+	Plaintext string                       `json:"plaintext"`
+}
+
+type RevokeWorkerBootstrapTokenRequest struct {
+	RevokeActiveSessions bool `json:"revoke_active_sessions"`
 }
 
 // WorkerResponse — воркер с вычисленным статусом.

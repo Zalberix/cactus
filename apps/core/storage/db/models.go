@@ -131,23 +131,48 @@ type WorkType struct {
 	DeletedAt   pgtype.Timestamp `json:"deleted_at"`
 }
 
-type WorkTypeToken struct {
-	ID         int32            `json:"id"`
-	WorkTypeID int32            `json:"work_type_id"`
-	TokenHash  string           `json:"token_hash"`
-	IsActive   bool             `json:"is_active"`
-	CreatedAt  pgtype.Timestamp `json:"created_at"`
-	DeletedAt  pgtype.Timestamp `json:"deleted_at"`
-}
-
 type Worker struct {
 	ID                     int32            `json:"id"`
+	OrganizationID         int32            `json:"organization_id"`
 	WorkTypeID             int32            `json:"work_type_id"`
 	WorkerSettingsSchemaID int32            `json:"worker_settings_schema_id"`
 	Name                   string           `json:"name"`
 	Metadata               []byte           `json:"metadata"`
 	RegisteredAt           pgtype.Timestamp `json:"registered_at"`
 	LastHeartbeatAt        pgtype.Timestamp `json:"last_heartbeat_at"`
+}
+
+type WorkerBootstrapToken struct {
+	ID                     int32            `json:"id"`
+	OrganizationID         int32            `json:"organization_id"`
+	WorkTypeID             int32            `json:"work_type_id"`
+	Name                   string           `json:"name"`
+	Description            pgtype.Text      `json:"description"`
+	TokenHash              string           `json:"token_hash"`
+	Status                 string           `json:"status"`
+	MaxActiveWorkers       int32            `json:"max_active_workers"`
+	TotalRegistrationCount int32            `json:"total_registration_count"`
+	ExpiresAt              pgtype.Timestamp `json:"expires_at"`
+	LastUsedAt             pgtype.Timestamp `json:"last_used_at"`
+	CreatedByUserID        pgtype.Int4      `json:"created_by_user_id"`
+	RevokedAt              pgtype.Timestamp `json:"revoked_at"`
+	RevokedByUserID        pgtype.Int4      `json:"revoked_by_user_id"`
+	CreatedAt              pgtype.Timestamp `json:"created_at"`
+	UpdatedAt              pgtype.Timestamp `json:"updated_at"`
+	DeletedAt              pgtype.Timestamp `json:"deleted_at"`
+}
+
+type WorkerNatsSession struct {
+	ID                   int32            `json:"id"`
+	WorkerID             int32            `json:"worker_id"`
+	BootstrapTokenID     int32            `json:"bootstrap_token_id"`
+	NatsAccountPublicKey string           `json:"nats_account_public_key"`
+	NatsUserPublicKey    string           `json:"nats_user_public_key"`
+	NatsUserJwt          string           `json:"nats_user_jwt"`
+	Permissions          []byte           `json:"permissions"`
+	RevokedAt            pgtype.Timestamp `json:"revoked_at"`
+	RevokedByUserID      pgtype.Int4      `json:"revoked_by_user_id"`
+	CreatedAt            pgtype.Timestamp `json:"created_at"`
 }
 
 type WorkerSettingsRevision struct {

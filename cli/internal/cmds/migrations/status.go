@@ -13,6 +13,12 @@ import (
 var StatusMigrationCmd = &cli.Command{
 	Name:  "status",
 	Usage: "Show migration status",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "migrations-path",
+			Value: "./libs/migrations",
+		},
+	},
 	Action: func(c *cli.Context) error {
 		pterm.Info.Println("Running migrations")
 

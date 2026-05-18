@@ -10,6 +10,7 @@ import (
 	"github.com/zalberix/cactus/cli/internal/cmds/kill"
 	"github.com/zalberix/cactus/cli/internal/cmds/linter"
 	"github.com/zalberix/cactus/cli/internal/cmds/migrations"
+	"github.com/zalberix/cactus/cli/internal/cmds/natsdev"
 	"github.com/zalberix/cactus/cli/internal/cmds/seed"
 	"github.com/zalberix/cactus/cli/internal/cmds/sqlcgen"
 )
@@ -22,6 +23,7 @@ func main() {
 			migrations.Command(),
 			dev.Cmd,
 			kill.Cmd,
+			natsdev.Cmd,
 			sqlcgen.Cmd,
 			seed.Cmd,
 			linter.LintCmd,

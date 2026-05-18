@@ -4,6 +4,8 @@ go 1.25.5
 
 require (
 	github.com/jackc/pgx/v5 v5.9.1
+	github.com/nats-io/jwt/v2 v2.8.1
+	github.com/nats-io/nkeys v0.4.15
 	github.com/pressly/goose/v3 v3.27.0
 	github.com/pterm/pterm v0.12.82
 	github.com/rjeczalik/notify v0.9.3

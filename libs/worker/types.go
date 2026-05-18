@@ -21,7 +21,26 @@ type TaskMessage struct {
 	Attempt        int32          `json:"attempt"`
 	ReplyTo        string         `json:"reply_to"`
 	Input          map[string]any `json:"input"`
+	ConfigRef      ConfigRef      `json:"config_ref"`
+	Settings       map[string]any `json:"-"`
 	IdempotencyKey string         `json:"idempotency_key"`
+}
+
+type ConfigRef struct {
+	OrganizationID int32  `json:"organization_id"`
+	WorkTypeID     int32  `json:"work_type_id"`
+	SchemaID       int32  `json:"schema_id"`
+	RevisionID     int32  `json:"revision_id"`
+	ConfigHash     string `json:"config_hash"`
+	ConfigSubject  string `json:"config_subject"`
+}
+
+type NATSCredentials struct {
+	URL         string `json:"url"`
+	CAFile      string `json:"ca_file,omitempty"`
+	UserJWT     string `json:"user_jwt"`
+	UserSeed    string `json:"user_seed"`
+	Credentials string `json:"credentials"`
 }
 
 // Result --- результат выполнения задачи, публикуется в ReplyTo subject.
@@ -35,9 +54,10 @@ type Result struct {
 
 // Config --- конфигурация Worker SDK.
 type Config struct {
-	NatsURL                string                            `json:"nats_url"`
 	ManagerURL             string                            `json:"manager_url"`
 	BootstrapToken         string                            `json:"bootstrap_token"`
+	NatsCAFile             string                            `json:"nats_ca_file"`
+	OrganizationID         int32                             `json:"organization_id"`
 	WorkTypeID             int32                             `json:"work_type_id"`
 	WorkerSettingsSchemaID int32                             `json:"worker_settings_schema_id"`
 	RevisionID             int32                             `json:"revision_id"`

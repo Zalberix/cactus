@@ -17,7 +17,8 @@
     "users": "Пользователи",
     "roles": "Роли",
     "systems": "Системы",
-    "tokens": "Токены"
+    "tokens": "Токены",
+    "workerTokens": "Worker-токены"
   },
   "workflows": {
     "create": "Создать процесс",
@@ -225,6 +226,33 @@
     "validation": {
       "nameRequired": "Название токена обязательно"
     }
+  },
+  "workerTokens": {
+    "title": "Bootstrap-токены worker-ов",
+    "description": "Выпуск и отзыв токенов организации, которые используются при регистрации worker-ов.",
+    "create": "Создать токен",
+    "createDescription": "Создайте одноразово отображаемый bootstrap-токен для worker-ов выбранного типа.",
+    "name": "Название",
+    "namePlaceholder": "SMTP production pool",
+    "workType": "Тип работы",
+    "selectWorkType": "Выберите тип работы",
+    "status": "Статус",
+    "expiresAt": "Истекает",
+    "activeWorkers": "Активные worker-ы",
+    "maxActiveWorkers": "Макс. активных worker-ов",
+    "lastUsedAt": "Последнее использование",
+    "createdAt": "Создан",
+    "descriptionField": "Описание",
+    "descriptionPlaceholder": "Необязательные заметки",
+    "token": "Bootstrap-токен",
+    "revoke": "Отозвать",
+    "revokeDescription": "Отозванные bootstrap-токены больше не регистрируют новых worker-ов.",
+    "created": "Токен создан",
+    "revoked": "Токен отозван",
+    "emptyTitle": "Нет bootstrap-токенов worker-ов",
+    "emptyBody": "Создайте scoped-токен перед запуском worker-ов в этой организации.",
+    "plaintextWarning": "Этот токен показывается один раз. Сохраните его перед закрытием окна.",
+    "revokeActiveSessions": "Также отозвать активные worker-сессии, созданные этим токеном"
   },
   "workers": {
     "title": "Сервисы",

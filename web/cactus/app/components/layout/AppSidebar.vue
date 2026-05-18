@@ -7,6 +7,7 @@ import {
   Users,
   Shield,
   Box,
+  KeyRound,
   ChevronDown,
   ChevronsLeft,
   ChevronsRight,
@@ -77,6 +78,11 @@ const settingsItems = computed(() => [
     label: t('nav.systems'),
     icon: Box,
     to: `${orgBase.value}/settings/systems`,
+  },
+  {
+    label: t('nav.workerTokens'),
+    icon: KeyRound,
+    to: `${orgBase.value}/settings/worker-tokens`,
   },
 ])
 

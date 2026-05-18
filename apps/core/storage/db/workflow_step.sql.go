@@ -99,11 +99,16 @@ SELECT
     wt.name AS work_type_name,
     wt.code AS work_type_code,
     wt.meta AS work_type_meta,
+    wss.id AS worker_settings_schema_id,
+    sys.organization_id AS organization_id,
     wsr.settings_data AS config,
     wss.settings_schema,
     wss.input_schema,
     wss.output_schema
 FROM "workflow_step" ws
+JOIN "workflow_version" wv ON wv.id = ws.workflow_version_id
+JOIN "workflow" wf ON wf.id = wv.workflow_id
+JOIN "system" sys ON sys.id = wf.system_id
 LEFT JOIN "work_type" wt ON wt.id = ws.work_type_id
 LEFT JOIN "worker_settings_revision" wsr ON wsr.id = ws.worker_settings_revision_id
 LEFT JOIN "worker_settings_schema" wss ON wss.id = wsr.worker_settings_schema_id
@@ -127,6 +132,8 @@ type ListEnrichedStepsByVersionIDRow struct {
 	WorkTypeName             pgtype.Text      `json:"work_type_name"`
 	WorkTypeCode             pgtype.Text      `json:"work_type_code"`
 	WorkTypeMeta             []byte           `json:"work_type_meta"`
+	WorkerSettingsSchemaID   pgtype.Int4      `json:"worker_settings_schema_id"`
+	OrganizationID           pgtype.Int4      `json:"organization_id"`
 	Config                   []byte           `json:"config"`
 	SettingsSchema           []byte           `json:"settings_schema"`
 	InputSchema              []byte           `json:"input_schema"`
@@ -158,6 +165,8 @@ func (q *Queries) ListEnrichedStepsByVersionID(ctx context.Context, workflowVers
 			&i.WorkTypeName,
 			&i.WorkTypeCode,
 			&i.WorkTypeMeta,
+			&i.WorkerSettingsSchemaID,
+			&i.OrganizationID,
 			&i.Config,
 			&i.SettingsSchema,
 			&i.InputSchema,

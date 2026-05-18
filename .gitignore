@@ -41,5 +41,10 @@
 /.worker_id/
 /.worktrees/
 /configs/cactus-services-lock.yaml
+/configs/nats/certs/*
+/configs/nats/creds/*
+/configs/nats/jwt/*
+/docker/assets/nats-jwt/
+!/configs/nats/README.md
 /docs/superpowers/
 /docs/questions/

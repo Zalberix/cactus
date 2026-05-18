@@ -47,11 +47,16 @@ SELECT
     wt.name AS work_type_name,
     wt.code AS work_type_code,
     wt.meta AS work_type_meta,
+    wss.id AS worker_settings_schema_id,
+    sys.organization_id AS organization_id,
     wsr.settings_data AS config,
     wss.settings_schema,
     wss.input_schema,
     wss.output_schema
 FROM "workflow_step" ws
+JOIN "workflow_version" wv ON wv.id = ws.workflow_version_id
+JOIN "workflow" wf ON wf.id = wv.workflow_id
+JOIN "system" sys ON sys.id = wf.system_id
 LEFT JOIN "work_type" wt ON wt.id = ws.work_type_id
 LEFT JOIN "worker_settings_revision" wsr ON wsr.id = ws.worker_settings_revision_id
 LEFT JOIN "worker_settings_schema" wss ON wss.id = wsr.worker_settings_schema_id

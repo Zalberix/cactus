@@ -7,7 +7,15 @@ http_server:
 db:
   url: "postgres://root:root@localhost:5432/postgres?sslmode=disable"
 nats:
-  url: "nats://localhost:4222"
+  url: "tls://localhost:4222"
+  ca_file: "configs/nats/certs/ca.pem"
+  credentials_file: "configs/nats/creds/core.creds"
+  system_credentials_file: "configs/nats/creds/sys.creds"
+  account_jwt_file: "configs/nats/jwt/account.jwt"
+  account_public_key: ""
+  account_seed_env: "NATS_ACCOUNT_SEED"
+  account_seed_file: "configs/nats/jwt/account.seed"
+  worker_credentials_enabled: true
 temporal:
   host_port: "127.0.0.1:7233"
   namespace: "default"

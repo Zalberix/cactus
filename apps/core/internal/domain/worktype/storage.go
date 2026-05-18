@@ -8,6 +8,21 @@ import (
 	db "github.com/zalberix/cactus/apps/core/storage/db"
 )
 
+type RegistrationTx interface {
+	GetActiveWorkerBootstrapTokenByHashForUpdate(ctx context.Context, tokenHash string) (db.WorkerBootstrapToken, error)
+	GetWorkerSettingsSchemaByVersion(ctx context.Context, arg db.GetWorkerSettingsSchemaByVersionParams) (db.WorkerSettingsSchema, error)
+	CreateWorkerSettingsSchema(ctx context.Context, arg db.CreateWorkerSettingsSchemaParams) (db.WorkerSettingsSchema, error)
+	ListWorkerSettingsRevisionsBySchemaID(ctx context.Context, workerSettingsSchemaID int32) ([]db.WorkerSettingsRevision, error)
+	CreateWorkerSettingsRevision(ctx context.Context, arg db.CreateWorkerSettingsRevisionParams) (db.WorkerSettingsRevision, error)
+	GetWorkerByOrgWorkTypeAndName(ctx context.Context, arg db.GetWorkerByOrgWorkTypeAndNameParams) (db.Worker, error)
+	CreateNewWorker(ctx context.Context, arg db.CreateNewWorkerParams) (db.Worker, error)
+	UpdateNewWorkerSchema(ctx context.Context, arg db.UpdateNewWorkerSchemaParams) (db.Worker, error)
+	CountActiveWorkersByBootstrapTokenExcludingWorker(ctx context.Context, arg db.CountActiveWorkersByBootstrapTokenExcludingWorkerParams) (int32, error)
+	UpdateNewWorkerHeartbeat(ctx context.Context, id int32) error
+	TouchWorkerBootstrapTokenUse(ctx context.Context, id int32) (db.WorkerBootstrapToken, error)
+	CreateWorkerNATSSession(ctx context.Context, arg db.CreateWorkerNATSSessionParams) (db.WorkerNatsSession, error)
+}
+
 // Storage — интерфейс хранилища для worktype домена.
 // Реализуется *store.Store через встроенный *db.Queries.
 type Storage interface {
@@ -17,19 +32,30 @@ type Storage interface {
 	ListWorkTypes(ctx context.Context) ([]db.WorkType, error)
 	SoftDeleteWorkType(ctx context.Context, id int32) error
 
-	// Work Type Token
-	CreateWorkTypeToken(ctx context.Context, arg db.CreateWorkTypeTokenParams) (db.WorkTypeToken, error)
-	GetActiveWorkTypeTokenByHash(ctx context.Context, tokenHash string) (db.WorkTypeToken, error)
+	// Worker Bootstrap Token
+	CreateWorkerBootstrapToken(ctx context.Context, arg db.CreateWorkerBootstrapTokenParams) (db.WorkerBootstrapToken, error)
+	GetActiveWorkerBootstrapTokenByHash(ctx context.Context, tokenHash string) (db.WorkerBootstrapToken, error)
+	ListWorkerBootstrapTokensByOrganization(ctx context.Context, organizationID int32) ([]db.ListWorkerBootstrapTokensByOrganizationRow, error)
+	TouchWorkerBootstrapTokenUse(ctx context.Context, id int32) (db.WorkerBootstrapToken, error)
+	RevokeWorkerBootstrapToken(ctx context.Context, arg db.RevokeWorkerBootstrapTokenParams) (db.WorkerBootstrapToken, error)
+	WithRegistrationTx(ctx context.Context, fn func(RegistrationTx) error) error
 
 	// Worker
 	CreateNewWorker(ctx context.Context, arg db.CreateNewWorkerParams) (db.Worker, error)
 	GetNewWorkerByID(ctx context.Context, id int32) (db.Worker, error)
-	GetWorkerByWorkTypeAndName(ctx context.Context, arg db.GetWorkerByWorkTypeAndNameParams) (db.Worker, error)
+	GetWorkerByOrgWorkTypeAndName(ctx context.Context, arg db.GetWorkerByOrgWorkTypeAndNameParams) (db.Worker, error)
 	ListNewWorkersByWorkTypeID(ctx context.Context, workTypeID int32) ([]db.Worker, error)
+	ListNewWorkersByOrganizationID(ctx context.Context, organizationID int32) ([]db.Worker, error)
 	UpdateNewWorkerHeartbeat(ctx context.Context, id int32) error
 	UpdateNewWorkerSchema(ctx context.Context, arg db.UpdateNewWorkerSchemaParams) (db.Worker, error)
 	DeleteWorker(ctx context.Context, id int32) error
 	ListWorkflowUsagesByWorkerID(ctx context.Context, id int32) ([]db.ListWorkflowUsagesByWorkerIDRow, error)
+
+	// Worker NATS Session
+	CreateWorkerNATSSession(ctx context.Context, arg db.CreateWorkerNATSSessionParams) (db.WorkerNatsSession, error)
+	ListActiveWorkerNATSSessionsByBootstrapToken(ctx context.Context, bootstrapTokenID int32) ([]db.WorkerNatsSession, error)
+	RevokeWorkerNATSSession(ctx context.Context, arg db.RevokeWorkerNATSSessionParams) (db.WorkerNatsSession, error)
+	RevokeWorkerNATSSessionsByBootstrapToken(ctx context.Context, arg db.RevokeWorkerNATSSessionsByBootstrapTokenParams) ([]db.WorkerNatsSession, error)
 
 	// Worker Settings Schema
 	CreateWorkerSettingsSchema(ctx context.Context, arg db.CreateWorkerSettingsSchemaParams) (db.WorkerSettingsSchema, error)

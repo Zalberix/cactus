@@ -70,8 +70,8 @@ func SeedDemo(ctx context.Context, db *pgxpool.Pool) error {
 			workflow_id, created_by_user_id, version_number, is_valid, is_active, traffic_weight, is_control_group
 		)
 		VALUES (
-			(SELECT id FROM workflow WHERE name = 'Demo Email Notification'),
-			(SELECT id FROM "user" WHERE email = 'admin@test.local'),
+			(SELECT id FROM workflow WHERE name = 'Demo Email Notification' ORDER BY id LIMIT 1),
+			(SELECT id FROM "user" WHERE email = 'admin@test.local' ORDER BY id LIMIT 1),
 			1,
 			true,
 			true,
@@ -123,14 +123,14 @@ func SeedDemo(ctx context.Context, db *pgxpool.Pool) error {
 				(SELECT wss.id FROM worker_settings_schema wss
 				 JOIN work_type wt ON wt.id = wss.work_type_id
 				 WHERE wt.code = 'smtp' LIMIT 1),
-				(SELECT id FROM "user" WHERE email = 'admin@test.local'),
+				(SELECT id FROM "user" WHERE email = 'admin@test.local' ORDER BY id LIMIT 1),
 				'{"host": "mailhog", "port": 1025}'::jsonb
 			),
 			(
 				(SELECT wss.id FROM worker_settings_schema wss
 				 JOIN work_type wt ON wt.id = wss.work_type_id
 				 WHERE wt.code = 'telegram' LIMIT 1),
-				(SELECT id FROM "user" WHERE email = 'admin@test.local'),
+				(SELECT id FROM "user" WHERE email = 'admin@test.local' ORDER BY id LIMIT 1),
 				'{"bot_token": "demo-bot-token"}'::jsonb
 			)
 		ON CONFLICT DO NOTHING
@@ -232,8 +232,8 @@ func SeedDemo(ctx context.Context, db *pgxpool.Pool) error {
 	_, err = db.Exec(ctx, `
 		INSERT INTO workflow_token (system_token_id, workflow_id)
 		VALUES (
-			(SELECT id FROM system_token WHERE public_token = 'demo-public-token'),
-			(SELECT id FROM workflow WHERE name = 'Demo Email Notification')
+			(SELECT id FROM system_token WHERE public_token = 'demo-public-token' ORDER BY id LIMIT 1),
+			(SELECT id FROM workflow WHERE name = 'Demo Email Notification' ORDER BY id LIMIT 1)
 		)
 		ON CONFLICT DO NOTHING
 	`)

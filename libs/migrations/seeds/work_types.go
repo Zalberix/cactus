@@ -7,34 +7,31 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const htmlBootstrapTokenHash = "fcaf410de830d072b301a2e7ca1092320647584c2585c9b5e5f64cebf1990164"
+const (
+	smtpOrgBootstrapTokenHash     = "7fb1131c8efddfa50392b96c971ee3358d18a10c192eaf97e409b916558a22bc"
+	templateOrgBootstrapTokenHash = "16f657f9a9a798fe31dc35dd9b601499d56a285accfde0748e1af9a035f7d5fc"
+	telegramOrgBootstrapTokenHash = "79b8a204126030209d98fa2f53e730e3da31f891e7691e82e7c419d337b69d67"
+)
 
 // SeedWorkTypes вставляет базовые типы работ (smtp, telegram, control-типы)
 // и создаёт dev bootstrap-токены для них.
 func SeedWorkTypes(ctx context.Context, db *pgxpool.Pool) error {
 	workTypes := []struct {
-		Name      string
-		Code      string
-		Meta      string
-		TokenHash string // sha256(plaintext)
+		Name string
+		Code string
+		Meta string
 	}{
-		// plaintext: "dev-smtp-bootstrap-token"
 		{
 			"Email SMTP", "smtp",
 			`{"icon":"mail","color":"#3b82f6","category":"Channels"}`,
-			"224962dd1073f04c98ccd8f27fe21a9c1046619649fad79743bd41c2fc834118",
 		},
-		// plaintext: "dev-telegram-bootstrap-token"
 		{
 			"Telegram", "telegram",
 			`{"icon":"message-square","color":"#0088cc","category":"Channels"}`,
-			"",
 		},
-		// plaintext: "dev-html-bootstrap-token"
 		{
 			"HTML Template", "html",
 			`{"icon":"file-code","color":"#10b981","category":"Content"}`,
-			htmlBootstrapTokenHash,
 		},
 	}
 
@@ -47,21 +44,34 @@ func SeedWorkTypes(ctx context.Context, db *pgxpool.Pool) error {
 		if err != nil {
 			return fmt.Errorf("seed work type %s: %w", wt.Code, err)
 		}
+	}
 
-		if wt.TokenHash == "" {
-			continue
-		}
+	orgTokens := []struct {
+		WorkTypeCode     string
+		Name             string
+		TokenHash        string
+		MaxActiveWorkers int
+	}{
+		{"smtp", "dev-smtp-org-1", smtpOrgBootstrapTokenHash, 100},
+		{"html", "dev-template-org-1", templateOrgBootstrapTokenHash, 100},
+		{"telegram", "dev-telegram-org-1", telegramOrgBootstrapTokenHash, 100},
+	}
 
-		_, err = db.Exec(ctx, `
-			INSERT INTO work_type_token (work_type_id, token_hash, is_active)
-			SELECT wt.id, $2::text, true
-			FROM work_type wt
-			WHERE wt.code = $1
-			ON CONFLICT (work_type_id) DO NOTHING
-		`, wt.Code, wt.TokenHash)
+	for _, token := range orgTokens {
+		_, err := db.Exec(ctx, `
+			INSERT INTO worker_bootstrap_token (
+				organization_id, work_type_id, name, token_hash, max_active_workers
+			)
+			SELECT org.id, wt.id, $3, $4, $5
+			FROM organization org
+			JOIN work_type wt ON wt.code = $2
+			WHERE org.code = $1
+			ON CONFLICT (token_hash) DO NOTHING
+		`, defaultOrganizationCode, token.WorkTypeCode, token.Name, token.TokenHash, token.MaxActiveWorkers)
 		if err != nil {
-			return fmt.Errorf("seed work type token %s: %w", wt.Code, err)
+			return fmt.Errorf("seed org worker bootstrap token %s: %w", token.WorkTypeCode, err)
 		}
 	}
+
 	return nil
 }

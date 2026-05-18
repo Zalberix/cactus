@@ -135,7 +135,7 @@ func (s *Service) SendMessage(ctx context.Context, req SendMessageRequest, publi
 // buildDAGInput собирает DAGInput из steps и deps активной версии.
 func (s *Service) buildDAGInput(ctx context.Context, versionID, messageID int32, messageValue []byte) (*temporaltypes.DAGInput, error) {
 	// Загружаем шаги
-	steps, err := s.store.ListWorkflowStepsByVersionID(ctx, versionID)
+	steps, err := s.store.ListEnrichedStepsByVersionID(ctx, versionID)
 	if err != nil {
 		return nil, fmt.Errorf("list steps: %w", err)
 	}
@@ -159,13 +159,14 @@ func (s *Service) buildDAGInput(ctx context.Context, versionID, messageID int32,
 		if step.WorkTypeID.Valid {
 			sd.WorkTypeID = step.WorkTypeID.Int32
 		}
+		if step.OrganizationID.Valid {
+			sd.OrganizationID = step.OrganizationID.Int32
+		}
 		if step.WorkerSettingsRevisionID.Valid {
 			sd.WorkerSettingsRevisionID = step.WorkerSettingsRevisionID.Int32
-			revision, err := s.store.GetWorkerSettingsRevisionByID(ctx, step.WorkerSettingsRevisionID.Int32)
-			if err != nil {
-				return nil, fmt.Errorf("get worker settings revision %d for step %d: %w", step.WorkerSettingsRevisionID.Int32, step.ID, err)
-			}
-			sd.WorkerSettingsSchemaID = revision.WorkerSettingsSchemaID
+		}
+		if step.WorkerSettingsSchemaID.Valid {
+			sd.WorkerSettingsSchemaID = step.WorkerSettingsSchemaID.Int32
 		}
 		// Per D-05: Timeout should be populated from WorkerSettingsRevision.
 		// In v1, we leave it as zero (default worker timeout will be used in activity).

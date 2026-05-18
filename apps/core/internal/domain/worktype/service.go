@@ -14,17 +14,38 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/zalberix/cactus/apps/core/internal/natsauth"
 	db "github.com/zalberix/cactus/apps/core/storage/db"
 )
 
-var ErrWorkflowTokenSystemMismatch = errors.New("system token and workflow belong to different systems")
+var (
+	ErrWorkflowTokenSystemMismatch              = errors.New("system token and workflow belong to different systems")
+	ErrWorkerBootstrapActiveWorkerLimitExceeded = errors.New("worker bootstrap token active worker limit exceeded")
+)
 
 // HeartbeatTimeout — таймаут для определения offline-статуса воркера.
 const HeartbeatTimeout = 90 * time.Second
 
 // Service — бизнес-логика управления типами работ, воркерами, системами.
 type Service struct {
-	store Storage
+	store      Storage
+	natsAuth   natsauth.Manager
+	natsURL    string
+	natsCAFile string
+}
+
+type ServiceOption func(*Service)
+
+func WithNATSURL(url string) ServiceOption {
+	return func(s *Service) {
+		s.natsURL = url
+	}
+}
+
+func WithNATSCAFile(caFile string) ServiceOption {
+	return func(s *Service) {
+		s.natsCAFile = caFile
+	}
 }
 
 type workerManifest struct {
@@ -38,8 +59,15 @@ type workerManifest struct {
 }
 
 // NewService создаёт новый worktype.Service.
-func NewService(store Storage) *Service {
-	return &Service{store: store}
+func NewService(store Storage, natsAuth natsauth.Manager, opts ...ServiceOption) *Service {
+	if natsAuth == nil {
+		natsAuth = natsauth.NoopManager{}
+	}
+	s := &Service{store: store, natsAuth: natsAuth}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // --- Helper functions ---
@@ -130,9 +158,7 @@ type schemaWorkerStats struct {
 }
 
 // CreateWorkType создаёт тип работы и генерирует bootstrap-токен.
-// Bootstrap-токен хэшируется SHA256 и хранится в work_type_token.
-// Plaintext возвращается один раз.
-func (s *Service) CreateWorkType(ctx context.Context, req CreateWorkTypeRequest) (CreateWorkTypeResponse, error) {
+func (s *Service) CreateWorkType(ctx context.Context, req CreateWorkTypeRequest) (db.WorkType, error) {
 	wt, err := s.store.CreateWorkType(ctx, db.CreateWorkTypeParams{
 		Name: req.Name,
 		Code: req.Code,
@@ -143,27 +169,9 @@ func (s *Service) CreateWorkType(ctx context.Context, req CreateWorkTypeRequest)
 		Meta: req.Meta,
 	})
 	if err != nil {
-		return CreateWorkTypeResponse{}, fmt.Errorf("create work type: %w", err)
+		return db.WorkType{}, fmt.Errorf("create work type: %w", err)
 	}
-
-	plaintext, hash, err := GenerateBootstrapToken()
-	if err != nil {
-		return CreateWorkTypeResponse{}, fmt.Errorf("generate bootstrap token: %w", err)
-	}
-
-	_, err = s.store.CreateWorkTypeToken(ctx, db.CreateWorkTypeTokenParams{
-		WorkTypeID: wt.ID,
-		TokenHash:  hash,
-		IsActive:   true,
-	})
-	if err != nil {
-		return CreateWorkTypeResponse{}, fmt.Errorf("create work type token: %w", err)
-	}
-
-	return CreateWorkTypeResponse{
-		WorkType:       wt,
-		BootstrapToken: plaintext,
-	}, nil
+	return wt, nil
 }
 
 // ListWorkTypes возвращает все типы работ.
@@ -287,17 +295,12 @@ func timestampString(ts pgtype.Timestamp) string {
 // --- Worker methods ---
 
 // RegisterWorker регистрирует воркер по bootstrap-токену и манифесту.
-// 1. Хэшируем bootstrap_token → ищем work_type_token
+// 1. Хэшируем bootstrap_token и ищем worker_bootstrap_token.
 // 2. Вычисляем манифест-хэш → ищем/создаём WorkerSettingsSchema
 // 3. Ищем/создаём Worker по (work_type_id, name)
 // 4. Обновляем heartbeat
 func (s *Service) RegisterWorker(ctx context.Context, req RegisterWorkerRequest) (RegisterWorkerResponse, error) {
-	// 1. Хэшируем bootstrap token и ищем work_type_token
 	tokenHash := sha256hex(req.BootstrapToken)
-	wtt, err := s.store.GetActiveWorkTypeTokenByHash(ctx, tokenHash)
-	if err != nil {
-		return RegisterWorkerResponse{}, fmt.Errorf("invalid bootstrap token: %w", err)
-	}
 
 	manifest, err := parseWorkerManifest(req.Manifest)
 	if err != nil {
@@ -311,71 +314,165 @@ func (s *Service) RegisterWorker(ctx context.Context, req RegisterWorkerRequest)
 	}
 
 	// 3. Ищем или создаём WorkerSettingsSchema
-	schema, err := s.store.GetWorkerSettingsSchemaByVersion(ctx, db.GetWorkerSettingsSchemaByVersionParams{
-		WorkTypeID: wtt.WorkTypeID,
-		Version:    manifestHash,
-	})
-	if err != nil {
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return RegisterWorkerResponse{}, fmt.Errorf("get schema: %w", err)
+	var registration RegisterWorkerResponse
+	err = s.store.WithRegistrationTx(ctx, func(tx RegistrationTx) error {
+		token, err := tx.GetActiveWorkerBootstrapTokenByHashForUpdate(ctx, tokenHash)
+		if err != nil {
+			return fmt.Errorf("invalid bootstrap token: %w", err)
 		}
-		// Создаём новую схему
-		schema, err = s.store.CreateWorkerSettingsSchema(ctx, db.CreateWorkerSettingsSchemaParams{
-			WorkTypeID:     wtt.WorkTypeID,
-			Version:        manifestHash,
-			SettingsSchema: manifest.SettingsSchema,
-			InputSchema:    manifest.InputSchema,
-			OutputSchema:   manifest.OutputSchema,
+
+		schema, err := tx.GetWorkerSettingsSchemaByVersion(ctx, db.GetWorkerSettingsSchemaByVersionParams{
+			WorkTypeID: token.WorkTypeID,
+			Version:    manifestHash,
 		})
 		if err != nil {
-			return RegisterWorkerResponse{}, fmt.Errorf("create worker settings schema: %w", err)
+			if !errors.Is(err, pgx.ErrNoRows) {
+				return fmt.Errorf("get schema: %w", err)
+			}
+			// Создаём новую схему
+			schema, err = tx.CreateWorkerSettingsSchema(ctx, db.CreateWorkerSettingsSchemaParams{
+				WorkTypeID:     token.WorkTypeID,
+				Version:        manifestHash,
+				SettingsSchema: manifest.SettingsSchema,
+				InputSchema:    manifest.InputSchema,
+				OutputSchema:   manifest.OutputSchema,
+			})
+			if err != nil {
+				return fmt.Errorf("create worker settings schema: %w", err)
+			}
 		}
-	}
 
-	// 4. Ищем или создаём воркер по (work_type_id, name)
-	revisionID, err := s.resolveRegistrationRevisionID(ctx, schema.ID)
+		// 4. Ищем или создаём воркер по (work_type_id, name)
+		revisionID, err := s.resolveRegistrationRevisionIDWithTx(ctx, tx, schema.ID)
+		if err != nil {
+			return err
+		}
+
+		worker, err := tx.GetWorkerByOrgWorkTypeAndName(ctx, db.GetWorkerByOrgWorkTypeAndNameParams{
+			OrganizationID: token.OrganizationID,
+			WorkTypeID:     token.WorkTypeID,
+			Name:           req.Name,
+		})
+		if err != nil {
+			if !errors.Is(err, pgx.ErrNoRows) {
+				return fmt.Errorf("get worker: %w", err)
+			}
+			// Создаём нового воркера
+			activeWorkerCount, err := tx.CountActiveWorkersByBootstrapTokenExcludingWorker(ctx, db.CountActiveWorkersByBootstrapTokenExcludingWorkerParams{
+				BootstrapTokenID:        token.ID,
+				HeartbeatTimeoutSeconds: int32(HeartbeatTimeout / time.Second),
+				ExcludeWorkerID:         0,
+			})
+			if err != nil {
+				return fmt.Errorf("count active workers for bootstrap token: %w", err)
+			}
+			if activeWorkerCount >= token.MaxActiveWorkers {
+				return ErrWorkerBootstrapActiveWorkerLimitExceeded
+			}
+
+			worker, err = tx.CreateNewWorker(ctx, db.CreateNewWorkerParams{
+				OrganizationID:         token.OrganizationID,
+				WorkTypeID:             token.WorkTypeID,
+				WorkerSettingsSchemaID: schema.ID,
+				Name:                   req.Name,
+				Metadata:               []byte("{}"),
+			})
+			if err != nil {
+				return fmt.Errorf("create worker: %w", err)
+			}
+		} else {
+			activeWorkerCount, err := tx.CountActiveWorkersByBootstrapTokenExcludingWorker(ctx, db.CountActiveWorkersByBootstrapTokenExcludingWorkerParams{
+				BootstrapTokenID:        token.ID,
+				HeartbeatTimeoutSeconds: int32(HeartbeatTimeout / time.Second),
+				ExcludeWorkerID:         worker.ID,
+			})
+			if err != nil {
+				return fmt.Errorf("count active workers for bootstrap token: %w", err)
+			}
+			if activeWorkerCount >= token.MaxActiveWorkers {
+				return ErrWorkerBootstrapActiveWorkerLimitExceeded
+			}
+		}
+
+		if worker.ID != 0 && worker.WorkerSettingsSchemaID != schema.ID {
+			// Обновляем схему если манифест изменился
+			worker, err = tx.UpdateNewWorkerSchema(ctx, db.UpdateNewWorkerSchemaParams{
+				ID:                     worker.ID,
+				WorkerSettingsSchemaID: schema.ID,
+			})
+			if err != nil {
+				return fmt.Errorf("update worker schema: %w", err)
+			}
+		}
+
+		// 5. Обновляем heartbeat (WORK-05 — и для новых, и для повторно регистрирующихся)
+		if err = tx.UpdateNewWorkerHeartbeat(ctx, worker.ID); err != nil {
+			return fmt.Errorf("update worker heartbeat: %w", err)
+		}
+		if _, err = tx.TouchWorkerBootstrapTokenUse(ctx, token.ID); err != nil {
+			return fmt.Errorf("touch bootstrap token use: %w", err)
+		}
+
+		creds, err := s.natsAuth.IssueWorker(ctx, natsauth.WorkerScope{
+			OrganizationID: token.OrganizationID,
+			WorkTypeID:     token.WorkTypeID,
+			WorkerID:       worker.ID,
+		})
+		if err != nil {
+			return fmt.Errorf("issue nats credentials: %w", err)
+		}
+		permissionsJSON, err := json.Marshal(creds.Permissions)
+		if err != nil {
+			return fmt.Errorf("marshal nats permissions: %w", err)
+		}
+		if _, err = tx.CreateWorkerNATSSession(ctx, db.CreateWorkerNATSSessionParams{
+			WorkerID:             worker.ID,
+			BootstrapTokenID:     token.ID,
+			NatsAccountPublicKey: creds.AccountPublicKey,
+			NatsUserPublicKey:    creds.UserPublicKey,
+			NatsUserJwt:          creds.UserJWT,
+			Permissions:          permissionsJSON,
+		}); err != nil {
+			return fmt.Errorf("create nats session: %w", err)
+		}
+
+		registration = RegisterWorkerResponse{
+			Worker:     worker,
+			RevisionID: revisionID,
+			NATS: NATSCredentialsResponse{
+				URL:         s.natsURL,
+				CAFile:      s.natsCAFile,
+				UserJWT:     creds.UserJWT,
+				UserSeed:    creds.UserSeed,
+				Credentials: string(creds.Creds),
+			},
+		}
+		return nil
+	})
 	if err != nil {
 		return RegisterWorkerResponse{}, err
 	}
+	return registration, nil
+}
 
-	worker, err := s.store.GetWorkerByWorkTypeAndName(ctx, db.GetWorkerByWorkTypeAndNameParams{
-		WorkTypeID: wtt.WorkTypeID,
-		Name:       req.Name,
+func (s *Service) resolveRegistrationRevisionIDWithTx(ctx context.Context, tx RegistrationTx, schemaID int32) (int32, error) {
+	revisions, err := tx.ListWorkerSettingsRevisionsBySchemaID(ctx, schemaID)
+	if err != nil {
+		return 0, fmt.Errorf("list worker settings revisions: %w", err)
+	}
+	if len(revisions) > 0 {
+		return revisions[0].ID, nil
+	}
+
+	revision, err := tx.CreateWorkerSettingsRevision(ctx, db.CreateWorkerSettingsRevisionParams{
+		WorkerSettingsSchemaID: schemaID,
+		CreatedByUserID:        pgtype.Int4{},
+		SettingsData:           []byte(`{}`),
 	})
 	if err != nil {
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return RegisterWorkerResponse{}, fmt.Errorf("get worker: %w", err)
-		}
-		// Создаём нового воркера
-		worker, err = s.store.CreateNewWorker(ctx, db.CreateNewWorkerParams{
-			WorkTypeID:             wtt.WorkTypeID,
-			WorkerSettingsSchemaID: schema.ID,
-			Name:                   req.Name,
-			Metadata:               []byte("{}"),
-		})
-		if err != nil {
-			return RegisterWorkerResponse{}, fmt.Errorf("create worker: %w", err)
-		}
-	} else if worker.WorkerSettingsSchemaID != schema.ID {
-		// Обновляем схему если манифест изменился
-		worker, err = s.store.UpdateNewWorkerSchema(ctx, db.UpdateNewWorkerSchemaParams{
-			ID:                     worker.ID,
-			WorkerSettingsSchemaID: schema.ID,
-		})
-		if err != nil {
-			return RegisterWorkerResponse{}, fmt.Errorf("update worker schema: %w", err)
-		}
+		return 0, fmt.Errorf("create default worker settings revision: %w", err)
 	}
-
-	// 5. Обновляем heartbeat (WORK-05 — и для новых, и для повторно регистрирующихся)
-	if err = s.store.UpdateNewWorkerHeartbeat(ctx, worker.ID); err != nil {
-		return RegisterWorkerResponse{}, fmt.Errorf("update worker heartbeat: %w", err)
-	}
-
-	return RegisterWorkerResponse{
-		Worker:     worker,
-		RevisionID: revisionID,
-	}, nil
+	return revision.ID, nil
 }
 
 func (s *Service) resolveRegistrationRevisionID(ctx context.Context, schemaID int32) (int32, error) {
@@ -399,6 +496,123 @@ func (s *Service) resolveRegistrationRevisionID(ctx context.Context, schemaID in
 }
 
 // ListWorkers возвращает список воркеров с вычисленным статусом.
+func (s *Service) CreateWorkerBootstrapToken(ctx context.Context, orgID, userID int32, req CreateWorkerBootstrapTokenRequest) (CreateWorkerBootstrapTokenResponse, error) {
+	plaintext, hash, err := GenerateBootstrapToken()
+	if err != nil {
+		return CreateWorkerBootstrapTokenResponse{}, fmt.Errorf("generate bootstrap token: %w", err)
+	}
+
+	var expiresAt pgtype.Timestamp
+	if req.ExpiresAt != nil {
+		expiresAt = pgtype.Timestamp{Time: *req.ExpiresAt, Valid: true}
+	}
+	token, err := s.store.CreateWorkerBootstrapToken(ctx, db.CreateWorkerBootstrapTokenParams{
+		OrganizationID:   orgID,
+		WorkTypeID:       req.WorkTypeID,
+		Name:             req.Name,
+		Description:      pgtype.Text{String: req.Description, Valid: req.Description != ""},
+		TokenHash:        hash,
+		MaxActiveWorkers: req.MaxActiveWorkers,
+		ExpiresAt:        expiresAt,
+		CreatedByUserID:  pgtype.Int4{Int32: userID, Valid: userID > 0},
+	})
+	if err != nil {
+		return CreateWorkerBootstrapTokenResponse{}, fmt.Errorf("create worker bootstrap token: %w", err)
+	}
+	return CreateWorkerBootstrapTokenResponse{
+		Token:     workerBootstrapTokenResponse(token, 0),
+		Plaintext: plaintext,
+	}, nil
+}
+
+func (s *Service) ListWorkerBootstrapTokens(ctx context.Context, orgID int32) ([]WorkerBootstrapTokenResponse, error) {
+	tokens, err := s.store.ListWorkerBootstrapTokensByOrganization(ctx, orgID)
+	if err != nil {
+		return nil, fmt.Errorf("list worker bootstrap tokens: %w", err)
+	}
+	result := make([]WorkerBootstrapTokenResponse, 0, len(tokens))
+	for _, token := range tokens {
+		result = append(result, workerBootstrapTokenResponse(db.WorkerBootstrapToken{
+			ID:                     token.ID,
+			OrganizationID:         token.OrganizationID,
+			WorkTypeID:             token.WorkTypeID,
+			Name:                   token.Name,
+			Description:            token.Description,
+			TokenHash:              token.TokenHash,
+			Status:                 token.Status,
+			MaxActiveWorkers:       token.MaxActiveWorkers,
+			TotalRegistrationCount: token.TotalRegistrationCount,
+			ExpiresAt:              token.ExpiresAt,
+			LastUsedAt:             token.LastUsedAt,
+			CreatedByUserID:        token.CreatedByUserID,
+			RevokedAt:              token.RevokedAt,
+			RevokedByUserID:        token.RevokedByUserID,
+			CreatedAt:              token.CreatedAt,
+			UpdatedAt:              token.UpdatedAt,
+			DeletedAt:              token.DeletedAt,
+		}, token.ActiveWorkerCount))
+	}
+	return result, nil
+}
+
+func (s *Service) RevokeWorkerBootstrapToken(ctx context.Context, tokenID, userID int32, revokeActive bool) error {
+	if _, err := s.store.RevokeWorkerBootstrapToken(ctx, db.RevokeWorkerBootstrapTokenParams{
+		ID:              tokenID,
+		RevokedByUserID: pgtype.Int4{Int32: userID, Valid: userID > 0},
+	}); err != nil {
+		return fmt.Errorf("revoke worker bootstrap token: %w", err)
+	}
+	if !revokeActive {
+		return nil
+	}
+
+	sessions, err := s.store.ListActiveWorkerNATSSessionsByBootstrapToken(ctx, tokenID)
+	if err != nil {
+		return fmt.Errorf("list active nats sessions: %w", err)
+	}
+	for _, session := range sessions {
+		if err := s.natsAuth.RevokeWorker(ctx, session.NatsUserPublicKey); err != nil {
+			return fmt.Errorf("revoke nats user %s: %w", session.NatsUserPublicKey, err)
+		}
+	}
+	if _, err := s.store.RevokeWorkerNATSSessionsByBootstrapToken(ctx, db.RevokeWorkerNATSSessionsByBootstrapTokenParams{
+		BootstrapTokenID: tokenID,
+		RevokedByUserID:  pgtype.Int4{Int32: userID, Valid: userID > 0},
+	}); err != nil {
+		return fmt.Errorf("revoke nats sessions: %w", err)
+	}
+	return nil
+}
+
+func workerBootstrapTokenResponse(token db.WorkerBootstrapToken, activeWorkerCount int32) WorkerBootstrapTokenResponse {
+	resp := WorkerBootstrapTokenResponse{
+		ID:                     token.ID,
+		OrganizationID:         token.OrganizationID,
+		WorkTypeID:             token.WorkTypeID,
+		Name:                   token.Name,
+		Status:                 token.Status,
+		MaxActiveWorkers:       token.MaxActiveWorkers,
+		ActiveWorkerCount:      activeWorkerCount,
+		TotalRegistrationCount: token.TotalRegistrationCount,
+	}
+	if token.Description.Valid {
+		resp.Description = token.Description.String
+	}
+	if token.ExpiresAt.Valid {
+		resp.ExpiresAt = &token.ExpiresAt.Time
+	}
+	if token.LastUsedAt.Valid {
+		resp.LastUsedAt = &token.LastUsedAt.Time
+	}
+	if token.CreatedAt.Valid {
+		resp.CreatedAt = token.CreatedAt.Time
+	}
+	if token.RevokedAt.Valid {
+		resp.RevokedAt = &token.RevokedAt.Time
+	}
+	return resp
+}
+
 func (s *Service) ListWorkers(ctx context.Context, workTypeID int32) ([]WorkerResponse, error) {
 	workers, err := s.store.ListNewWorkersByWorkTypeID(ctx, workTypeID)
 	if err != nil {

@@ -23,6 +23,19 @@ func (buildDAGInputStore) ListActiveWorkflowVersions(context.Context, int32) ([]
 	return nil, nil
 }
 func (buildDAGInputStore) ListWorkflowStepsByVersionID(context.Context, int32) ([]db.WorkflowStep, error) {
+	return nil, nil
+}
+func (buildDAGInputStore) ListEnrichedStepsByVersionID(context.Context, int32) ([]db.ListEnrichedStepsByVersionIDRow, error) {
+	return []db.ListEnrichedStepsByVersionIDRow{{
+		ID:                       51,
+		StepType:                 "task",
+		OrganizationID:           pgtype.Int4{Int32: 99, Valid: true},
+		WorkTypeID:               pgtype.Int4{Int32: 1, Valid: true},
+		WorkerSettingsRevisionID: pgtype.Int4{Int32: 25, Valid: true},
+		WorkerSettingsSchemaID:   pgtype.Int4{Int32: 7, Valid: true},
+	}}, nil
+}
+func (buildDAGInputStore) legacyListWorkflowStepsByVersionID(context.Context, int32) ([]db.WorkflowStep, error) {
 	return []db.WorkflowStep{{
 		ID:                       51,
 		StepType:                 "task",
@@ -65,6 +78,7 @@ func TestBuildDAGInputIncludesWorkerSettingsSchemaID(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, input.Steps, 1)
 	require.Equal(t, int32(7), input.Steps[0].WorkerSettingsSchemaID)
+	require.Equal(t, int32(99), input.Steps[0].OrganizationID)
 }
 
 var _ Storage = buildDAGInputStore{}
