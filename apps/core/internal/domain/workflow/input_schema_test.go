@@ -11,7 +11,7 @@ import (
 )
 
 func TestUpsertWorkflowInputSchemaFieldUsesPropertyRequiredDialect(t *testing.T) {
-	schema, err := upsertWorkflowInputSchemaField(nil, WorkflowInputSchemaFieldRequest{
+	schema, err := upsertWorkflowInputSchemaField(nil, InputSchemaFieldRequest{
 		Name:        "fio",
 		Type:        "string",
 		Required:    true,
@@ -28,7 +28,7 @@ func TestUpsertWorkflowInputSchemaFieldUsesPropertyRequiredDialect(t *testing.T)
 }
 
 func TestUpsertWorkflowInputSchemaFieldRejectsNestedName(t *testing.T) {
-	_, err := upsertWorkflowInputSchemaField(nil, WorkflowInputSchemaFieldRequest{
+	_, err := upsertWorkflowInputSchemaField(nil, InputSchemaFieldRequest{
 		Name: "customer.name",
 		Type: "string",
 	})
@@ -99,27 +99,27 @@ func TestValidateStepInputsFilled(t *testing.T) {
 		{
 			name: "required target from message value with required workflow field valid",
 			steps: []db.ListEnrichedStepsByVersionIDRow{
-				taskRow(1, 10, `{"type":"object","properties":{"to":{"type":"string","required":true}}}`, nil, `[{"target":"to","source":"$.message.value.to"}]`),
+				taskRow(1, `{"type":"object","properties":{"to":{"type":"string","required":true}}}`, nil, `[{"target":"to","source":"$.message.value.to"}]`),
 			},
 			wantValid: true,
 		},
 		{
 			name: "missing workflow field invalid",
 			steps: []db.ListEnrichedStepsByVersionIDRow{
-				taskRow(1, 10, `{"type":"object","properties":{"to":{"type":"string","required":true}}}`, nil, `[{"target":"to","source":"$.message.value.missing"}]`),
+				taskRow(1, `{"type":"object","properties":{"to":{"type":"string","required":true}}}`, nil, `[{"target":"to","source":"$.message.value.missing"}]`),
 			},
 		},
 		{
 			name: "optional workflow field invalid for required target",
 			steps: []db.ListEnrichedStepsByVersionIDRow{
-				taskRow(1, 10, `{"type":"object","properties":{"to":{"type":"string","required":true}}}`, nil, `[{"target":"to","source":"$.message.value.optional_to"}]`),
+				taskRow(1, `{"type":"object","properties":{"to":{"type":"string","required":true}}}`, nil, `[{"target":"to","source":"$.message.value.optional_to"}]`),
 			},
 		},
 		{
 			name: "required target from required source output valid",
 			steps: []db.ListEnrichedStepsByVersionIDRow{
-				taskRow(1, 10, nil, `{"type":"object","properties":{"body":{"type":"string","required":true}}}`, nil),
-				taskRow(2, 10, `{"type":"object","properties":{"body":{"type":"string","required":true}}}`, nil, `[{"target":"body","source":"$.steps.1.output.body"}]`),
+				taskRow(1, nil, `{"type":"object","properties":{"body":{"type":"string","required":true}}}`, nil),
+				taskRow(2, `{"type":"object","properties":{"body":{"type":"string","required":true}}}`, nil, `[{"target":"body","source":"$.steps.1.output.body"}]`),
 			},
 			deps:      []db.WorkflowStepDependency{depRow(2, 1)},
 			wantValid: true,
@@ -127,40 +127,40 @@ func TestValidateStepInputsFilled(t *testing.T) {
 		{
 			name: "optional source output invalid for required target",
 			steps: []db.ListEnrichedStepsByVersionIDRow{
-				taskRow(1, 10, nil, `{"type":"object","properties":{"body":{"type":"string"}}}`, nil),
-				taskRow(2, 10, `{"type":"object","properties":{"body":{"type":"string","required":true}}}`, nil, `[{"target":"body","source":"$.steps.1.output.body"}]`),
+				taskRow(1, nil, `{"type":"object","properties":{"body":{"type":"string"}}}`, nil),
+				taskRow(2, `{"type":"object","properties":{"body":{"type":"string","required":true}}}`, nil, `[{"target":"body","source":"$.steps.1.output.body"}]`),
 			},
 			deps: []db.WorkflowStepDependency{depRow(2, 1)},
 		},
 		{
 			name: "static source valid for required string",
 			steps: []db.ListEnrichedStepsByVersionIDRow{
-				taskRow(1, 10, `{"type":"object","properties":{"subject":{"type":"string","required":true}}}`, nil, `[{"target":"subject","source":"Welcome"}]`),
+				taskRow(1, `{"type":"object","properties":{"subject":{"type":"string","required":true}}}`, nil, `[{"target":"subject","source":"Welcome"}]`),
 			},
 			wantValid: true,
 		},
 		{
 			name: "required target without mapping invalid",
 			steps: []db.ListEnrichedStepsByVersionIDRow{
-				taskRow(1, 10, `{"type":"object","properties":{"to":{"type":"string","required":true}}}`, nil, nil),
+				taskRow(1, `{"type":"object","properties":{"to":{"type":"string","required":true}}}`, nil, nil),
 			},
 		},
 		{
 			name: "nested message source invalid",
 			steps: []db.ListEnrichedStepsByVersionIDRow{
-				taskRow(1, 10, `{"type":"object","properties":{"to":{"type":"string","required":true}}}`, nil, `[{"target":"to","source":"$.message.value.customer.name"}]`),
+				taskRow(1, `{"type":"object","properties":{"to":{"type":"string","required":true}}}`, nil, `[{"target":"to","source":"$.message.value.customer.name"}]`),
 			},
 		},
 		{
 			name: "nested target invalid",
 			steps: []db.ListEnrichedStepsByVersionIDRow{
-				taskRow(1, 10, `{"type":"object","properties":{"to":{"type":"string","required":true}}}`, nil, `[{"target":"customer.name","source":"$.message.value.to"}]`),
+				taskRow(1, `{"type":"object","properties":{"to":{"type":"string","required":true}}}`, nil, `[{"target":"customer.name","source":"$.message.value.to"}]`),
 			},
 		},
 		{
 			name: "duplicate target invalid",
 			steps: []db.ListEnrichedStepsByVersionIDRow{
-				taskRow(1, 10, `{"type":"object","properties":{"to":{"type":"string","required":true}}}`, nil, `[{"target":"to","source":"$.message.value.to"},{"target":"to","source":"Welcome"}]`),
+				taskRow(1, `{"type":"object","properties":{"to":{"type":"string","required":true}}}`, nil, `[{"target":"to","source":"$.message.value.to"},{"target":"to","source":"Welcome"}]`),
 			},
 		},
 	}
@@ -178,10 +178,10 @@ func TestValidateStepInputsFilled(t *testing.T) {
 	}
 }
 
-func taskRow(id, versionID int32, inputSchema, outputSchema, mapping any) db.ListEnrichedStepsByVersionIDRow {
+func taskRow(id int32, inputSchema, outputSchema, mapping any) db.ListEnrichedStepsByVersionIDRow {
 	return db.ListEnrichedStepsByVersionIDRow{
 		ID:                id,
-		WorkflowVersionID: versionID,
+		WorkflowVersionID: 10,
 		StepType:          "task",
 		InputSchema:       rawBytes(inputSchema),
 		OutputSchema:      rawBytes(outputSchema),

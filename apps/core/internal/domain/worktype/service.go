@@ -198,13 +198,13 @@ func (s *Service) ListWorkTypes(ctx context.Context) ([]Response, error) {
 	return result, nil
 }
 
-func (s *Service) ListWorkTypeCatalog(ctx context.Context) ([]WorkTypeCatalogItem, error) {
+func (s *Service) ListWorkTypeCatalog(ctx context.Context) ([]CatalogItem, error) {
 	workTypes, err := s.store.ListWorkTypes(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]WorkTypeCatalogItem, 0, len(workTypes))
+	result := make([]CatalogItem, 0, len(workTypes))
 	for _, wt := range workTypes {
 		if isControlWorkType(wt.Meta) {
 			continue
@@ -220,7 +220,7 @@ func (s *Service) ListWorkTypeCatalog(ctx context.Context) ([]WorkTypeCatalogIte
 		}
 
 		schemaStats := make(map[int32]schemaWorkerStats, len(schemas))
-		item := WorkTypeCatalogItem{
+		item := CatalogItem{
 			ID:          wt.ID,
 			Name:        wt.Name,
 			Code:        wt.Code,
@@ -299,7 +299,7 @@ func timestampString(ts pgtype.Timestamp) string {
 // 2. Вычисляем манифест-хэш → ищем/создаём WorkerSettingsSchema
 // 3. Ищем/создаём Worker по (work_type_id, name)
 // 4. Обновляем heartbeat
-func (s *Service) RegisterWorker(ctx context.Context, req RegisterWorkerRequest) (RegisterWorkerResponse, error) {
+func (s *Service) RegisterWorker(ctx context.Context, req RegisterWorkerRequest) (RegisterWorkerResponse, error) { //nolint:gocognit // Registration keeps schema, worker, heartbeat, and NATS session in one transaction.
 	tokenHash := sha256hex(req.BootstrapToken)
 
 	manifest, err := parseWorkerManifest(req.Manifest)
@@ -353,7 +353,7 @@ func (s *Service) RegisterWorker(ctx context.Context, req RegisterWorkerRequest)
 			WorkTypeID:     token.WorkTypeID,
 			Name:           req.Name,
 		})
-		if err != nil {
+		if err != nil { //nolint:nestif // pgx.ErrNoRows creates a worker; other lookup errors bubble up.
 			if !errors.Is(err, pgx.ErrNoRows) {
 				return fmt.Errorf("get worker: %w", err)
 			}

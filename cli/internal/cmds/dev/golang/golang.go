@@ -97,7 +97,7 @@ func expandWorkers(templates []goapp.GoApp) []goapp.GoApp {
 	}
 
 	var result []goapp.GoApp
-	for _, tmpl := range templates {
+	for _, tmpl := range templates { //nolint:dupl // Reconcile wrapper intentionally mirrors testable expansion helper.
 		if !tmpl.IsWorker {
 			result = append(result, tmpl)
 			continue
@@ -148,7 +148,7 @@ func expandWorkerTemplates(templates []goapp.GoApp, instances []services.WorkerI
 	}
 
 	var result []goapp.GoApp
-	for _, tmpl := range templates {
+	for _, tmpl := range templates { //nolint:dupl // Kept separate so tests can pass explicit instances without file IO.
 		if !tmpl.IsWorker {
 			result = append(result, tmpl)
 			continue

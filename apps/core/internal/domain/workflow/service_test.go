@@ -358,7 +358,7 @@ func TestUpsertWorkflowInputSchemaField_UpdatesSchemaAndInvalidatesVersions(t *t
 		activeVersions: []db.WorkflowVersion{}, // пустой список после деактивации
 	}
 	svc := workflow.NewService(store)
-	schema, err := svc.UpsertWorkflowInputSchemaField(context.Background(), 40, workflow.WorkflowInputSchemaFieldRequest{
+	schema, err := svc.UpsertWorkflowInputSchemaField(context.Background(), 40, workflow.InputSchemaFieldRequest{
 		Name:     "email",
 		Type:     "string",
 		Required: true,

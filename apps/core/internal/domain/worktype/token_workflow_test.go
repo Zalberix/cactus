@@ -76,6 +76,7 @@ func (s *tokenWorkflowStore) GetWorkerByOrgWorkTypeAndName(context.Context, db.G
 func (s *tokenWorkflowStore) ListNewWorkersByWorkTypeID(context.Context, int32) ([]db.Worker, error) {
 	return nil, nil
 }
+
 func (s *tokenWorkflowStore) ListNewWorkersByOrganizationID(context.Context, int32) ([]db.Worker, error) {
 	return nil, nil
 }

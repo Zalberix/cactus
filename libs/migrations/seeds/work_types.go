@@ -8,9 +8,9 @@ import (
 )
 
 const (
-	smtpOrgBootstrapTokenHash     = "7fb1131c8efddfa50392b96c971ee3358d18a10c192eaf97e409b916558a22bc"
-	templateOrgBootstrapTokenHash = "16f657f9a9a798fe31dc35dd9b601499d56a285accfde0748e1af9a035f7d5fc"
-	telegramOrgBootstrapTokenHash = "79b8a204126030209d98fa2f53e730e3da31f891e7691e82e7c419d337b69d67"
+	smtpOrgBootstrapTokenHash     = "7fb1131c8efddfa50392b96c971ee3358d18a10c192eaf97e409b916558a22bc" //nolint:gosec // Seed stores SHA-256 hashes, not plaintext tokens.
+	templateOrgBootstrapTokenHash = "16f657f9a9a798fe31dc35dd9b601499d56a285accfde0748e1af9a035f7d5fc" //nolint:gosec // Seed stores SHA-256 hashes, not plaintext tokens.
+	telegramOrgBootstrapTokenHash = "79b8a204126030209d98fa2f53e730e3da31f891e7691e82e7c419d337b69d67" //nolint:gosec // Seed stores SHA-256 hashes, not plaintext tokens.
 )
 
 // SeedWorkTypes вставляет базовые типы работ (smtp, telegram, control-типы)

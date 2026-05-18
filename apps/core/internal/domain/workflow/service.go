@@ -1,4 +1,4 @@
-﻿package workflow
+package workflow
 
 import (
 	"bytes"
@@ -293,83 +293,10 @@ func (s *Service) UpdateWorkflowTraffic(ctx context.Context, workflowID int32, r
 		return fmt.Errorf("list versions: %w", err)
 	}
 
-	activeVersions := make([]db.WorkflowVersion, 0, len(versions))
-	activeSet := make(map[int32]db.WorkflowVersion, len(versions))
-	for _, version := range versions {
-		if version.IsActive {
-			activeVersions = append(activeVersions, version)
-			activeSet[version.ID] = version
-		}
-	}
-
-	traffic := make(map[int32]int32, len(versions))
-	if len(req.Versions) > 0 {
-		traffic, err = distributePerVersionTraffic(activeVersions, activeSet, req.Versions)
-		if err != nil {
-			return err
-		}
-	} else {
-		switch req.Mode {
-		case "equal":
-			if len(activeVersions) > 0 {
-				ids := make([]int32, 0, len(activeVersions))
-				for _, version := range activeVersions {
-					ids = append(ids, version.ID)
-				}
-				sort.SliceStable(ids, func(i, j int) bool {
-					return ids[i] < ids[j]
-				})
-
-				base := int32(100 / len(activeVersions))
-				rem := int32(100 % len(activeVersions))
-				for _, id := range ids {
-					traffic[id] = base
-					if rem > 0 {
-						traffic[id]++
-						rem--
-					}
-				}
-			}
-		case "custom":
-			assigned := make(map[int32]int32, len(req.Weights))
-			for _, w := range req.Weights {
-				if _, ok := activeSet[w.VersionID]; !ok {
-					return fmt.Errorf("version %d is not active", w.VersionID)
-				}
-				assigned[w.VersionID] = w.Weight
-			}
-
-			var sum int32
-			unassigned := 0
-			for _, version := range activeVersions {
-				w := assigned[version.ID]
-				traffic[version.ID] = w
-				sum += w
-				if _, ok := assigned[version.ID]; !ok {
-					unassigned++
-				}
-			}
-			if sum > 100 {
-				return ErrTrafficWeightInvalid
-			}
-			remaining := 100 - sum
-			if unassigned > 0 && remaining > 0 {
-				base := remaining / int32(unassigned)
-				rem := remaining % int32(unassigned)
-				for _, version := range activeVersions {
-					if _, ok := assigned[version.ID]; ok {
-						continue
-					}
-					traffic[version.ID] += base
-					if rem > 0 {
-						traffic[version.ID]++
-						rem--
-					}
-				}
-			}
-		default:
-			return fmt.Errorf("unsupported traffic mode: %s", req.Mode)
-		}
+	activeVersions, activeSet := activeWorkflowVersions(versions)
+	traffic, err := buildWorkflowTraffic(req, activeVersions, activeSet)
+	if err != nil {
+		return err
 	}
 
 	for _, version := range versions {
@@ -386,6 +313,92 @@ func (s *Service) UpdateWorkflowTraffic(ctx context.Context, workflowID int32, r
 	}
 
 	return nil
+}
+
+func activeWorkflowVersions(versions []db.WorkflowVersion) ([]db.WorkflowVersion, map[int32]db.WorkflowVersion) {
+	activeVersions := make([]db.WorkflowVersion, 0, len(versions))
+	activeSet := make(map[int32]db.WorkflowVersion, len(versions))
+	for _, version := range versions {
+		if !version.IsActive {
+			continue
+		}
+		activeVersions = append(activeVersions, version)
+		activeSet[version.ID] = version
+	}
+	return activeVersions, activeSet
+}
+
+func buildWorkflowTraffic(
+	req UpdateTrafficRequest,
+	activeVersions []db.WorkflowVersion,
+	activeSet map[int32]db.WorkflowVersion,
+) (map[int32]int32, error) {
+	if len(req.Versions) > 0 {
+		return distributePerVersionTraffic(activeVersions, activeSet, req.Versions)
+	}
+	switch req.Mode {
+	case "equal":
+		return distributeEqualTraffic(activeVersions), nil
+	case "custom":
+		return distributeCustomTraffic(activeVersions, activeSet, req.Weights)
+	default:
+		return nil, fmt.Errorf("unsupported traffic mode: %s", req.Mode)
+	}
+}
+
+func distributeEqualTraffic(activeVersions []db.WorkflowVersion) map[int32]int32 {
+	traffic := make(map[int32]int32, len(activeVersions))
+	if len(activeVersions) == 0 {
+		return traffic
+	}
+
+	ids := make([]int32, 0, len(activeVersions))
+	for _, version := range activeVersions {
+		ids = append(ids, version.ID)
+	}
+	assignEvenTraffic(traffic, ids, 100)
+	return traffic
+}
+
+func distributeCustomTraffic(
+	activeVersions []db.WorkflowVersion,
+	activeSet map[int32]db.WorkflowVersion,
+	weights []TrafficWeightInput,
+) (map[int32]int32, error) {
+	assigned, err := assignedTrafficWeights(activeSet, weights)
+	if err != nil {
+		return nil, err
+	}
+
+	traffic := make(map[int32]int32, len(activeVersions))
+	var sum int32
+	unassignedIDs := make([]int32, 0, len(activeVersions))
+	for _, version := range activeVersions {
+		weight, ok := assigned[version.ID]
+		traffic[version.ID] = weight
+		sum += weight
+		if !ok {
+			unassignedIDs = append(unassignedIDs, version.ID)
+		}
+	}
+	if sum > 100 {
+		return nil, ErrTrafficWeightInvalid
+	}
+	if remaining := 100 - sum; len(unassignedIDs) > 0 && remaining > 0 {
+		assignEvenTraffic(traffic, unassignedIDs, remaining)
+	}
+	return traffic, nil
+}
+
+func assignedTrafficWeights(activeSet map[int32]db.WorkflowVersion, weights []TrafficWeightInput) (map[int32]int32, error) {
+	assigned := make(map[int32]int32, len(weights))
+	for _, weight := range weights {
+		if _, ok := activeSet[weight.VersionID]; !ok {
+			return nil, fmt.Errorf("version %d is not active", weight.VersionID)
+		}
+		assigned[weight.VersionID] = weight.Weight
+	}
+	return assigned, nil
 }
 
 func distributePerVersionTraffic(
@@ -424,21 +437,33 @@ func distributePerVersionTraffic(
 
 	remaining := 100 - fixedTotal
 	if len(shareIDs) > 0 && remaining > 0 {
-		sort.SliceStable(shareIDs, func(i, j int) bool {
-			return shareIDs[i] < shareIDs[j]
-		})
-		base := remaining / int32(len(shareIDs))
-		rem := remaining % int32(len(shareIDs))
-		for _, id := range shareIDs {
-			traffic[id] = base
-			if rem > 0 {
-				traffic[id]++
-				rem--
-			}
-		}
+		assignEvenTraffic(traffic, shareIDs, remaining)
 	}
 
 	return traffic, nil
+}
+
+func assignEvenTraffic(traffic map[int32]int32, ids []int32, total int32) {
+	sort.SliceStable(ids, func(i, j int) bool {
+		return ids[i] < ids[j]
+	})
+
+	base, rem := splitEvenly(total, len(ids))
+	for _, id := range ids {
+		traffic[id] += base
+		if rem > 0 {
+			traffic[id]++
+			rem--
+		}
+	}
+}
+
+func splitEvenly(total int32, count int) (int32, int32) {
+	var count32 int32
+	for range count {
+		count32++
+	}
+	return total / count32, total % count32
 }
 
 func (s *Service) GetWorkflowInputSchema(ctx context.Context, workflowID int32) (json.RawMessage, error) {
@@ -456,7 +481,7 @@ func (s *Service) GetWorkflowInputSchema(ctx context.Context, workflowID int32) 
 	return json.RawMessage(wf.InputSchema), nil
 }
 
-func (s *Service) UpsertWorkflowInputSchemaField(ctx context.Context, workflowID int32, req WorkflowInputSchemaFieldRequest) (json.RawMessage, error) {
+func (s *Service) UpsertWorkflowInputSchemaField(ctx context.Context, workflowID int32, req InputSchemaFieldRequest) (json.RawMessage, error) {
 	wf, err := s.store.GetWorkflowByID(ctx, workflowID)
 	if err != nil {
 		return nil, fmt.Errorf("get workflow: %w", err)
@@ -531,20 +556,12 @@ func (s *Service) CreateStep(ctx context.Context, versionID int32, req CreateSte
 	}
 
 	// Автоподстановка revision для task-шагов
-	if req.StepType == "task" && req.WorkerSettingsRevisionID == nil {
-		if req.WorkerSettingsSchemaID != nil {
-			revID, err := s.createPrivateRevisionForSchema(ctx, *req.WorkerSettingsSchemaID)
-			if err != nil {
-				return db.WorkflowStep{}, fmt.Errorf("create private revision: %w", err)
-			}
-			params.WorkerSettingsRevisionID = pgtype.Int4{Int32: revID, Valid: true}
-		} else if req.WorkTypeID != nil {
-			revID, err := s.resolvePrivateRevision(ctx, *req.WorkTypeID)
-			if err != nil {
-				return db.WorkflowStep{}, fmt.Errorf("auto-resolve revision: %w", err)
-			}
-			params.WorkerSettingsRevisionID = pgtype.Int4{Int32: revID, Valid: true}
+	if shouldAutoResolveTaskRevision(req) {
+		revID, err := s.resolveTaskRevision(ctx, req)
+		if err != nil {
+			return db.WorkflowStep{}, err
 		}
+		params.WorkerSettingsRevisionID = pgtype.Int4{Int32: revID, Valid: true}
 	}
 
 	step, err := s.store.CreateWorkflowStep(ctx, params)
@@ -558,6 +575,28 @@ func (s *Service) CreateStep(ctx context.Context, versionID int32, req CreateSte
 }
 
 // resolveLatestRevision находит последнюю ревизию настроек для work_type.
+func shouldAutoResolveTaskRevision(req CreateStepRequest) bool {
+	return req.StepType == "task" &&
+		req.WorkerSettingsRevisionID == nil &&
+		(req.WorkerSettingsSchemaID != nil || req.WorkTypeID != nil)
+}
+
+func (s *Service) resolveTaskRevision(ctx context.Context, req CreateStepRequest) (int32, error) {
+	if req.WorkerSettingsSchemaID != nil {
+		revID, err := s.createPrivateRevisionForSchema(ctx, *req.WorkerSettingsSchemaID)
+		if err != nil {
+			return 0, fmt.Errorf("create private revision: %w", err)
+		}
+		return revID, nil
+	}
+
+	revID, err := s.resolvePrivateRevision(ctx, *req.WorkTypeID)
+	if err != nil {
+		return 0, fmt.Errorf("auto-resolve revision: %w", err)
+	}
+	return revID, nil
+}
+
 func (s *Service) resolvePrivateRevision(ctx context.Context, workTypeID int32) (int32, error) {
 	schemas, err := s.store.ListWorkerSettingsSchemasByWorkTypeID(ctx, workTypeID)
 	if err != nil {
@@ -575,9 +614,7 @@ func (s *Service) createPrivateRevisionForSchema(ctx context.Context, schemaID i
 		return 0, fmt.Errorf("list revisions: %w", err)
 	}
 	settingsData := []byte(`{}`)
-	if len(revisions) == 0 {
-		settingsData = []byte(`{}`)
-	} else {
+	if len(revisions) > 0 {
 		settingsData = revisions[0].SettingsData
 	}
 	revision, err := s.store.CreateWorkerSettingsRevision(ctx, db.CreateWorkerSettingsRevisionParams{
@@ -648,7 +685,7 @@ func (s *Service) UpdateTaskSettings(ctx context.Context, stepID int32, req Upda
 		return ErrTaskStepRequired
 	}
 	if err := validateInputMappingShape(req.InputMapping); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidInputMapping, err)
+		return fmt.Errorf("%w: %w", ErrInvalidInputMapping, err)
 	}
 	if err := s.validateTaskInputMapping(ctx, current, req.InputMapping); err != nil {
 		return err

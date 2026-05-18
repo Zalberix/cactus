@@ -69,8 +69,8 @@ func (m *JWTManager) IssueWorker(_ context.Context, scope WorkerScope) (WorkerCr
 	perms := WorkerPermissions(scope)
 	claims := natsjwt.NewUserClaims(userPublicKey)
 	claims.Name = fmt.Sprintf("worker-%d-org-%d-worktype-%d", scope.WorkerID, scope.OrganizationID, scope.WorkTypeID)
-	claims.Permissions.Pub.Allow = natsjwt.StringList(perms.PublishAllow)
-	claims.Permissions.Sub.Allow = natsjwt.StringList(perms.SubscribeAllow)
+	claims.Pub.Allow = natsjwt.StringList(perms.PublishAllow)
+	claims.Sub.Allow = natsjwt.StringList(perms.SubscribeAllow)
 
 	userJWT, err := claims.Encode(accountKP)
 	if err != nil {
@@ -118,7 +118,7 @@ func (m *JWTManager) RevokeWorker(ctx context.Context, userPublicKey string) err
 	if err != nil {
 		return fmt.Errorf("encode revoked account jwt: %w", err)
 	}
-	if err := os.WriteFile(m.accountJWTFile, []byte(updatedJWT), 0o600); err != nil {
+	if err := os.WriteFile(m.accountJWTFile, []byte(updatedJWT), 0o600); err != nil { //nolint:gosec // accountJWTFile is trusted server configuration.
 		return fmt.Errorf("write account jwt: %w", err)
 	}
 	if m.updater == nil {

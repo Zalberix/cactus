@@ -37,7 +37,7 @@ type Response struct {
 	Meta        json.RawMessage `json:"meta,omitempty"`
 }
 
-type WorkTypeCatalogItem struct {
+type CatalogItem struct {
 	ID           int32                 `json:"id"`
 	Name         string                `json:"name"`
 	Code         string                `json:"code"`

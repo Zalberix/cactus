@@ -233,7 +233,7 @@ func (h *Handler) UpsertWorkflowInputSchemaField(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var req WorkflowInputSchemaFieldRequest
+	var req InputSchemaFieldRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "INVALID_BODY", err.Error())
 		return

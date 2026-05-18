@@ -81,5 +81,7 @@ func TestListActiveWorkflowVersionsScansAllSelectedColumns(t *testing.T) {
 	require.NoError(t, err)
 }
 
-var _ pgx.Rows = (*workflowVersionScanRows)(nil)
-var _ DBTX = workflowVersionScanDB{}
+var (
+	_ pgx.Rows = (*workflowVersionScanRows)(nil)
+	_ DBTX     = workflowVersionScanDB{}
+)

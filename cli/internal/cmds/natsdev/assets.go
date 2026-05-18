@@ -318,10 +318,10 @@ func accountClaimsJWT(publicKey, name string, enableJetStream bool, signer nkeys
 	claims := natsjwt.NewAccountClaims(publicKey)
 	claims.Name = name
 	if enableJetStream {
-		claims.Limits.JetStreamLimits.MemoryStorage = natsjwt.NoLimit
-		claims.Limits.JetStreamLimits.DiskStorage = natsjwt.NoLimit
-		claims.Limits.JetStreamLimits.Streams = natsjwt.NoLimit
-		claims.Limits.JetStreamLimits.Consumer = natsjwt.NoLimit
+		claims.Limits.MemoryStorage = natsjwt.NoLimit
+		claims.Limits.DiskStorage = natsjwt.NoLimit
+		claims.Limits.Streams = natsjwt.NoLimit
+		claims.Limits.Consumer = natsjwt.NoLimit
 	}
 	return claims.Encode(signer)
 }

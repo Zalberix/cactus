@@ -44,7 +44,7 @@ type registerResponse struct {
 // Сохраняет workerID в файл.
 func (w *Worker) loadOrRegister(ctx context.Context) error {
 	// Попытка загрузить workerID из файла
-	if w.cfg.WorkerIDPath != "" {
+	if w.cfg.WorkerIDPath != "" { //nolint:nestif // Registration retry flow is kept inline to preserve the load/heartbeat/register sequence.
 		id, err := w.loadWorkerID()
 		if err == nil && id > 0 {
 			w.workerID = id

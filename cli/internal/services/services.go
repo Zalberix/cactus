@@ -79,7 +79,7 @@ func validateConfig(cfg Config) error {
 	return nil
 }
 
-func Reconcile(cfgPath, lockPath, workerIDDir string) ([]WorkerInstance, error) { //nolint:gocognit // Reconciliation keeps create/remove decisions in one pass over config and lock state.
+func Reconcile(cfgPath, lockPath, workerIDDir string) ([]WorkerInstance, error) {
 	cfg, err := LoadServices(cfgPath)
 	if err != nil {
 		return nil, err

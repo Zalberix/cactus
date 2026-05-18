@@ -1,10 +1,19 @@
 package services
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+)
+
+const (
+	smtpApp        = "smtp"
+	smtpBasicName  = "smtp-basic"
+	smtpAuthName   = "smtp-auth"
+	smtpBasicValue = "basic"
+	smtpAuthValue  = "auth"
 )
 
 func writeTempConfig(t *testing.T, body string) string {
@@ -18,17 +27,17 @@ func writeTempConfig(t *testing.T, body string) string {
 }
 
 func TestLoadServicesParsesWorkerList(t *testing.T) {
-	path := writeTempConfig(t, `
+	path := writeTempConfig(t, fmt.Sprintf(`
 workers:
-  - name: smtp-basic
-    app: smtp
-    variant: basic
+  - name: %s
+    app: %s
+    variant: %s
     count: 1
-  - name: smtp-auth
-    app: smtp
-    variant: auth
+  - name: %s
+    app: %s
+    variant: %s
     count: 2
-`)
+`, smtpBasicName, smtpApp, smtpBasicValue, smtpAuthName, smtpApp, smtpAuthValue))
 
 	cfg, err := LoadServices(path)
 	if err != nil {
@@ -40,12 +49,12 @@ workers:
 	}
 
 	first := cfg.Workers[0]
-	if first.Name != "smtp-basic" || first.App != "smtp" || first.Variant != "basic" || first.Count != 1 {
+	if first.Name != smtpBasicName || first.App != smtpApp || first.Variant != smtpBasicValue || first.Count != 1 {
 		t.Fatalf("unexpected first worker: %#v", first)
 	}
 
 	second := cfg.Workers[1]
-	if second.Name != "smtp-auth" || second.App != "smtp" || second.Variant != "auth" || second.Count != 2 {
+	if second.Name != smtpAuthName || second.App != smtpApp || second.Variant != smtpAuthValue || second.Count != 2 {
 		t.Fatalf("unexpected second worker: %#v", second)
 	}
 }

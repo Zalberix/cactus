@@ -101,7 +101,7 @@ func TestRegisterResponseUnmarshal(t *testing.T) {
 
 // TestSendRegistration verifies end-to-end: sendRegistration sends the correct
 // JSON schema, parses the response, and populates w.workerID.
-func TestSendRegistration(t *testing.T) {
+func TestSendRegistration(t *testing.T) { //nolint:gocognit // End-to-end request/response assertions stay together for readability.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify method and path
 		if r.Method != http.MethodPost {
@@ -227,7 +227,7 @@ func TestLoadOrRegisterUpdatesWorkerIDFileWhenManagerReturnsDifferentID(t *testi
 		t.Fatalf("write existing worker id: %v", err)
 	}
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"success":true,"data":{"id":99,"work_type_id":1,"name":"test-worker"}}`))

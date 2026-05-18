@@ -11,6 +11,13 @@ import (
 	db "github.com/zalberix/cactus/apps/core/storage/db"
 )
 
+const (
+	jsonSchemaStringType      = "string"
+	messageValueSourcePrefix  = "$.message.value."
+	stepOutputSourcePrefix    = "$.steps."
+	unknownMappingSourceStart = "$."
+)
+
 type workflowInputSchemaField struct {
 	Name        string
 	Type        string
@@ -50,7 +57,7 @@ func parseWorkflowInputSchema(schemaJSON []byte) (map[string]workflowInputSchema
 		}
 		typ, _ := prop["type"].(string)
 		if typ == "" {
-			typ = "string"
+			typ = jsonSchemaStringType
 		}
 		field := workflowInputSchemaField{
 			Name:     name,
@@ -91,7 +98,7 @@ func marshalWorkflowInputSchema(fields map[string]workflowInputSchemaField) ([]b
 	})
 }
 
-func upsertWorkflowInputSchemaField(schemaJSON []byte, req WorkflowInputSchemaFieldRequest) ([]byte, error) {
+func upsertWorkflowInputSchemaField(schemaJSON []byte, req InputSchemaFieldRequest) ([]byte, error) {
 	if strings.Contains(req.Name, ".") {
 		return nil, fmt.Errorf("nested workflow input field %q is not supported", req.Name)
 	}
@@ -99,12 +106,7 @@ func upsertWorkflowInputSchemaField(schemaJSON []byte, req WorkflowInputSchemaFi
 	if err != nil {
 		return nil, err
 	}
-	fields[req.Name] = workflowInputSchemaField{
-		Name:        req.Name,
-		Type:        req.Type,
-		Required:    req.Required,
-		Description: req.Description,
-	}
+	fields[req.Name] = workflowInputSchemaField(req)
 	return marshalWorkflowInputSchema(fields)
 }
 
@@ -152,7 +154,7 @@ func parseTopLevelProperties(schemaJSON []byte) (map[string]schemaProperty, erro
 		}
 		typ, _ := prop["type"].(string)
 		if typ == "" {
-			typ = "string"
+			typ = jsonSchemaStringType
 		}
 		props[name] = schemaProperty{
 			Type:     typ,
@@ -246,8 +248,8 @@ func validateMappingSourceProperty(
 	stepByID map[int32]db.ListEnrichedStepsByVersionIDRow,
 	predecessors map[int32]struct{},
 ) error {
-	if strings.HasPrefix(source, "$.message.value.") {
-		field := strings.TrimPrefix(source, "$.message.value.")
+	if strings.HasPrefix(source, messageValueSourcePrefix) {
+		field := strings.TrimPrefix(source, messageValueSourcePrefix)
 		if field == "" || strings.Contains(field, ".") {
 			return fmt.Errorf("nested message source is not supported: %s", source)
 		}
@@ -258,37 +260,46 @@ func validateMappingSourceProperty(
 		return validateSourceCompatibility(target, sourceProp)
 	}
 
-	if strings.HasPrefix(source, "$.steps.") {
-		sourceStepID, field, err := parseStepOutputSource(source)
-		if err != nil {
-			return err
-		}
-		if _, ok := predecessors[sourceStepID]; !ok {
-			return fmt.Errorf("step %d is not a predecessor", sourceStepID)
-		}
-		sourceStep, ok := stepByID[sourceStepID]
-		if !ok {
-			return fmt.Errorf("step %d is not found", sourceStepID)
-		}
-		outputProps, err := parseTopLevelProperties(sourceStep.OutputSchema)
-		if err != nil {
-			return err
-		}
-		sourceProp, ok := outputProps[field]
-		if !ok {
-			return fmt.Errorf("output %q is not declared on step %d", field, sourceStepID)
-		}
-		return validateSourceCompatibility(target, sourceProp)
+	if strings.HasPrefix(source, stepOutputSourcePrefix) {
+		return validateStepOutputSourceProperty(source, target, stepByID, predecessors)
 	}
 
-	if strings.HasPrefix(source, "$.") {
+	if strings.HasPrefix(source, unknownMappingSourceStart) {
 		return fmt.Errorf("unknown mapping source: %s", source)
 	}
 	return validateStaticLiteral(source, target.Type)
 }
 
+func validateStepOutputSourceProperty(
+	source string,
+	target schemaProperty,
+	stepByID map[int32]db.ListEnrichedStepsByVersionIDRow,
+	predecessors map[int32]struct{},
+) error {
+	sourceStepID, field, err := parseStepOutputSource(source)
+	if err != nil {
+		return err
+	}
+	if _, ok := predecessors[sourceStepID]; !ok {
+		return fmt.Errorf("step %d is not a predecessor", sourceStepID)
+	}
+	sourceStep, ok := stepByID[sourceStepID]
+	if !ok {
+		return fmt.Errorf("step %d is not found", sourceStepID)
+	}
+	outputProps, err := parseTopLevelProperties(sourceStep.OutputSchema)
+	if err != nil {
+		return err
+	}
+	sourceProp, ok := outputProps[field]
+	if !ok {
+		return fmt.Errorf("output %q is not declared on step %d", field, sourceStepID)
+	}
+	return validateSourceCompatibility(target, sourceProp)
+}
+
 func parseStepOutputSource(source string) (int32, string, error) {
-	rest := strings.TrimPrefix(source, "$.steps.")
+	rest := strings.TrimPrefix(source, stepOutputSourcePrefix)
 	parts := strings.SplitN(rest, ".", 3)
 	if len(parts) != 3 || parts[1] != "output" {
 		return 0, "", fmt.Errorf("invalid step output source: %s", source)

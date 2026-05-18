@@ -16,15 +16,19 @@ type buildDAGInputStore struct{}
 func (buildDAGInputStore) CreateNewMessage(context.Context, db.CreateNewMessageParams) (db.Message, error) {
 	return db.Message{}, nil
 }
+
 func (buildDAGInputStore) GetWorkflowByID(context.Context, int32) (db.Workflow, error) {
 	return db.Workflow{}, nil
 }
+
 func (buildDAGInputStore) ListActiveWorkflowVersions(context.Context, int32) ([]db.WorkflowVersion, error) {
 	return nil, nil
 }
+
 func (buildDAGInputStore) ListWorkflowStepsByVersionID(context.Context, int32) ([]db.WorkflowStep, error) {
 	return nil, nil
 }
+
 func (buildDAGInputStore) ListEnrichedStepsByVersionID(context.Context, int32) ([]db.ListEnrichedStepsByVersionIDRow, error) {
 	return []db.ListEnrichedStepsByVersionIDRow{{
 		ID:                       51,
@@ -35,38 +39,39 @@ func (buildDAGInputStore) ListEnrichedStepsByVersionID(context.Context, int32) (
 		WorkerSettingsSchemaID:   pgtype.Int4{Int32: 7, Valid: true},
 	}}, nil
 }
-func (buildDAGInputStore) legacyListWorkflowStepsByVersionID(context.Context, int32) ([]db.WorkflowStep, error) {
-	return []db.WorkflowStep{{
-		ID:                       51,
-		StepType:                 "task",
-		WorkTypeID:               pgtype.Int4{Int32: 1, Valid: true},
-		WorkerSettingsRevisionID: pgtype.Int4{Int32: 25, Valid: true},
-	}}, nil
-}
+
 func (buildDAGInputStore) ListDependenciesByVersionID(context.Context, int32) ([]db.WorkflowStepDependency, error) {
 	return nil, nil
 }
+
 func (buildDAGInputStore) GetWorkerSettingsRevisionByID(context.Context, int32) (db.WorkerSettingsRevision, error) {
 	return db.WorkerSettingsRevision{ID: 25, WorkerSettingsSchemaID: 7}, nil
 }
+
 func (buildDAGInputStore) CreateWorkflowRun(context.Context, db.CreateWorkflowRunParams) (db.WorkflowRun, error) {
 	return db.WorkflowRun{}, nil
 }
+
 func (buildDAGInputStore) UpdateWorkflowRunStarted(context.Context, int32) (db.WorkflowRun, error) {
 	return db.WorkflowRun{}, nil
 }
+
 func (buildDAGInputStore) CheckWorkflowAccess(context.Context, db.CheckWorkflowAccessParams) (bool, error) {
 	return false, nil
 }
+
 func (buildDAGInputStore) GetMessageStatusByID(context.Context, int32) (db.GetMessageStatusByIDRow, error) {
 	return db.GetMessageStatusByIDRow{}, nil
 }
+
 func (buildDAGInputStore) ListWorkflowRunStepStatusesByRunID(context.Context, int32) ([]db.ListWorkflowRunStepStatusesByRunIDRow, error) {
 	return nil, nil
 }
+
 func (buildDAGInputStore) ListMessagesByOrganizationID(context.Context, db.ListMessagesByOrganizationIDParams) ([]db.ListMessagesByOrganizationIDRow, error) {
 	return nil, nil
 }
+
 func (buildDAGInputStore) CountMessagesByOrganizationID(context.Context, pgtype.Int4) (int64, error) {
 	return 0, nil
 }

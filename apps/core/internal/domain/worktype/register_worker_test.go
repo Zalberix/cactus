@@ -63,7 +63,7 @@ func (s *registerWorkerStore) TouchWorkerBootstrapTokenUse(context.Context, int3
 	return s.bootstrapToken, nil
 }
 
-func (s *registerWorkerStore) WithRegistrationTx(ctx context.Context, fn func(RegistrationTx) error) error {
+func (s *registerWorkerStore) WithRegistrationTx(_ context.Context, fn func(RegistrationTx) error) error {
 	return fn(s)
 }
 
@@ -90,6 +90,7 @@ func (s *registerWorkerStore) GetWorkerByOrgWorkTypeAndName(context.Context, db.
 func (s *registerWorkerStore) ListNewWorkersByWorkTypeID(context.Context, int32) ([]db.Worker, error) {
 	return nil, nil
 }
+
 func (s *registerWorkerStore) ListNewWorkersByOrganizationID(context.Context, int32) ([]db.Worker, error) {
 	return nil, nil
 }
