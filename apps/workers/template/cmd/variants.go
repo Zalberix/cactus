@@ -94,7 +94,7 @@ func htmlManifest() worker.ManifestSpec {
 	return worker.Manifest().
 		Kind("template-html", "HTML Template").
 		Type("html", "HTML Generation").
-		SettingsSchema(func(sb *worker.SchemaBuilder) {}).
+		SettingsSchema(func(_ *worker.SchemaBuilder) {}).
 		InputSchema(func(sb *worker.SchemaBuilder) {
 			sb.String("template").Required().Description("Template file name without path")
 			sb.Object("fields").Required().Description("Template values as a JSON object")
