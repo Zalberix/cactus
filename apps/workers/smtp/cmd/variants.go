@@ -15,6 +15,8 @@ import (
 	"github.com/zalberix/cactus/libs/worker"
 )
 
+const smtpModeNone = "none"
+
 type emailMessage struct {
 	From    string
 	To      []string
@@ -74,11 +76,11 @@ func (s smtpSender) Send(_ context.Context, msg emailMessage) (emailSendResult, 
 
 	opts := []mail.Option{mail.WithPort(s.port)}
 	switch s.auth {
-	case "none", "":
+	case smtpModeNone, "":
 		opts = append(opts, mail.WithSMTPAuth(mail.SMTPAuthNoAuth))
 	}
 	switch s.tls {
-	case "none", "":
+	case smtpModeNone, "":
 		opts = append(opts, mail.WithTLSPolicy(mail.NoTLS))
 	case "tls":
 		opts = append(opts, mail.WithTLSPolicy(mail.TLSMandatory))
@@ -121,8 +123,8 @@ func (s smtpSender) Send(_ context.Context, msg emailMessage) (emailSendResult, 
 
 type SMTPHandler struct {
 	senderFactory func(smtpSettings) emailSender
-	includeCC      bool
-	requireBody    bool
+	includeCC     bool
+	requireBody   bool
 }
 
 func (h SMTPHandler) Handle(ctx context.Context, task worker.TaskMessage) (worker.Result, error) {
@@ -267,11 +269,11 @@ func smtpSettingsFromTask(settings map[string]any) (smtpSettings, error) {
 	}
 	auth, _ := stringSetting(settings, "auth")
 	if auth == "" {
-		auth = "none"
+		auth = smtpModeNone
 	}
 	tlsMode, _ := stringSetting(settings, "tls")
 	if tlsMode == "" {
-		tlsMode = "none"
+		tlsMode = smtpModeNone
 	}
 	return smtpSettings{
 		host: host,
@@ -383,8 +385,8 @@ func authSMTPManifest() worker.ManifestSpec {
 			sb.String("host").Required()
 			sb.Integer("port").Required()
 			sb.String("from").Required()
-			sb.String("auth").Enum("none", "plain", "login")
-			sb.String("tls").Enum("none", "tls", "starttls")
+			sb.String("auth").Enum(smtpModeNone, "plain", "login")
+			sb.String("tls").Enum(smtpModeNone, "tls", "starttls")
 		}).
 		InputSchema(func(sb *worker.SchemaBuilder) {
 			sb.String("to").Required()

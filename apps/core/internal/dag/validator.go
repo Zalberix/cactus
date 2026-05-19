@@ -14,10 +14,12 @@ const (
 	StepTypeControl StepType = "control"
 )
 
-const ControlKindStart = "start"
-const ControlKindCondition = "condition"
-const ControlKindSwitch = "switch"
-const ControlKindDelay = "delay"
+const (
+	ControlKindStart     = "start"
+	ControlKindCondition = "condition"
+	ControlKindSwitch    = "switch"
+	ControlKindDelay     = "delay"
+)
 
 // Step is a workflow DAG validation step.
 type Step struct {

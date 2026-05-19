@@ -123,7 +123,6 @@ func TestSMTPHandlerUsesTaskSettingsFromNATS(t *testing.T) {
 			"body":    "Body",
 		},
 	})
-
 	if err != nil {
 		t.Fatalf("Handle returned error: %v", err)
 	}

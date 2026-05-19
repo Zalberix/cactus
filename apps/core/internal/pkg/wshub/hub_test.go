@@ -8,7 +8,7 @@ import (
 )
 
 func TestBuildSnapshotUsesMessageDetail(t *testing.T) {
-	detail := &message.MessageDetailResponse{
+	detail := &message.DetailResponse{
 		MessageID: 100,
 		WorkflowRun: &message.WorkflowRunStatus{
 			ID:     91,
@@ -27,7 +27,7 @@ func TestBuildSnapshotUsesMessageDetail(t *testing.T) {
 
 func TestTerminalFailedEventIncludesRunError(t *testing.T) {
 	errMsg := "smtp failed"
-	detail := &message.MessageDetailResponse{
+	detail := &message.DetailResponse{
 		WorkflowRun: &message.WorkflowRunStatus{
 			Status:       temporaltypes.RunStatusFailed,
 			ErrorMessage: &errMsg,

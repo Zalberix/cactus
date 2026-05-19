@@ -227,7 +227,7 @@ func (h *Hub) HandleWS(c *gin.Context) { //nolint:gocognit // WS lifecycle keeps
 }
 
 // buildSnapshot constructs a SnapshotEvent from the DB detail response.
-func (h *Hub) buildSnapshot(detail *message.MessageDetailResponse) SnapshotEvent {
+func (h *Hub) buildSnapshot(detail *message.DetailResponse) SnapshotEvent {
 	return SnapshotEvent{
 		Type:   "snapshot",
 		Detail: detail,
@@ -235,12 +235,12 @@ func (h *Hub) buildSnapshot(detail *message.MessageDetailResponse) SnapshotEvent
 }
 
 // sendTerminalEvent sends the appropriate terminal event based on workflow status.
-func (h *Hub) sendTerminalEvent(ctx context.Context, conn *websocket.Conn, status string, detail *message.MessageDetailResponse) {
+func (h *Hub) sendTerminalEvent(ctx context.Context, conn *websocket.Conn, status string, detail *message.DetailResponse) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	_ = wsjson.Write(ctx, conn, terminalEventForStatus(status, detail, now))
 }
 
-func terminalEventForStatus(status string, detail *message.MessageDetailResponse, timestamp string) any {
+func terminalEventForStatus(status string, detail *message.DetailResponse, timestamp string) any {
 	switch status {
 	case temporaltypes.RunStatusCompleted:
 		return WorkflowDoneEvent{

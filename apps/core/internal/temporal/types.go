@@ -16,16 +16,16 @@ type DAGInput struct {
 
 // StepDef — определение шага для workflow executor.
 type StepDef struct {
-	ID                       int32          `json:"id"`        // workflow_step.id
-	StepType                 string         `json:"step_type"` // "task" или "control"
-	ControlKind              string         `json:"control_kind,omitempty"`
+	ID                       int32           `json:"id"`        // workflow_step.id
+	StepType                 string          `json:"step_type"` // "task" или "control"
+	ControlKind              string          `json:"control_kind,omitempty"`
 	ControlSettings          json.RawMessage `json:"control_settings,omitempty"`
-	OrganizationID           int32          `json:"organization_id,omitempty"`
-	WorkTypeID               int32          `json:"work_type_id,omitempty"`
-	WorkerSettingsSchemaID   int32          `json:"worker_settings_schema_id,omitempty"`
-	WorkerSettingsRevisionID int32          `json:"worker_settings_revision_id,omitempty"`
-	InputMapping             []MappingEntry `json:"input_mapping,omitempty"`
-	Timeout                  time.Duration  `json:"timeout,omitempty"` // per D-05: timeout из ревизии настроек воркера
+	OrganizationID           int32           `json:"organization_id,omitempty"`
+	WorkTypeID               int32           `json:"work_type_id,omitempty"`
+	WorkerSettingsSchemaID   int32           `json:"worker_settings_schema_id,omitempty"`
+	WorkerSettingsRevisionID int32           `json:"worker_settings_revision_id,omitempty"`
+	InputMapping             []MappingEntry  `json:"input_mapping,omitempty"`
+	Timeout                  time.Duration   `json:"timeout,omitempty"` // per D-05: timeout из ревизии настроек воркера
 }
 
 // MappingEntry — запись input mapping.

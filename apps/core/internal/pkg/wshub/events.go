@@ -18,8 +18,8 @@ type AuthOK struct {
 // SnapshotEvent -- sent once after auth_ok (per D-14).
 // Contains current state from DB.
 type SnapshotEvent struct {
-	Type   string                         `json:"type"` // "snapshot"
-	Detail *message.MessageDetailResponse `json:"detail"`
+	Type   string                  `json:"type"` // "snapshot"
+	Detail *message.DetailResponse `json:"detail"`
 }
 
 // SnapshotStep -- step in snapshot.

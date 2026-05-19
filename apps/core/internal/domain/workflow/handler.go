@@ -1,4 +1,4 @@
-﻿package workflow
+package workflow
 
 import (
 	"errors"
@@ -13,13 +13,13 @@ import (
 	"github.com/zalberix/cactus/libs/permissions"
 )
 
-// Handler вЂ” HTTP-РѕР±СЂР°Р±РѕС‚С‡РёРєРё РґР»СЏ workflow-РґРѕРјРµРЅР°.
+// Handler — HTTP-обработчики для workflow-домена.
 type Handler struct {
 	service     *Service
 	permChecker middleware.PermissionChecker
 }
 
-// NewHandler СЃРѕР·РґР°С‘С‚ РЅРѕРІС‹Р№ workflow Handler.
+// NewHandler создаёт новый workflow Handler.
 func NewHandler(service *Service, permChecker middleware.PermissionChecker) *Handler {
 	return &Handler{
 		service:     service,
@@ -27,7 +27,7 @@ func NewHandler(service *Service, permChecker middleware.PermissionChecker) *Han
 	}
 }
 
-// RegisterRoutes СЂРµРіРёСЃС‚СЂРёСЂСѓРµС‚ РІСЃРµ РјР°СЂС€СЂСѓС‚С‹ workflow-РґРѕРјРµРЅР°.
+// RegisterRoutes регистрирует все маршруты workflow-домена.
 func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc) {
 	v1 := r.Group("/api/v1", authMw)
 
@@ -121,12 +121,12 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc) {
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.DeleteDependency)
 }
 
-// parseID РёР·РІР»РµРєР°РµС‚ int32 ID РёР· РїР°СЂР°РјРµС‚СЂР° URL.
+// parseID извлекает int32 ID из параметра URL.
 func parseID(c *gin.Context, param string) (int32, bool) {
 	raw := c.Param(param)
 	id, err := strconv.ParseInt(raw, 10, 32)
 	if err != nil || id <= 0 {
-		response.BadRequest(c, "INVALID_PARAM", "РќРµРІРµСЂРЅС‹Р№ С„РѕСЂРјР°С‚ ID: "+param)
+		response.BadRequest(c, "INVALID_PARAM", "Неверный формат ID: "+param)
 		return 0, false
 	}
 	return int32(id), true
@@ -143,7 +143,7 @@ func (h *Handler) ListWorkflows(c *gin.Context) {
 	}
 	workflows, err := h.service.ListWorkflows(c.Request.Context(), systemID)
 	if err != nil {
-		response.InternalError(c, "РћС€РёР±РєР° РїРѕР»СѓС‡РµРЅРёСЏ СЃРїРёСЃРєР° workflow")
+		response.InternalError(c, "Ошибка получения списка workflow")
 		return
 	}
 	response.OK(c, workflows)
@@ -163,7 +163,7 @@ func (h *Handler) CreateWorkflow(c *gin.Context) {
 	}
 	wf, err := h.service.CreateWorkflow(c.Request.Context(), systemID, req)
 	if err != nil {
-		response.InternalError(c, "РћС€РёР±РєР° СЃРѕР·РґР°РЅРёСЏ workflow")
+		response.InternalError(c, "Ошибка создания workflow")
 		return
 	}
 	response.Created(c, wf)
@@ -178,7 +178,7 @@ func (h *Handler) GetWorkflow(c *gin.Context) {
 	}
 	wf, err := h.service.GetWorkflow(c.Request.Context(), id)
 	if err != nil {
-		response.NotFound(c, "Workflow РЅРµ РЅР°Р№РґРµРЅ")
+		response.NotFound(c, "Workflow не найден")
 		return
 	}
 	response.OK(c, wf)
@@ -198,7 +198,7 @@ func (h *Handler) UpdateWorkflow(c *gin.Context) {
 	}
 	wf, err := h.service.UpdateWorkflow(c.Request.Context(), id, req)
 	if err != nil {
-		response.InternalError(c, "РћС€РёР±РєР° РѕР±РЅРѕРІР»РµРЅРёСЏ workflow")
+		response.InternalError(c, "Ошибка обновления workflow")
 		return
 	}
 	response.OK(c, wf)
@@ -212,10 +212,10 @@ func (h *Handler) DeleteWorkflow(c *gin.Context) {
 		return
 	}
 	if err := h.service.DeleteWorkflow(c.Request.Context(), id); err != nil {
-		response.InternalError(c, "РћС€РёР±РєР° СѓРґР°Р»РµРЅРёСЏ workflow")
+		response.InternalError(c, "Ошибка удаления workflow")
 		return
 	}
-	response.OK(c, gin.H{"message": "Workflow СѓРґР°Р»С‘РЅ"})
+	response.OK(c, gin.H{"message": "Workflow удалён"})
 }
 
 func (h *Handler) GetWorkflowInputSchema(c *gin.Context) {
@@ -225,7 +225,7 @@ func (h *Handler) GetWorkflowInputSchema(c *gin.Context) {
 	}
 	schema, err := h.service.GetWorkflowInputSchema(c.Request.Context(), workflowID)
 	if err != nil {
-		response.InternalError(c, "Р С›РЎв‚¬Р С‘Р В±Р С”Р В° Р С—Р С•Р В»РЎС“РЎвЂЎР ВµР Р…Р С‘РЎРЏ РЎРѓРЎвЂ¦Р ВµР СРЎвЂ№ Р Р†РЎвЂ¦Р С•Р Т‘Р Р…РЎвЂ№РЎвЂ¦ Р С—Р В°РЎР‚Р В°Р СР ВµРЎвЂљРЎР‚Р С•Р Р†")
+		response.InternalError(c, "Ошибка получения схемы входных параметров")
 		return
 	}
 	response.OK(c, gin.H{"schema": schema})
@@ -274,7 +274,7 @@ func (h *Handler) ListVersions(c *gin.Context) {
 	}
 	versions, err := h.service.ListVersions(c.Request.Context(), workflowID)
 	if err != nil {
-		response.InternalError(c, "РћС€РёР±РєР° РїРѕР»СѓС‡РµРЅРёСЏ РІРµСЂСЃРёР№")
+		response.InternalError(c, "Ошибка получения версий")
 		return
 	}
 	response.OK(c, versions)
@@ -289,7 +289,7 @@ func (h *Handler) ListVersionSummaries(c *gin.Context) {
 	}
 	summaries, err := h.service.ListVersionSummaries(c.Request.Context(), workflowID)
 	if err != nil {
-		response.InternalError(c, "РћС€РёР±РєР° РїРѕР»СѓС‡РµРЅРёСЏ СЃРІРѕРґРєРё РІРµСЂСЃРёР№")
+		response.InternalError(c, "Ошибка получения сводки версий")
 		return
 	}
 	response.OK(c, summaries)
@@ -309,7 +309,7 @@ func (h *Handler) CreateVersion(c *gin.Context) {
 	}
 	version, err := h.service.CreateVersion(c.Request.Context(), workflowID, userID)
 	if err != nil {
-		response.InternalError(c, "РћС€РёР±РєР° СЃРѕР·РґР°РЅРёСЏ РІРµСЂСЃРёРё")
+		response.InternalError(c, "Ошибка создания версии")
 		return
 	}
 	response.Created(c, version)
@@ -329,7 +329,7 @@ func (h *Handler) UpdateVersionName(c *gin.Context) {
 	}
 	version, err := h.service.UpdateVersionName(c.Request.Context(), versionID, req)
 	if err != nil {
-		response.InternalError(c, "РћС€РёР±РєР° РѕР±РЅРѕРІР»РµРЅРёСЏ РёРјРµРЅРё РІРµСЂСЃРёРё")
+		response.InternalError(c, "Ошибка обновления имени версии")
 		return
 	}
 	response.OK(c, version)
@@ -349,7 +349,7 @@ func (h *Handler) CopyVersion(c *gin.Context) {
 	}
 	version, err := h.service.CopyVersion(c.Request.Context(), versionID, userID)
 	if err != nil {
-		response.InternalError(c, "РћС€РёР±РєР° РєРѕРїРёСЂРѕРІР°РЅРёСЏ РІРµСЂСЃРёРё")
+		response.InternalError(c, "Ошибка копирования версии")
 		return
 	}
 	response.Created(c, version)
@@ -357,7 +357,7 @@ func (h *Handler) CopyVersion(c *gin.Context) {
 
 // ValidateVersion godoc
 // POST /api/v1/versions/:versionId/validate
-// Р—Р°РїСѓСЃРєР°РµС‚ DAG-РІР°Р»РёРґР°С†РёСЋ. РџСЂРё РѕС€РёР±РєР°С… РІРѕР·РІСЂР°С‰Р°РµС‚ DAG_VALIDATION_FAILED.
+// Запускает DAG-валидацию. При ошибках возвращает DAG_VALIDATION_FAILED.
 func (h *Handler) ValidateVersion(c *gin.Context) {
 	versionID, ok := parseID(c, "versionId")
 	if !ok {
@@ -365,7 +365,7 @@ func (h *Handler) ValidateVersion(c *gin.Context) {
 	}
 	result, err := h.service.ValidateVersion(c.Request.Context(), versionID)
 	if err != nil {
-		response.InternalError(c, "РћС€РёР±РєР° РІР°Р»РёРґР°С†РёРё РІРµСЂСЃРёРё")
+		response.InternalError(c, "Ошибка валидации версии")
 		return
 	}
 	if !result.IsValid {
@@ -377,7 +377,7 @@ func (h *Handler) ValidateVersion(c *gin.Context) {
 				Message: e.Message,
 			})
 		}
-		response.Fail(c, http.StatusUnprocessableEntity, "DAG_VALIDATION_FAILED", "Р’РµСЂСЃРёСЏ СЃРѕРґРµСЂР¶РёС‚ РѕС€РёР±РєРё DAG", details...)
+		response.Fail(c, http.StatusUnprocessableEntity, "DAG_VALIDATION_FAILED", "Версия содержит ошибки DAG", details...)
 		return
 	}
 	response.OK(c, result)
@@ -392,13 +392,13 @@ func (h *Handler) ActivateVersion(c *gin.Context) {
 	}
 	if err := h.service.ActivateVersion(c.Request.Context(), versionID); err != nil {
 		if errors.Is(err, ErrValidationRequired) {
-			response.Fail(c, http.StatusUnprocessableEntity, "VALIDATION_REQUIRED", "Р’РµСЂСЃРёСЏ РґРѕР»Р¶РЅР° РїСЂРѕР№С‚Рё РІР°Р»РёРґР°С†РёСЋ DAG РїРµСЂРµРґ Р°РєС‚РёРІР°С†РёРµР№")
+			response.Fail(c, http.StatusUnprocessableEntity, "VALIDATION_REQUIRED", "Версия должна пройти валидацию DAG перед активацией")
 			return
 		}
-		response.InternalError(c, "РћС€РёР±РєР° Р°РєС‚РёРІР°С†РёРё РІРµСЂСЃРёРё")
+		response.InternalError(c, "Ошибка активации версии")
 		return
 	}
-	response.OK(c, gin.H{"message": "Р’РµСЂСЃРёСЏ Р°РєС‚РёРІРёСЂРѕРІР°РЅР°"})
+	response.OK(c, gin.H{"message": "Версия активирована"})
 }
 
 // DeactivateVersion godoc
@@ -409,10 +409,10 @@ func (h *Handler) DeactivateVersion(c *gin.Context) {
 		return
 	}
 	if err := h.service.DeactivateVersion(c.Request.Context(), versionID); err != nil {
-		response.InternalError(c, "РћС€РёР±РєР° РґРµР°РєС‚РёРІР°С†РёРё РІРµСЂСЃРёРё")
+		response.InternalError(c, "Ошибка деактивации версии")
 		return
 	}
-	response.OK(c, gin.H{"message": "Р’РµСЂСЃРёСЏ РґРµР°РєС‚РёРІРёСЂРѕРІР°РЅР°"})
+	response.OK(c, gin.H{"message": "Версия деактивирована"})
 }
 
 // DeleteVersion godoc
@@ -423,10 +423,10 @@ func (h *Handler) DeleteVersion(c *gin.Context) {
 		return
 	}
 	if err := h.service.DeleteVersion(c.Request.Context(), versionID); err != nil {
-		response.InternalError(c, "РћС€РёР±РєР° СѓРґР°Р»РµРЅРёСЏ РІРµСЂСЃРёРё")
+		response.InternalError(c, "Ошибка удаления версии")
 		return
 	}
-	response.OK(c, gin.H{"message": "Р’РµСЂСЃРёСЏ СѓРґР°Р»РµРЅР°"})
+	response.OK(c, gin.H{"message": "Версия удалена"})
 }
 
 // UpdateWorkflowTraffic godoc
@@ -443,20 +443,20 @@ func (h *Handler) UpdateWorkflowTraffic(c *gin.Context) {
 	}
 	if err := h.service.UpdateWorkflowTraffic(c.Request.Context(), workflowID, req); err != nil {
 		if errors.Is(err, ErrTrafficWeightInvalid) {
-			response.Fail(c, http.StatusUnprocessableEntity, "TRAFFIC_WEIGHT_INVALID", "РЎСѓРјРјР° РІРµСЃРѕРІ С‚СЂР°С„РёРєР° РЅРµ РјРѕР¶РµС‚ РїСЂРµРІС‹С€Р°С‚СЊ 100")
+			response.Fail(c, http.StatusUnprocessableEntity, "TRAFFIC_WEIGHT_INVALID", "Сумма весов трафика не может превышать 100")
 			return
 		}
-		response.InternalError(c, "РћС€РёР±РєР° РѕР±РЅРѕРІР»РµРЅРёСЏ РЅР°СЃС‚СЂРѕРµРє С‚СЂР°С„РёРєР°")
+		response.InternalError(c, "Ошибка обновления настроек трафика")
 		return
 	}
-	response.OK(c, gin.H{"message": "РќР°СЃС‚СЂРѕР№РєРё С‚СЂР°С„РёРєР° СЃРѕС…СЂР°РЅРµРЅС‹"})
+	response.OK(c, gin.H{"message": "Настройки трафика сохранены"})
 }
 
 // --- Step handlers ---
 
 // ListSteps godoc
 // GET /api/v1/versions/:versionId/steps
-// Р’РѕР·РІСЂР°С‰Р°РµС‚ enriched-С€Р°РіРё СЃ work_type meta Рё settings schemas.
+// Возвращает enriched-шаги с work_type meta и settings schemas.
 func (h *Handler) ListSteps(c *gin.Context) {
 	versionID, ok := parseID(c, "versionId")
 	if !ok {
@@ -464,12 +464,12 @@ func (h *Handler) ListSteps(c *gin.Context) {
 	}
 	steps, err := h.service.ListEnrichedSteps(c.Request.Context(), versionID)
 	if err != nil {
-		response.InternalError(c, "РћС€РёР±РєР° РїРѕР»СѓС‡РµРЅРёСЏ С€Р°РіРѕРІ")
+		response.InternalError(c, "Ошибка получения шагов")
 		return
 	}
 	deps, err := h.service.ListDependencies(c.Request.Context(), versionID)
 	if err != nil {
-		response.InternalError(c, "РћС€РёР±РєР° РїРѕР»СѓС‡РµРЅРёСЏ Р·Р°РІРёСЃРёРјРѕСЃС‚РµР№")
+		response.InternalError(c, "Ошибка получения зависимостей")
 		return
 	}
 	response.OK(c, gin.H{
@@ -491,10 +491,10 @@ func (h *Handler) UpdateStepPosition(c *gin.Context) {
 		return
 	}
 	if err := h.service.UpdateStepPosition(c.Request.Context(), stepID, req); err != nil {
-		response.InternalError(c, "РћС€РёР±РєР° РѕР±РЅРѕРІР»РµРЅРёСЏ РїРѕР·РёС†РёРё С€Р°РіР°")
+		response.InternalError(c, "Ошибка обновления позиции шага")
 		return
 	}
-	response.OK(c, gin.H{"message": "РџРѕР·РёС†РёСЏ РѕР±РЅРѕРІР»РµРЅР°"})
+	response.OK(c, gin.H{"message": "Позиция обновлена"})
 }
 
 // CreateStep godoc
@@ -512,11 +512,11 @@ func (h *Handler) CreateStep(c *gin.Context) {
 	step, err := h.service.CreateStep(c.Request.Context(), versionID, req)
 	if err != nil {
 		if errors.Is(err, ErrStartStepProtected) {
-			response.Fail(c, http.StatusUnprocessableEntity, "START_STEP_PROTECTED", "РЎС‚Р°СЂС‚РѕРІС‹Р№ Р±Р»РѕРє СѓРїСЂР°РІР»СЏРµС‚СЃСЏ СЃРёСЃС‚РµРјРѕР№")
+			response.Fail(c, http.StatusUnprocessableEntity, "START_STEP_PROTECTED", "Стартовый блок управляется системой")
 			return
 		}
 		if errors.Is(err, ErrControlKindInvalid) {
-			response.Fail(c, http.StatusUnprocessableEntity, "CONTROL_KIND_INVALID", "РќРµРїРѕРґРґРµСЂР¶РёРІР°РµРјС‹Р№ С‚РёРї control")
+			response.Fail(c, http.StatusUnprocessableEntity, "CONTROL_KIND_INVALID", "Неподдерживаемый тип control")
 			return
 		}
 		if errors.Is(err, ErrControlSettingsInvalid) {
@@ -525,7 +525,7 @@ func (h *Handler) CreateStep(c *gin.Context) {
 		}
 		fmt.Printf("[CreateStep ERROR] versionID=%d stepType=%s workTypeID=%v controlKind=%v err=%v\n",
 			versionID, req.StepType, req.WorkTypeID, req.ControlKind, err)
-		response.InternalError(c, "РћС€РёР±РєР° СЃРѕР·РґР°РЅРёСЏ С€Р°РіР°: "+err.Error())
+		response.InternalError(c, "Ошибка создания шага: "+err.Error())
 		return
 	}
 	response.Created(c, step)
@@ -546,18 +546,18 @@ func (h *Handler) UpdateStep(c *gin.Context) {
 	step, err := h.service.UpdateStep(c.Request.Context(), stepID, req)
 	if err != nil {
 		if errors.Is(err, ErrStartStepProtected) {
-			response.Fail(c, http.StatusUnprocessableEntity, "START_STEP_PROTECTED", "РЎС‚Р°СЂС‚РѕРІС‹Р№ Р±Р»РѕРє СѓРїСЂР°РІР»СЏРµС‚СЃСЏ СЃРёСЃС‚РµРјРѕР№")
+			response.Fail(c, http.StatusUnprocessableEntity, "START_STEP_PROTECTED", "Стартовый блок управляется системой")
 			return
 		}
 		if errors.Is(err, ErrControlKindInvalid) {
-			response.Fail(c, http.StatusUnprocessableEntity, "CONTROL_KIND_INVALID", "РќРµРїРѕРґРґРµСЂР¶РёРІР°РµРјС‹Р№ С‚РёРї control")
+			response.Fail(c, http.StatusUnprocessableEntity, "CONTROL_KIND_INVALID", "Неподдерживаемый тип control")
 			return
 		}
 		if errors.Is(err, ErrControlSettingsInvalid) {
 			response.Fail(c, http.StatusUnprocessableEntity, "CONTROL_SETTINGS_INVALID", "Invalid control settings")
 			return
 		}
-		response.InternalError(c, "РћС€РёР±РєР° РѕР±РЅРѕРІР»РµРЅРёСЏ С€Р°РіР°")
+		response.InternalError(c, "Ошибка обновления шага")
 		return
 	}
 	response.OK(c, step)
@@ -575,17 +575,17 @@ func (h *Handler) UpdateTaskSettings(c *gin.Context) {
 	}
 	if err := h.service.UpdateTaskSettings(c.Request.Context(), stepID, req); err != nil {
 		if errors.Is(err, ErrTaskStepRequired) {
-			response.Fail(c, http.StatusUnprocessableEntity, "TASK_STEP_REQUIRED", "РЁР°Рі РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ task-С€Р°РіРѕРј")
+			response.Fail(c, http.StatusUnprocessableEntity, "TASK_STEP_REQUIRED", "Шаг должен быть task-шагом")
 			return
 		}
 		if errors.Is(err, ErrInvalidSettings) {
 			response.Fail(c, http.StatusUnprocessableEntity, "INVALID_SETTINGS", err.Error())
 			return
 		}
-		response.InternalError(c, "РћС€РёР±РєР° РѕР±РЅРѕРІР»РµРЅРёСЏ РЅР°СЃС‚СЂРѕРµРє Р·Р°РґР°С‡Рё")
+		response.InternalError(c, "Ошибка обновления настроек задачи")
 		return
 	}
-	response.OK(c, gin.H{"message": "РќР°СЃС‚СЂРѕР№РєРё Р·Р°РґР°С‡Рё СЃРѕС…СЂР°РЅРµРЅС‹"})
+	response.OK(c, gin.H{"message": "Настройки задачи сохранены"})
 }
 
 func (h *Handler) UpdateTaskInputMapping(c *gin.Context) {
@@ -600,14 +600,14 @@ func (h *Handler) UpdateTaskInputMapping(c *gin.Context) {
 	}
 	if err := h.service.UpdateTaskInputMapping(c.Request.Context(), stepID, req); err != nil {
 		if errors.Is(err, ErrTaskStepRequired) {
-			response.Fail(c, http.StatusUnprocessableEntity, "TASK_STEP_REQUIRED", "РЁР°Рі РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ task-С€Р°РіРѕРј")
+			response.Fail(c, http.StatusUnprocessableEntity, "TASK_STEP_REQUIRED", "Шаг должен быть task-шагом")
 			return
 		}
 		if errors.Is(err, ErrInvalidInputMapping) {
 			response.Fail(c, http.StatusUnprocessableEntity, "INVALID_INPUT_MAPPING", err.Error())
 			return
 		}
-		response.InternalError(c, "РћС€РёР±РєР° РѕР±РЅРѕРІР»РµРЅРёСЏ input mapping")
+		response.InternalError(c, "Ошибка обновления input mapping")
 		return
 	}
 	response.OK(c, gin.H{"message": "Input mapping saved"})
@@ -622,13 +622,13 @@ func (h *Handler) DeleteStep(c *gin.Context) {
 	}
 	if err := h.service.DeleteStep(c.Request.Context(), stepID); err != nil {
 		if errors.Is(err, ErrStartStepProtected) {
-			response.Fail(c, http.StatusUnprocessableEntity, "START_STEP_PROTECTED", "РЎС‚Р°СЂС‚РѕРІС‹Р№ Р±Р»РѕРє СѓРїСЂР°РІР»СЏРµС‚СЃСЏ СЃРёСЃС‚РµРјРѕР№")
+			response.Fail(c, http.StatusUnprocessableEntity, "START_STEP_PROTECTED", "Стартовый блок управляется системой")
 			return
 		}
-		response.InternalError(c, "РћС€РёР±РєР° СѓРґР°Р»РµРЅРёСЏ С€Р°РіР°")
+		response.InternalError(c, "Ошибка удаления шага")
 		return
 	}
-	response.OK(c, gin.H{"message": "РЁР°Рі СѓРґР°Р»С‘РЅ"})
+	response.OK(c, gin.H{"message": "Шаг удалён"})
 }
 
 // --- Dependency handlers ---
@@ -646,10 +646,10 @@ func (h *Handler) CreateDependency(c *gin.Context) {
 		return
 	}
 	if err := h.service.CreateDependency(c.Request.Context(), stepID, req); err != nil {
-		response.InternalError(c, "РћС€РёР±РєР° СЃРѕР·РґР°РЅРёСЏ Р·Р°РІРёСЃРёРјРѕСЃС‚Рё")
+		response.InternalError(c, "Ошибка создания зависимости")
 		return
 	}
-	response.Created(c, gin.H{"message": "Р—Р°РІРёСЃРёРјРѕСЃС‚СЊ СЃРѕР·РґР°РЅР°"})
+	response.Created(c, gin.H{"message": "Зависимость создана"})
 }
 
 // DeleteDependency godoc
@@ -664,8 +664,8 @@ func (h *Handler) DeleteDependency(c *gin.Context) {
 		return
 	}
 	if err := h.service.DeleteDependency(c.Request.Context(), stepID, dependsOnStepID); err != nil {
-		response.InternalError(c, "РћС€РёР±РєР° СѓРґР°Р»РµРЅРёСЏ Р·Р°РІРёСЃРёРјРѕСЃС‚Рё")
+		response.InternalError(c, "Ошибка удаления зависимости")
 		return
 	}
-	response.OK(c, gin.H{"message": "Р—Р°РІРёСЃРёРјРѕСЃС‚СЊ СѓРґР°Р»РµРЅР°"})
+	response.OK(c, gin.H{"message": "Зависимость удалена"})
 }

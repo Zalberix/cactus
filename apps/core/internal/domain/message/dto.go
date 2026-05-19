@@ -57,7 +57,7 @@ type ListItem struct {
 	UpdatedAt    string `json:"updated_at"`
 }
 
-type MessageDetailResponse struct {
+type DetailResponse struct {
 	MessageID     int32              `json:"message_id"`
 	WorkflowID    int32              `json:"workflow_id"`
 	WorkflowName  string             `json:"workflow_name"`
@@ -66,11 +66,11 @@ type MessageDetailResponse struct {
 	CreatedAt     time.Time          `json:"created_at"`
 	UpdatedAt     time.Time          `json:"updated_at"`
 	WorkflowRun   *WorkflowRunStatus `json:"workflow_run,omitempty"`
-	Graph         MessageGraphDTO    `json:"graph"`
+	Graph         GraphDTO           `json:"graph"`
 	RunSteps      []StepRunDetailDTO `json:"run_steps"`
 }
 
-type MessageGraphDTO struct {
+type GraphDTO struct {
 	VersionID    int32                `json:"version_id"`
 	Steps        []GraphStepDTO       `json:"steps"`
 	Dependencies []GraphDependencyDTO `json:"dependencies"`

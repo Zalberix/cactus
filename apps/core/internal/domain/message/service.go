@@ -312,7 +312,7 @@ func (s *Service) GetMessageStatus(ctx context.Context, messageID int32) (*Statu
 	return resp, nil
 }
 
-func (s *Service) GetMessageDetail(ctx context.Context, messageID int32) (*MessageDetailResponse, error) {
+func (s *Service) GetMessageDetail(ctx context.Context, messageID int32) (*DetailResponse, error) {
 	row, err := s.store.GetMessageDetailByID(ctx, messageID)
 	if err != nil {
 		return nil, fmt.Errorf("message detail not found: %w", err)
@@ -342,13 +342,13 @@ func (s *Service) GetMessageDetail(ctx context.Context, messageID int32) (*Messa
 	return resp, nil
 }
 
-func buildMessageDetailBase(row db.GetMessageDetailByIDRow) *MessageDetailResponse {
+func buildMessageDetailBase(row db.GetMessageDetailByIDRow) *DetailResponse {
 	messageValue := jsonObjectFromBytes(row.MessageValue)
 	if messageValue == nil {
 		messageValue = map[string]any{}
 	}
 
-	resp := &MessageDetailResponse{
+	resp := &DetailResponse{
 		MessageID:     row.ID,
 		WorkflowID:    row.WorkflowID,
 		WorkflowName:  row.WorkflowName,
@@ -356,7 +356,7 @@ func buildMessageDetailBase(row db.GetMessageDetailByIDRow) *MessageDetailRespon
 		MessageValue:  messageValue,
 		CreatedAt:     row.CreatedAt.Time,
 		UpdatedAt:     row.UpdatedAt.Time,
-		Graph: MessageGraphDTO{
+		Graph: GraphDTO{
 			Steps:        []GraphStepDTO{},
 			Dependencies: []GraphDependencyDTO{},
 		},
@@ -386,8 +386,8 @@ func buildMessageDetailBase(row db.GetMessageDetailByIDRow) *MessageDetailRespon
 	return resp
 }
 
-func buildMessageGraph(versionID int32, steps []db.ListEnrichedStepsByVersionIDRow, deps []db.WorkflowStepDependency) MessageGraphDTO {
-	graph := MessageGraphDTO{
+func buildMessageGraph(versionID int32, steps []db.ListEnrichedStepsByVersionIDRow, deps []db.WorkflowStepDependency) GraphDTO {
+	graph := GraphDTO{
 		VersionID:    versionID,
 		Steps:        make([]GraphStepDTO, 0, len(steps)),
 		Dependencies: make([]GraphDependencyDTO, 0, len(deps)),

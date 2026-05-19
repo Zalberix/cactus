@@ -242,7 +242,6 @@ func TestCreateSettingsRevisionAcceptsValidSettings(t *testing.T) {
 	revision, err := svc.CreateSettingsRevision(context.Background(), 22, CreateRevisionRequest{
 		SettingsData: json.RawMessage(`{"host":"smtp.local"}`),
 	})
-
 	if err != nil {
 		t.Fatalf("CreateSettingsRevision error: %v", err)
 	}

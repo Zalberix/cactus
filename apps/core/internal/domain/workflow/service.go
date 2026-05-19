@@ -18,8 +18,8 @@ import (
 	db "github.com/zalberix/cactus/apps/core/storage/db"
 )
 
-// ErrValidationRequired вЂ” РІРµСЂСЃРёСЏ РЅРµ РїСЂРѕС€Р»Р° РІР°Р»РёРґР°С†РёСЋ DAG.
-var ErrValidationRequired = errors.New("VALIDATION_REQUIRED: РІРµСЂСЃРёСЏ РґРѕР»Р¶РЅР° РїСЂРѕР№С‚Рё РІР°Р»РёРґР°С†РёСЋ DAG РїРµСЂРµРґ Р°РєС‚РёРІР°С†РёРµР№")
+// ErrValidationRequired — версия не прошла валидацию DAG.
+var ErrValidationRequired = errors.New("VALIDATION_REQUIRED: версия должна пройти валидацию DAG перед активацией")
 
 var ErrStartStepProtected = errors.New("START_STEP_PROTECTED: start step is managed by the system")
 
@@ -55,19 +55,19 @@ var allowedConditionOperators = map[string]struct{}{
 	"not_exists":   {},
 }
 
-// Service вЂ” Р±РёР·РЅРµСЃ-Р»РѕРіРёРєР° СѓРїСЂР°РІР»РµРЅРёСЏ workflow.
+// Service — бизнес-логика управления workflow.
 type Service struct {
 	store Storage
 }
 
-// NewService СЃРѕР·РґР°С‘С‚ РЅРѕРІС‹Р№ workflow.Service.
+// NewService создаёт новый workflow.Service.
 func NewService(store Storage) *Service {
 	return &Service{store: store}
 }
 
 // --- Workflow CRUD ---
 
-// CreateWorkflow СЃРѕР·РґР°С‘С‚ РЅРѕРІС‹Р№ workflow РІ СЃРёСЃС‚РµРјРµ (WF-01).
+// CreateWorkflow создаёт новый workflow в системе (WF-01).
 func (s *Service) CreateWorkflow(ctx context.Context, systemID int32, req CreateWorkflowRequest) (db.Workflow, error) {
 	if req.Priority > math.MaxInt32 || req.Priority < math.MinInt32 {
 		return db.Workflow{}, fmt.Errorf("priority %d overflows int32", req.Priority)
@@ -81,17 +81,17 @@ func (s *Service) CreateWorkflow(ctx context.Context, systemID int32, req Create
 	})
 }
 
-// ListWorkflows РІРѕР·РІСЂР°С‰Р°РµС‚ СЃРїРёСЃРѕРє workflow СЃРёСЃС‚РµРјС‹.
+// ListWorkflows возвращает список workflow системы.
 func (s *Service) ListWorkflows(ctx context.Context, systemID int32) ([]db.Workflow, error) {
 	return s.store.ListWorkflowsBySystemID(ctx, systemID)
 }
 
-// GetWorkflow РІРѕР·РІСЂР°С‰Р°РµС‚ workflow РїРѕ ID.
+// GetWorkflow возвращает workflow по ID.
 func (s *Service) GetWorkflow(ctx context.Context, id int32) (db.Workflow, error) {
 	return s.store.GetWorkflowByID(ctx, id)
 }
 
-// UpdateWorkflow РѕР±РЅРѕРІР»СЏРµС‚ РЅР°Р·РІР°РЅРёРµ Рё РїСЂРёРѕСЂРёС‚РµС‚ workflow.
+// UpdateWorkflow обновляет название и приоритет workflow.
 func (s *Service) UpdateWorkflow(ctx context.Context, id int32, req UpdateWorkflowRequest) (db.Workflow, error) {
 	return s.store.UpdateWorkflow(ctx, db.UpdateWorkflowParams{
 		ID:          id,
@@ -101,15 +101,15 @@ func (s *Service) UpdateWorkflow(ctx context.Context, id int32, req UpdateWorkfl
 	})
 }
 
-// DeleteWorkflow РјСЏРіРєРѕ СѓРґР°Р»СЏРµС‚ workflow.
+// DeleteWorkflow мягко удаляет workflow.
 func (s *Service) DeleteWorkflow(ctx context.Context, id int32) error {
 	return s.store.SoftDeleteWorkflow(ctx, id)
 }
 
 // --- Version management ---
 
-// CreateVersion СЃРѕР·РґР°С‘С‚ РЅРѕРІСѓСЋ РІРµСЂСЃРёСЋ workflow (WF-02).
-// РќРѕРјРµСЂ РІРµСЂСЃРёРё Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё РёРЅРєСЂРµРјРµРЅС‚РёСЂСѓРµС‚СЃСЏ.
+// CreateVersion создаёт новую версию workflow (WF-02).
+// Номер версии автоматически инкрементируется.
 func (s *Service) CreateVersion(ctx context.Context, workflowID, userID int32) (db.WorkflowVersion, error) {
 	var version db.WorkflowVersion
 	err := s.store.WithTx(ctx, func(q *db.Queries) error {
@@ -152,12 +152,12 @@ func (s *Service) CreateVersion(ctx context.Context, workflowID, userID int32) (
 	return version, nil
 }
 
-// ListVersions РІРѕР·РІСЂР°С‰Р°РµС‚ РІСЃРµ РІРµСЂСЃРёРё workflow.
+// ListVersions возвращает все версии workflow.
 func (s *Service) ListVersions(ctx context.Context, workflowID int32) ([]db.WorkflowVersion, error) {
 	return s.store.ListWorkflowVersionsByWorkflowID(ctx, workflowID)
 }
 
-// ListVersionSummaries РІРѕР·РІСЂР°С‰Р°РµС‚ СЃРІРѕРґРЅС‹Рµ РґР°РЅРЅС‹Рµ РїРѕ РІРµСЂСЃРёСЏРј workflow.
+// ListVersionSummaries возвращает сводные данные по версиям workflow.
 func (s *Service) ListVersionSummaries(ctx context.Context, workflowID int32) ([]VersionSummaryResponse, error) {
 	rows, err := s.store.ListWorkflowVersionSummariesByWorkflowID(ctx, workflowID)
 	if err != nil {
@@ -202,7 +202,7 @@ func (s *Service) ListVersionSummaries(ctx context.Context, workflowID int32) ([
 	return summaries, nil
 }
 
-// UpdateVersionName РѕР±РЅРѕРІР»СЏРµС‚ РЅР°Р·РІР°РЅРёРµ РІРµСЂСЃРёРё.
+// UpdateVersionName обновляет название версии.
 func (s *Service) UpdateVersionName(ctx context.Context, versionID int32, req UpdateVersionNameRequest) (db.WorkflowVersion, error) {
 	return s.store.UpdateWorkflowVersionName(ctx, db.UpdateWorkflowVersionNameParams{
 		ID:   versionID,
@@ -210,7 +210,7 @@ func (s *Service) UpdateVersionName(ctx context.Context, versionID int32, req Up
 	})
 }
 
-// CopyVersion СЃРѕР·РґР°С‘С‚ РєРѕРїРёСЋ РІРµСЂСЃРёРё.
+// CopyVersion создаёт копию версии.
 func (s *Service) CopyVersion(ctx context.Context, versionID, userID int32) (db.WorkflowVersion, error) {
 	source, err := s.store.GetWorkflowVersionByID(ctx, versionID)
 	if err != nil {
@@ -304,7 +304,7 @@ func (s *Service) CopyVersion(ctx context.Context, versionID, userID int32) (db.
 	return newVersion, nil
 }
 
-// UpdateWorkflowTraffic РѕР±РЅРѕРІР»СЏРµС‚ СЂР°СЃРїСЂРµРґРµР»РµРЅРёРµ traffic РґР»СЏ workflow.
+// UpdateWorkflowTraffic обновляет распределение traffic для workflow.
 func (s *Service) UpdateWorkflowTraffic(ctx context.Context, workflowID int32, req UpdateTrafficRequest) error {
 	versions, err := s.store.ListAllWorkflowVersionsByWorkflowID(ctx, workflowID)
 	if err != nil {
@@ -545,9 +545,9 @@ func (s *Service) DeleteWorkflowInputSchemaField(ctx context.Context, workflowID
 
 // --- Step CRUD ---
 
-// CreateStep СЃРѕР·РґР°С‘С‚ РЅРѕРІС‹Р№ С€Р°Рі РІ РІРµСЂСЃРёРё workflow (WF-03).
-// Р•СЃР»Рё step_type=task Рё work_type_id СѓРєР°Р·Р°РЅ, РЅРѕ worker_settings_revision_id РЅРµС‚ вЂ”
-// Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё РЅР°С…РѕРґРёС‚ РїРѕСЃР»РµРґРЅСЋСЋ СЂРµРІРёР·РёСЋ РґР»СЏ РґР°РЅРЅРѕРіРѕ work_type.
+// CreateStep создаёт новый шаг в версии workflow (WF-03).
+// Если step_type=task и work_type_id указан, но worker_settings_revision_id нет —
+// автоматически находит последнюю ревизию для данного work_type.
 func (s *Service) CreateStep(ctx context.Context, versionID int32, req CreateStepRequest) (db.WorkflowStep, error) {
 	if isStartStepRequest(req.StepType, req.ControlKind) {
 		return db.WorkflowStep{}, ErrStartStepProtected
@@ -580,7 +580,7 @@ func (s *Service) CreateStep(ctx context.Context, versionID int32, req CreateSte
 		params.ControlKind = pgtype.Text{String: *req.ControlKind, Valid: true}
 	}
 
-	// РђРІС‚РѕРїРѕРґСЃС‚Р°РЅРѕРІРєР° revision РґР»СЏ task-С€Р°РіРѕРІ
+	// Автоподстановка revision для task-шагов
 	if shouldAutoResolveTaskRevision(req) {
 		revID, err := s.resolveTaskRevision(ctx, req)
 		if err != nil {
@@ -599,7 +599,7 @@ func (s *Service) CreateStep(ctx context.Context, versionID int32, req CreateSte
 	return step, nil
 }
 
-// resolveLatestRevision РЅР°С…РѕРґРёС‚ РїРѕСЃР»РµРґРЅСЋСЋ СЂРµРІРёР·РёСЋ РЅР°СЃС‚СЂРѕРµРє РґР»СЏ work_type.
+// resolveLatestRevision находит последнюю ревизию настроек для work_type.
 func shouldAutoResolveTaskRevision(req CreateStepRequest) bool {
 	return req.StepType == "task" &&
 		req.WorkerSettingsRevisionID == nil &&
@@ -653,12 +653,12 @@ func (s *Service) createPrivateRevisionForSchema(ctx context.Context, schemaID i
 	return revision.ID, nil
 }
 
-// ListSteps РІРѕР·РІСЂР°С‰Р°РµС‚ РІСЃРµ С€Р°РіРё РІРµСЂСЃРёРё workflow.
+// ListSteps возвращает все шаги версии workflow.
 func (s *Service) ListSteps(ctx context.Context, versionID int32) ([]db.WorkflowStep, error) {
 	return s.store.ListWorkflowStepsByVersionID(ctx, versionID)
 }
 
-// UpdateStep РѕР±РЅРѕРІР»СЏРµС‚ С€Р°Рі (РІРєР»СЋС‡Р°СЏ input_mapping вЂ” WF-05).
+// UpdateStep обновляет шаг (включая input_mapping — WF-05).
 func (s *Service) UpdateStep(ctx context.Context, stepID int32, req UpdateStepRequest) (db.WorkflowStep, error) {
 	current, err := s.store.GetWorkflowStepByID(ctx, stepID)
 	if err != nil {
@@ -734,7 +734,7 @@ func (s *Service) UpdateStep(ctx context.Context, stepID int32, req UpdateStepRe
 	return updated, nil
 }
 
-// DeleteStep РјСЏРіРєРѕ СѓРґР°Р»СЏРµС‚ С€Р°Рі Рё РєР°СЃРєР°РґРЅРѕ СѓРґР°Р»СЏРµС‚ РµРіРѕ Р·Р°РІРёСЃРёРјРѕСЃС‚Рё.
+// DeleteStep мягко удаляет шаг и каскадно удаляет его зависимости.
 func (s *Service) UpdateTaskSettings(ctx context.Context, stepID int32, req UpdateTaskSettingsRequest) error {
 	current, err := s.store.GetWorkflowStepByID(ctx, stepID)
 	if err != nil {
@@ -900,7 +900,7 @@ func (s *Service) DeleteStep(ctx context.Context, stepID int32) error {
 		return fmt.Errorf("delete step input mappings: %w", err)
 	}
 
-	// РЈРґР°Р»СЏРµРј Р·Р°РІРёСЃРёРјРѕСЃС‚Рё С€Р°РіР° РїРµСЂРµРґ РµРіРѕ СѓРґР°Р»РµРЅРёРµРј
+	// Удаляем зависимости шага перед его удалением
 	if err := s.store.DeleteDependenciesByStepID(ctx, stepID); err != nil {
 		return fmt.Errorf("delete step dependencies: %w", err)
 	}
@@ -991,14 +991,14 @@ func parseInputMapping(raw json.RawMessage) ([]dagpkg.MappingEntry, error) {
 	return nil, fmt.Errorf("invalid input_mapping format")
 }
 
-// ListDependencies РІРѕР·РІСЂР°С‰Р°РµС‚ РІСЃРµ Р·Р°РІРёСЃРёРјРѕСЃС‚Рё РІРµСЂСЃРёРё workflow.
+// ListDependencies возвращает все зависимости версии workflow.
 func (s *Service) ListDependencies(ctx context.Context, versionID int32) ([]db.WorkflowStepDependency, error) {
 	return s.store.ListDependenciesByVersionID(ctx, versionID)
 }
 
 // --- Dependency management ---
 
-// CreateDependency СЃРѕР·РґР°С‘С‚ Р·Р°РІРёСЃРёРјРѕСЃС‚СЊ РјРµР¶РґСѓ С€Р°РіР°РјРё (WF-04).
+// CreateDependency создаёт зависимость между шагами (WF-04).
 func (s *Service) CreateDependency(ctx context.Context, stepID int32, req CreateDependencyRequest) error {
 	if err := s.store.CreateWorkflowStepDependency(ctx, db.CreateWorkflowStepDependencyParams{
 		StepID:          stepID,
@@ -1011,7 +1011,7 @@ func (s *Service) CreateDependency(ctx context.Context, stepID int32, req Create
 	return s.invalidateVersionForStep(ctx, stepID)
 }
 
-// UpdateStepPosition РѕР±РЅРѕРІР»СЏРµС‚ С‚РѕР»СЊРєРѕ РїРѕР·РёС†РёСЋ С€Р°РіР° РЅР° С…РѕР»СЃС‚Рµ.
+// UpdateStepPosition обновляет только позицию шага на холсте.
 func (s *Service) UpdateStepPosition(ctx context.Context, stepID int32, req UpdateStepPositionRequest) error {
 	return s.store.UpdateWorkflowStepPosition(ctx, db.UpdateWorkflowStepPositionParams{
 		ID:             stepID,
@@ -1019,8 +1019,8 @@ func (s *Service) UpdateStepPosition(ctx context.Context, stepID int32, req Upda
 	})
 }
 
-// ListEnrichedSteps РІРѕР·РІСЂР°С‰Р°РµС‚ С€Р°РіРё СЃ РїРѕРґРіСЂСѓР¶РµРЅРЅС‹РјРё work_type meta Рё settings schemas.
-// РњР°РїРїРёС‚ []byte JSONB-РїРѕР»СЏ РІ json.RawMessage РґР»СЏ РєРѕСЂСЂРµРєС‚РЅРѕР№ JSON-СЃРµСЂРёР°Р»РёР·Р°С†РёРё.
+// ListEnrichedSteps возвращает шаги с подгруженными work_type meta и settings schemas.
+// Маппит []byte JSONB-поля в json.RawMessage для корректной JSON-сериализации.
 func (s *Service) ListEnrichedSteps(ctx context.Context, versionID int32) ([]EnrichedStepResponse, error) {
 	rows, err := s.store.ListEnrichedStepsByVersionID(ctx, versionID)
 	if err != nil {
@@ -1063,7 +1063,7 @@ func (s *Service) ListEnrichedSteps(ctx context.Context, versionID int32) ([]Enr
 	return result, nil
 }
 
-// toRawMessage РєРѕРЅРІРµСЂС‚РёСЂСѓРµС‚ []byte РІ json.RawMessage, РІРѕР·РІСЂР°С‰Р°РµС‚ nil РґР»СЏ РїСѓСЃС‚С‹С… Р·РЅР°С‡РµРЅРёР№.
+// toRawMessage конвертирует []byte в json.RawMessage, возвращает nil для пустых значений.
 func toRawMessage(b []byte) json.RawMessage {
 	if len(b) == 0 {
 		return nil
@@ -1289,7 +1289,7 @@ func delayDurationMultiplier(unit string) (time.Duration, bool) {
 	return 0, false
 }
 
-// DeleteDependency СѓРґР°Р»СЏРµС‚ Р·Р°РІРёСЃРёРјРѕСЃС‚СЊ РјРµР¶РґСѓ С€Р°РіР°РјРё.
+// DeleteDependency удаляет зависимость между шагами.
 func (s *Service) DeleteDependency(ctx context.Context, stepID, dependsOnStepID int32) error {
 	if err := s.store.DeleteWorkflowStepDependency(ctx, db.DeleteWorkflowStepDependencyParams{
 		StepID:          stepID,
@@ -1302,10 +1302,10 @@ func (s *Service) DeleteDependency(ctx context.Context, stepID, dependsOnStepID 
 
 // --- Validation ---
 
-// ValidateVersion Р·Р°РїСѓСЃРєР°РµС‚ РІР°Р»РёРґР°С†РёСЋ DAG РґР»СЏ РІРµСЂСЃРёРё (WF-06, WF-07).
-// Р—Р°РіСЂСѓР¶Р°РµС‚ С€Р°РіРё Рё Р·Р°РІРёСЃРёРјРѕСЃС‚Рё, РІС‹Р·С‹РІР°РµС‚ dag.ValidateDAG,
-// РѕР±РЅРѕРІР»СЏРµС‚ is_valid Сѓ РІРµСЂСЃРёРё.
-// Р’РѕР·РІСЂР°С‰Р°РµС‚ СЂРµР·СѓР»СЊС‚Р°С‚ РІР°Р»РёРґР°С†РёРё СЃРѕ РІСЃРµРјРё РѕС€РёР±РєР°РјРё СЃСЂР°Р·Сѓ (D-12).
+// ValidateVersion запускает валидацию DAG для версии (WF-06, WF-07).
+// Загружает шаги и зависимости, вызывает dag.ValidateDAG,
+// обновляет is_valid у версии.
+// Возвращает результат валидации со всеми ошибками сразу (D-12).
 func (s *Service) ValidateVersion(ctx context.Context, versionID int32) (ValidateVersionResponse, error) {
 	version, err := s.store.GetWorkflowVersionByID(ctx, versionID)
 	if err != nil {
@@ -1332,7 +1332,7 @@ func (s *Service) ValidateVersion(ctx context.Context, versionID int32) (Validat
 
 	inputNames := workflowInputNamesFromSchema(workflow.InputSchema)
 
-	// РљРѕРЅРІРµСЂС‚РёСЂСѓРµРј РІ С‚РёРїС‹ dag РїР°РєРµС‚Р°
+	// Конвертируем в типы dag пакета
 	dagSteps := make([]dagpkg.Step, 0, len(dbSteps))
 	for _, step := range dbSteps {
 		dagStep := dagpkg.Step{
@@ -1343,7 +1343,7 @@ func (s *Service) ValidateVersion(ctx context.Context, versionID int32) (Validat
 		if step.ControlKind.Valid {
 			dagStep.ControlKind = step.ControlKind.String
 		}
-		// РџР°СЂСЃРёРј input_mapping РёР· JSONB
+		// Парсим input_mapping из JSONB
 		if len(step.InputMapping) > 0 {
 			var mappings []dagpkg.MappingEntry
 			if err := json.Unmarshal(step.InputMapping, &mappings); err == nil {
@@ -1370,14 +1370,14 @@ func (s *Service) ValidateVersion(ctx context.Context, versionID int32) (Validat
 		})
 	}
 
-	// Р’Р°Р»РёРґРёСЂСѓРµРј DAG
+	// Валидируем DAG
 	validationErrors := dagpkg.ValidateDAG(dagSteps, dagDeps)
 	validationErrors = append(validationErrors, validateVersionControlSteps(dbSteps)...)
 	validationErrors = append(validationErrors, validateStepInputsFilled(enrichedSteps, dbDeps, workflow.InputSchema)...)
 	validationErrors = append(validationErrors, validateStepSettings(enrichedSteps)...)
 	isValid := len(validationErrors) == 0
 
-	// РћР±РЅРѕРІР»СЏРµРј is_valid Сѓ РІРµСЂСЃРёРё
+	// Обновляем is_valid у версии
 	if _, err := s.store.UpdateWorkflowVersionValid(ctx, db.UpdateWorkflowVersionValidParams{
 		ID:      versionID,
 		IsValid: isValid,
@@ -1428,15 +1428,15 @@ func workflowInputNamesFromSchema(schemaJSON []byte) []string {
 
 // --- Activation ---
 
-// ActivateVersion Р°РєС‚РёРІРёСЂСѓРµС‚ РІРµСЂСЃРёСЋ workflow (WF-08).
-// Р“Р°СЂРґ: РІРµСЂСЃРёСЏ РґРѕР»Р¶РЅР° Р±С‹С‚СЊ is_valid=true (Pitfall 3).
+// ActivateVersion активирует версию workflow (WF-08).
+// Гард: версия должна быть is_valid=true (Pitfall 3).
 func (s *Service) ActivateVersion(ctx context.Context, versionID int32) error {
 	version, err := s.store.GetWorkflowVersionByID(ctx, versionID)
 	if err != nil {
 		return fmt.Errorf("get version: %w", err)
 	}
 
-	// Р“Р°СЂРґ: РЅРµР»СЊР·СЏ Р°РєС‚РёРІРёСЂРѕРІР°С‚СЊ РЅРµРІР°Р»РёРґРЅСѓСЋ РІРµСЂСЃРёСЋ
+	// Гард: нельзя активировать невалидную версию
 	if !version.IsValid {
 		return ErrValidationRequired
 	}
@@ -1451,7 +1451,7 @@ func (s *Service) ActivateVersion(ctx context.Context, versionID int32) error {
 	return nil
 }
 
-// DeactivateVersion РґРµР°РєС‚РёРІРёСЂСѓРµС‚ РІРµСЂСЃРёСЋ workflow (WF-08).
+// DeactivateVersion деактивирует версию workflow (WF-08).
 func (s *Service) DeactivateVersion(ctx context.Context, versionID int32) error {
 	if _, err := s.store.GetWorkflowVersionByID(ctx, versionID); err != nil {
 		return fmt.Errorf("get version: %w", err)
