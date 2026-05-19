@@ -18,10 +18,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module:
+        module: &go-modules
           - apps/core
           - apps/workers/smtp
           - apps/workers/telegram
+          - apps/workers/template
           - cli
           - libs/bus
           - libs/config
@@ -37,7 +38,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25'
+          go-version: '1.25.5'
 
       - name: Linters
         uses: golangci/golangci-lint-action@v9
@@ -50,18 +51,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module:
-          - apps/core
-          - apps/workers/smtp
-          - apps/workers/telegram
-          - cli
-          - libs/bus
-          - libs/config
-          - libs/logger
-          - libs/migrations
-          - libs/permissions
-          - libs/pipeline
-          - libs/worker
+        module: *go-modules
     steps:
       - name: Check out code
         uses: actions/checkout@v6
@@ -69,7 +59,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25'
+          go-version: '1.25.5'
 
       - name: Unit tests
         working-directory: ${{ matrix.module }}

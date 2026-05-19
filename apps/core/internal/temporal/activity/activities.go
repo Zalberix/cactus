@@ -28,6 +28,10 @@ type Activities struct {
 	logger          *slog.Logger
 }
 
+func activityAttemptNumber(temporalAttempt int32) int32 {
+	return temporalAttempt + 1
+}
+
 // New creates Activities with dependencies.
 func New(store *store.Store, bus *bus.Bus, configPublisher *configpub.Service) *Activities {
 	return &Activities{
@@ -99,7 +103,7 @@ func (a *Activities) publishWorkflowEvent(ctx context.Context, messageID int32, 
 // RunTaskStep is the activity for dispatching task steps.
 func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTaskStepInput) (temporaltypes.StepResult, error) {
 	info := activity.GetInfo(ctx)
-	attempt := info.Attempt + 1 // Temporal attempts 0-based, make it 1-based
+	attempt := activityAttemptNumber(info.Attempt)
 
 	a.logger.Info("RunTaskStep starting",
 		slog.Int("workflow_run_id", int(input.WorkflowRunID)),
