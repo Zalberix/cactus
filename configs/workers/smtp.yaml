@@ -1,0 +1,4 @@
+env: "local"
+manager_url: "http://localhost:3009"
+bootstrap_token: "dev-smtp-org-1-bootstrap-token"
+nats_ca_file: "configs/nats/certs/ca.pem"

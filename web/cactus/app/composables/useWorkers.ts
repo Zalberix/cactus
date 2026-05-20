@@ -218,6 +218,16 @@ export function useWorkers() {
     return resp.data
   }
 
+  async function fetchWorkerWorkflowUsages(workerId: number): Promise<WorkerWorkflowUsage[]> {
+    const resp = await api<ApiResponse<WorkerWorkflowUsage[]>>(
+      `/workers/${workerId}/workflows`,
+    )
+    if (!resp.success || !resp.data) {
+      throw new Error(resp.error?.message ?? 'Failed to fetch worker workflow usages')
+    }
+    return resp.data
+  }
+
   async function createRevision(schemaId: number, settingsData: Record<string, unknown>) {
     const resp = await api<ApiResponse<SettingsRevision>>(
       `/worker-settings-schemas/${schemaId}/revisions`,
@@ -254,5 +264,6 @@ export function useWorkers() {
     fetchRevisions,
     createRevision,
     fetchSchema,
+    fetchWorkerWorkflowUsages,
   }
 }

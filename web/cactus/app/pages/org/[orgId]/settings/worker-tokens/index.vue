@@ -134,7 +134,7 @@ function formatDate(value?: string) {
 }
 
 function workTypeName(workTypeId: number) {
-  return workTypes.value.find(workType => workType.id === workTypeId)?.name ?? `#${workTypeId}`
+  return workTypes.value.find(workType => workType.id === workTypeId)?.name ?? `${workTypeId}`
 }
 
 function resetForm() {

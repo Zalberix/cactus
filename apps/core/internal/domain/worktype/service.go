@@ -767,6 +767,29 @@ func (s *Service) DeleteWorker(ctx context.Context, workerID int32) (DeleteWorke
 	}, nil
 }
 
+func (s *Service) ListWorkerWorkflowUsages(ctx context.Context, workerID int32) ([]WorkerWorkflowUsage, error) {
+	_, err := s.store.GetNewWorkerByID(ctx, workerID)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := s.store.ListWorkflowUsagesByWorkerID(ctx, workerID)
+	if err != nil {
+		return nil, fmt.Errorf("list workflow usages: %w", err)
+	}
+	usages := make([]WorkerWorkflowUsage, 0, len(rows))
+	for _, row := range rows {
+		usages = append(usages, WorkerWorkflowUsage{
+			WorkflowID:            row.WorkflowID,
+			WorkflowName:          row.WorkflowName,
+			SystemID:              row.SystemID,
+			WorkflowVersionID:     row.WorkflowVersionID,
+			WorkflowVersionNumber: row.WorkflowVersionNumber,
+		})
+	}
+	return usages, nil
+}
+
 // --- System methods ---
 
 // CreateSystem создаёт систему в организации.

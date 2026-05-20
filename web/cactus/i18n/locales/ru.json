@@ -1,4 +1,4 @@
-{
+﻿{
   "auth": {
     "signIn": "Войти",
     "email": "Email",
@@ -18,7 +18,7 @@
     "roles": "Роли",
     "systems": "Системы",
     "tokens": "Токены",
-    "workerTokens": "Worker-токены"
+    "bootstrapTokens": "Bootstrap-токены"
   },
   "workflows": {
     "create": "Создать процесс",
@@ -233,38 +233,48 @@
     }
   },
   "workerTokens": {
-    "title": "Bootstrap-токены worker-ов",
-    "description": "Выпуск и отзыв токенов организации, которые используются при регистрации worker-ов.",
+    "title": "Bootstrap-токены",
+    "description": "Выпуск и отзыв токенов организации, которые используются при регистрации сервисов.",
     "create": "Создать токен",
-    "createDescription": "Создайте одноразово отображаемый bootstrap-токен для worker-ов выбранного типа.",
+    "createDescription": "Создайте одноразово отображаемый bootstrap-токен для сервисов выбранного типа.",
     "name": "Название",
     "namePlaceholder": "SMTP production pool",
     "workType": "Тип работы",
     "selectWorkType": "Выберите тип работы",
     "status": "Статус",
     "expiresAt": "Истекает",
-    "activeWorkers": "Активные worker-ы",
-    "maxActiveWorkers": "Макс. активных worker-ов",
+    "activeWorkers": "Активные сервисы",
+    "maxActiveWorkers": "Макс. активных сервисов",
     "lastUsedAt": "Последнее использование",
     "createdAt": "Создан",
     "descriptionField": "Описание",
     "descriptionPlaceholder": "Необязательные заметки",
     "token": "Bootstrap-токен",
     "revoke": "Отозвать",
-    "revokeDescription": "Отозванные bootstrap-токены больше не регистрируют новых worker-ов.",
+    "revokeDescription": "Отозванные bootstrap-токены больше не регистрируют новых сервисов.",
     "created": "Токен создан",
     "revoked": "Токен отозван",
-    "emptyTitle": "Нет bootstrap-токенов worker-ов",
-    "emptyBody": "Создайте scoped-токен перед запуском worker-ов в этой организации.",
+    "emptyTitle": "Нет bootstrap-токенов сервисов",
+    "emptyBody": "Создайте scoped-токен перед запуском сервисов в этой организации.",
     "plaintextWarning": "Этот токен показывается один раз. Сохраните его перед закрытием окна.",
-    "revokeActiveSessions": "Также отозвать активные worker-сессии, созданные этим токеном"
+    "revokeActiveSessions": "Также отозвать активные сервис-сессии, созданные этим токеном"
   },
   "workers": {
     "title": "Сервисы",
     "name": "Название",
     "workType": "Тип работы",
     "status": "Статус",
-    "lastHeartbeat": "Последний heartbeat",
+    "lastHeartbeat": "Последний опрос",
+    "relativeTime": {
+        "seconds": "с назад",
+        "minutes": "м назад",
+        "hours": "ч назад",
+        "days": "д назад"
+      },
+    "viewWorkflowUsages": "Версии workflow",
+    "workflowVersionsTitle": "Версии workflow",
+    "workflowVersionsDescription": "Все версии workflow, в которых используется этот сервис.",
+    "noWorkflowUsages": "Этот сервис пока не используется в версиях workflow.",
     "viewRevisions": "Ревизии",
     "settingsRevisions": "Ревизии настроек",
     "revisionsDescription": "Просмотр и создание ревизий настроек сервиса.",
@@ -283,7 +293,7 @@
   },
   "messages": {
     "title": "Сообщения",
-    "id": "ID",
+    "id": "Номер",
     "workflow": "Процесс",
     "status": "Статус",
     "createdAt": "Создано",
@@ -476,3 +486,7 @@
     "inactive": "Неактивный"
   }
 }
+
+
+
+

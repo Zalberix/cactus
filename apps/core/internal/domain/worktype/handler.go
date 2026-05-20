@@ -1,4 +1,4 @@
-package worktype
+﻿package worktype
 
 import (
 	"errors"
@@ -71,6 +71,8 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc, _ middle
 		middleware.RequirePermission(h.permChecker, permissions.WorkerRead), h.ListSettingsSchemasByWorkType)
 	v1.GET("/work-types/:workTypeId/workers",
 		middleware.RequirePermission(h.permChecker, permissions.WorkerRead), h.ListWorkers)
+	v1.GET("/workers/:workerId/workflows",
+		middleware.RequirePermission(h.permChecker, permissions.WorkerRead), h.ListWorkerWorkflowUsages)
 	v1.DELETE("/workers/:workerId",
 		middleware.RequirePermission(h.permChecker, permissions.WorkerWrite), h.DeleteWorker)
 	v1.GET("/organizations/:orgId/worker-bootstrap-tokens",
@@ -412,6 +414,26 @@ func (h *Handler) ListWorkers(c *gin.Context) {
 		return
 	}
 	response.OK(c, workers)
+}
+
+// ListWorkerWorkflowUsages godoc
+// GET /api/v1/workers/:workerId/workflows
+func (h *Handler) ListWorkerWorkflowUsages(c *gin.Context) {
+	workerID, ok := parseID(c, "workerId")
+	if !ok {
+		return
+	}
+
+	usages, err := h.service.ListWorkerWorkflowUsages(c.Request.Context(), workerID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			response.NotFound(c, "Worker not found")
+			return
+		}
+		response.InternalError(c, "Error fetching worker workflow usages")
+		return
+	}
+	response.OK(c, usages)
 }
 
 // DeleteWorker godoc

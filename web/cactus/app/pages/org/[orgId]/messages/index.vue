@@ -60,7 +60,10 @@ const columns: ColumnDef<MessageListItem>[] = [
   {
     accessorKey: 'id',
     header: ({ column }) => h(DataTableColumnHeader, { column: column as any, title: t('messages.id') }),
-    cell: ({ row }) => h('span', { class: 'font-mono text-sm' }, `#${row.getValue('id')}`),
+    cell: ({ row }) => h('button', {
+      class: 'font-mono text-sm text-primary underline-offset-4 hover:underline',
+      onClick: () => viewMessage(row.original.id),
+    }, `#${row.getValue('id')}`),
     size: 80,
   },
   {
@@ -84,18 +87,6 @@ const columns: ColumnDef<MessageListItem>[] = [
       const val = row.getValue('created_at') as string
       return h('span', { class: 'text-sm text-muted-foreground' }, val ? new Date(val).toLocaleString() : '-')
     },
-  },
-  {
-    id: 'actions',
-    header: () => h('span', { class: 'sr-only' }, t('common.actions')),
-    cell: ({ row }) => {
-      return h(Button, {
-        variant: 'ghost',
-        size: 'sm',
-        onClick: () => viewMessage(row.original.id),
-      }, () => t('messages.viewDetails'))
-    },
-    size: 120,
   },
 ]
 

@@ -30,6 +30,7 @@ const sectionLabels: Record<string, string> = {
   workflows: 'nav.workflows',
   versions: 'editor.versions',
   workers: 'nav.workers',
+  'worker-tokens': 'nav.bootstrapTokens',
   messages: 'nav.messages',
   settings: 'nav.settings',
   users: 'nav.users',

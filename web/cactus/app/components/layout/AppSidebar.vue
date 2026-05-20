@@ -80,7 +80,7 @@ const settingsItems = computed(() => [
     to: `${orgBase.value}/settings/systems`,
   },
   {
-    label: t('nav.workerTokens'),
+    label: t('nav.bootstrapTokens'),
     icon: KeyRound,
     to: `${orgBase.value}/settings/worker-tokens`,
   },
