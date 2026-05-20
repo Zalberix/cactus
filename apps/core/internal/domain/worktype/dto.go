@@ -53,6 +53,7 @@ type SettingsSchemaBrief struct {
 	Version        string          `json:"version"`
 	CreatedAt      string          `json:"created_at"`
 	SettingsSchema json.RawMessage `json:"settings_schema"`
+	WorkerName     string          `json:"worker_name,omitempty"`
 	WorkerCount    int64           `json:"worker_count"`
 	ReadyWorkers   int64           `json:"ready_workers"`
 }

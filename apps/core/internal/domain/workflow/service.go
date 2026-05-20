@@ -1037,6 +1037,7 @@ func (s *Service) ListEnrichedSteps(ctx context.Context, versionID int32) ([]Enr
 			InputMapping:      toRawMessage(r.InputMapping),
 			CanvasPosition:    toRawMessage(r.CanvasPosition),
 			WorkTypeMeta:      toRawMessage(r.WorkTypeMeta),
+			Config:            toRawMessage(r.Config),
 			SettingsSchema:    toRawMessage(r.SettingsSchema),
 			InputSchema:       toRawMessage(r.InputSchema),
 			OutputSchema:      toRawMessage(r.OutputSchema),

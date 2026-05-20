@@ -67,3 +67,23 @@ export function shouldPromptForSchemaChoice(
   if (stepType !== 'task' || selectedSchemaId) return false
   return schemaChoiceOptions(schemas).length > 1
 }
+
+export function schemaWorkerName(
+  schemas: WorkerSettingsSchemaSummary[] | undefined,
+  schemaId: number | undefined,
+): string | undefined {
+  if (!schemaId) return undefined
+  const workerName = schemaChoiceOptions(schemas)
+    .find(schema => schema.id === schemaId)
+    ?.worker_name
+    ?.trim()
+  return workerName || undefined
+}
+
+export function schemaChoiceTitle(
+  schema: Pick<WorkerSettingsSchemaSummary, 'version' | 'worker_name'>,
+  fallbackName?: string,
+): string {
+  const serviceName = schema.worker_name?.trim() || fallbackName?.trim()
+  return `${serviceName || 'Schema'} ${schema.version}`
+}

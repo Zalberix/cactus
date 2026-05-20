@@ -96,6 +96,7 @@ export interface WorkerSettingsSchemaSummary {
   version: string
   created_at: string
   settings_schema: Record<string, unknown>
+  worker_name?: string
   worker_count: number
   ready_workers: number
 }

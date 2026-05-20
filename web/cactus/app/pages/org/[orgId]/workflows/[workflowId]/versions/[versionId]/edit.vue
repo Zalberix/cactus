@@ -15,6 +15,7 @@ import EmptyState from '~/components/feedback/EmptyState.vue'
 import { editorSurfaceForStep, isVersionReadOnly } from '~/components/dag/editor-utils'
 import {
   schemaChoiceOptions,
+  schemaWorkerName,
   shouldPromptForSchemaChoice,
 } from '~/components/dag/step-toolbar-utils'
 import type { StepAddPayload } from '~/components/dag/step-toolbar-utils'
@@ -348,12 +349,14 @@ function onChooseStepSchema(schemaId: number) {
   const payload = pendingStepPayload.value
   if (!payload) return
 
+  const schemas = schemaChoiceOptions(payload.schemas)
   schemaChoiceOpen.value = false
   pendingStepPayload.value = null
   addStepFromPayload({
     ...payload,
     workerSettingsSchemaId: schemaId,
-    schemas: schemaChoiceOptions(payload.schemas),
+    name: schemaWorkerName(schemas, schemaId) ?? payload.name,
+    schemas,
   })
 }
 

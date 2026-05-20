@@ -436,6 +436,30 @@ func TestValidateVersion_ValidDAGSetsIsValid(t *testing.T) {
 	assert.True(t, store.lastUpdateValidArg.IsValid)
 }
 
+func TestListEnrichedStepsIncludesSavedTaskConfig(t *testing.T) {
+	store := &mockStorage{
+		enrichedSteps: []db.ListEnrichedStepsByVersionIDRow{
+			{
+				ID:                       12,
+				WorkflowVersionID:        99,
+				StepType:                 "task",
+				WorkerSettingsRevisionID: pgtype.Int4{Int32: 44, Valid: true},
+				Config:                   []byte(`{"host":"smtp.local","port":25}`),
+				SettingsSchema:           []byte(`{"type":"object","properties":{"host":{"type":"string"}}}`),
+				InputSchema:              []byte(`{"type":"object","properties":{}}`),
+			},
+		},
+	}
+	svc := workflow.NewService(store)
+
+	steps, err := svc.ListEnrichedSteps(context.Background(), 99)
+
+	require.NoError(t, err)
+	require.Len(t, steps, 1)
+	assert.Equal(t, int32(12), steps[0].ID)
+	assert.JSONEq(t, `{"host":"smtp.local","port":25}`, string(steps[0].Config))
+}
+
 func TestValidateVersion_InvalidPersistedControlSettingsReturnsError(t *testing.T) {
 	store := &mockStorage{
 		steps: []db.WorkflowStep{

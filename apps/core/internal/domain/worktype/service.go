@@ -158,6 +158,8 @@ func VerifyPrivateToken(storedHash, incoming string) bool {
 type schemaWorkerStats struct {
 	WorkerCount  int64
 	ReadyWorkers int64
+	WorkerName   string
+	ReadyName    string
 }
 
 // CreateWorkType создаёт тип работы и генерирует bootstrap-токен.
@@ -250,9 +252,15 @@ func (s *Service) ListWorkTypeCatalog(ctx context.Context) ([]CatalogItem, error
 			}
 			stats := schemaStats[worker.WorkerSettingsSchemaID]
 			stats.WorkerCount++
+			if stats.WorkerName == "" {
+				stats.WorkerName = worker.Name
+			}
 			if ComputeWorkerStatus(lastHB, false) == WorkerStatusReady {
 				stats.ReadyWorkers++
 				item.ReadyWorkers++
+				if stats.ReadyName == "" {
+					stats.ReadyName = worker.Name
+				}
 			}
 			schemaStats[worker.WorkerSettingsSchemaID] = stats
 		}
@@ -284,11 +292,16 @@ func settingsSchemaBriefs(schemas []db.WorkerSettingsSchema, statsBySchema map[i
 		if stats.WorkerCount == 0 {
 			continue
 		}
+		workerName := stats.ReadyName
+		if workerName == "" {
+			workerName = stats.WorkerName
+		}
 		briefs = append(briefs, SettingsSchemaBrief{
 			ID:             schema.ID,
 			Version:        schema.Version,
 			CreatedAt:      timestampString(schema.CreatedAt),
 			SettingsSchema: json.RawMessage(schema.SettingsSchema),
+			WorkerName:     workerName,
 			WorkerCount:    stats.WorkerCount,
 			ReadyWorkers:   stats.ReadyWorkers,
 		})

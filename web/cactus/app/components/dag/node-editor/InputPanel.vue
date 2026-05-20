@@ -227,9 +227,6 @@ defineExpose({ createWorkflowInputFromField })
   <div class="flex h-full flex-col">
     <div class="border-b px-4 py-3 shrink-0">
       <h3 class="text-sm font-semibold">{{ t('nodeEditor.input') || 'Input' }}</h3>
-      <p class="text-xs text-muted-foreground">
-        {{ t('nodeEditor.upstream') || 'Upstream Outputs' }}
-      </p>
     </div>
 
     <!-- Search -->

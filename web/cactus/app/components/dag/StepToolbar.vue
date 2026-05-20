@@ -10,6 +10,7 @@ import type { ControlStepDefinition } from '~/composables/useControlSteps'
 import {
   filterStepCatalog,
   schemaChoiceOptions,
+  schemaWorkerName,
   selectedSchemaIdForStep,
 } from '~/components/dag/step-toolbar-utils'
 import type { StepAddPayload, StepCatalogPayload } from '~/components/dag/step-toolbar-utils'
@@ -125,12 +126,15 @@ function selectedSchemaId(item: ToolbarItem) {
 }
 
 function payloadFor(item: ToolbarItem): StepCatalogPayload {
+  const workerSettingsSchemaId = selectedSchemaId(item)
   return {
     stepType: item.stepType,
     workTypeId: item.workTypeId,
     workTypeCode: item.stepType === 'control' ? item.controlKind : item.workTypeCode,
-    workerSettingsSchemaId: selectedSchemaId(item),
-    name: item.name,
+    workerSettingsSchemaId,
+    name: item.stepType === 'task'
+      ? schemaWorkerName(item.schemas, workerSettingsSchemaId) ?? item.name
+      : item.name,
     schemas: item.stepType === 'task' ? schemaChoiceOptions(item.schemas) : undefined,
   }
 }

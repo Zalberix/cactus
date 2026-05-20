@@ -171,6 +171,13 @@ export function useDagEditor(
         work_type_code: step.work_type_code ?? workTypeCode,
       }
     }
+    const displayName = stepType === 'task' ? name?.trim() : undefined
+    if (displayName) {
+      hydratedStep = {
+        ...hydratedStep,
+        work_type_name: displayName,
+      }
+    }
 
     const node = stepToNode(hydratedStep, nodes.value.length)
     node.position = position

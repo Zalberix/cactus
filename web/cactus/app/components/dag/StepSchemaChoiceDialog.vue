@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { WorkerSettingsSchemaSummary } from '~/composables/useWorkers'
-import { schemaChoiceOptions } from '~/components/dag/step-toolbar-utils'
+import { schemaChoiceOptions, schemaChoiceTitle } from '~/components/dag/step-toolbar-utils'
 import { Button } from '~/components/ui/button'
 import {
   Dialog,
@@ -42,6 +42,10 @@ function formatDate(value: string) {
 function schemaText(schema: WorkerSettingsSchemaSummary) {
   return JSON.stringify(schema.settings_schema ?? {}, null, 2)
 }
+
+function schemaTitle(schema: WorkerSettingsSchemaSummary) {
+  return schemaChoiceTitle(schema, props.stepName)
+}
 </script>
 
 <template>
@@ -61,7 +65,7 @@ function schemaText(schema: WorkerSettingsSchemaSummary) {
           <div class="flex flex-wrap items-start gap-3">
             <div class="min-w-0 flex-1 space-y-1">
               <div class="truncate text-sm font-medium">
-                {{ t('toolbar.schemaVersion', { version: schema.version }) }}
+                {{ schemaTitle(schema) }}
               </div>
               <div class="text-xs text-muted-foreground">
                 {{ t('toolbar.schemaAddedAt', { date: formatDate(schema.created_at) }) }}

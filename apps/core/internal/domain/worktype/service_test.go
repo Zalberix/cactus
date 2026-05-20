@@ -123,6 +123,7 @@ func TestListWorkTypeCatalogFiltersSchemasWithoutWorkersAndIncludesDetails(t *te
 					ID:                     100,
 					WorkTypeID:             7,
 					WorkerSettingsSchemaID: 11,
+					Name:                   "smtp-worker",
 					LastHeartbeatAt:        pgtype.Timestamp{Time: time.Now(), Valid: true},
 				},
 			},
@@ -163,6 +164,9 @@ func TestListWorkTypeCatalogFiltersSchemasWithoutWorkersAndIncludesDetails(t *te
 	}
 	if schemas[0].CreatedAt != "2026-05-11T09:30:00Z" {
 		t.Fatalf("expected RFC3339 created_at, got %q", schemas[0].CreatedAt)
+	}
+	if schemas[0].WorkerName != "smtp-worker" {
+		t.Fatalf("expected worker name smtp-worker, got %q", schemas[0].WorkerName)
 	}
 	if schemas[0].WorkerCount != 1 || schemas[0].ReadyWorkers != 1 {
 		t.Fatalf("expected worker counts 1/1, got %#v", schemas[0])
