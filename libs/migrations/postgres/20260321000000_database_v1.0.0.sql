@@ -281,6 +281,7 @@ CREATE TABLE "workflow_version" (
 CREATE TABLE "workflow_step" (
     id SERIAL PRIMARY KEY,
     workflow_version_id INT NOT NULL,
+    "name" VARCHAR(255) NOT NULL,
     step_type VARCHAR(20) NOT NULL CHECK (step_type IN ('task', 'control')),
     work_type_id INT,
     worker_settings_revision_id INT,
@@ -300,6 +301,10 @@ CREATE TABLE "workflow_step" (
         (step_type = 'control' AND work_type_id IS NULL AND worker_settings_revision_id IS NULL AND control_kind IS NOT NULL)
     )
 );
+
+CREATE UNIQUE INDEX workflow_step_version_name_active_uq
+    ON "workflow_step" (workflow_version_id, "name")
+    WHERE deleted_at IS NULL;
 
 CREATE TABLE "workflow_step_dependency" (
     step_id INT NOT NULL,

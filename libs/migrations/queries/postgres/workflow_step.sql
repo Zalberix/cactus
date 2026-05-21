@@ -1,6 +1,6 @@
 -- name: CreateWorkflowStep :one
-INSERT INTO "workflow_step" (workflow_version_id, step_type, work_type_id, worker_settings_revision_id, control_kind, control_settings, input_mapping, canvas_position)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO "workflow_step" (workflow_version_id, "name", step_type, work_type_id, worker_settings_revision_id, control_kind, control_settings, input_mapping, canvas_position)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING *;
 
 -- name: GetWorkflowStepByID :one
@@ -14,13 +14,14 @@ ORDER BY id;
 
 -- name: UpdateWorkflowStep :one
 UPDATE "workflow_step"
-SET step_type = $2,
-    work_type_id = $3,
-    worker_settings_revision_id = $4,
-    control_kind = $5,
-    control_settings = $6,
-    input_mapping = $7,
-    canvas_position = $8,
+SET "name" = $2,
+    step_type = $3,
+    work_type_id = $4,
+    worker_settings_revision_id = $5,
+    control_kind = $6,
+    control_settings = $7,
+    input_mapping = $8,
+    canvas_position = $9,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;

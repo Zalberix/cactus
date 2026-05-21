@@ -185,6 +185,7 @@ func (m *mockStorage) CreateWorkflowStep(_ context.Context, arg db.CreateWorkflo
 	step := db.WorkflowStep{
 		ID:                       m.createStepNextID,
 		WorkflowVersionID:        arg.WorkflowVersionID,
+		Name:                     arg.Name,
 		StepType:                 arg.StepType,
 		WorkTypeID:               arg.WorkTypeID,
 		WorkerSettingsRevisionID: arg.WorkerSettingsRevisionID,
@@ -214,6 +215,7 @@ func (m *mockStorage) UpdateWorkflowStep(_ context.Context, arg db.UpdateWorkflo
 	return db.WorkflowStep{
 		ID:                       arg.ID,
 		WorkflowVersionID:        m.workflowStep.WorkflowVersionID,
+		Name:                     arg.Name,
 		StepType:                 arg.StepType,
 		WorkTypeID:               arg.WorkTypeID,
 		WorkerSettingsRevisionID: arg.WorkerSettingsRevisionID,
@@ -633,6 +635,62 @@ func TestCreateTaskStep_UsesSelectedSchemaAndCreatesPrivateRevision(t *testing.T
 	assert.Equal(t, int32(7), step.WorkTypeID.Int32)
 	assert.NotEqual(t, int32(70), step.WorkerSettingsRevisionID.Int32)
 	assert.JSONEq(t, `{"host":"smtp.example.com"}`, string(store.createdRevisionSettings))
+}
+
+func TestCreateStep_AssignsNextUniqueNameWithinVersion(t *testing.T) {
+	store := &mockStorage{
+		steps: []db.WorkflowStep{
+			{ID: 1, WorkflowVersionID: 10, Name: "Название"},
+			{ID: 2, WorkflowVersionID: 10, Name: "Название 2"},
+			{
+				ID:                3,
+				WorkflowVersionID: 10,
+				Name:              "Название 3",
+				DeletedAt:         pgtype.Timestamp{Valid: true},
+			},
+		},
+	}
+	svc := workflow.NewService(store)
+
+	step, err := svc.CreateStep(context.Background(), 10, workflow.CreateStepRequest{
+		Name:        " Название ",
+		StepType:    "control",
+		ControlKind: ptrString("delay"),
+	})
+
+	require.NoError(t, err)
+	require.Len(t, store.createWorkflowStepParams, 1)
+	assert.Equal(t, "Название 3", store.createWorkflowStepParams[0].Name)
+	assert.Equal(t, "Название 3", step.Name)
+}
+
+func TestUpdateStep_RejectsDuplicateNameWithinVersion(t *testing.T) {
+	store := &mockStorage{
+		workflowStep: db.WorkflowStep{
+			ID:                12,
+			WorkflowVersionID: 10,
+			Name:              "Current",
+			StepType:          "control",
+			ControlKind:       pgtype.Text{String: "delay", Valid: true},
+			ControlSettings:   []byte(`{"count":1,"unit":"sec"}`),
+		},
+		steps: []db.WorkflowStep{
+			{ID: 11, WorkflowVersionID: 10, Name: "Existing"},
+			{
+				ID:                13,
+				WorkflowVersionID: 10,
+				Name:              "Existing",
+				DeletedAt:         pgtype.Timestamp{Valid: true},
+			},
+			{ID: 12, WorkflowVersionID: 10, Name: "Current"},
+		},
+	}
+	svc := workflow.NewService(store)
+
+	_, err := svc.UpdateStep(context.Background(), 12, workflow.UpdateStepRequest{Name: ptrString(" Existing ")})
+
+	assert.ErrorIs(t, err, workflow.ErrStepNameDuplicate)
+	assert.Zero(t, store.lastUpdateStepArg.ID)
 }
 
 func TestCreateDelayStep_RequiresValidControlSettings(t *testing.T) {

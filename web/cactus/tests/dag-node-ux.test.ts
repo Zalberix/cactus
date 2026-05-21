@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { computed } from 'vue'
+import { computed, defineComponent, ref } from 'vue'
 import StepNode from '../app/components/dag/StepNode.vue'
 
 const currentNode = vi.hoisted(() => ({
@@ -51,9 +51,21 @@ const DropdownStub = {
   template: '<div><slot /></div>',
 }
 
-const DropdownItemStub = {
-  template: '<button type="button" data-testid="rename-node"><slot /></button>',
-}
+const DropdownItemStub = defineComponent({
+  emits: ['select'],
+  setup(_, { emit }) {
+    const selectDefaultPrevented = ref<string>()
+
+    function onClick() {
+      const event = new Event('select', { cancelable: true })
+      emit('select', event)
+      selectDefaultPrevented.value = String(event.defaultPrevented)
+    }
+
+    return { onClick, selectDefaultPrevented }
+  },
+  template: '<button type="button" data-testid="rename-node" :data-select-default-prevented="selectDefaultPrevented" @click="onClick"><slot /></button>',
+})
 
 function mountNode() {
   return mount(StepNode, {
@@ -111,6 +123,15 @@ describe('DAG StepNode UX', () => {
     await wrapper.get('[data-testid="delete-node"]').trigger('click')
 
     expect(wrapper.emitted('delete')).toEqual([['12']])
+  })
+
+  it('emits rename from the node action menu', async () => {
+    const wrapper = mountNode()
+
+    await wrapper.get('[data-testid="rename-node"]').trigger('click')
+
+    expect(wrapper.get('[data-testid="rename-node"]').attributes('data-select-default-prevented')).toBe('false')
+    expect(wrapper.emitted('rename')).toEqual([['12']])
   })
 
   it('uses a neutral node border instead of per-step accent borders', () => {

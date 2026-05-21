@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -34,6 +36,14 @@ var ErrControlKindInvalid = errors.New("CONTROL_KIND_INVALID: unsupported contro
 var ErrInvalidInputMapping = errors.New("INVALID_INPUT_MAPPING")
 
 var ErrInvalidSettings = errors.New("INVALID_SETTINGS")
+
+var ErrStepNameRequired = errors.New("STEP_NAME_REQUIRED")
+
+var ErrStepNameInvalid = errors.New("STEP_NAME_INVALID")
+
+var ErrStepNameDuplicate = errors.New("STEP_NAME_DUPLICATE")
+
+const maxStepNameLength = 255
 
 var allowedControlKinds = map[string]struct{}{
 	dagpkg.ControlKindStart:     {},
@@ -135,6 +145,7 @@ func (s *Service) CreateVersion(ctx context.Context, workflowID, userID int32) (
 
 		_, createErr = q.CreateWorkflowStep(ctx, db.CreateWorkflowStepParams{
 			WorkflowVersionID: version.ID,
+			Name:              "System Trigger",
 			StepType:          string(dagpkg.StepTypeControl),
 			ControlKind:       pgtype.Text{String: dagpkg.ControlKindStart, Valid: true},
 			ControlSettings:   []byte(`{"trigger":"system_message"}`),
@@ -247,9 +258,17 @@ func (s *Service) CopyVersion(ctx context.Context, versionID, userID int32) (db.
 	}
 
 	stepIDMap := make(map[int32]int32, len(sourceSteps))
+	copiedNames := make([]db.WorkflowStep, 0, len(sourceSteps))
 	for _, sourceStep := range sourceSteps {
+		stepName := normalizeStepName(sourceStep.Name)
+		if stepName == "" {
+			stepName = defaultStepNameForStep(sourceStep)
+		}
+		stepName = uniqueStepName(stepName, copiedNames, 0)
+
 		params := db.CreateWorkflowStepParams{
 			WorkflowVersionID: newVersion.ID,
+			Name:              stepName,
 			StepType:          sourceStep.StepType,
 			ControlKind:       sourceStep.ControlKind,
 			ControlSettings:   sourceStep.ControlSettings,
@@ -276,6 +295,7 @@ func (s *Service) CopyVersion(ctx context.Context, versionID, userID int32) (db.
 			return db.WorkflowVersion{}, fmt.Errorf("copy step %d: %w", sourceStep.ID, err)
 		}
 		stepIDMap[sourceStep.ID] = copiedStep.ID
+		copiedNames = append(copiedNames, db.WorkflowStep{ID: copiedStep.ID, Name: stepName})
 	}
 
 	sourceDependencies, err := s.store.ListDependenciesByVersionID(ctx, versionID)
@@ -563,8 +583,22 @@ func (s *Service) CreateStep(ctx context.Context, versionID int32, req CreateSte
 		}
 	}
 
+	stepName := normalizeStepName(req.Name)
+	if stepName == "" {
+		stepName = defaultStepNameForCreate(req)
+	}
+	if err := validateStepName(stepName); err != nil {
+		return db.WorkflowStep{}, err
+	}
+	currentSteps, err := s.store.ListWorkflowStepsByVersionID(ctx, versionID)
+	if err != nil {
+		return db.WorkflowStep{}, fmt.Errorf("list workflow steps: %w", err)
+	}
+	stepName = uniqueStepName(stepName, currentSteps, 0)
+
 	params := db.CreateWorkflowStepParams{
 		WorkflowVersionID: versionID,
+		Name:              stepName,
 		StepType:          req.StepType,
 		InputMapping:      req.InputMapping,
 		ControlSettings:   controlSettings,
@@ -696,8 +730,27 @@ func (s *Service) UpdateStep(ctx context.Context, stepID int32, req UpdateStepRe
 		}
 	}
 
+	stepName := normalizeStepName(current.Name)
+	if stepName == "" {
+		stepName = defaultStepNameForStep(current)
+	}
+	if req.Name != nil {
+		stepName = normalizeStepName(*req.Name)
+		if err := validateStepName(stepName); err != nil {
+			return db.WorkflowStep{}, err
+		}
+		currentSteps, err := s.store.ListWorkflowStepsByVersionID(ctx, current.WorkflowVersionID)
+		if err != nil {
+			return db.WorkflowStep{}, fmt.Errorf("list workflow steps: %w", err)
+		}
+		if hasDuplicateStepName(stepName, currentSteps, stepID) {
+			return db.WorkflowStep{}, ErrStepNameDuplicate
+		}
+	}
+
 	params := db.UpdateWorkflowStepParams{
 		ID:                       stepID,
+		Name:                     stepName,
 		StepType:                 stepType,
 		WorkTypeID:               current.WorkTypeID,
 		WorkerSettingsRevisionID: current.WorkerSettingsRevisionID,
@@ -775,6 +828,7 @@ func (s *Service) UpdateTaskSettings(ctx context.Context, stepID int32, req Upda
 
 			if _, err := s.store.UpdateWorkflowStep(ctx, db.UpdateWorkflowStepParams{
 				ID:                       current.ID,
+				Name:                     current.Name,
 				StepType:                 current.StepType,
 				WorkTypeID:               current.WorkTypeID,
 				WorkerSettingsRevisionID: pgtype.Int4{Int32: revision.ID, Valid: true},
@@ -818,6 +872,7 @@ func (s *Service) UpdateTaskInputMapping(ctx context.Context, stepID int32, req 
 
 	_, err = s.store.UpdateWorkflowStep(ctx, db.UpdateWorkflowStepParams{
 		ID:                       current.ID,
+		Name:                     current.Name,
 		StepType:                 current.StepType,
 		WorkTypeID:               current.WorkTypeID,
 		WorkerSettingsRevisionID: current.WorkerSettingsRevisionID,
@@ -990,6 +1045,7 @@ func (s *Service) removeInboundInputMappings(ctx context.Context, versionID, del
 		}
 		if _, err := s.store.UpdateWorkflowStep(ctx, db.UpdateWorkflowStepParams{
 			ID:                       step.ID,
+			Name:                     step.Name,
 			StepType:                 step.StepType,
 			WorkTypeID:               step.WorkTypeID,
 			WorkerSettingsRevisionID: step.WorkerSettingsRevisionID,
@@ -1071,6 +1127,7 @@ func (s *Service) ListEnrichedSteps(ctx context.Context, versionID int32) ([]Enr
 		step := EnrichedStepResponse{
 			ID:                r.ID,
 			WorkflowVersionID: r.WorkflowVersionID,
+			Name:              r.Name,
 			StepType:          r.StepType,
 			ControlSettings:   toRawMessage(r.ControlSettings),
 			InputMapping:      toRawMessage(r.InputMapping),
@@ -1109,6 +1166,114 @@ func toRawMessage(b []byte) json.RawMessage {
 		return nil
 	}
 	return json.RawMessage(b)
+}
+
+func normalizeStepName(name string) string {
+	return strings.TrimSpace(name)
+}
+
+func validateStepName(name string) error {
+	if name == "" {
+		return ErrStepNameRequired
+	}
+	if utf8.RuneCountInString(name) > maxStepNameLength {
+		return ErrStepNameInvalid
+	}
+	return nil
+}
+
+func defaultStepNameForCreate(req CreateStepRequest) string {
+	if req.StepType == string(dagpkg.StepTypeControl) && req.ControlKind != nil {
+		return defaultStepNameForControlKind(*req.ControlKind)
+	}
+	return "Task"
+}
+
+func defaultStepNameForStep(step db.WorkflowStep) string {
+	if step.StepType == string(dagpkg.StepTypeControl) && step.ControlKind.Valid {
+		return defaultStepNameForControlKind(step.ControlKind.String)
+	}
+	return fmt.Sprintf("Step %d", step.ID)
+}
+
+func defaultStepNameForControlKind(kind string) string {
+	if kind == dagpkg.ControlKindStart {
+		return "System Trigger"
+	}
+	return kind
+}
+
+func uniqueStepName(base string, steps []db.WorkflowStep, excludeID int32) string {
+	base = truncateStepName(base)
+	used := activeStepNames(steps, excludeID)
+	if _, exists := used[base]; !exists {
+		return base
+	}
+
+	maxSuffix := int64(1)
+	prefix := base + " "
+	for name := range used {
+		if name == base {
+			continue
+		}
+		if !strings.HasPrefix(name, prefix) {
+			continue
+		}
+		n, err := strconv.ParseInt(strings.TrimPrefix(name, prefix), 10, 32)
+		if err != nil || n < 2 {
+			continue
+		}
+		if n > maxSuffix {
+			maxSuffix = n
+		}
+	}
+
+	for suffix := maxSuffix + 1; ; suffix++ {
+		suffixText := fmt.Sprintf(" %d", suffix)
+		candidate := truncateStepNameForSuffix(base, suffixText) + suffixText
+		if _, exists := used[candidate]; !exists {
+			return candidate
+		}
+	}
+}
+
+func hasDuplicateStepName(name string, steps []db.WorkflowStep, excludeID int32) bool {
+	_, exists := activeStepNames(steps, excludeID)[name]
+	return exists
+}
+
+func activeStepNames(steps []db.WorkflowStep, excludeID int32) map[string]struct{} {
+	names := make(map[string]struct{}, len(steps))
+	for _, step := range steps {
+		if step.ID == excludeID || step.DeletedAt.Valid {
+			continue
+		}
+		name := normalizeStepName(step.Name)
+		if name == "" {
+			continue
+		}
+		names[name] = struct{}{}
+	}
+	return names
+}
+
+func truncateStepName(name string) string {
+	return truncateRunes(name, maxStepNameLength)
+}
+
+func truncateStepNameForSuffix(name, suffix string) string {
+	return truncateRunes(name, maxStepNameLength-utf8.RuneCountInString(suffix))
+}
+
+func truncateRunes(value string, limit int) string {
+	if limit <= 0 {
+		return ""
+	}
+	if utf8.RuneCountInString(value) <= limit {
+		return value
+	}
+	runes := []rune(value)
+	return string(runes[:limit])
 }
 
 func (s *Service) invalidateVersion(ctx context.Context, versionID int32) error {

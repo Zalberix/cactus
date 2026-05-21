@@ -523,6 +523,18 @@ func (h *Handler) CreateStep(c *gin.Context) {
 			response.Fail(c, http.StatusUnprocessableEntity, "CONTROL_SETTINGS_INVALID", "Invalid control settings")
 			return
 		}
+		if errors.Is(err, ErrStepNameRequired) {
+			response.Fail(c, http.StatusUnprocessableEntity, "STEP_NAME_REQUIRED", "Step name is required")
+			return
+		}
+		if errors.Is(err, ErrStepNameInvalid) {
+			response.Fail(c, http.StatusUnprocessableEntity, "STEP_NAME_INVALID", "Step name is invalid")
+			return
+		}
+		if errors.Is(err, ErrStepNameDuplicate) {
+			response.Fail(c, http.StatusUnprocessableEntity, "STEP_NAME_DUPLICATE", "Step name already exists in this version")
+			return
+		}
 		fmt.Printf("[CreateStep ERROR] versionID=%d stepType=%s workTypeID=%v controlKind=%v err=%v\n",
 			versionID, req.StepType, req.WorkTypeID, req.ControlKind, err)
 		response.InternalError(c, "Ошибка создания шага: "+err.Error())
@@ -555,6 +567,18 @@ func (h *Handler) UpdateStep(c *gin.Context) {
 		}
 		if errors.Is(err, ErrControlSettingsInvalid) {
 			response.Fail(c, http.StatusUnprocessableEntity, "CONTROL_SETTINGS_INVALID", "Invalid control settings")
+			return
+		}
+		if errors.Is(err, ErrStepNameRequired) {
+			response.Fail(c, http.StatusUnprocessableEntity, "STEP_NAME_REQUIRED", "Step name is required")
+			return
+		}
+		if errors.Is(err, ErrStepNameInvalid) {
+			response.Fail(c, http.StatusUnprocessableEntity, "STEP_NAME_INVALID", "Step name is invalid")
+			return
+		}
+		if errors.Is(err, ErrStepNameDuplicate) {
+			response.Fail(c, http.StatusUnprocessableEntity, "STEP_NAME_DUPLICATE", "Step name already exists in this version")
 			return
 		}
 		response.InternalError(c, "Ошибка обновления шага")

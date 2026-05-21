@@ -28,6 +28,7 @@ const emit = defineEmits<{
   drop: [payload: StepAddPayload]
   deleteSelected: []
   deleteNode: [nodeId: string]
+  renameNode: [nodeId: string]
 }>()
 
 const nodeTypes = {
@@ -81,6 +82,11 @@ function onEdgeRemove(edgeId: string) {
 function onNodeDelete(nodeId: string) {
   if (!isEdit.value) return
   emit('deleteNode', nodeId)
+}
+
+function onNodeRename(nodeId: string) {
+  if (!isEdit.value) return
+  emit('renameNode', nodeId)
 }
 
 function onDragOver(event: DragEvent) {
@@ -159,7 +165,11 @@ onMounted(() => {
       <Controls />
 
       <template #node-step="nodeProps">
-        <StepNode v-bind="nodeProps" @delete="onNodeDelete" />
+        <StepNode
+          v-bind="nodeProps"
+          @delete="onNodeDelete"
+          @rename="onNodeRename"
+        />
       </template>
 
       <template #edge-step="edgeProps">

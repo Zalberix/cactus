@@ -22,6 +22,7 @@ type UpdateWorkflowRequest struct {
 
 // CreateStepRequest — запрос на создание шага.
 type CreateStepRequest struct {
+	Name                     string          `json:"name" binding:"omitempty,max=255"`
 	StepType                 string          `json:"step_type" binding:"required,oneof=task control"`
 	WorkTypeID               *int32          `json:"work_type_id"`
 	WorkerSettingsRevisionID *int32          `json:"worker_settings_revision_id"`
@@ -34,6 +35,7 @@ type CreateStepRequest struct {
 
 // UpdateStepRequest — запрос на обновление шага.
 type UpdateStepRequest struct {
+	Name                     *string         `json:"name" binding:"omitempty,min=1,max=255"`
 	StepType                 *string         `json:"step_type" binding:"omitempty,oneof=task control"`
 	WorkTypeID               *int32          `json:"work_type_id"`
 	WorkerSettingsRevisionID *int32          `json:"worker_settings_revision_id"`
@@ -61,6 +63,7 @@ type CreateDependencyRequest struct {
 type EnrichedStepResponse struct {
 	ID                       int32           `json:"id"`
 	WorkflowVersionID        int32           `json:"workflow_version_id"`
+	Name                     string          `json:"name"`
 	StepType                 string          `json:"step_type"`
 	WorkTypeID               *int32          `json:"work_type_id,omitempty"`
 	WorkerSettingsRevisionID *int32          `json:"worker_settings_revision_id,omitempty"`

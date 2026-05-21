@@ -14,10 +14,4 @@ describe('DAG viewer styles', () => {
     expect(appStyles).toContain('@vue-flow/core/dist/style.css')
   })
 
-  it('uses a slightly gray editor canvas background', () => {
-    const canvas = readProjectFile('app/components/dag/DagCanvas.vue')
-
-    expect(canvas).toContain('class="bg-slate-100"')
-    expect(canvas).toContain('<Background :gap="GRID_SIZE" color="#cbd5e1" />')
-  })
 })

@@ -4,7 +4,7 @@ import {
   Mail, MessageSquare, Bell, Workflow, GitBranch,
   Clock, Split, Zap, Radio, AlertCircle, Trash2, MoreHorizontal,
 } from 'lucide-vue-next'
-import type { Component } from 'vue'
+import { ref, type Component } from 'vue'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +19,7 @@ const { t } = useI18n()
 const controlSteps = useControlSteps()
 const emit = defineEmits<{
   delete: [nodeId: string]
+  rename: [nodeId: string]
 }>()
 
 const iconMap: Record<string, Component> = {
@@ -63,11 +64,17 @@ const label = computed(() => node.data.label ?? 'Step')
 const nodeErrors = computed(() => node.data.validationErrors ?? [])
 const hasValidationErrors = computed(() => nodeErrors.value.length > 0)
 const canShowActions = computed(() => !isStart.value)
+const actionsMenuOpen = ref(false)
 
 function onDelete(event: MouseEvent) {
   event.stopPropagation()
   if (isStart.value) return
   emit('delete', node.id)
+}
+
+function onRename() {
+  if (isStart.value) return
+  emit('rename', node.id)
 }
 </script>
 
@@ -76,6 +83,7 @@ function onDelete(event: MouseEvent) {
     <div
       v-if="canShowActions"
       class="pointer-events-auto absolute left-1/2 top-0 z-20 flex h-10 -translate-x-1/2 -translate-y-full items-end justify-center gap-1 pb-1 opacity-0 transition-opacity group-hover/node:opacity-100 hover:opacity-100 focus-within:opacity-100"
+      :class="actionsMenuOpen ? '!opacity-100' : undefined"
       data-testid="node-hover-actions"
     >
       <button
@@ -89,7 +97,7 @@ function onDelete(event: MouseEvent) {
         <Trash2 class="h-3.5 w-3.5" />
       </button>
 
-      <DropdownMenu>
+      <DropdownMenu v-model:open="actionsMenuOpen">
         <DropdownMenuTrigger as-child>
           <button
             type="button"
@@ -103,7 +111,7 @@ function onDelete(event: MouseEvent) {
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="center" class="w-36">
-          <DropdownMenuItem @select.prevent>
+          <DropdownMenuItem @select="onRename">
             {{ t('editor.renameStep') }}
           </DropdownMenuItem>
         </DropdownMenuContent>

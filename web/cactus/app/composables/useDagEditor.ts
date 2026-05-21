@@ -2,8 +2,14 @@ import type { Node, Edge, Connection } from '@vue-flow/core'
 import type { Step, Dependency, ValidationIssue } from '~/composables/useVersions'
 import type { WorkTypeMeta } from '~/composables/useWorkers'
 import { canConnectSteps } from '~/composables/dag-connection-guards'
+import {
+  isStepNameDuplicate,
+  nextUniqueStepName,
+  normalizeStepName,
+} from '~/components/dag/step-name-utils'
 
 export interface StepData {
+  name: string
   label: string
   stepType: string
   workTypeId?: number
@@ -80,6 +86,7 @@ export function useDagEditor(
       x: fallbackIndex * 300,
       y: 200,
     }
+    const displayName = step.name || step.work_type_name || step.control_kind || `Step ${step.id}`
     return {
       id: String(step.id),
       type: 'step',
@@ -88,7 +95,8 @@ export function useDagEditor(
       data: {
         label: step.control_kind === 'start'
           ? 'System Trigger'
-          : step.work_type_name ?? step.control_kind ?? `Step ${step.id}`,
+          : displayName,
+        name: displayName,
         stepType: step.step_type,
         workTypeId: step.work_type_id,
         workTypeName: step.work_type_name,
@@ -148,7 +156,10 @@ export function useDagEditor(
     const vid = versionId.value
     if (!vid) return
 
-    const stepName = name ?? `New ${stepType} step`
+    const stepName = nextUniqueStepName(
+      name ?? `New ${stepType} step`,
+      nodes.value.map(node => String(node.data.label ?? '')),
+    )
     const step = await createStep(vid, {
       name: stepName,
       step_type: stepType,
@@ -166,15 +177,15 @@ export function useDagEditor(
     catch {
       hydratedStep = {
         ...step,
+        name: step.name ?? stepName,
         work_type_name: step.work_type_name ?? name,
         work_type_code: step.work_type_code ?? workTypeCode,
       }
     }
-    const displayName = stepType === 'task' ? name?.trim() : undefined
-    if (displayName) {
+    if (!hydratedStep.name) {
       hydratedStep = {
         ...hydratedStep,
-        work_type_name: displayName,
+        name: stepName,
       }
     }
 
@@ -375,6 +386,42 @@ export function useDagEditor(
     isDirty.value = true
   }
 
+  function stepNameEntries() {
+    return nodes.value.map(node => ({
+      id: node.id,
+      name: String(node.data.label ?? ''),
+    }))
+  }
+
+  async function renameStepOnServer(stepId: string, name: string): Promise<void> {
+    if (isReadOnly.value) return
+    const node = nodes.value.find(n => n.id === stepId)
+    if (!node || node.data.controlKind === 'start') return
+
+    const nextName = normalizeStepName(name)
+    if (!nextName) {
+      throw new Error('STEP_NAME_REQUIRED')
+    }
+    if (isStepNameDuplicate(nextName, stepNameEntries(), stepId)) {
+      throw new Error('STEP_NAME_DUPLICATE')
+    }
+
+    const updated = await updateStep(Number(stepId), { name: nextName })
+    const savedName = updated?.name ?? nextName
+    nodes.value = nodes.value.map((item) => {
+      if (item.id !== stepId) return item
+      return {
+        ...item,
+        data: {
+          ...item.data,
+          label: savedName,
+          name: savedName,
+        },
+      }
+    })
+    isDirty.value = true
+  }
+
   async function updateTaskSettingsOnServer(
     stepId: string,
     settingsData: Record<string, unknown>,
@@ -417,6 +464,7 @@ export function useDagEditor(
     selectNode,
     selectEdge,
     updateStepOnServer,
+    renameStepOnServer,
     updateTaskSettingsOnServer,
     updateTaskInputMappingOnServer,
   }

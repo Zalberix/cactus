@@ -123,6 +123,9 @@
     "value": "Значение",
     "deleteStep": "Удалить шаг",
     "renameStep": "Переименовать",
+    "stepRenamed": "Шаг переименован",
+    "stepNameRequired": "Название шага обязательно",
+    "stepNameDuplicate": "Шаг с таким названием уже есть в этой версии",
     "versionNumber": "Версия {number}",
     "valid": "Валидна",
     "invalid": "Невалидна",
@@ -493,5 +496,4 @@
     "inactive": "Неактивный"
   }
 }
-
 

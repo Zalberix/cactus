@@ -6,6 +6,7 @@ import type { WorkflowInputSchemaField } from '~/composables/useWorkflows'
 import DagCanvas from '~/components/dag/DagCanvas.vue'
 import StepToolbar from '~/components/dag/StepToolbar.vue'
 import StepSchemaChoiceDialog from '~/components/dag/StepSchemaChoiceDialog.vue'
+import StepRenameDialog from '~/components/dag/StepRenameDialog.vue'
 import WorkflowSchemaDialog from '~/components/dag/WorkflowSchemaDialog.vue'
 import NodeEditor from '~/components/dag/node-editor/NodeEditor.vue'
 import EmptyState from '~/components/feedback/EmptyState.vue'
@@ -60,6 +61,8 @@ const inputSchema = ref<Record<string, unknown> | null>(null)
 const deactivateOpen = ref(false)
 const schemaChoiceOpen = ref(false)
 const pendingStepPayload = ref<StepAddPayload | null>(null)
+const renameOpen = ref(false)
+const renamingNodeId = ref<string | null>(null)
 const showValidationDialog = ref(false)
 
 const currentVersion = computed(() =>
@@ -92,6 +95,23 @@ const canvasEdges = computed(() =>
     ...edge,
     selected: edge.id === dagEditor.selectedEdgeId.value,
   })),
+)
+
+const stepNameEntries = computed(() =>
+  dagEditor.nodes.value.map(node => ({
+    id: node.id,
+    name: String(node.data.label ?? ''),
+  })),
+)
+
+const renamingNode = computed(() =>
+  renamingNodeId.value
+    ? dagEditor.nodes.value.find(node => node.id === renamingNodeId.value) ?? null
+    : null,
+)
+
+const renamingNodeName = computed(() =>
+  String(renamingNode.value?.data.label ?? ''),
 )
 
 // Load workflow data on mount
@@ -374,6 +394,25 @@ function onDeleteNode(nodeId: string) {
   dagEditor.removeStep(nodeId)
 }
 
+function onRenameNode(nodeId: string) {
+  if (isCurrentVersionReadOnly.value) return
+  renamingNodeId.value = nodeId
+  renameOpen.value = true
+}
+
+async function onSaveStepName(nodeId: string, name: string) {
+  if (isCurrentVersionReadOnly.value) return
+  try {
+    await dagEditor.renameStepOnServer(nodeId, name)
+    renameOpen.value = false
+    renamingNodeId.value = null
+    toast({ title: t('editor.stepRenamed') })
+  }
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
+  }
+}
+
 async function onNodeEditorSaveSettings(nodeId: string, settingsData: Record<string, unknown>) {
   if (isCurrentVersionReadOnly.value) return
   try {
@@ -570,6 +609,7 @@ onMounted(() => {
           @drop="onDrop"
           @delete-selected="onDeleteSelected"
           @delete-node="onDeleteNode"
+          @rename-node="onRenameNode"
         />
       </div>
 
@@ -615,6 +655,14 @@ onMounted(() => {
       :step-name="pendingStepPayload?.name"
       :schemas="schemaChoiceOptions(pendingStepPayload?.schemas)"
       @choose="onChooseStepSchema"
+    />
+
+    <StepRenameDialog
+      v-model:open="renameOpen"
+      :node-id="renamingNodeId"
+      :current-name="renamingNodeName"
+      :names="stepNameEntries"
+      @save="onSaveStepName"
     />
 
     <!-- Deactivate Confirmation Dialog -->

@@ -12,13 +12,14 @@ import (
 )
 
 const createWorkflowStep = `-- name: CreateWorkflowStep :one
-INSERT INTO "workflow_step" (workflow_version_id, step_type, work_type_id, worker_settings_revision_id, control_kind, control_settings, input_mapping, canvas_position)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, workflow_version_id, step_type, work_type_id, worker_settings_revision_id, control_kind, control_settings, input_mapping, canvas_position, created_at, updated_at, deleted_at
+INSERT INTO "workflow_step" (workflow_version_id, "name", step_type, work_type_id, worker_settings_revision_id, control_kind, control_settings, input_mapping, canvas_position)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id, workflow_version_id, name, step_type, work_type_id, worker_settings_revision_id, control_kind, control_settings, input_mapping, canvas_position, created_at, updated_at, deleted_at
 `
 
 type CreateWorkflowStepParams struct {
 	WorkflowVersionID        int32       `json:"workflow_version_id"`
+	Name                     string      `json:"name"`
 	StepType                 string      `json:"step_type"`
 	WorkTypeID               pgtype.Int4 `json:"work_type_id"`
 	WorkerSettingsRevisionID pgtype.Int4 `json:"worker_settings_revision_id"`
@@ -31,6 +32,7 @@ type CreateWorkflowStepParams struct {
 func (q *Queries) CreateWorkflowStep(ctx context.Context, arg CreateWorkflowStepParams) (WorkflowStep, error) {
 	row := q.db.QueryRow(ctx, createWorkflowStep,
 		arg.WorkflowVersionID,
+		arg.Name,
 		arg.StepType,
 		arg.WorkTypeID,
 		arg.WorkerSettingsRevisionID,
@@ -43,6 +45,7 @@ func (q *Queries) CreateWorkflowStep(ctx context.Context, arg CreateWorkflowStep
 	err := row.Scan(
 		&i.ID,
 		&i.WorkflowVersionID,
+		&i.Name,
 		&i.StepType,
 		&i.WorkTypeID,
 		&i.WorkerSettingsRevisionID,
@@ -69,7 +72,7 @@ func (q *Queries) DeleteWorkflowStepsByVersionID(ctx context.Context, workflowVe
 }
 
 const getWorkflowStepByID = `-- name: GetWorkflowStepByID :one
-SELECT id, workflow_version_id, step_type, work_type_id, worker_settings_revision_id, control_kind, control_settings, input_mapping, canvas_position, created_at, updated_at, deleted_at FROM "workflow_step"
+SELECT id, workflow_version_id, name, step_type, work_type_id, worker_settings_revision_id, control_kind, control_settings, input_mapping, canvas_position, created_at, updated_at, deleted_at FROM "workflow_step"
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -79,6 +82,7 @@ func (q *Queries) GetWorkflowStepByID(ctx context.Context, id int32) (WorkflowSt
 	err := row.Scan(
 		&i.ID,
 		&i.WorkflowVersionID,
+		&i.Name,
 		&i.StepType,
 		&i.WorkTypeID,
 		&i.WorkerSettingsRevisionID,
@@ -95,7 +99,7 @@ func (q *Queries) GetWorkflowStepByID(ctx context.Context, id int32) (WorkflowSt
 
 const listEnrichedStepsByVersionID = `-- name: ListEnrichedStepsByVersionID :many
 SELECT
-    ws.id, ws.workflow_version_id, ws.step_type, ws.work_type_id, ws.worker_settings_revision_id, ws.control_kind, ws.control_settings, ws.input_mapping, ws.canvas_position, ws.created_at, ws.updated_at, ws.deleted_at,
+    ws.id, ws.workflow_version_id, ws.name, ws.step_type, ws.work_type_id, ws.worker_settings_revision_id, ws.control_kind, ws.control_settings, ws.input_mapping, ws.canvas_position, ws.created_at, ws.updated_at, ws.deleted_at,
     wt.name AS work_type_name,
     wt.code AS work_type_code,
     wt.meta AS work_type_meta,
@@ -119,6 +123,7 @@ ORDER BY ws.id
 type ListEnrichedStepsByVersionIDRow struct {
 	ID                       int32            `json:"id"`
 	WorkflowVersionID        int32            `json:"workflow_version_id"`
+	Name                     string           `json:"name"`
 	StepType                 string           `json:"step_type"`
 	WorkTypeID               pgtype.Int4      `json:"work_type_id"`
 	WorkerSettingsRevisionID pgtype.Int4      `json:"worker_settings_revision_id"`
@@ -152,6 +157,7 @@ func (q *Queries) ListEnrichedStepsByVersionID(ctx context.Context, workflowVers
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkflowVersionID,
+			&i.Name,
 			&i.StepType,
 			&i.WorkTypeID,
 			&i.WorkerSettingsRevisionID,
@@ -183,7 +189,7 @@ func (q *Queries) ListEnrichedStepsByVersionID(ctx context.Context, workflowVers
 }
 
 const listWorkflowStepsByVersionID = `-- name: ListWorkflowStepsByVersionID :many
-SELECT id, workflow_version_id, step_type, work_type_id, worker_settings_revision_id, control_kind, control_settings, input_mapping, canvas_position, created_at, updated_at, deleted_at FROM "workflow_step"
+SELECT id, workflow_version_id, name, step_type, work_type_id, worker_settings_revision_id, control_kind, control_settings, input_mapping, canvas_position, created_at, updated_at, deleted_at FROM "workflow_step"
 WHERE workflow_version_id = $1 AND deleted_at IS NULL
 ORDER BY id
 `
@@ -200,6 +206,7 @@ func (q *Queries) ListWorkflowStepsByVersionID(ctx context.Context, workflowVers
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkflowVersionID,
+			&i.Name,
 			&i.StepType,
 			&i.WorkTypeID,
 			&i.WorkerSettingsRevisionID,
@@ -234,20 +241,22 @@ func (q *Queries) SoftDeleteWorkflowStep(ctx context.Context, id int32) error {
 
 const updateWorkflowStep = `-- name: UpdateWorkflowStep :one
 UPDATE "workflow_step"
-SET step_type = $2,
-    work_type_id = $3,
-    worker_settings_revision_id = $4,
-    control_kind = $5,
-    control_settings = $6,
-    input_mapping = $7,
-    canvas_position = $8,
+SET "name" = $2,
+    step_type = $3,
+    work_type_id = $4,
+    worker_settings_revision_id = $5,
+    control_kind = $6,
+    control_settings = $7,
+    input_mapping = $8,
+    canvas_position = $9,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, workflow_version_id, step_type, work_type_id, worker_settings_revision_id, control_kind, control_settings, input_mapping, canvas_position, created_at, updated_at, deleted_at
+RETURNING id, workflow_version_id, name, step_type, work_type_id, worker_settings_revision_id, control_kind, control_settings, input_mapping, canvas_position, created_at, updated_at, deleted_at
 `
 
 type UpdateWorkflowStepParams struct {
 	ID                       int32       `json:"id"`
+	Name                     string      `json:"name"`
 	StepType                 string      `json:"step_type"`
 	WorkTypeID               pgtype.Int4 `json:"work_type_id"`
 	WorkerSettingsRevisionID pgtype.Int4 `json:"worker_settings_revision_id"`
@@ -260,6 +269,7 @@ type UpdateWorkflowStepParams struct {
 func (q *Queries) UpdateWorkflowStep(ctx context.Context, arg UpdateWorkflowStepParams) (WorkflowStep, error) {
 	row := q.db.QueryRow(ctx, updateWorkflowStep,
 		arg.ID,
+		arg.Name,
 		arg.StepType,
 		arg.WorkTypeID,
 		arg.WorkerSettingsRevisionID,
@@ -272,6 +282,7 @@ func (q *Queries) UpdateWorkflowStep(ctx context.Context, arg UpdateWorkflowStep
 	err := row.Scan(
 		&i.ID,
 		&i.WorkflowVersionID,
+		&i.Name,
 		&i.StepType,
 		&i.WorkTypeID,
 		&i.WorkerSettingsRevisionID,

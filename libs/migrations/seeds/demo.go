@@ -148,12 +148,13 @@ func SeedDemo(ctx context.Context, db *pgxpool.Pool) error {
 	//
 	// CHECK constraint: task шаг требует work_type_id AND worker_settings_revision_id NOT NULL
 	_, err = db.Exec(ctx, `
-		INSERT INTO workflow_step (workflow_version_id, step_type, work_type_id, worker_settings_revision_id, input_mapping)
+		INSERT INTO workflow_step (workflow_version_id, "name", step_type, work_type_id, worker_settings_revision_id, input_mapping)
 		VALUES
 			-- Step 1: Email (корень)
 			(
 				(SELECT wv.id FROM workflow_version wv JOIN workflow w ON w.id = wv.workflow_id
 				 WHERE w.name = 'Demo Email Notification' AND wv.is_active = true LIMIT 1),
+				'Email',
 				'task',
 				(SELECT id FROM work_type WHERE code = 'smtp'),
 				(SELECT wsr.id FROM worker_settings_revision wsr
@@ -170,6 +171,7 @@ func SeedDemo(ctx context.Context, db *pgxpool.Pool) error {
 			(
 				(SELECT wv.id FROM workflow_version wv JOIN workflow w ON w.id = wv.workflow_id
 				 WHERE w.name = 'Demo Email Notification' AND wv.is_active = true LIMIT 1),
+				'Telegram',
 				'task',
 				(SELECT id FROM work_type WHERE code = 'telegram'),
 				(SELECT wsr.id FROM worker_settings_revision wsr
@@ -185,6 +187,7 @@ func SeedDemo(ctx context.Context, db *pgxpool.Pool) error {
 			(
 				(SELECT wv.id FROM workflow_version wv JOIN workflow w ON w.id = wv.workflow_id
 				 WHERE w.name = 'Demo Email Notification' AND wv.is_active = true LIMIT 1),
+				'Summary email',
 				'task',
 				(SELECT id FROM work_type WHERE code = 'smtp'),
 				(SELECT wsr.id FROM worker_settings_revision wsr

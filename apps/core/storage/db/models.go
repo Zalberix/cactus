@@ -251,6 +251,7 @@ type WorkflowRunStepAttempt struct {
 type WorkflowStep struct {
 	ID                       int32            `json:"id"`
 	WorkflowVersionID        int32            `json:"workflow_version_id"`
+	Name                     string           `json:"name"`
 	StepType                 string           `json:"step_type"`
 	WorkTypeID               pgtype.Int4      `json:"work_type_id"`
 	WorkerSettingsRevisionID pgtype.Int4      `json:"worker_settings_revision_id"`
