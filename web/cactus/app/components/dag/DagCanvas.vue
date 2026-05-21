@@ -27,6 +27,7 @@ const emit = defineEmits<{
   removeEdge: [edgeId: string]
   drop: [payload: StepAddPayload]
   deleteSelected: []
+  deleteNode: [nodeId: string]
 }>()
 
 const nodeTypes = {
@@ -75,6 +76,11 @@ function onEdgeClick(event: EdgeMouseEvent) {
 function onEdgeRemove(edgeId: string) {
   if (!isEdit.value) return
   emit('removeEdge', edgeId)
+}
+
+function onNodeDelete(nodeId: string) {
+  if (!isEdit.value) return
+  emit('deleteNode', nodeId)
 }
 
 function onDragOver(event: DragEvent) {
@@ -139,6 +145,7 @@ onMounted(() => {
       :auto-connect="false"
       :snap-to-grid="true"
       :snap-grid="[GRID_SIZE, GRID_SIZE]"
+      class="bg-slate-50"
       fit-view-on-init
       @connect="onConnect"
       @node-drag-stop="onNodeDragStop"
@@ -148,11 +155,11 @@ onMounted(() => {
       @dragover="onDragOver"
       @drop="onDrop"
     >
-      <Background :gap="GRID_SIZE" />
+      <Background :gap="GRID_SIZE"/>
       <Controls />
 
       <template #node-step="nodeProps">
-        <StepNode v-bind="nodeProps" />
+        <StepNode v-bind="nodeProps" @delete="onNodeDelete" />
       </template>
 
       <template #edge-step="edgeProps">

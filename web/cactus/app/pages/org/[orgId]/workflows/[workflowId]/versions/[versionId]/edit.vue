@@ -2,17 +2,15 @@
 import { Save, Play, Pause, AlertCircle, Copy, FileJson } from 'lucide-vue-next'
 import type { Connection } from '@vue-flow/core'
 import type { VersionSummary } from '~/composables/useVersions'
-import type { WorkType } from '~/composables/useWorkers'
 import type { WorkflowInputSchemaField } from '~/composables/useWorkflows'
-import type { StepData } from '~/composables/useDagEditor'
 import DagCanvas from '~/components/dag/DagCanvas.vue'
 import StepToolbar from '~/components/dag/StepToolbar.vue'
-import StepPanel from '~/components/dag/StepPanel.vue'
 import StepSchemaChoiceDialog from '~/components/dag/StepSchemaChoiceDialog.vue'
 import WorkflowSchemaDialog from '~/components/dag/WorkflowSchemaDialog.vue'
 import NodeEditor from '~/components/dag/node-editor/NodeEditor.vue'
 import EmptyState from '~/components/feedback/EmptyState.vue'
 import { editorSurfaceForStep, isVersionReadOnly } from '~/components/dag/editor-utils'
+import { validationToastDescription } from '~/components/dag/validation-toast'
 import {
   schemaChoiceOptions,
   schemaWorkerName,
@@ -48,14 +46,12 @@ const {
   updateVersionName,
   activateVersion,
   deactivateVersion,
-  fetchWorkTypes,
 } = useVersions()
 
 // Workflow state
 const workflowName = ref('')
 const versions = ref<VersionSummary[]>([])
 const selectedVersionId = ref<number | null>(null)
-const workTypes = ref<WorkType[]>([])
 const pageLoading = ref(true)
 const saving = ref(false)
 const schemaOpen = ref(false)
@@ -102,15 +98,13 @@ const canvasEdges = computed(() =>
 async function loadAll() {
   pageLoading.value = true
   try {
-    const [wf, vers, wts] = await Promise.all([
+    const [wf, vers] = await Promise.all([
       fetchWorkflow(workflowId.value),
       fetchVersionSummaries(workflowId.value),
-      fetchWorkTypes(),
     ])
 
     workflowName.value = wf.name
     versions.value = vers
-    workTypes.value = wts
 
     // Auto-select: query version, else active version, else latest
     if (vers.length > 0) {
@@ -165,7 +159,14 @@ async function onSave() {
     }
     else if (dagEditor.validationErrors.value.length > 0) {
       showValidationDialog.value = true
-      toast({ title: t('error.dagValidation'), variant: 'destructive' })
+      toast({
+        title: t('error.dagValidationTitle'),
+        description: validationToastDescription(
+          dagEditor.validationErrors.value,
+          t('error.dagValidation'),
+        ),
+        variant: 'destructive',
+      })
     }
   }
   catch (err) {
@@ -302,10 +303,6 @@ function onNodeDoubleClick(nodeId: string) {
   const surface = editorSurfaceForStep(node?.data ?? {})
   if (surface === 'node-editor') {
     nodeEditor.open(nodeId)
-    return
-  }
-  if (surface === 'step-panel') {
-    dagEditor.selectNode(nodeId)
   }
 }
 
@@ -372,26 +369,9 @@ function onDeleteSelected() {
   }
 }
 
-function onPanelUpdateData(nodeId: string, data: Partial<StepData>) {
+function onDeleteNode(nodeId: string) {
   if (isCurrentVersionReadOnly.value) return
-  dagEditor.updateNodeData(nodeId, data)
-}
-
-function onPanelUpdateStep(stepId: string, data: Record<string, unknown>) {
-  if (isCurrentVersionReadOnly.value) return
-  dagEditor.updateStepOnServer(stepId, data)
-}
-
-function onPanelDeleteStep(stepId: string) {
-  if (isCurrentVersionReadOnly.value) return
-  dagEditor.removeStep(stepId)
-}
-
-function onPanelOpenEditor(nodeId: string) {
-  if (isCurrentVersionReadOnly.value) return
-  const node = dagEditor.nodes.value.find(n => n.id === nodeId)
-  if (node?.data.controlKind === 'start') return
-  nodeEditor.open(nodeId)
+  dagEditor.removeStep(nodeId)
 }
 
 async function onNodeEditorSaveSettings(nodeId: string, settingsData: Record<string, unknown>) {
@@ -399,6 +379,18 @@ async function onNodeEditorSaveSettings(nodeId: string, settingsData: Record<str
   try {
     await dagEditor.updateTaskSettingsOnServer(nodeId, settingsData)
     dagEditor.updateNodeData(nodeId, { config: settingsData })
+    toast({ title: t('nodeEditor.settingsSaved') })
+  }
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
+  }
+}
+
+async function onNodeEditorSaveControlSettings(nodeId: string, controlSettings: Record<string, unknown>) {
+  if (isCurrentVersionReadOnly.value) return
+  try {
+    await dagEditor.updateStepOnServer(nodeId, { control_settings: controlSettings })
+    dagEditor.updateNodeData(nodeId, { controlSettings })
     toast({ title: t('nodeEditor.settingsSaved') })
   }
   catch (err) {
@@ -577,21 +569,10 @@ onMounted(() => {
           @remove-edge="onRemoveEdge"
           @drop="onDrop"
           @delete-selected="onDeleteSelected"
+          @delete-node="onDeleteNode"
         />
       </div>
 
-      <!-- Right panel -->
-      <StepPanel
-        v-if="dagEditor.selectedNode.value && editorSurfaceForStep(dagEditor.selectedNode.value.data) !== 'node-editor'"
-        :node="dagEditor.selectedNode.value"
-        :work-types="workTypes"
-        :read-only="isCurrentVersionReadOnly"
-        @close="dagEditor.selectNode(null)"
-        @open-editor="onPanelOpenEditor"
-        @update-data="onPanelUpdateData"
-        @update-step="onPanelUpdateStep"
-        @delete-step="onPanelDeleteStep"
-      />
     </div>
 
     <!-- No versions state -->
@@ -616,6 +597,7 @@ onMounted(() => {
       :all-nodes="dagEditor.nodes.value"
       :all-edges="dagEditor.edges.value"
       @save-settings="onNodeEditorSaveSettings"
+      @save-control-settings="onNodeEditorSaveControlSettings"
       @save-input-mapping="onNodeEditorSaveInputMapping"
       @workflow-inputs-changed="onWorkflowInputsChanged"
     />

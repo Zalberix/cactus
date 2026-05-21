@@ -1,6 +1,7 @@
 package dag_test
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,6 +15,11 @@ func makeStep(id int32, stepType dag.StepType, mappings ...dag.MappingEntry) dag
 		StepType:     stepType,
 		InputMapping: mappings,
 	}
+}
+
+func withControlSettings(step dag.Step, raw string) dag.Step {
+	step.ControlSettings = json.RawMessage(raw)
+	return step
 }
 
 func withWorkflowInputs(step dag.Step, inputs ...string) dag.Step {
@@ -268,6 +274,69 @@ func TestValidateDAG_ConditionRequiresTrueAndFalseOutcomes(t *testing.T) {
 	errs := dag.ValidateDAG(steps, deps)
 
 	assert.Contains(t, collectTypes(errs), "missing_control_outcome")
+}
+
+func TestValidateDAG_SwitchCustomCaseOutcomeValid(t *testing.T) {
+	switchStep := makeStep(1, dag.StepTypeControl)
+	switchStep.ControlKind = dag.ControlKindSwitch
+	switchStep = withControlSettings(switchStep, `{"expression":"$.message.value.type","cases":[{"id":"case-vip","label":"VIP","value":"vip"}]}`)
+	steps := []dag.Step{makeStart(), switchStep, makeStep(2, dag.StepTypeTask), makeStep(3, dag.StepTypeTask)}
+	deps := []dag.Dependency{
+		makeDep(1, 100, "success"),
+		makeDep(2, 1, "case-vip"),
+		makeDep(3, 1, "default"),
+	}
+
+	errs := dag.ValidateDAG(steps, deps)
+
+	assert.Empty(t, errs)
+}
+
+func TestValidateDAG_SwitchRejectsUnknownOutcome(t *testing.T) {
+	switchStep := makeStep(1, dag.StepTypeControl)
+	switchStep.ControlKind = dag.ControlKindSwitch
+	switchStep = withControlSettings(switchStep, `{"expression":"$.message.value.type","cases":[{"id":"case-vip","label":"VIP","value":"vip"}]}`)
+	steps := []dag.Step{makeStart(), switchStep, makeStep(2, dag.StepTypeTask), makeStep(3, dag.StepTypeTask)}
+	deps := []dag.Dependency{
+		makeDep(1, 100, "success"),
+		makeDep(2, 1, "case-missing"),
+		makeDep(3, 1, "default"),
+	}
+
+	errs := dag.ValidateDAG(steps, deps)
+
+	assert.Contains(t, collectTypes(errs), "invalid_outcome")
+}
+
+func TestValidateDAG_SwitchRequiresCustomCaseOutcomes(t *testing.T) {
+	switchStep := makeStep(1, dag.StepTypeControl)
+	switchStep.ControlKind = dag.ControlKindSwitch
+	switchStep = withControlSettings(switchStep, `{"expression":"$.message.value.type","cases":[{"id":"case-vip","label":"VIP","value":"vip"}]}`)
+	steps := []dag.Step{makeStart(), switchStep, makeStep(2, dag.StepTypeTask)}
+	deps := []dag.Dependency{
+		makeDep(1, 100, "success"),
+		makeDep(2, 1, "default"),
+	}
+
+	errs := dag.ValidateDAG(steps, deps)
+
+	assert.Contains(t, collectTypes(errs), "missing_control_outcome")
+}
+
+func TestValidateDAG_SwitchLegacyStringCasesRemainValid(t *testing.T) {
+	switchStep := makeStep(1, dag.StepTypeControl)
+	switchStep.ControlKind = dag.ControlKindSwitch
+	switchStep = withControlSettings(switchStep, `{"expression":"$.message.value.type","cases":["vip"]}`)
+	steps := []dag.Step{makeStart(), switchStep, makeStep(2, dag.StepTypeTask), makeStep(3, dag.StepTypeTask)}
+	deps := []dag.Dependency{
+		makeDep(1, 100, "success"),
+		makeDep(2, 1, "case-vip"),
+		makeDep(3, 1, "default"),
+	}
+
+	errs := dag.ValidateDAG(steps, deps)
+
+	assert.Empty(t, errs)
 }
 
 func TestValidateDAG_MultipleStartInvalid(t *testing.T) {

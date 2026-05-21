@@ -259,8 +259,13 @@ func (s *registerWorkerStore) ListWorkflowTokensByWorkflowID(context.Context, in
 }
 
 type issuingNATSManager struct {
-	issueCalls int
-	creds      natsauth.WorkerCredentials
+	issueCalls       int
+	accountPublicKey string
+	creds            natsauth.WorkerCredentials
+}
+
+func (m *issuingNATSManager) AccountPublicKey(context.Context) (string, error) {
+	return m.accountPublicKey, nil
 }
 
 func (m *issuingNATSManager) IssueWorker(_ context.Context, scope natsauth.WorkerScope) (natsauth.WorkerCredentials, error) {
@@ -459,6 +464,62 @@ func TestRegisterWorkerReusesActiveNATSSessionForSameWorkerAndBootstrap(t *testi
 	}
 	if registration.NATS.UserSeed != "SUoldseed" || registration.NATS.Credentials != "old.creds" {
 		t.Fatalf("expected previous NATS credentials, got %#v", registration.NATS)
+	}
+}
+
+func TestRegisterWorkerReplacesActiveNATSSessionWhenAccountChanged(t *testing.T) {
+	store := &registerWorkerStore{
+		bootstrapToken: db.WorkerBootstrapToken{
+			ID:               9,
+			OrganizationID:   12,
+			WorkTypeID:       3,
+			Status:           "active",
+			MaxActiveWorkers: 1,
+		},
+		existingWorker: db.Worker{
+			ID:                     77,
+			OrganizationID:         12,
+			WorkTypeID:             3,
+			Name:                   "smtp-worker",
+			WorkerSettingsSchemaID: 55,
+		},
+		activeNATSSessions: []db.WorkerNatsSession{{
+			ID:                   44,
+			WorkerID:             77,
+			BootstrapTokenID:     9,
+			NatsAccountPublicKey: "AOLD",
+			NatsUserPublicKey:    "UOLD",
+			NatsUserJwt:          "old.jwt",
+			NatsUserSeed:         "SUoldseed",
+			NatsUserCredentials:  "old.creds",
+			Permissions: mustPermissionsJSON(t, natsauth.WorkerPermissions(natsauth.WorkerScope{
+				OrganizationID: 12,
+				WorkTypeID:     3,
+				WorkerID:       77,
+			})),
+		}},
+		revisions: []db.WorkerSettingsRevision{{ID: 73, WorkerSettingsSchemaID: 55}},
+	}
+	manager := &issuingNATSManager{accountPublicKey: "ANEW"}
+	service := NewService(store, manager)
+
+	registration, err := service.RegisterWorker(context.Background(), RegisterWorkerRequest{
+		BootstrapToken: "token",
+		Name:           "smtp-worker",
+		Manifest:       validManifestJSON(),
+	})
+	if err != nil {
+		t.Fatalf("RegisterWorker error: %v", err)
+	}
+
+	if manager.issueCalls != 1 {
+		t.Fatalf("expected stale account session to trigger credential replacement, got %d issues", manager.issueCalls)
+	}
+	if registration.NATS.UserJWT != "new.jwt" || registration.NATS.UserSeed != "SUnewseed" {
+		t.Fatalf("expected new NATS credentials after account change, got %#v", registration.NATS)
+	}
+	if store.replacedNATSSessionArg.NatsAccountPublicKey != "ANEW" {
+		t.Fatalf("expected replacement with current account, got %#v", store.replacedNATSSessionArg)
 	}
 }
 

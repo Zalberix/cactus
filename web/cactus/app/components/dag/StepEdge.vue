@@ -8,19 +8,9 @@ const emit = defineEmits(['remove'])
 
 const isHovered = ref(false)
 
-const outcome = computed(() => props.sourceHandleId ?? 'success')
-
 const edgeColor = computed(() => {
-  if (props.selected) return '#2563eb'
-
-  const colors: Record<string, string> = {
-    success: '#94a3b8',
-    true: '#22c55e',
-    false: '#ef4444',
-    continue: '#94a3b8',
-    default: '#6b7280',
-  }
-  return colors[outcome.value] ?? '#94a3b8'
+  if (props.selected) return '#64748b'
+  return '#94a3b8'
 })
 
 const pathParams = computed(() => {
@@ -64,7 +54,7 @@ const labelY = computed(() => pathParams.value[2])
         type="button"
         aria-label="Remove connection"
         title="Remove connection"
-        class="flex h-5 w-5 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-sm hover:bg-destructive hover:text-destructive-foreground hover:border-destructive transition-colors"
+        class="flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 bg-background text-muted-foreground shadow-sm hover:bg-destructive hover:text-destructive-foreground hover:border-destructive transition-colors"
         @click.stop="emit('remove')"
       >
         <X class="h-3 w-3" />

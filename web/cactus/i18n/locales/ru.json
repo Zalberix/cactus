@@ -1,4 +1,4 @@
-﻿{
+{
   "auth": {
     "signIn": "Войти",
     "email": "Email",
@@ -122,6 +122,7 @@
     "key": "Ключ",
     "value": "Значение",
     "deleteStep": "Удалить шаг",
+    "renameStep": "Переименовать",
     "versionNumber": "Версия {number}",
     "valid": "Валидна",
     "invalid": "Невалидна",
@@ -154,13 +155,18 @@
     "inputMappingSaved": "Маппинг сохранен",
     "settingsValidationFailed": "Проверьте обязательные настройки",
     "configure": "Настроить",
-    "mappingDescription": "Map upstream outputs to this step input fields.",
-    "noConfiguration": "No configuration available.",
-    "directUpstream": "Direct upstream steps",
-    "earlierPredecessors": "Earlier predecessor steps",
-    "workflowInputs": "Workflow Inputs",
-    "newWorkflowInput": "New workflow input",
-    "required": "Required"
+    "mappingDescription": "Сопоставьте выходные данные предшествующих шагов с полями входа этого шага.",
+    "noConfiguration": "Конфигурация недоступна.",
+    "directUpstream": "Прямые предшествующие шаги",
+    "earlierPredecessors": "Ранние предшествующие шаги",
+    "workflowInputs": "Входы процесса",
+    "newWorkflowInput": "Новый вход процесса",
+    "required": "Обязательный",
+    "addSwitchOutput": "Добавить выход",
+    "switchOutputs": "Выходы",
+    "outputName": "Название выхода",
+    "matchValue": "Значение совпадения",
+    "defaultOutput": "Выход по умолчанию"
   },
   "toolbar": {
     "channels": "Каналы",
@@ -382,6 +388,7 @@
     "validation": "Проверьте форму на наличие ошибок.",
     "server": "Произошла ошибка на сервере. Попробуйте позже.",
     "dagValidation": "Ошибка валидации процесса. Проверьте выделенные узлы.",
+    "dagValidationTitle": "Валидация не прошла",
     "wsDisconnected": "Соединение потеряно. Переподключение...",
     "retry": "Повторить",
     "backToList": "Вернуться к списку"
@@ -486,7 +493,5 @@
     "inactive": "Неактивный"
   }
 }
-
-
 
 

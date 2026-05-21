@@ -113,7 +113,6 @@ export function useDagEditor(
       source: String(dep.depends_on_step_id),
       target: String(dep.step_id),
       sourceHandle: dep.outcome,
-      label: dep.outcome,
       type: 'step',
     }
   }
@@ -235,7 +234,6 @@ export function useDagEditor(
       source: params.source,
       target: params.target,
       sourceHandle: outcome,
-      label: outcome,
       type: 'step',
     }
     edges.value = [...edges.value, edge]

@@ -9,5 +9,5 @@ export function isVersionReadOnly(version: ReadOnlyVersionLike | null | undefine
 
 export function editorSurfaceForStep(data: { stepType?: string, controlKind?: string }) {
   if (data.controlKind === 'start') return 'none'
-  return data.stepType === 'control' ? 'step-panel' : 'node-editor'
+  return 'node-editor'
 }

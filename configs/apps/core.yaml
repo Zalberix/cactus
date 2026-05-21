@@ -15,6 +15,7 @@ nats:
   account_public_key: ""
   account_seed_env: "NATS_ACCOUNT_SEED"
   account_seed_file: "configs/nats/jwt/account.seed"
+  operator_seed_file: "configs/nats/jwt/operator.seed"
   worker_credentials_enabled: true
 temporal:
   host_port: "127.0.0.1:7233"

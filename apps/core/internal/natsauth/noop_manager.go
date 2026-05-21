@@ -7,6 +7,10 @@ import (
 
 type NoopManager struct{}
 
+func (NoopManager) AccountPublicKey(context.Context) (string, error) {
+	return "ADUMMY", nil
+}
+
 func (NoopManager) IssueWorker(_ context.Context, scope WorkerScope) (WorkerCredentials, error) {
 	perms := WorkerPermissions(scope)
 	return WorkerCredentials{

@@ -13,6 +13,8 @@ import {
 } from '~/components/ui/dialog'
 import InputPanel from './InputPanel.vue'
 import ParametersPanel from './ParametersPanel.vue'
+import ControlParametersPanel from './ControlParametersPanel.vue'
+import { useControlSteps } from '~/composables/useControlSteps'
 
 const iconMap: Record<string, Component> = {
   'mail': Mail,
@@ -24,6 +26,8 @@ const iconMap: Record<string, Component> = {
   'split': Split,
   'zap': Zap,
 }
+
+const controlSteps = useControlSteps()
 
 const props = defineProps<{
   open: boolean
@@ -37,6 +41,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:open': [value: boolean]
   saveSettings: [nodeId: string, settingsData: Record<string, unknown>]
+  saveControlSettings: [nodeId: string, settingsData: Record<string, unknown>]
   saveInputMapping: [nodeId: string, inputMapping: Array<{ target: string, source: string }>]
   workflowInputsChanged: []
 }>()
@@ -56,20 +61,45 @@ const stepData = computed<StepData | null>(() => {
   return currentNode.value.data as StepData
 })
 
+const isControl = computed(() =>
+  stepData.value?.stepType === 'control' && stepData.value.controlKind !== 'start',
+)
+
+const controlDefinition = computed(() =>
+  isControl.value
+    ? controlSteps.find(item => item.kind === stepData.value?.controlKind)
+    : undefined,
+)
+
 const nodeIcon = computed(() => {
   if (!stepData.value) return Workflow
+  const controlIcon = controlDefinition.value?.icon
+  if (controlIcon && iconMap[controlIcon]) return iconMap[controlIcon]
   const metaIcon = stepData.value.workTypeMeta?.icon
   if (metaIcon && iconMap[metaIcon]) return iconMap[metaIcon]
   return Workflow
 })
 
 const accentColor = computed(() =>
-  stepData.value?.workTypeMeta?.color ?? '#607d8b',
+  controlDefinition.value?.color ?? stepData.value?.workTypeMeta?.color ?? '#607d8b',
+)
+
+const stepTypeName = computed(() =>
+  controlDefinition.value?.name ?? stepData.value?.workTypeName ?? 'Task',
+)
+
+const stepTypeCode = computed(() =>
+  stepData.value?.workTypeCode ?? stepData.value?.controlKind ?? '',
 )
 
 function onSaveSettings(settingsData: Record<string, unknown>) {
   if (!props.nodeId) return
   emit('saveSettings', props.nodeId, settingsData)
+}
+
+function onSaveControlSettings(settingsData: Record<string, unknown>) {
+  if (!props.nodeId) return
+  emit('saveControlSettings', props.nodeId, settingsData)
 }
 
 function onSaveInputMapping(inputMapping: Array<{ target: string, source: string }>) {
@@ -78,14 +108,23 @@ function onSaveInputMapping(inputMapping: Array<{ target: string, source: string
 }
 
 const parametersRef = ref<InstanceType<typeof ParametersPanel> | null>(null)
+const controlParametersRef = ref<InstanceType<typeof ControlParametersPanel> | null>(null)
 const inputPanelRef = ref<InstanceType<typeof InputPanel> | null>(null)
 
 function onInsertExpression(expression: string) {
+  if (isControl.value) {
+    controlParametersRef.value?.insertExpression(expression)
+    return
+  }
   parametersRef.value?.insertExpression(expression)
 }
 
 function onCreateWorkflowInput(field: string, property: Record<string, unknown>) {
   inputPanelRef.value?.createWorkflowInputFromField(field, property, (expression: string) => {
+    if (isControl.value) {
+      controlParametersRef.value?.insertExpression(expression)
+      return
+    }
     parametersRef.value?.insertExpression(expression)
   })
 }
@@ -107,14 +146,14 @@ function onCreateWorkflowInput(field: string, property: Record<string, unknown>)
           </div>
           <div class="flex items-center gap-1.5">
             <Badge variant="secondary" class="h-5 px-1.5 text-[10px]">
-              {{ stepData?.workTypeName ?? 'Task' }}
+              {{ stepTypeName }}
             </Badge>
             <Badge
-              v-if="stepData?.workTypeCode"
+              v-if="stepTypeCode"
               variant="outline"
               class="h-5 px-1.5 text-[10px]"
             >
-              {{ stepData.workTypeCode }}
+              {{ stepTypeCode }}
             </Badge>
           </div>
         </div>
@@ -135,11 +174,18 @@ function onCreateWorkflowInput(field: string, property: Record<string, unknown>)
         </div>
         <div class="w-2/3 overflow-hidden">
           <ParametersPanel
+            v-if="!isControl"
             ref="parametersRef"
             :step-data="stepData"
             @create-workflow-input="onCreateWorkflowInput"
             @save-settings="onSaveSettings"
             @save-input-mapping="onSaveInputMapping"
+          />
+          <ControlParametersPanel
+            v-else
+            ref="controlParametersRef"
+            :step-data="stepData"
+            @save-control-settings="onSaveControlSettings"
           />
         </div>
       </div>

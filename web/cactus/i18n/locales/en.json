@@ -125,6 +125,7 @@
     "key": "Key",
     "value": "Value",
     "deleteStep": "Delete Step",
+    "renameStep": "Rename",
     "versionNumber": "Version {number}",
     "valid": "Valid",
     "invalid": "Invalid",
@@ -163,7 +164,12 @@
     "earlierPredecessors": "Earlier predecessor steps",
     "workflowInputs": "Workflow Inputs",
     "newWorkflowInput": "New workflow input",
-    "required": "Required"
+    "required": "Required",
+    "addSwitchOutput": "Add output",
+    "switchOutputs": "Outputs",
+    "outputName": "Output name",
+    "matchValue": "Match value",
+    "defaultOutput": "Default output"
   },
   "toolbar": {
     "channels": "Channels",
@@ -432,6 +438,7 @@
     "validation": "Please check the form for errors.",
     "server": "Something went wrong on our end. Please try again later.",
     "dagValidation": "Workflow validation failed. Check the highlighted nodes.",
+    "dagValidationTitle": "Validation failed",
     "wsDisconnected": "Real-time connection lost. Reconnecting...",
     "retry": "Retry",
     "backToList": "Back to list"

@@ -23,6 +23,7 @@ type WorkerCredentials struct {
 }
 
 type Manager interface {
+	AccountPublicKey(ctx context.Context) (string, error)
 	IssueWorker(ctx context.Context, scope WorkerScope) (WorkerCredentials, error)
 	RevokeWorker(ctx context.Context, userPublicKey string) error
 }

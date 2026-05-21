@@ -1,9 +1,11 @@
 package dag
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // StepType represents a workflow step type.
@@ -23,11 +25,12 @@ const (
 
 // Step is a workflow DAG validation step.
 type Step struct {
-	ID             int32
-	StepType       StepType
-	ControlKind    string
-	InputMapping   []MappingEntry
-	WorkflowInputs []string
+	ID              int32
+	StepType        StepType
+	ControlKind     string
+	ControlSettings json.RawMessage
+	InputMapping    []MappingEntry
+	WorkflowInputs  []string
 }
 
 // MappingEntry is an input mapping entry.
@@ -313,7 +316,15 @@ func isControlOutcomeAllowed(step Step, outcome string) bool {
 	case ControlKindCondition:
 		return outcome == "true" || outcome == "false"
 	case ControlKindSwitch:
-		return outcome == "default"
+		if outcome == "default" {
+			return true
+		}
+		for _, caseOutcome := range switchCaseOutcomeIDs(step.ControlSettings) {
+			if outcome == caseOutcome {
+				return true
+			}
+		}
+		return false
 	default:
 		return true
 	}
@@ -352,10 +363,59 @@ func requiredControlOutcomes(step Step) []string {
 	case ControlKindCondition:
 		return []string{"true", "false"}
 	case ControlKindSwitch:
-		return []string{"default"}
+		return append(switchCaseOutcomeIDs(step.ControlSettings), "default")
 	default:
 		return nil
 	}
+}
+
+func switchCaseOutcomeIDs(raw json.RawMessage) []string {
+	raw = []byte(strings.TrimSpace(string(raw)))
+	if len(raw) == 0 {
+		return nil
+	}
+	var settings struct {
+		Cases []json.RawMessage `json:"cases"`
+	}
+	if err := json.Unmarshal(raw, &settings); err != nil {
+		return nil
+	}
+
+	ids := make([]string, 0, len(settings.Cases))
+	for _, item := range settings.Cases {
+		var legacy string
+		if err := json.Unmarshal(item, &legacy); err == nil {
+			if strings.TrimSpace(legacy) != "" {
+				ids = append(ids, "case-"+slugSwitchCase(legacy))
+			}
+			continue
+		}
+
+		var objectCase struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(item, &objectCase); err == nil && strings.TrimSpace(objectCase.ID) != "" {
+			ids = append(ids, strings.TrimSpace(objectCase.ID))
+		}
+	}
+	return ids
+}
+
+func slugSwitchCase(value string) string {
+	var b strings.Builder
+	lastDash := false
+	for _, r := range strings.ToLower(strings.TrimSpace(value)) {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			b.WriteRune(r)
+			lastDash = false
+			continue
+		}
+		if !lastDash && b.Len() > 0 {
+			b.WriteByte('-')
+			lastDash = true
+		}
+	}
+	return strings.Trim(b.String(), "-")
 }
 
 func validateMappings(steps []Step, predecessors map[int32]map[int32]struct{}, workflowInputs map[string]struct{}) []ValidationError {

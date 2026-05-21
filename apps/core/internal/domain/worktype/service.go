@@ -316,8 +316,11 @@ func timestampString(ts pgtype.Timestamp) string {
 	return ts.Time.Format(time.RFC3339)
 }
 
-func workerNATSSessionReusable(session db.WorkerNatsSession, expected natsauth.Permissions) bool {
+func workerNATSSessionReusable(session db.WorkerNatsSession, expected natsauth.Permissions, accountPublicKey string) bool {
 	if session.NatsUserJwt == "" || session.NatsUserSeed == "" {
+		return false
+	}
+	if accountPublicKey != "" && session.NatsAccountPublicKey != accountPublicKey {
 		return false
 	}
 	var actual natsauth.Permissions
@@ -361,6 +364,10 @@ func (s *Service) RegisterWorker(ctx context.Context, req RegisterWorkerRequest)
 
 	// 3. Ищем или создаём WorkerSettingsSchema
 	var registration RegisterWorkerResponse
+	natsAccountPublicKey, err := s.natsAuth.AccountPublicKey(ctx)
+	if err != nil {
+		return RegisterWorkerResponse{}, fmt.Errorf("resolve nats account public key: %w", err)
+	}
 	err = s.store.WithRegistrationTx(ctx, func(tx RegistrationTx) error {
 		token, err := tx.GetActiveWorkerBootstrapTokenByHashForUpdate(ctx, tokenHash)
 		if err != nil {
@@ -473,7 +480,7 @@ func (s *Service) RegisterWorker(ctx context.Context, req RegisterWorkerRequest)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("get active nats session: %w", err)
 		}
-		if err == nil && workerNATSSessionReusable(session, expectedPermissions) {
+		if err == nil && workerNATSSessionReusable(session, expectedPermissions, natsAccountPublicKey) {
 			registration = RegisterWorkerResponse{
 				Worker:     worker,
 				RevisionID: revisionID,

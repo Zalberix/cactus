@@ -42,16 +42,16 @@ func TestResolveInput(t *testing.T) {
 			wantErr:     true,
 		},
 		{
-			name:        "nested message source errors",
+			name:        "nested message source resolves",
 			mapping:     []temporaltypes.MappingEntry{{Target: "to", Source: "$.message.value.customer.name"}},
 			messageJSON: []byte(`{"customer":{"name":"Ada"}}`),
-			wantErr:     true,
+			want:        map[string]any{"to": "Ada"},
 		},
 		{
-			name:        "nested step output source errors",
+			name:        "nested step output source resolves",
 			mapping:     []temporaltypes.MappingEntry{{Target: "name", Source: "$.steps.1.output.customer.name"}},
 			messageJSON: []byte(`{}`),
-			wantErr:     true,
+			want:        map[string]any{"name": "Ada"},
 		},
 	}
 

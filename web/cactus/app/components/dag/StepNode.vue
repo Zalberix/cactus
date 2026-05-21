@@ -2,13 +2,24 @@
 import { Handle, Position, useNode } from '@vue-flow/core'
 import {
   Mail, MessageSquare, Bell, Workflow, GitBranch,
-  Clock, Split, Zap, Radio, AlertCircle,
+  Clock, Split, Zap, Radio, AlertCircle, Trash2, MoreHorizontal,
 } from 'lucide-vue-next'
 import type { Component } from 'vue'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '~/components/ui/dropdown-menu'
+import { controlOutcomesForStep } from '~/composables/control-outcomes'
 import { useControlSteps } from '~/composables/useControlSteps'
 
 const { node } = useNode()
+const { t } = useI18n()
 const controlSteps = useControlSteps()
+const emit = defineEmits<{
+  delete: [nodeId: string]
+}>()
 
 const iconMap: Record<string, Component> = {
   'mail': Mail,
@@ -43,106 +54,119 @@ const outputHandles = computed(() => {
     return [{ id: 'success', label: '', color: '#22c55e' }]
   }
   if (isControl.value && node.data.controlKind) {
-    const definition = controlSteps.find(control => control.kind === node.data.controlKind)
-    return definition?.handles ?? [{ id: 'success', label: '', color: '#22c55e' }]
+    return controlOutcomesForStep(node.data)
   }
   return [{ id: 'success', label: '', color: '#22c55e' }]
 })
 
-const statusIndicator = computed(() => {
-  const s = node.data.status ?? 'pending'
-  const map: Record<string, string> = {
-    pending: 'bg-gray-300 dark:bg-gray-600',
-    running: 'bg-blue-500 animate-pulse',
-    completed: 'bg-green-500',
-    done: 'bg-green-500',
-    failed: 'bg-red-500',
-    error: 'bg-red-500',
-    skipped: 'bg-amber-500',
-  }
-  return map[s] ?? map.pending
-})
-
 const label = computed(() => node.data.label ?? 'Step')
-const subtitle = computed(() => {
-  if (isStart.value) return 'system_message'
-  return node.data.workTypeCode ?? node.data.controlKind ?? ''
-})
 const nodeErrors = computed(() => node.data.validationErrors ?? [])
 const hasValidationErrors = computed(() => nodeErrors.value.length > 0)
+const canShowActions = computed(() => !isStart.value)
+
+function onDelete(event: MouseEvent) {
+  event.stopPropagation()
+  if (isStart.value) return
+  emit('delete', node.id)
+}
 </script>
 
 <template>
-  <div
-    class="relative flex items-stretch rounded-lg border bg-background shadow-sm transition-shadow hover:shadow-md cursor-pointer select-none"
-    :class="[
-      node.selected ? 'ring-2 ring-primary shadow-md' : '',
-      hasValidationErrors ? 'ring-2 ring-orange-500' : '',
-    ]"
-    style="min-width: 200px;"
-  >
-    <div v-if="hasValidationErrors" class="group absolute right-1 top-1 z-10">
+  <div class="group/node relative flex w-[168px] flex-col items-center select-none">
+    <div
+      v-if="canShowActions"
+      class="pointer-events-auto absolute left-1/2 top-0 z-20 flex h-10 -translate-x-1/2 -translate-y-full items-end justify-center gap-1 pb-1 opacity-0 transition-opacity group-hover/node:opacity-100 hover:opacity-100 focus-within:opacity-100"
+      data-testid="node-hover-actions"
+    >
       <button
         type="button"
-        class="flex h-6 w-6 items-center justify-center rounded bg-background text-orange-600 opacity-0 shadow-sm ring-1 ring-border transition-opacity group-hover:opacity-100"
+        data-testid="delete-node"
+        class="flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-background text-muted-foreground shadow-sm hover:border-destructive hover:bg-destructive hover:text-destructive-foreground"
+        :title="t('editor.deleteStep')"
+        :aria-label="t('editor.deleteStep')"
+        @click="onDelete"
       >
-        <AlertCircle class="h-3.5 w-3.5" />
+        <Trash2 class="h-3.5 w-3.5" />
       </button>
-      <div class="pointer-events-none absolute right-0 top-7 hidden w-64 rounded-md border bg-popover p-2 text-xs text-popover-foreground shadow-md group-hover:block">
-        <div v-for="(error, index) in nodeErrors" :key="index" class="py-0.5">
-          {{ error.message }}
-        </div>
-      </div>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <button
+            type="button"
+            data-testid="more-node"
+            class="flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-background text-muted-foreground shadow-sm hover:bg-accent hover:text-accent-foreground"
+            :title="t('common.actions')"
+            :aria-label="t('common.actions')"
+            @click.stop
+          >
+            <MoreHorizontal class="h-4 w-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="center" class="w-36">
+          <DropdownMenuItem @select.prevent>
+            {{ t('editor.renameStep') }}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
+
     <div
-      class="w-1 shrink-0 rounded-l-lg"
-      :style="{ backgroundColor: accentColor }"
-    />
+      data-testid="step-node-block"
+      class="relative flex h-[104px] w-[144px] items-center justify-center rounded-lg border-2 border-slate-300 bg-background shadow-sm transition-colors hover:shadow-md"
+      :class="[
+        node.selected ? 'ring-2 ring-slate-400/30' : '',
+        hasValidationErrors ? 'border-red-500 ring-2 ring-red-500/20' : '',
+      ]"
+    >
+      <Handle
+        v-if="!isStart"
+        type="target"
+        :position="Position.Left"
+        class="!h-4 !w-4 !border-2 !border-background !bg-gray-400 !-left-2"
+      />
 
-    <Handle
-      v-if="!isStart"
-      type="target"
-      :position="Position.Left"
-      class="!w-3 !h-3 !border-2 !border-background !bg-gray-400 !-left-1.5"
-    />
-
-    <div class="flex items-center gap-3 px-3 py-2.5 min-w-0 flex-1">
       <div
-        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+        class="flex h-12 w-12 items-center justify-center rounded-md"
         :style="{ backgroundColor: accentColor + '20', color: accentColor }"
       >
-        <component :is="icon" class="h-4 w-4" />
-      </div>
-
-      <div class="min-w-0 flex-1">
-        <div class="truncate text-sm font-medium leading-tight">{{ label }}</div>
-        <div
-          v-if="subtitle"
-          class="truncate text-[11px] text-muted-foreground leading-tight"
-        >
-          {{ subtitle }}
-        </div>
+        <component :is="icon" class="h-6 w-6" />
       </div>
 
       <div
-        class="h-2 w-2 shrink-0 rounded-full"
-        :class="statusIndicator"
-      />
-    </div>
+        v-if="hasValidationErrors"
+        class="group/error absolute bottom-1 right-1 z-10"
+      >
+        <button
+          type="button"
+          data-testid="validation-indicator"
+          class="flex h-6 w-6 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-600 shadow-sm"
+          :aria-label="t('editor.validationErrors')"
+          @click.stop
+        >
+          <AlertCircle class="h-3.5 w-3.5" />
+        </button>
+        <div
+          data-testid="validation-tooltip"
+          class="pointer-events-none absolute bottom-7 right-0 hidden w-64 rounded-md border bg-popover p-2 text-xs text-popover-foreground shadow-md group-hover/error:block"
+        >
+          <div v-for="(error, index) in nodeErrors" :key="index" class="py-0.5">
+            {{ error.message }}
+          </div>
+        </div>
+      </div>
 
-    <div class="relative shrink-0 flex flex-col justify-center" style="width: 6px;">
       <Handle
         v-for="(handle, idx) in outputHandles"
         :key="handle.id"
         type="source"
         :id="handle.id"
         :position="Position.Right"
-        class="!w-3 !h-3 !border-2 !border-background !-right-1.5"
+        class="!h-4 !w-4 !border-2 !border-background !-right-2"
         :style="{
           backgroundColor: handle.color,
           top: outputHandles.length === 1
             ? '50%'
-            : `${20 + (idx * 60 / Math.max(outputHandles.length - 1, 1))}%`,
+            : `${24 + (idx * 52 / Math.max(outputHandles.length - 1, 1))}%`,
         }"
       />
 
@@ -150,17 +174,25 @@ const hasValidationErrors = computed(() => nodeErrors.value.length > 0)
         <div
           v-for="(handle, idx) in outputHandles"
           :key="`label-${handle.id}`"
-          class="absolute text-[9px] font-medium leading-none pointer-events-none"
+          data-testid="output-handle-label"
+          class="absolute left-[calc(100%+14px)] max-w-[88px] truncate rounded-sm bg-background/90 px-1 py-0.5 text-[10px] font-medium leading-none shadow-sm ring-1 ring-slate-200 pointer-events-none"
           :style="{
             color: handle.color,
-            right: '10px',
-            top: `${20 + (idx * 60 / Math.max(outputHandles.length - 1, 1))}%`,
-            transform: 'translateY(-50%)',
+            top: `${24 + (idx * 52 / Math.max(outputHandles.length - 1, 1))}%`,
+            transform: 'translateY(calc(-100% - 6px))',
           }"
         >
           {{ handle.label }}
         </div>
       </template>
+    </div>
+
+    <div
+      data-testid="step-node-label"
+      class="mt-2 max-w-[180px] truncate text-center text-sm font-semibold leading-tight text-foreground"
+      :title="label"
+    >
+      {{ label }}
     </div>
   </div>
 </template>

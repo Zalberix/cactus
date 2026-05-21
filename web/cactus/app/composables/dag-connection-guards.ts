@@ -1,11 +1,8 @@
-import { useControlSteps } from './useControlSteps'
+import { controlOutcomesForStep } from './control-outcomes'
 
-export function getControlOutcomeIds(data: { controlKind?: string }): string[] {
-  const kind = data.controlKind
-  if (!kind) return ['success']
-
-  const definition = useControlSteps().find(control => control.kind === kind)
-  return definition?.handles.map(handle => handle.id) ?? ['success']
+export function getControlOutcomeIds(data: { controlKind?: string, controlSettings?: Record<string, unknown> }): string[] {
+  if (!data.controlKind) return ['success']
+  return controlOutcomesForStep(data).map(outcome => outcome.id)
 }
 
 export function canConnectSteps(args: {

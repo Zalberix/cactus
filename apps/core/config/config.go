@@ -44,6 +44,7 @@ type Nats struct {
 	AccountJWTFile           string `yaml:"account_jwt_file"`
 	AccountSeedEnv           string `yaml:"account_seed_env" env-default:"NATS_ACCOUNT_SEED"`
 	AccountSeedFile          string `yaml:"account_seed_file"`
+	OperatorSeedFile         string `yaml:"operator_seed_file"`
 	SystemCredentialsFile    string `yaml:"system_credentials_file"`
 	WorkerCredentialsEnabled bool   `yaml:"worker_credentials_enabled" env-default:"true"`
 }

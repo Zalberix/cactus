@@ -752,8 +752,47 @@ func (s *Service) UpdateTaskSettings(ctx context.Context, stepID int32, req Upda
 		return fmt.Errorf("%w: %w", ErrInvalidSettings, err)
 	}
 
+	revisionID := current.WorkerSettingsRevisionID.Int32
+	steps, err := s.store.ListWorkflowStepsByVersionID(ctx, current.WorkflowVersionID)
+	if err != nil {
+		return fmt.Errorf("list workflow steps: %w", err)
+	}
+	for _, step := range steps {
+		if step.ID == current.ID {
+			continue
+		}
+		if step.StepType != string(dagpkg.StepTypeTask) || !step.WorkerSettingsRevisionID.Valid {
+			continue
+		}
+		if step.WorkerSettingsRevisionID.Int32 == revisionID {
+			revision, err := s.store.CloneWorkerSettingsRevision(ctx, db.CloneWorkerSettingsRevisionParams{
+				ID:              revisionID,
+				CreatedByUserID: pgtype.Int4{},
+			})
+			if err != nil {
+				return fmt.Errorf("clone task settings revision: %w", err)
+			}
+
+			if _, err := s.store.UpdateWorkflowStep(ctx, db.UpdateWorkflowStepParams{
+				ID:                       current.ID,
+				StepType:                 current.StepType,
+				WorkTypeID:               current.WorkTypeID,
+				WorkerSettingsRevisionID: pgtype.Int4{Int32: revision.ID, Valid: true},
+				ControlKind:              current.ControlKind,
+				ControlSettings:          current.ControlSettings,
+				InputMapping:             current.InputMapping,
+				CanvasPosition:           current.CanvasPosition,
+			}); err != nil {
+				return fmt.Errorf("rebind task settings revision: %w", err)
+			}
+
+			revisionID = revision.ID
+			break
+		}
+	}
+
 	if _, err := s.store.UpdateWorkerSettingsRevisionSettings(ctx, db.UpdateWorkerSettingsRevisionSettingsParams{
-		ID:           current.WorkerSettingsRevisionID.Int32,
+		ID:           revisionID,
 		SettingsData: req.SettingsData,
 	}); err != nil {
 		return fmt.Errorf("update task settings revision: %w", err)
@@ -1250,8 +1289,8 @@ func validateSwitchControlSettings(raw json.RawMessage) error {
 	}
 
 	type switchSettings struct {
-		Expression string   `json:"expression"`
-		Cases      []string `json:"cases"`
+		Expression string            `json:"expression"`
+		Cases      []json.RawMessage `json:"cases"`
 	}
 	var settings switchSettings
 	if err := json.Unmarshal(raw, &settings); err != nil {
@@ -1260,10 +1299,35 @@ func validateSwitchControlSettings(raw json.RawMessage) error {
 	if strings.TrimSpace(settings.Expression) == "" {
 		return ErrControlSettingsInvalid
 	}
+	seenIDs := make(map[string]struct{}, len(settings.Cases))
 	for _, item := range settings.Cases {
-		if strings.TrimSpace(item) == "" {
+		var legacy string
+		if err := json.Unmarshal(item, &legacy); err == nil {
+			if strings.TrimSpace(legacy) == "" {
+				return ErrControlSettingsInvalid
+			}
+			continue
+		}
+
+		var objectCase struct {
+			ID    string `json:"id"`
+			Label string `json:"label"`
+			Value string `json:"value"`
+		}
+		if err := json.Unmarshal(item, &objectCase); err != nil {
+			return fmt.Errorf("%w: %w", ErrControlSettingsInvalid, err)
+		}
+		id := strings.TrimSpace(objectCase.ID)
+		if id == "" || id == "default" {
 			return ErrControlSettingsInvalid
 		}
+		if strings.TrimSpace(objectCase.Label) == "" || strings.TrimSpace(objectCase.Value) == "" {
+			return ErrControlSettingsInvalid
+		}
+		if _, exists := seenIDs[id]; exists {
+			return ErrControlSettingsInvalid
+		}
+		seenIDs[id] = struct{}{}
 	}
 	return nil
 }
@@ -1337,9 +1401,10 @@ func (s *Service) ValidateVersion(ctx context.Context, versionID int32) (Validat
 	dagSteps := make([]dagpkg.Step, 0, len(dbSteps))
 	for _, step := range dbSteps {
 		dagStep := dagpkg.Step{
-			ID:             step.ID,
-			StepType:       dagpkg.StepType(step.StepType),
-			WorkflowInputs: inputNames,
+			ID:              step.ID,
+			StepType:        dagpkg.StepType(step.StepType),
+			ControlSettings: step.ControlSettings,
+			WorkflowInputs:  inputNames,
 		}
 		if step.ControlKind.Valid {
 			dagStep.ControlKind = step.ControlKind.String

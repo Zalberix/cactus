@@ -171,6 +171,7 @@ func newNATSAuthManager(lc fx.Lifecycle, cfg *config.Config) natsauth.Manager {
 		cfg.Nats.AccountSeedEnv,
 		cfg.Nats.AccountSeedFile,
 		updater,
+		natsauth.WithOperatorSeedFile(cfg.Nats.OperatorSeedFile),
 	)
 }
 

@@ -122,6 +122,33 @@ describe('node editor save actions', () => {
     expect(wrapper.emitted('saveInputMapping')).toEqual([['12', [{ target: 'to', source: '$.message.value.email' }]]])
   })
 
+  it('NodeEditor forwards control settings saves with node id', async () => {
+    const wrapper = mount(NodeEditor, {
+      props: nodeEditorProps({
+        stepType: 'control',
+        controlKind: 'condition',
+        controlSettings: { left: '$.message.value.age', operator: 'gte', right: '18' },
+      }),
+      global: {
+        stubs: nodeEditorStubs({
+          ControlParametersPanel: {
+            emits: ['saveControlSettings'],
+            template: `
+              <div>
+                <button data-testid="emit-control-settings" @click="$emit('saveControlSettings', { left: '$.message.value.age', operator: 'gte', right: '18' })">control</button>
+              </div>
+            `,
+          },
+        }),
+      },
+    })
+
+    await wrapper.get('[data-testid="emit-control-settings"]').trigger('click')
+
+    expect(wrapper.emitted('saveControlSettings')).toEqual([['12', { left: '$.message.value.age', operator: 'gte', right: '18' }]])
+    expect(wrapper.findComponent({ name: 'ParametersPanel' }).exists()).toBe(false)
+  })
+
   it('NodeEditor renders only the built-in close button', () => {
     const wrapper = mount(NodeEditor, {
       props: nodeEditorProps(),
@@ -148,7 +175,7 @@ function panelStubs() {
   }
 }
 
-function nodeEditorProps() {
+function nodeEditorProps(stepOverrides: Record<string, unknown> = {}) {
   return {
     open: true,
     nodeId: '12',
@@ -160,6 +187,7 @@ function nodeEditorProps() {
       data: baseStepData({
         workTypeName: 'SMTP',
         workTypeCode: 'smtp',
+        ...stepOverrides,
       }),
     }],
   }
@@ -172,6 +200,7 @@ function nodeEditorStubs(extra: Record<string, unknown> = {}) {
     DialogContent: { template: '<section><slot /><button aria-label="Close">Close</button></section>' },
     InputPanel: { template: '<div />' },
     ParametersPanel: { template: '<div />' },
+    ControlParametersPanel: { template: '<div />' },
     ...extra,
   }
 }

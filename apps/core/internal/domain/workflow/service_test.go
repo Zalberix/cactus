@@ -662,6 +662,80 @@ func TestCreateDelayStep_UsesDefaultControlSettingsWhenOmitted(t *testing.T) {
 	assert.JSONEq(t, `{"count":1,"unit":"sec"}`, string(store.createWorkflowStepParams[0].ControlSettings))
 }
 
+func TestCreateSwitchStep_UsesObjectCaseDefaultSettingsWhenOmitted(t *testing.T) {
+	store := &mockStorage{}
+	svc := workflow.NewService(store)
+
+	step, err := svc.CreateStep(context.Background(), 10, workflow.CreateStepRequest{
+		StepType:    "control",
+		ControlKind: ptrString("switch"),
+	})
+
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"expression":"$.message.value","cases":[]}`, string(step.ControlSettings))
+	assert.JSONEq(t, `{"expression":"$.message.value","cases":[]}`, string(store.createWorkflowStepParams[0].ControlSettings))
+}
+
+func TestValidateVersion_AcceptsSwitchObjectCaseSettingsAndOutcomes(t *testing.T) {
+	store := &mockStorage{
+		version:  db.WorkflowVersion{ID: 20, WorkflowID: 100},
+		workflow: db.Workflow{ID: 100, InputSchema: []byte(`{"type":"object","properties":{"type":{"type":"string"}}}`)},
+		steps: []db.WorkflowStep{
+			makeDBStartStep(1, 20),
+			{
+				ID:                2,
+				WorkflowVersionID: 20,
+				StepType:          "control",
+				ControlKind:       pgtype.Text{String: "switch", Valid: true},
+				ControlSettings:   []byte(`{"expression":"$.message.value.type","cases":[{"id":"case-vip","label":"VIP","value":"vip"}]}`),
+			},
+			makeDBTaskStep(3, 20, 7, 70),
+			makeDBTaskStep(4, 20, 7, 71),
+		},
+		deps: []db.WorkflowStepDependency{
+			makeDBDep(2, 1, "success"),
+			makeDBDep(3, 2, "case-vip"),
+			makeDBDep(4, 2, "default"),
+		},
+	}
+	svc := workflow.NewService(store)
+
+	resp, err := svc.ValidateVersion(context.Background(), 20)
+
+	require.NoError(t, err)
+	assert.True(t, resp.IsValid)
+	assert.Empty(t, resp.Errors)
+}
+
+func TestValidateVersion_RejectsInvalidSwitchCaseSettings(t *testing.T) {
+	store := &mockStorage{
+		version:  db.WorkflowVersion{ID: 20, WorkflowID: 100},
+		workflow: db.Workflow{ID: 100, InputSchema: []byte(`{"type":"object","properties":{}}`)},
+		steps: []db.WorkflowStep{
+			makeDBStartStep(1, 20),
+			{
+				ID:                2,
+				WorkflowVersionID: 20,
+				StepType:          "control",
+				ControlKind:       pgtype.Text{String: "switch", Valid: true},
+				ControlSettings:   []byte(`{"expression":"$.message.value.type","cases":[{"id":"default","label":"VIP","value":"vip"}]}`),
+			},
+			makeDBTaskStep(3, 20, 7, 70),
+		},
+		deps: []db.WorkflowStepDependency{
+			makeDBDep(2, 1, "success"),
+			makeDBDep(3, 2, "default"),
+		},
+	}
+	svc := workflow.NewService(store)
+
+	resp, err := svc.ValidateVersion(context.Background(), 20)
+
+	require.NoError(t, err)
+	assert.False(t, resp.IsValid)
+	assert.Contains(t, collectWorkflowErrorTypes(resp.Errors), "invalid_control_settings")
+}
+
 func ptrString(v string) *string {
 	return &v
 }
@@ -760,6 +834,54 @@ func TestUpdateTaskSettingsValidatesAndDoesNotUpdateInputMapping(t *testing.T) {
 	assert.Equal(t, int32(44), store.updateRevisionSettingsArg.ID)
 	assert.JSONEq(t, `{"host":"smtp.local"}`, string(store.updateRevisionSettingsArg.SettingsData))
 	assert.Zero(t, store.lastUpdateStepArg.ID)
+	assert.Equal(t, int32(99), store.lastUpdateValidArg.ID)
+}
+
+func TestUpdateTaskSettingsClonesSharedTaskSettingsRevision(t *testing.T) {
+	store := &mockStorage{
+		workflowStep: db.WorkflowStep{
+			ID:                       12,
+			WorkflowVersionID:        99,
+			StepType:                 "task",
+			WorkerSettingsRevisionID: pgtype.Int4{Int32: 44, Valid: true},
+			InputMapping:             []byte(`[{"target":"to","source":"$.message.value.email"}]`),
+		},
+		steps: []db.WorkflowStep{
+			{
+				ID:                       12,
+				WorkflowVersionID:        99,
+				StepType:                 "task",
+				WorkerSettingsRevisionID: pgtype.Int4{Int32: 44, Valid: true},
+			},
+			{
+				ID:                       13,
+				WorkflowVersionID:        99,
+				StepType:                 "task",
+				WorkerSettingsRevisionID: pgtype.Int4{Int32: 44, Valid: true},
+			},
+		},
+		settingsSchema: db.WorkerSettingsSchema{
+			ID:             7,
+			SettingsSchema: []byte(`{"type":"object","properties":{"host":{"type":"string","required":true}}}`),
+		},
+		enrichedSteps: []db.ListEnrichedStepsByVersionIDRow{
+			{
+				ID:                     12,
+				WorkerSettingsSchemaID: pgtype.Int4{Int32: 7, Valid: true},
+			},
+		},
+	}
+	svc := workflow.NewService(store)
+
+	err := svc.UpdateTaskSettings(context.Background(), 12, workflow.UpdateTaskSettingsRequest{
+		SettingsData: json.RawMessage(`{"host":"smtp.local"}`),
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, int32(44), store.lastCloneWorkerSettingsRevisionArg.ID)
+	assert.Equal(t, int32(5000+44), store.lastUpdateStepArg.WorkerSettingsRevisionID.Int32)
+	assert.Equal(t, int32(12), store.lastUpdateStepArg.ID)
+	assert.Equal(t, int32(5000+44), store.updateRevisionSettingsArg.ID)
 	assert.Equal(t, int32(99), store.lastUpdateValidArg.ID)
 }
 
