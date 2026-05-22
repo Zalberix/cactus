@@ -22,10 +22,22 @@ import (
 
 // Activities contains activity implementations for Temporal worker.
 type Activities struct {
-	store           *store.Store
+	store           activityStore
 	bus             *bus.Bus
 	configPublisher *configpub.Service
 	logger          *slog.Logger
+}
+
+type activityStore interface {
+	GetWorkflowRunStepByRunAndStepID(ctx context.Context, arg db.GetWorkflowRunStepByRunAndStepIDParams) (db.WorkflowRunStep, error)
+	CreateWorkflowRunStep(ctx context.Context, arg db.CreateWorkflowRunStepParams) (db.WorkflowRunStep, error)
+	UpdateWorkflowRunStepStarted(ctx context.Context, arg db.UpdateWorkflowRunStepStartedParams) (db.WorkflowRunStep, error)
+	CreateWorkflowRunStepAttempt(ctx context.Context, arg db.CreateWorkflowRunStepAttemptParams) (db.WorkflowRunStepAttempt, error)
+	GetWorkerSettingsRevisionByID(ctx context.Context, id int32) (db.WorkerSettingsRevision, error)
+	UpdateWorkflowRunStepAttemptStatus(ctx context.Context, arg db.UpdateWorkflowRunStepAttemptStatusParams) (db.WorkflowRunStepAttempt, error)
+	UpdateWorkflowRunStepStatus(ctx context.Context, arg db.UpdateWorkflowRunStepStatusParams) (db.WorkflowRunStep, error)
+	ListWorkflowRunStepsByRunID(ctx context.Context, workflowRunID int32) ([]db.WorkflowRunStep, error)
+	UpdateWorkflowRunStatus(ctx context.Context, arg db.UpdateWorkflowRunStatusParams) (db.WorkflowRun, error)
 }
 
 func activityAttemptNumber(temporalAttempt int32) int32 {
@@ -380,6 +392,36 @@ func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordS
 			Status:    temporaltypes.StepStatusPending,
 		})
 
+	case temporaltypes.StepStatusRunning:
+		steps, err := a.store.ListWorkflowRunStepsByRunID(ctx, input.WorkflowRunID)
+		if err != nil {
+			return fmt.Errorf("list run steps for start: %w", err)
+		}
+		for _, s := range steps {
+			if s.WorkflowStepID == input.StepID {
+				inputDataJSON, _ := json.Marshal(input.InputData)
+				runStep, err := a.store.UpdateWorkflowRunStepStarted(ctx, db.UpdateWorkflowRunStepStartedParams{
+					ID:        s.ID,
+					WorkerID:  pgtype.Int4{},
+					InputData: inputDataJSON,
+				})
+				if err != nil {
+					return fmt.Errorf("mark workflow_run_step started: %w", err)
+				}
+
+				a.publishWorkflowEvent(ctx, input.MessageID, temporaltypes.WorkflowEvent{
+					Type:      "step_update",
+					StepID:    input.StepID,
+					RunStepID: runStep.ID,
+					StepType:  "control",
+					Status:    temporaltypes.StepStatusRunning,
+					InputData: input.InputData,
+					StartedAt: runStep.StartedAt.Time.Format(time.RFC3339),
+				})
+				break
+			}
+		}
+
 	case temporaltypes.StepStatusSkipped:
 		steps, err := a.store.ListWorkflowRunStepsByRunID(ctx, input.WorkflowRunID)
 		if err != nil {
@@ -392,6 +434,7 @@ func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordS
 					ID:          s.ID,
 					Status:      temporaltypes.StepStatusSkipped,
 					CompletedAt: now,
+					StartedAt:   now,
 				})
 
 				a.publishWorkflowEvent(ctx, input.MessageID, temporaltypes.WorkflowEvent{
@@ -412,10 +455,12 @@ func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordS
 		now := pgtype.Timestamp{Time: time.Now(), Valid: true}
 		for _, s := range steps {
 			if s.WorkflowStepID == input.StepID {
+				outputDataJSON, _ := json.Marshal(input.OutputData)
 				_, _ = a.store.UpdateWorkflowRunStepStatus(ctx, db.UpdateWorkflowRunStepStatusParams{
 					ID:          s.ID,
 					Status:      temporaltypes.StepStatusCompleted,
 					Outcome:     pgtype.Text{String: input.Outcome, Valid: input.Outcome != ""},
+					OutputData:  outputDataJSON,
 					CompletedAt: now,
 					StartedAt:   now,
 				})
@@ -426,7 +471,37 @@ func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordS
 					RunStepID:   s.ID,
 					Status:      temporaltypes.StepStatusCompleted,
 					StepType:    "control",
+					OutputData:  input.OutputData,
 					CompletedAt: now.Time.Format(time.RFC3339),
+				})
+				break
+			}
+		}
+
+	case temporaltypes.StepStatusFailed:
+		steps, err := a.store.ListWorkflowRunStepsByRunID(ctx, input.WorkflowRunID)
+		if err != nil {
+			return fmt.Errorf("list run steps for fail: %w", err)
+		}
+		now := pgtype.Timestamp{Time: time.Now(), Valid: true}
+		for _, s := range steps {
+			if s.WorkflowStepID == input.StepID {
+				_, _ = a.store.UpdateWorkflowRunStepStatus(ctx, db.UpdateWorkflowRunStepStatusParams{
+					ID:           s.ID,
+					Status:       temporaltypes.StepStatusFailed,
+					CompletedAt:  now,
+					ErrorMessage: pgtype.Text{String: input.ErrorMessage, Valid: input.ErrorMessage != ""},
+					StartedAt:    now,
+				})
+
+				a.publishWorkflowEvent(ctx, input.MessageID, temporaltypes.WorkflowEvent{
+					Type:        "step_update",
+					StepID:      input.StepID,
+					RunStepID:   s.ID,
+					StepType:    "control",
+					Status:      temporaltypes.StepStatusFailed,
+					CompletedAt: now.Time.Format(time.RFC3339),
+					Error:       input.ErrorMessage,
 				})
 				break
 			}

@@ -42,6 +42,28 @@ export function runtimeStepMap(steps: StepRunDetail[] = []): Map<number, StepRun
   return map
 }
 
+export type RuntimeEdgeState = 'pending' | 'running' | 'completed' | 'failed' | 'skipped'
+
+export function runtimeEdgeState(input: {
+  sourceStatus?: string
+  targetStatus?: string
+  sourceOutcome?: string
+  edgeOutcome?: string
+}): RuntimeEdgeState {
+  const sourceStatus = normalizeRuntimeStatus(input.sourceStatus)
+  const targetStatus = normalizeRuntimeStatus(input.targetStatus)
+  const edgeOutcome = input.edgeOutcome || 'success'
+  const sourceOutcome = input.sourceOutcome || edgeOutcome
+  const outcomeMatches = sourceOutcome === edgeOutcome
+
+  if (sourceStatus === 'failed' || targetStatus === 'failed') return 'failed'
+  if (!outcomeMatches) return 'pending'
+  if (sourceStatus === 'skipped' || targetStatus === 'skipped') return 'skipped'
+  if (sourceStatus !== 'completed') return 'pending'
+  if (targetStatus === 'running') return 'running'
+  return 'completed'
+}
+
 export function useDagViewer(messageId: Ref<number>) {
   const { fetchMessageDetail } = useMessages()
 
@@ -105,13 +127,27 @@ export function useDagViewer(messageId: Ref<number>) {
   )
 
   const edges = computed<Edge[]>(() =>
-    (detail.value?.graph.dependencies ?? []).map(dep => ({
-      id: `e-${dep.depends_on_step_id}-${dep.step_id}-${dep.outcome || 'success'}-${dep.output_index}`,
-      source: String(dep.depends_on_step_id),
-      target: String(dep.step_id),
-      sourceHandle: dep.outcome || 'success',
-      type: 'step',
-    } satisfies Edge)),
+    (detail.value?.graph.dependencies ?? []).map((dep) => {
+      const sourceRuntime = runSteps.value.get(dep.depends_on_step_id)
+      const targetRuntime = runSteps.value.get(dep.step_id)
+      const outcome = dep.outcome || 'success'
+
+      return {
+        id: `e-${dep.depends_on_step_id}-${dep.step_id}-${outcome}-${dep.output_index}`,
+        source: String(dep.depends_on_step_id),
+        target: String(dep.step_id),
+        sourceHandle: outcome,
+        type: 'step',
+        data: {
+          runtimeState: runtimeEdgeState({
+            sourceStatus: sourceRuntime?.status,
+            targetStatus: targetRuntime?.status,
+            sourceOutcome: sourceRuntime?.outcome,
+            edgeOutcome: outcome,
+          }),
+        },
+      } satisfies Edge
+    }),
   )
 
   onMounted(() => {

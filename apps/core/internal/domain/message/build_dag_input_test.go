@@ -21,7 +21,7 @@ func (buildDAGInputStore) GetWorkflowByID(context.Context, int32) (db.Workflow, 
 	return db.Workflow{}, nil
 }
 
-func (buildDAGInputStore) ListActiveWorkflowVersions(context.Context, int32) ([]db.WorkflowVersion, error) {
+func (buildDAGInputStore) ListWorkflowVersionSummariesByWorkflowID(context.Context, int32) ([]db.ListWorkflowVersionSummariesByWorkflowIDRow, error) {
 	return nil, nil
 }
 

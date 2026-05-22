@@ -113,6 +113,7 @@ function goBack() {
       <div class="min-h-0">
         <DagCanvas
           mode="view"
+          show-runtime-state
           :nodes="nodes"
           :edges="edges"
           @node-click="onNodeClick"

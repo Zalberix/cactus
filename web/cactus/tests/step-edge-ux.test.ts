@@ -54,11 +54,4 @@ describe('DAG StepEdge UX', () => {
     expect(wrapper.text()).not.toContain('false')
   })
 
-  it('keeps connection strokes neutral gray', () => {
-    const wrapper = mountEdge({ sourceHandleId: 'true', label: 'true' })
-
-    expect(wrapper.findComponent({ name: 'BaseEdge' }).props('style')).toMatchObject({
-      stroke: '#94a3b8',
-    })
-  })
 })

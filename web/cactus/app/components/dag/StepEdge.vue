@@ -8,9 +8,23 @@ const emit = defineEmits(['remove'])
 
 const isHovered = ref(false)
 
+const runtimeColors = {
+  completed: '#10b981',
+  running: '#2563eb',
+  failed: '#ef4444',
+  skipped: '#cbd5e1',
+  pending: '#94a3b8',
+} as const
+
+const runtimeState = computed(() => {
+  const data = props.data as { runtimeState?: keyof typeof runtimeColors } | undefined
+  return data?.runtimeState
+})
+
 const edgeColor = computed(() => {
+  if (runtimeState.value) return runtimeColors[runtimeState.value]
   if (props.selected) return '#64748b'
-  return '#94a3b8'
+  return runtimeColors.pending
 })
 
 const pathParams = computed(() => {

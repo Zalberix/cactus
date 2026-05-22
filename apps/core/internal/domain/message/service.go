@@ -60,14 +60,14 @@ func (s *Service) SendMessage(ctx context.Context, req SendMessageRequest, publi
 	}
 
 	// 3. Найти активную версию
-	activeVersions, err := s.store.ListActiveWorkflowVersions(ctx, req.WorkflowID)
+	versionSummaries, err := s.store.ListWorkflowVersionSummariesByWorkflowID(ctx, req.WorkflowID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("list active versions: %w", err)
+		return nil, nil, fmt.Errorf("list workflow version summaries: %w", err)
 	}
-	if len(activeVersions) == 0 {
-		return nil, nil, fmt.Errorf("no active version for workflow %d", req.WorkflowID)
+	activeVersion, err := selectWorkflowVersionByTrafficDeficit(versionSummaries)
+	if err != nil {
+		return nil, nil, fmt.Errorf("select active workflow version: %w", err)
 	}
-	activeVersion := activeVersions[0]
 
 	// 4. Валидировать payload по JSON Schema
 	if validationErrors := ValidatePayload(wf.InputSchema, req.Value); len(validationErrors) > 0 {
@@ -130,6 +130,89 @@ func (s *Service) SendMessage(ctx context.Context, req SendMessageRequest, publi
 		WorkflowRunID: run.ID,
 		Status:        "running",
 	}, nil, nil
+}
+
+func selectWorkflowVersionByTrafficDeficit(versions []db.ListWorkflowVersionSummariesByWorkflowIDRow) (db.ListWorkflowVersionSummariesByWorkflowIDRow, error) {
+	activeVersions := activeWorkflowVersionSummaries(versions)
+	if len(activeVersions) == 0 {
+		return db.ListWorkflowVersionSummariesByWorkflowIDRow{}, fmt.Errorf("no active workflow versions")
+	}
+
+	totalWeight := positiveTrafficWeightSummaryTotal(activeVersions)
+	if totalWeight == 0 {
+		return firstActiveWorkflowVersionSummary(activeVersions), nil
+	}
+
+	totalRuns := workflowVersionRunTotal(activeVersions)
+	nextTotal := totalRuns + 1
+	var selected db.ListWorkflowVersionSummariesByWorkflowIDRow
+	var bestDeficit int64
+	hasSelected := false
+
+	for _, version := range activeVersions {
+		if version.TrafficWeight <= 0 {
+			continue
+		}
+
+		deficit := nextTotal*int64(version.TrafficWeight) - version.RunCount*totalWeight
+		if !hasSelected || deficit > bestDeficit || (deficit == bestDeficit && trafficSelectionTieLess(version, selected)) {
+			selected = version
+			bestDeficit = deficit
+			hasSelected = true
+		}
+	}
+
+	if !hasSelected {
+		return firstActiveWorkflowVersionSummary(activeVersions), nil
+	}
+	return selected, nil
+}
+
+func activeWorkflowVersionSummaries(versions []db.ListWorkflowVersionSummariesByWorkflowIDRow) []db.ListWorkflowVersionSummariesByWorkflowIDRow {
+	active := make([]db.ListWorkflowVersionSummariesByWorkflowIDRow, 0, len(versions))
+	for _, version := range versions {
+		if version.IsActive && !version.DeletedAt.Valid {
+			active = append(active, version)
+		}
+	}
+	return active
+}
+
+func positiveTrafficWeightSummaryTotal(versions []db.ListWorkflowVersionSummariesByWorkflowIDRow) int64 {
+	var total int64
+	for _, version := range versions {
+		if version.TrafficWeight > 0 {
+			total += int64(version.TrafficWeight)
+		}
+	}
+	return total
+}
+
+func workflowVersionRunTotal(versions []db.ListWorkflowVersionSummariesByWorkflowIDRow) int64 {
+	var total int64
+	for _, version := range versions {
+		if version.TrafficWeight > 0 {
+			total += version.RunCount
+		}
+	}
+	return total
+}
+
+func firstActiveWorkflowVersionSummary(versions []db.ListWorkflowVersionSummariesByWorkflowIDRow) db.ListWorkflowVersionSummariesByWorkflowIDRow {
+	selected := versions[0]
+	for _, version := range versions[1:] {
+		if trafficSelectionTieLess(version, selected) {
+			selected = version
+		}
+	}
+	return selected
+}
+
+func trafficSelectionTieLess(a, b db.ListWorkflowVersionSummariesByWorkflowIDRow) bool {
+	if a.VersionNumber != b.VersionNumber {
+		return a.VersionNumber < b.VersionNumber
+	}
+	return a.ID < b.ID
 }
 
 // buildDAGInput собирает DAGInput из steps и deps активной версии.

@@ -385,23 +385,6 @@ defineExpose({ createWorkflowInputFromField })
             <Separator class="mt-3" />
           </div>
         </div>
-
-        <!-- Message context -->
-        <div>
-          <div class="mb-2 flex items-center gap-2">
-            <div class="h-2 w-2 rounded-full shrink-0 bg-amber-500" />
-            <span class="text-xs font-medium">Message</span>
-          </div>
-          <div
-            class="flex items-center gap-1.5 rounded px-1 py-0.5 text-sm cursor-pointer hover:bg-accent"
-            @click="onFieldClick('$.message.value')"
-          >
-            <span class="h-3 w-3 shrink-0" />
-            <span class="inline-block h-2 w-2 rounded-full shrink-0 bg-gray-400" />
-            <span class="font-medium">value</span>
-            <span class="text-xs text-muted-foreground ml-auto">object</span>
-          </div>
-        </div>
       </div>
     </ScrollArea>
   </div>

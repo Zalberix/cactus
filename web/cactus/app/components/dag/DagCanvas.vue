@@ -12,10 +12,12 @@ const GRID_SIZE = 20
 
 const props = withDefaults(defineProps<{
   mode?: 'edit' | 'view'
+  showRuntimeState?: boolean
   nodes: Node[]
   edges: Edge[]
 }>(), {
   mode: 'edit',
+  showRuntimeState: false,
 })
 
 const emit = defineEmits<{
@@ -167,6 +169,8 @@ onMounted(() => {
       <template #node-step="nodeProps">
         <StepNode
           v-bind="nodeProps"
+          :read-only="!isEdit"
+          :show-runtime-state="showRuntimeState"
           @delete="onNodeDelete"
           @rename="onNodeRename"
         />

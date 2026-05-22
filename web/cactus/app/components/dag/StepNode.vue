@@ -2,7 +2,7 @@
 import { Handle, Position, useNode } from '@vue-flow/core'
 import {
   Mail, MessageSquare, Bell, Workflow, GitBranch,
-  Clock, Split, Zap, Radio, AlertCircle, Trash2, MoreHorizontal,
+  Clock, Split, Zap, Radio, AlertCircle, Trash2, MoreHorizontal, RefreshCw,
 } from 'lucide-vue-next'
 import { ref, type Component } from 'vue'
 import {
@@ -17,6 +17,13 @@ import { useControlSteps } from '~/composables/useControlSteps'
 const { node } = useNode()
 const { t } = useI18n()
 const controlSteps = useControlSteps()
+const props = withDefaults(defineProps<{
+  readOnly?: boolean
+  showRuntimeState?: boolean
+}>(), {
+  readOnly: false,
+  showRuntimeState: false,
+})
 const emit = defineEmits<{
   delete: [nodeId: string]
   rename: [nodeId: string]
@@ -63,7 +70,16 @@ const outputHandles = computed(() => {
 const label = computed(() => node.data.label ?? 'Step')
 const nodeErrors = computed(() => node.data.validationErrors ?? [])
 const hasValidationErrors = computed(() => nodeErrors.value.length > 0)
-const canShowActions = computed(() => !isStart.value)
+const runtimeStatus = computed(() => String(node.data.status ?? 'pending'))
+const isRuntimeRunning = computed(() => runtimeStatus.value === 'running')
+const isRuntimeCompleted = computed(() => props.showRuntimeState && runtimeStatus.value === 'completed')
+const shouldShowRuntimeProgress = computed(() => props.showRuntimeState && isRuntimeRunning.value)
+const nodeBlockStateClass = computed(() => {
+  if (hasValidationErrors.value) return 'border-red-500 ring-2 ring-red-500/20'
+  if (isRuntimeCompleted.value) return 'border-emerald-500'
+  return 'border-slate-300'
+})
+const canShowActions = computed(() => !props.readOnly && !isStart.value)
 const actionsMenuOpen = ref(false)
 
 function onDelete(event: MouseEvent) {
@@ -119,11 +135,23 @@ function onRename() {
     </div>
 
     <div
+      v-if="shouldShowRuntimeProgress"
+      data-testid="running-step-indicator"
+      class="pointer-events-none absolute left-1/2 top-0 z-10 flex h-8 w-8 -translate-x-1/2 -translate-y-[calc(100%+6px)] items-center justify-center rounded-full border border-blue-200 bg-background text-blue-700 shadow-sm ring-4 ring-blue-100/70 dark:border-blue-800 dark:text-blue-300 dark:ring-blue-950/60"
+      role="status"
+      aria-live="polite"
+      :aria-label="t('status.running')"
+    >
+      <RefreshCw class="h-4 w-4 animate-spin" aria-hidden="true" />
+      <span class="sr-only">{{ t('status.running') }}</span>
+    </div>
+
+    <div
       data-testid="step-node-block"
-      class="relative flex h-[104px] w-[144px] items-center justify-center rounded-lg border-2 border-slate-300 bg-background shadow-sm transition-colors hover:shadow-md"
+      class="relative flex h-[104px] w-[144px] items-center justify-center rounded-lg border-2 bg-background shadow-sm transition-colors hover:shadow-md"
       :class="[
+        nodeBlockStateClass,
         node.selected ? 'ring-2 ring-slate-400/30' : '',
-        hasValidationErrors ? 'border-red-500 ring-2 ring-red-500/20' : '',
       ]"
     >
       <Handle

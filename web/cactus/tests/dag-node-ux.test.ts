@@ -67,8 +67,9 @@ const DropdownItemStub = defineComponent({
   template: '<button type="button" data-testid="rename-node" :data-select-default-prevented="selectDefaultPrevented" @click="onClick"><slot /></button>',
 })
 
-function mountNode() {
+function mountNode(props: Record<string, unknown> = {}) {
   return mount(StepNode, {
+    props,
     global: {
       stubs: {
         DropdownMenu: DropdownStub,
@@ -87,7 +88,7 @@ function setNode(data: Record<string, unknown>, id = '12') {
     data: {
       label: 'SMTP Worker',
       stepType: 'task',
-      status: 'completed',
+      status: 'pending',
       ...data,
     },
   }
@@ -123,6 +124,14 @@ describe('DAG StepNode UX', () => {
     await wrapper.get('[data-testid="delete-node"]').trigger('click')
 
     expect(wrapper.emitted('delete')).toEqual([['12']])
+  })
+
+  it('hides edit actions when rendered read-only', () => {
+    const wrapper = mountNode({ readOnly: true })
+
+    expect(wrapper.find('[data-testid="node-hover-actions"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="delete-node"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="more-node"]').exists()).toBe(false)
   })
 
   it('emits rename from the node action menu', async () => {
