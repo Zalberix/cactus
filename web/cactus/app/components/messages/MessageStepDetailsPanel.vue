@@ -104,7 +104,11 @@ const outputState = computed<{ value?: unknown; stateText?: string; tone?: State
         </div>
         <div class="col-span-2">
           <div class="text-xs text-muted-foreground">{{ t('messages.detail.duration') }}</div>
-          <RunDuration :started-at="runtime?.started_at" :completed-at="runtime?.completed_at" />
+          <RunDuration
+            :started-at="runtime?.started_at"
+            :completed-at="runtime?.completed_at"
+            :duration-ms="runtime?.duration_ms"
+          />
         </div>
       </section>
 

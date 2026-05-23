@@ -44,30 +44,37 @@ type StepStatusDTO struct {
 	Outcome      *string    `json:"outcome"`
 	StartedAt    *time.Time `json:"started_at"`
 	CompletedAt  *time.Time `json:"completed_at"`
+	DurationMs   *int64     `json:"duration_ms,omitempty"`
 	ErrorMessage *string    `json:"error_message"`
 }
 
 // ListItem is a single message in organization listing.
 type ListItem struct {
-	ID           int32  `json:"id"`
-	WorkflowID   int32  `json:"workflow_id"`
-	WorkflowName string `json:"workflow_name"`
-	Status       string `json:"status"`
-	CreatedAt    string `json:"created_at"`
-	UpdatedAt    string `json:"updated_at"`
+	ID                    int32   `json:"id"`
+	WorkflowID            int32   `json:"workflow_id"`
+	WorkflowName          string  `json:"workflow_name"`
+	WorkflowVersionID     *int32  `json:"workflow_version_id,omitempty"`
+	WorkflowVersionNumber *int32  `json:"workflow_version_number,omitempty"`
+	WorkflowVersionName   *string `json:"workflow_version_name,omitempty"`
+	Status                string  `json:"status"`
+	CreatedAt             string  `json:"created_at"`
+	UpdatedAt             string  `json:"updated_at"`
 }
 
 type DetailResponse struct {
-	MessageID     int32              `json:"message_id"`
-	WorkflowID    int32              `json:"workflow_id"`
-	WorkflowName  string             `json:"workflow_name"`
-	MessageStatus string             `json:"message_status"`
-	MessageValue  map[string]any     `json:"message_value"`
-	CreatedAt     time.Time          `json:"created_at"`
-	UpdatedAt     time.Time          `json:"updated_at"`
-	WorkflowRun   *WorkflowRunStatus `json:"workflow_run,omitempty"`
-	Graph         GraphDTO           `json:"graph"`
-	RunSteps      []StepRunDetailDTO `json:"run_steps"`
+	MessageID             int32              `json:"message_id"`
+	WorkflowID            int32              `json:"workflow_id"`
+	WorkflowName          string             `json:"workflow_name"`
+	WorkflowVersionID     *int32             `json:"workflow_version_id,omitempty"`
+	WorkflowVersionNumber *int32             `json:"workflow_version_number,omitempty"`
+	WorkflowVersionName   *string            `json:"workflow_version_name,omitempty"`
+	MessageStatus         string             `json:"message_status"`
+	MessageValue          map[string]any     `json:"message_value"`
+	CreatedAt             time.Time          `json:"created_at"`
+	UpdatedAt             time.Time          `json:"updated_at"`
+	WorkflowRun           *WorkflowRunStatus `json:"workflow_run,omitempty"`
+	Graph                 GraphDTO           `json:"graph"`
+	RunSteps              []StepRunDetailDTO `json:"run_steps"`
 }
 
 type GraphDTO struct {
@@ -111,5 +118,6 @@ type StepRunDetailDTO struct {
 	OutputData   map[string]any `json:"output_data,omitempty"`
 	StartedAt    *time.Time     `json:"started_at,omitempty"`
 	CompletedAt  *time.Time     `json:"completed_at,omitempty"`
+	DurationMs   *int64         `json:"duration_ms,omitempty"`
 	ErrorMessage *string        `json:"error_message,omitempty"`
 }

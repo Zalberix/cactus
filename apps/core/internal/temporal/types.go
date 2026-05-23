@@ -132,6 +132,7 @@ type WorkflowEvent struct {
 	OutputData  map[string]any `json:"output_data,omitempty"`
 	StartedAt   string         `json:"started_at,omitempty"`   // RFC3339
 	CompletedAt string         `json:"completed_at,omitempty"` // RFC3339
+	DurationMs  *int64         `json:"duration_ms,omitempty"`  // server-calculated step runtime
 	Error       string         `json:"error,omitempty"`        // for workflow_failed or failed step
 	Timestamp   string         `json:"timestamp"`              // RFC3339
 }

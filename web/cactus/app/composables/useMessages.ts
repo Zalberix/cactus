@@ -4,6 +4,9 @@ export interface MessageListItem {
   id: number
   workflow_id: number
   workflow_name?: string
+  workflow_version_id?: number
+  workflow_version_number?: number
+  workflow_version_name?: string
   status: string
   created_at: string
   updated_at: string
@@ -17,6 +20,7 @@ export interface StepStatus {
   outcome?: string
   started_at?: string
   completed_at?: string
+  duration_ms?: number
   error_message?: string
 }
 
@@ -40,6 +44,9 @@ export interface MessageDetail {
   message_id: number
   workflow_id: number
   workflow_name: string
+  workflow_version_id?: number
+  workflow_version_number?: number
+  workflow_version_name?: string
   message_status: string
   message_value: Record<string, unknown>
   created_at: string
@@ -90,6 +97,7 @@ export interface StepRunDetail {
   output_data?: Record<string, unknown>
   started_at?: string
   completed_at?: string
+  duration_ms?: number
   error_message?: string
 }
 

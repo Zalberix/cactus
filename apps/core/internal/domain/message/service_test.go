@@ -91,18 +91,20 @@ func (detailStore) ListWorkflowRunStepStatusesByRunID(context.Context, int32) ([
 func (detailStore) GetMessageDetailByID(context.Context, int32) (db.GetMessageDetailByIDRow, error) {
 	now := time.Date(2026, 5, 18, 8, 0, 0, 0, time.UTC)
 	return db.GetMessageDetailByIDRow{
-		ID:                100,
-		WorkflowID:        7,
-		WorkflowName:      "Welcome",
-		MessageValue:      []byte(`{"email":"ada@example.com"}`),
-		MessageStatus:     "created",
-		CreatedAt:         pgtype.Timestamp{Time: now, Valid: true},
-		UpdatedAt:         pgtype.Timestamp{Time: now, Valid: true},
-		WorkflowRunID:     pgtype.Int4{Int32: 91, Valid: true},
-		WorkflowVersionID: pgtype.Int4{Int32: 55, Valid: true},
-		WorkflowStatus:    pgtype.Text{String: "completed", Valid: true},
-		RunStartedAt:      pgtype.Timestamp{Time: now, Valid: true},
-		RunCompletedAt:    pgtype.Timestamp{Time: now.Add(time.Second), Valid: true},
+		ID:                    100,
+		WorkflowID:            7,
+		WorkflowName:          "Welcome",
+		MessageValue:          []byte(`{"email":"ada@example.com"}`),
+		MessageStatus:         "created",
+		CreatedAt:             pgtype.Timestamp{Time: now, Valid: true},
+		UpdatedAt:             pgtype.Timestamp{Time: now, Valid: true},
+		WorkflowRunID:         pgtype.Int4{Int32: 91, Valid: true},
+		WorkflowVersionID:     pgtype.Int4{Int32: 55, Valid: true},
+		WorkflowVersionNumber: pgtype.Int4{Int32: 3, Valid: true},
+		WorkflowVersionName:   pgtype.Text{String: "Release A", Valid: true},
+		WorkflowStatus:        pgtype.Text{String: "completed", Valid: true},
+		RunStartedAt:          pgtype.Timestamp{Time: now, Valid: true},
+		RunCompletedAt:        pgtype.Timestamp{Time: now.Add(time.Second), Valid: true},
 	}, nil
 }
 
@@ -140,6 +142,12 @@ func TestGetMessageDetailBuildsRunGraphAndStepData(t *testing.T) {
 	if got.Graph.VersionID != 55 {
 		t.Fatalf("version id = %d", got.Graph.VersionID)
 	}
+	require.NotNil(t, got.WorkflowVersionID)
+	require.NotNil(t, got.WorkflowVersionNumber)
+	require.NotNil(t, got.WorkflowVersionName)
+	require.Equal(t, int32(55), *got.WorkflowVersionID)
+	require.Equal(t, int32(3), *got.WorkflowVersionNumber)
+	require.Equal(t, "Release A", *got.WorkflowVersionName)
 	if len(got.Graph.Steps) != 2 {
 		t.Fatalf("steps = %d", len(got.Graph.Steps))
 	}
@@ -152,9 +160,50 @@ func TestGetMessageDetailBuildsRunGraphAndStepData(t *testing.T) {
 	if got.RunSteps[0].OutputData["message_id"] != "abc" {
 		t.Fatalf("output not mapped")
 	}
+	require.NotNil(t, got.RunSteps[0].DurationMs)
+	require.Equal(t, int64(1000), *got.RunSteps[0].DurationMs)
 }
 
 var _ Storage = detailStore{}
+
+type listMessagesStore struct {
+	detailStore
+}
+
+func (listMessagesStore) CountMessagesByOrganizationID(context.Context, pgtype.Int4) (int64, error) {
+	return 1, nil
+}
+
+func (listMessagesStore) ListMessagesByOrganizationID(context.Context, db.ListMessagesByOrganizationIDParams) ([]db.ListMessagesByOrganizationIDRow, error) {
+	now := time.Date(2026, 5, 18, 8, 0, 0, 0, time.UTC)
+	return []db.ListMessagesByOrganizationIDRow{{
+		ID:                    200,
+		WorkflowID:            7,
+		WorkflowName:          "Welcome",
+		Status:                "running",
+		CreatedAt:             pgtype.Timestamp{Time: now, Valid: true},
+		UpdatedAt:             pgtype.Timestamp{Time: now.Add(time.Minute), Valid: true},
+		WorkflowVersionID:     pgtype.Int4{Int32: 55, Valid: true},
+		WorkflowVersionNumber: pgtype.Int4{Int32: 3, Valid: true},
+		WorkflowVersionName:   pgtype.Text{String: "Release A", Valid: true},
+	}}, nil
+}
+
+func TestListMessagesIncludesWorkflowVersion(t *testing.T) {
+	svc := NewService(listMessagesStore{}, client.Client(nil))
+
+	got, total, err := svc.ListMessages(context.Background(), 12, 1, 20)
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), total)
+	require.Len(t, got, 1)
+	require.NotNil(t, got[0].WorkflowVersionID)
+	require.NotNil(t, got[0].WorkflowVersionNumber)
+	require.NotNil(t, got[0].WorkflowVersionName)
+	require.Equal(t, int32(55), *got[0].WorkflowVersionID)
+	require.Equal(t, int32(3), *got[0].WorkflowVersionNumber)
+	require.Equal(t, "Release A", *got[0].WorkflowVersionName)
+}
 
 type sendMessageStore struct {
 	workflowRunArg db.CreateWorkflowRunParams

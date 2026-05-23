@@ -318,12 +318,15 @@ func (s *Service) ListMessages(ctx context.Context, orgID int32, page, perPage i
 	items := make([]ListItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, ListItem{
-			ID:           r.ID,
-			WorkflowID:   r.WorkflowID,
-			WorkflowName: r.WorkflowName,
-			Status:       r.Status,
-			CreatedAt:    r.CreatedAt.Time.Format(time.RFC3339),
-			UpdatedAt:    r.UpdatedAt.Time.Format(time.RFC3339),
+			ID:                    r.ID,
+			WorkflowID:            r.WorkflowID,
+			WorkflowName:          r.WorkflowName,
+			WorkflowVersionID:     pgInt4Ptr(r.WorkflowVersionID),
+			WorkflowVersionNumber: pgInt4Ptr(r.WorkflowVersionNumber),
+			WorkflowVersionName:   pgTextPtr(r.WorkflowVersionName),
+			Status:                r.Status,
+			CreatedAt:             r.CreatedAt.Time.Format(time.RFC3339),
+			UpdatedAt:             r.UpdatedAt.Time.Format(time.RFC3339),
 		})
 	}
 
@@ -367,12 +370,14 @@ func (s *Service) GetMessageStatus(ctx context.Context, messageID int32) (*Statu
 	resp.WorkflowRun = wrs
 
 	if steps, err := s.store.ListWorkflowRunStepStatusesByRunID(ctx, row.WorkflowRunID.Int32); err == nil {
+		now := time.Now().UTC()
 		for _, step := range steps {
 			dto := StepStatusDTO{
-				ID:       step.ID,
-				StepID:   step.WorkflowStepID,
-				StepType: step.StepType,
-				Status:   step.Status,
+				ID:         step.ID,
+				StepID:     step.WorkflowStepID,
+				StepType:   step.StepType,
+				Status:     step.Status,
+				DurationMs: stepDurationMs(step.StartedAt, step.CompletedAt, now),
 			}
 			if step.Outcome.Valid {
 				dto.Outcome = &step.Outcome.String
@@ -432,13 +437,16 @@ func buildMessageDetailBase(row db.GetMessageDetailByIDRow) *DetailResponse {
 	}
 
 	resp := &DetailResponse{
-		MessageID:     row.ID,
-		WorkflowID:    row.WorkflowID,
-		WorkflowName:  row.WorkflowName,
-		MessageStatus: row.MessageStatus,
-		MessageValue:  messageValue,
-		CreatedAt:     row.CreatedAt.Time,
-		UpdatedAt:     row.UpdatedAt.Time,
+		MessageID:             row.ID,
+		WorkflowID:            row.WorkflowID,
+		WorkflowName:          row.WorkflowName,
+		WorkflowVersionID:     pgInt4Ptr(row.WorkflowVersionID),
+		WorkflowVersionNumber: pgInt4Ptr(row.WorkflowVersionNumber),
+		WorkflowVersionName:   pgTextPtr(row.WorkflowVersionName),
+		MessageStatus:         row.MessageStatus,
+		MessageValue:          messageValue,
+		CreatedAt:             row.CreatedAt.Time,
+		UpdatedAt:             row.UpdatedAt.Time,
 		Graph: GraphDTO{
 			Steps:        []GraphStepDTO{},
 			Dependencies: []GraphDependencyDTO{},
@@ -519,6 +527,7 @@ func buildMessageGraph(versionID int32, steps []db.ListEnrichedStepsByVersionIDR
 
 func buildRunStepDetails(runSteps []db.WorkflowRunStep) []StepRunDetailDTO {
 	result := make([]StepRunDetailDTO, 0, len(runSteps))
+	now := time.Now().UTC()
 	for _, step := range runSteps {
 		dto := StepRunDetailDTO{
 			ID:         step.ID,
@@ -526,6 +535,7 @@ func buildRunStepDetails(runSteps []db.WorkflowRunStep) []StepRunDetailDTO {
 			Status:     step.Status,
 			InputData:  jsonObjectFromBytes(step.InputData),
 			OutputData: jsonObjectFromBytes(step.OutputData),
+			DurationMs: stepDurationMs(step.StartedAt, step.CompletedAt, now),
 		}
 		if step.Outcome.Valid {
 			dto.Outcome = &step.Outcome.String
@@ -544,6 +554,35 @@ func buildRunStepDetails(runSteps []db.WorkflowRunStep) []StepRunDetailDTO {
 		result = append(result, dto)
 	}
 	return result
+}
+
+func stepDurationMs(startedAt, completedAt pgtype.Timestamp, now time.Time) *int64 {
+	if !startedAt.Valid {
+		return nil
+	}
+	end := now
+	if completedAt.Valid {
+		end = completedAt.Time
+	}
+	ms := end.Sub(startedAt.Time).Milliseconds()
+	if ms < 0 {
+		ms = 0
+	}
+	return &ms
+}
+
+func pgInt4Ptr(value pgtype.Int4) *int32 {
+	if !value.Valid {
+		return nil
+	}
+	return &value.Int32
+}
+
+func pgTextPtr(value pgtype.Text) *string {
+	if !value.Valid {
+		return nil
+	}
+	return &value.String
 }
 
 func jsonObjectFromBytes(raw []byte) map[string]any {

@@ -7,6 +7,7 @@ import DataTable from '~/components/tables/DataTable.vue'
 import DataTableColumnHeader from '~/components/tables/DataTableColumnHeader.vue'
 import EmptyState from '~/components/feedback/EmptyState.vue'
 import StatusBadge from '~/components/feedback/StatusBadge.vue'
+import { getWorkflowVersionLabelParts } from '~/components/messages/message-version-utils'
 import { Button } from '~/components/ui/button'
 import { Skeleton } from '~/components/ui/skeleton'
 
@@ -56,6 +57,40 @@ function viewMessage(messageId: number) {
   router.push(`/org/${orgId.value}/messages/${messageId}`)
 }
 
+function renderWorkflowName(message: MessageListItem) {
+  const workflowName = message.workflow_name?.trim()
+  const version = getWorkflowVersionLabelParts(message)
+  const hasVersion = version.name || version.number
+
+  if (!workflowName && !hasVersion) return '-'
+
+  const versionLabel = hasVersion
+    ? h('span', {
+        class: 'font-normal text-muted-foreground',
+        'data-testid': 'workflow-version-label',
+      }, [
+        version.name || null,
+        version.name && version.number ? ' ' : null,
+        version.number
+          ? [
+              '(',
+              h('span', {
+                class: 'text-muted-foreground',
+                'data-testid': 'workflow-version-number',
+              }, version.number),
+              ')',
+            ]
+          : null,
+      ])
+    : null
+
+  return h('span', { class: 'font-medium' }, [
+    workflowName || null,
+    workflowName && hasVersion ? ' ' : null,
+    versionLabel,
+  ])
+}
+
 const columns: ColumnDef<MessageListItem>[] = [
   {
     accessorKey: 'id',
@@ -69,7 +104,7 @@ const columns: ColumnDef<MessageListItem>[] = [
   {
     accessorKey: 'workflow_name',
     header: ({ column }) => h(DataTableColumnHeader, { column: column as any, title: t('messages.workflow') }),
-    cell: ({ row }) => h('span', { class: 'font-medium' }, row.getValue('workflow_name') || '-'),
+    cell: ({ row }) => renderWorkflowName(row.original),
   },
   {
     accessorKey: 'status',

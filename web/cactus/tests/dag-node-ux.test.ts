@@ -68,8 +68,22 @@ const DropdownItemStub = defineComponent({
 })
 
 function mountNode(props: Record<string, unknown> = {}) {
+  const node = currentNode.value
   return mount(StepNode, {
-    props,
+    props: {
+      id: node.id,
+      type: 'step',
+      selected: node.selected,
+      connectable: true,
+      position: { x: 0, y: 0 },
+      dimensions: { width: 144, height: 104 },
+      dragging: false,
+      resizing: false,
+      zIndex: 0,
+      data: node.data,
+      events: {},
+      ...props,
+    },
     global: {
       stubs: {
         DropdownMenu: DropdownStub,
@@ -107,6 +121,23 @@ describe('DAG StepNode UX', () => {
     expect(wrapper.get('[data-testid="step-node-block"]').text()).not.toContain('SMTP Worker')
     expect(wrapper.get('[data-testid="step-node-label"]').text()).toContain('SMTP Worker')
     expect(wrapper.find('[data-testid="step-node-status"]').exists()).toBe(false)
+  })
+
+  it('reacts to runtime status updates from node props', async () => {
+    setNode({ status: 'running' })
+    const wrapper = mountNode({ showRuntimeState: true })
+
+    expect(wrapper.find('[data-testid="running-step-indicator"]').exists()).toBe(true)
+
+    await wrapper.setProps({
+      data: {
+        ...currentNode.value.data,
+        status: 'completed',
+      },
+    })
+
+    expect(wrapper.find('[data-testid="running-step-indicator"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="step-node-block"]').classes().join(' ')).toContain('border-emerald')
   })
 
   it('shows hover actions for regular nodes and emits delete with the node id', async () => {

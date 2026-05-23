@@ -46,6 +46,8 @@ SELECT
     m.updated_at,
     wr.id AS workflow_run_id,
     wr.workflow_version_id,
+    wv.version_number AS workflow_version_number,
+    wv.name AS workflow_version_name,
     wr.status AS workflow_status,
     wr.started_at AS run_started_at,
     wr.completed_at AS run_completed_at,
@@ -53,18 +55,35 @@ SELECT
 FROM "message" m
 JOIN "workflow" w ON w.id = m.workflow_id AND w.deleted_at IS NULL
 LEFT JOIN "workflow_run" wr ON wr.message_id = m.id
+LEFT JOIN "workflow_version" wv ON wv.id = wr.workflow_version_id AND wv.deleted_at IS NULL
 WHERE m.id = $1 AND m.deleted_at IS NULL
 ORDER BY wr.id DESC
 LIMIT 1;
 
 -- name: ListMessagesByOrganizationID :many
 -- List messages for all workflows belonging to systems within an organization.
--- Joins: message -> workflow -> system (filtered by organization_id).
-SELECT m.id, m.workflow_id, w."name" AS workflow_name,
-       m.status, m.created_at, m.updated_at
+-- Joins: message -> workflow -> system (filtered by organization_id), plus latest workflow_run -> workflow_version.
+SELECT
+    m.id,
+    m.workflow_id,
+    w."name" AS workflow_name,
+    m.status,
+    m.created_at,
+    m.updated_at,
+    wv.id AS workflow_version_id,
+    wv.version_number AS workflow_version_number,
+    wv.name AS workflow_version_name
 FROM "message" m
 JOIN "workflow" w ON w.id = m.workflow_id AND w.deleted_at IS NULL
 JOIN "system" s ON s.id = w.system_id AND s.deleted_at IS NULL
+LEFT JOIN LATERAL (
+    SELECT run.workflow_version_id
+    FROM "workflow_run" run
+    WHERE run.message_id = m.id
+    ORDER BY run.id DESC
+    LIMIT 1
+) wr ON TRUE
+LEFT JOIN "workflow_version" wv ON wv.id = wr.workflow_version_id AND wv.deleted_at IS NULL
 WHERE s.organization_id = $1 AND m.deleted_at IS NULL
 ORDER BY m.created_at DESC
 LIMIT $2 OFFSET $3;

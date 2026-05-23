@@ -102,7 +102,7 @@ func (a *Activities) publishWorkflowEvent(ctx context.Context, messageID int32, 
 	if messageID == 0 {
 		return // no messageID available, skip silently
 	}
-	event.Timestamp = time.Now().Format(time.RFC3339)
+	event.Timestamp = eventTime(time.Now())
 	subject := fmt.Sprintf("event.workflow.%d", messageID)
 	if err := a.bus.PublishJS(ctx, subject, event); err != nil {
 		a.logger.Warn("failed to publish workflow event",
@@ -110,6 +110,21 @@ func (a *Activities) publishWorkflowEvent(ctx context.Context, messageID int32, 
 			slog.String("error", err.Error()),
 		)
 	}
+}
+
+func eventTime(t time.Time) string {
+	return t.UTC().Format(time.RFC3339)
+}
+
+func eventDurationMs(startedAt pgtype.Timestamp, end time.Time) *int64 {
+	if !startedAt.Valid {
+		return nil
+	}
+	ms := end.UTC().Sub(startedAt.Time).Milliseconds()
+	if ms < 0 {
+		ms = 0
+	}
+	return &ms
 }
 
 // RunTaskStep is the activity for dispatching task steps.
@@ -171,13 +186,14 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 	)
 
 	a.publishWorkflowEvent(ctx, input.MessageID, temporaltypes.WorkflowEvent{
-		Type:      "step_update",
-		StepID:    input.Step.ID,
-		RunStepID: runStep.ID,
-		StepType:  input.Step.StepType,
-		Status:    temporaltypes.StepStatusRunning,
-		InputData: resolvedInput,
-		StartedAt: runStep.StartedAt.Time.Format(time.RFC3339),
+		Type:       "step_update",
+		StepID:     input.Step.ID,
+		RunStepID:  runStep.ID,
+		StepType:   input.Step.StepType,
+		Status:     temporaltypes.StepStatusRunning,
+		InputData:  resolvedInput,
+		StartedAt:  eventTime(runStep.StartedAt.Time),
+		DurationMs: eventDurationMs(runStep.StartedAt, time.Now()),
 	})
 
 	stepAttempt, err := a.store.CreateWorkflowRunStepAttempt(ctx, db.CreateWorkflowRunStepAttemptParams{
@@ -253,7 +269,7 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 			slog.String("reply_to", replyTo),
 			slog.String("error", err.Error()),
 		)
-		now := pgtype.Timestamp{Time: time.Now(), Valid: true}
+		now := pgtype.Timestamp{Time: time.Now().UTC(), Valid: true}
 		_, _ = a.store.UpdateWorkflowRunStepAttemptStatus(ctx, db.UpdateWorkflowRunStepAttemptStatusParams{
 			ID:           stepAttempt.ID,
 			Status:       temporaltypes.StepStatusFailed,
@@ -274,7 +290,8 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 			RunStepID:   runStep.ID,
 			StepType:    input.Step.StepType,
 			Status:      temporaltypes.StepStatusFailed,
-			CompletedAt: now.Time.Format(time.RFC3339),
+			CompletedAt: eventTime(now.Time),
+			DurationMs:  eventDurationMs(runStep.StartedAt, now.Time),
 			Error:       err.Error(),
 		})
 		return temporaltypes.StepResult{}, fmt.Errorf("wait for result step %d: %w", input.Step.ID, err)
@@ -290,7 +307,7 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 		slog.String("worker_error", workerResult.Error),
 	)
 
-	now := pgtype.Timestamp{Time: time.Now(), Valid: true}
+	now := pgtype.Timestamp{Time: time.Now().UTC(), Valid: true}
 	outputJSON, _ := json.Marshal(workerResult.Output)
 
 	if workerResult.Success {
@@ -316,7 +333,8 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 			StepType:    input.Step.StepType,
 			Status:      temporaltypes.StepStatusCompleted,
 			OutputData:  workerResult.Output,
-			CompletedAt: now.Time.Format(time.RFC3339),
+			CompletedAt: eventTime(now.Time),
+			DurationMs:  eventDurationMs(runStep.StartedAt, now.Time),
 		})
 
 		return temporaltypes.StepResult{
@@ -348,7 +366,8 @@ func (a *Activities) RunTaskStep(ctx context.Context, input temporaltypes.RunTas
 		RunStepID:   runStep.ID,
 		StepType:    input.Step.StepType,
 		Status:      temporaltypes.StepStatusFailed,
-		CompletedAt: now.Time.Format(time.RFC3339),
+		CompletedAt: eventTime(now.Time),
+		DurationMs:  eventDurationMs(runStep.StartedAt, now.Time),
 		Error:       workerResult.Error,
 	})
 	a.logger.Warn("RunTaskStep worker reported failure",
@@ -410,13 +429,14 @@ func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordS
 				}
 
 				a.publishWorkflowEvent(ctx, input.MessageID, temporaltypes.WorkflowEvent{
-					Type:      "step_update",
-					StepID:    input.StepID,
-					RunStepID: runStep.ID,
-					StepType:  "control",
-					Status:    temporaltypes.StepStatusRunning,
-					InputData: input.InputData,
-					StartedAt: runStep.StartedAt.Time.Format(time.RFC3339),
+					Type:       "step_update",
+					StepID:     input.StepID,
+					RunStepID:  runStep.ID,
+					StepType:   "control",
+					Status:     temporaltypes.StepStatusRunning,
+					InputData:  input.InputData,
+					StartedAt:  eventTime(runStep.StartedAt.Time),
+					DurationMs: eventDurationMs(runStep.StartedAt, time.Now()),
 				})
 				break
 			}
@@ -427,7 +447,7 @@ func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordS
 		if err != nil {
 			return fmt.Errorf("list run steps for skip: %w", err)
 		}
-		now := pgtype.Timestamp{Time: time.Now(), Valid: true}
+		now := pgtype.Timestamp{Time: time.Now().UTC(), Valid: true}
 		for _, s := range steps {
 			if s.WorkflowStepID == input.StepID {
 				_, _ = a.store.UpdateWorkflowRunStepStatus(ctx, db.UpdateWorkflowRunStepStatusParams{
@@ -442,7 +462,8 @@ func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordS
 					StepID:      input.StepID,
 					RunStepID:   s.ID,
 					Status:      temporaltypes.StepStatusSkipped,
-					CompletedAt: now.Time.Format(time.RFC3339),
+					CompletedAt: eventTime(now.Time),
+					DurationMs:  eventDurationMs(s.StartedAt, now.Time),
 				})
 				break
 			}
@@ -452,7 +473,7 @@ func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordS
 		if err != nil {
 			return fmt.Errorf("list run steps for complete: %w", err)
 		}
-		now := pgtype.Timestamp{Time: time.Now(), Valid: true}
+		now := pgtype.Timestamp{Time: time.Now().UTC(), Valid: true}
 		for _, s := range steps {
 			if s.WorkflowStepID == input.StepID {
 				outputDataJSON, _ := json.Marshal(input.OutputData)
@@ -472,7 +493,8 @@ func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordS
 					Status:      temporaltypes.StepStatusCompleted,
 					StepType:    "control",
 					OutputData:  input.OutputData,
-					CompletedAt: now.Time.Format(time.RFC3339),
+					CompletedAt: eventTime(now.Time),
+					DurationMs:  eventDurationMs(s.StartedAt, now.Time),
 				})
 				break
 			}
@@ -483,7 +505,7 @@ func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordS
 		if err != nil {
 			return fmt.Errorf("list run steps for fail: %w", err)
 		}
-		now := pgtype.Timestamp{Time: time.Now(), Valid: true}
+		now := pgtype.Timestamp{Time: time.Now().UTC(), Valid: true}
 		for _, s := range steps {
 			if s.WorkflowStepID == input.StepID {
 				_, _ = a.store.UpdateWorkflowRunStepStatus(ctx, db.UpdateWorkflowRunStepStatusParams{
@@ -500,7 +522,8 @@ func (a *Activities) RecordStep(ctx context.Context, input temporaltypes.RecordS
 					RunStepID:   s.ID,
 					StepType:    "control",
 					Status:      temporaltypes.StepStatusFailed,
-					CompletedAt: now.Time.Format(time.RFC3339),
+					CompletedAt: eventTime(now.Time),
+					DurationMs:  eventDurationMs(s.StartedAt, now.Time),
 					Error:       input.ErrorMessage,
 				})
 				break
@@ -519,7 +542,7 @@ func (a *Activities) UpdateRunStatus(ctx context.Context, workflowRunID int32, m
 		slog.String("error_msg", errorMsg),
 	)
 
-	now := pgtype.Timestamp{Time: time.Now(), Valid: true}
+	now := pgtype.Timestamp{Time: time.Now().UTC(), Valid: true}
 	_, err := a.store.UpdateWorkflowRunStatus(ctx, db.UpdateWorkflowRunStatusParams{
 		ID:           workflowRunID,
 		Status:       status,

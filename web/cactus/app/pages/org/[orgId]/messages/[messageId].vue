@@ -4,6 +4,7 @@ import DagCanvas from '~/components/dag/DagCanvas.vue'
 import StatusBadge from '~/components/feedback/StatusBadge.vue'
 import WsIndicator from '~/components/feedback/WsIndicator.vue'
 import MessageStepDetailsPanel from '~/components/messages/MessageStepDetailsPanel.vue'
+import { formatMessageWorkflowSubtitle } from '~/components/messages/message-version-utils'
 import { Button } from '~/components/ui/button'
 import { Skeleton } from '~/components/ui/skeleton'
 
@@ -56,6 +57,10 @@ const workflowFailureText = computed(() => {
   return detail.value?.workflow_run?.error_message ?? error.value ?? ''
 })
 
+const workflowSubtitle = computed(() =>
+  detail.value ? formatMessageWorkflowSubtitle(detail.value) : '',
+)
+
 function mapStatus(status: string): 'pending' | 'running' | 'done' | 'error' | 'working' {
   if (status === 'completed' || status === 'done') return 'done'
   if (status === 'failed' || status === 'error') return 'error'
@@ -84,8 +89,8 @@ function goBack() {
           <h1 class="truncate text-lg font-semibold">
             {{ t('messages.detail.title', { id: messageId }) }}
           </h1>
-          <p v-if="detail?.workflow_name" class="truncate text-xs text-muted-foreground">
-            {{ detail.workflow_name }}
+          <p v-if="workflowSubtitle" class="truncate text-xs text-muted-foreground">
+            {{ workflowSubtitle }}
           </p>
         </div>
         <StatusBadge :status="mapStatus(workflowStatus)" />

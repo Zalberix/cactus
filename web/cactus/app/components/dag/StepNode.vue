@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Handle, Position, useNode } from '@vue-flow/core'
+import { Handle, Position } from '@vue-flow/core'
+import type { NodeProps } from '@vue-flow/core'
 import {
   Mail, MessageSquare, Bell, Workflow, GitBranch,
   Clock, Split, Zap, Radio, AlertCircle, Trash2, MoreHorizontal, RefreshCw,
@@ -14,10 +15,22 @@ import {
 import { controlOutcomesForStep } from '~/composables/control-outcomes'
 import { useControlSteps } from '~/composables/useControlSteps'
 
-const { node } = useNode()
 const { t } = useI18n()
 const controlSteps = useControlSteps()
-const props = withDefaults(defineProps<{
+
+interface StepNodeData extends Record<string, any> {
+  label?: string
+  stepType?: string
+  controlKind?: string
+  workTypeMeta?: {
+    icon?: string
+    color?: string
+  }
+  validationErrors?: Array<{ message: string }>
+  status?: string
+}
+
+const props = withDefaults(defineProps<NodeProps<StepNodeData> & {
   readOnly?: boolean
   showRuntimeState?: boolean
 }>(), {
@@ -28,6 +41,8 @@ const emit = defineEmits<{
   delete: [nodeId: string]
   rename: [nodeId: string]
 }>()
+
+const nodeData = computed(() => props.data ?? {})
 
 const iconMap: Record<string, Component> = {
   'mail': Mail,
@@ -40,37 +55,37 @@ const iconMap: Record<string, Component> = {
   'zap': Zap,
 }
 
-const isControl = computed(() => node.data.stepType === 'control')
-const isStart = computed(() => node.data.controlKind === 'start')
+const isControl = computed(() => nodeData.value.stepType === 'control')
+const isStart = computed(() => nodeData.value.controlKind === 'start')
 
 const icon = computed(() => {
-  const metaIcon = node.data.workTypeMeta?.icon
+  const metaIcon = nodeData.value.workTypeMeta?.icon
   if (metaIcon && iconMap[metaIcon]) return iconMap[metaIcon]
   if (isStart.value) return Radio
-  if (node.data.stepType === 'control') return GitBranch
+  if (nodeData.value.stepType === 'control') return GitBranch
   return Workflow
 })
 
 const accentColor = computed(() => {
   if (isStart.value) return '#0f766e'
-  const control = controlSteps.find(item => item.kind === node.data.controlKind)
-  return control?.color ?? node.data.workTypeMeta?.color ?? '#607d8b'
+  const control = controlSteps.find(item => item.kind === nodeData.value.controlKind)
+  return control?.color ?? nodeData.value.workTypeMeta?.color ?? '#607d8b'
 })
 
 const outputHandles = computed(() => {
   if (isStart.value) {
     return [{ id: 'success', label: '', color: '#22c55e' }]
   }
-  if (isControl.value && node.data.controlKind) {
-    return controlOutcomesForStep(node.data)
+  if (isControl.value && nodeData.value.controlKind) {
+    return controlOutcomesForStep(nodeData.value)
   }
   return [{ id: 'success', label: '', color: '#22c55e' }]
 })
 
-const label = computed(() => node.data.label ?? 'Step')
-const nodeErrors = computed(() => node.data.validationErrors ?? [])
+const label = computed(() => nodeData.value.label ?? 'Step')
+const nodeErrors = computed(() => nodeData.value.validationErrors ?? [])
 const hasValidationErrors = computed(() => nodeErrors.value.length > 0)
-const runtimeStatus = computed(() => String(node.data.status ?? 'pending'))
+const runtimeStatus = computed(() => String(nodeData.value.status ?? 'pending'))
 const isRuntimeRunning = computed(() => runtimeStatus.value === 'running')
 const isRuntimeCompleted = computed(() => props.showRuntimeState && runtimeStatus.value === 'completed')
 const shouldShowRuntimeProgress = computed(() => props.showRuntimeState && isRuntimeRunning.value)
@@ -85,12 +100,12 @@ const actionsMenuOpen = ref(false)
 function onDelete(event: MouseEvent) {
   event.stopPropagation()
   if (isStart.value) return
-  emit('delete', node.id)
+  emit('delete', props.id)
 }
 
 function onRename() {
   if (isStart.value) return
-  emit('rename', node.id)
+  emit('rename', props.id)
 }
 </script>
 
@@ -151,7 +166,7 @@ function onRename() {
       class="relative flex h-[104px] w-[144px] items-center justify-center rounded-lg border-2 bg-background shadow-sm transition-colors hover:shadow-md"
       :class="[
         nodeBlockStateClass,
-        node.selected ? 'ring-2 ring-slate-400/30' : '',
+        props.selected ? 'ring-2 ring-slate-400/30' : '',
       ]"
     >
       <Handle

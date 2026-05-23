@@ -1,15 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed } from 'vue'
 
 const props = defineProps<{
   startedAt?: string
   completedAt?: string
+  durationMs?: number
 }>()
-
-const now = ref(Date.now())
-let timer: ReturnType<typeof setInterval> | null = null
-
-const isLive = computed(() => Boolean(props.startedAt && !props.completedAt))
 
 function formatDuration(ms: number): string {
   const diff = Math.max(0, ms)
@@ -19,20 +15,7 @@ function formatDuration(ms: number): string {
 }
 
 const label = computed(() => {
-  if (!props.startedAt) return '-'
-  const start = new Date(props.startedAt).getTime()
-  const end = props.completedAt ? new Date(props.completedAt).getTime() : now.value
-  return formatDuration(end - start)
-})
-
-onMounted(() => {
-  timer = setInterval(() => {
-    if (isLive.value) now.value = Date.now()
-  }, 1000)
-})
-
-onUnmounted(() => {
-  if (timer) clearInterval(timer)
+  return typeof props.durationMs === 'number' ? formatDuration(props.durationMs) : '-'
 })
 </script>
 

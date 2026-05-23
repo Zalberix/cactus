@@ -16,6 +16,7 @@ func TestWorkflowEventSerializesRuntimeDetails(t *testing.T) {
 		OutputData:  map[string]any{"message_id": "abc"},
 		StartedAt:   "2026-05-18T08:00:00Z",
 		CompletedAt: "2026-05-18T08:00:01Z",
+		DurationMs:  int64Ptr(1000),
 		Error:       "boom",
 		Timestamp:   "2026-05-18T08:00:02Z",
 	}
@@ -39,6 +40,9 @@ func TestWorkflowEventSerializesRuntimeDetails(t *testing.T) {
 	if got["completed_at"] != "2026-05-18T08:00:01Z" {
 		t.Fatalf("completed_at = %v", got["completed_at"])
 	}
+	if got["duration_ms"] != float64(1000) {
+		t.Fatalf("duration_ms = %v", got["duration_ms"])
+	}
 
 	input, ok := got["input_data"].(map[string]any)
 	if !ok || input["email"] != "ada@example.com" {
@@ -48,4 +52,8 @@ func TestWorkflowEventSerializesRuntimeDetails(t *testing.T) {
 	if !ok || output["message_id"] != "abc" {
 		t.Fatalf("output_data = %#v", got["output_data"])
 	}
+}
+
+func int64Ptr(value int64) *int64 {
+	return &value
 }

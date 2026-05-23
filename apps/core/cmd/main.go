@@ -45,6 +45,7 @@ func main() {
 			newConfigPubService,
 			apphttp.NewRouter,
 			apphttp.NewHTTPServer,
+			apphttp.NewDebugServer,
 			newAuthService,
 			auth.NewHandler,
 			newRBACService,
@@ -70,6 +71,7 @@ func main() {
 			registerMessageRoutes,
 			registerWSRoutes,
 			temporalworker.RegisterTemporalWorker,
+			registerDebugServer,
 			registerHTTPServer,
 		),
 		// fx.NopLogger,
@@ -239,6 +241,28 @@ func newWSHub(b *bus.Bus, msgSvc *message.Service, authSvc *auth.Service, s *sto
 // No auth middleware here -- auth happens inside the WS handshake
 func registerWSRoutes(r *gin.Engine, hub *wshub.Hub) {
 	r.GET("/ws/workflow/:messageID", hub.HandleWS)
+}
+
+func registerDebugServer(debug *apphttp.DebugServer, lc fx.Lifecycle) {
+	if debug == nil || !debug.Enabled || debug.Server == nil {
+		return
+	}
+
+	lc.Append(fx.Hook{
+		OnStart: func(_ context.Context) error {
+			slog.Info("Core pprof debug server started", slog.String("addr", debug.Server.Addr))
+			go func() {
+				if err := debug.Server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+					slog.Error("Core pprof debug server error", slog.String("error", err.Error()))
+				}
+			}()
+			return nil
+		},
+		OnStop: func(ctx context.Context) error {
+			slog.Info("Core pprof debug server stopping")
+			return debug.Server.Shutdown(ctx)
+		},
+	})
 }
 
 func registerHTTPServer(srv *http.Server, lc fx.Lifecycle, pool *pgxpool.Pool, b *bus.Bus, tc client.Client) {

@@ -6,8 +6,14 @@ http://localhost {
     handle /ws/* {
         reverse_proxy 127.0.0.1:3009
     }
+
     handle /api/* {
+        header Connection close
         reverse_proxy 127.0.0.1:3009
     }
-    reverse_proxy http://127.0.0.1:3000
+
+    handle {
+        header Connection close
+        reverse_proxy http://127.0.0.1:3000
+    }
 }

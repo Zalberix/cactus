@@ -26,28 +26,116 @@ import (
 )
 
 const (
-	authTimeout  = 5 * time.Second  // per D-13
-	pingInterval = 30 * time.Second // per D-19
+	authTimeout              = 5 * time.Second  // per D-13
+	pingInterval             = 30 * time.Second // per D-19
+	defaultStatePollInterval = 2 * time.Second
+	defaultEventFetchMaxWait = 500 * time.Millisecond
 )
 
 // Hub manages WebSocket connections for real-time workflow status.
 type Hub struct {
-	bus        *bus.Bus
-	msgService *message.Service
+	msgService messageDetailService
 	authSvc    *auth.Service
 	store      *store.Store // for system token validation
+	events     workflowEventSource
 	logger     *slog.Logger
+
+	statePollInterval time.Duration
+	eventFetchMaxWait time.Duration
 }
 
 // New creates a new Hub.
 func New(b *bus.Bus, msgSvc *message.Service, authSvc *auth.Service, s *store.Store) *Hub {
 	return &Hub{
-		bus:        b,
 		msgService: msgSvc,
 		authSvc:    authSvc,
 		store:      s,
+		events:     jetstreamWorkflowEventSource{bus: b, logger: slog.Default()},
 		logger:     slog.Default(),
 	}
+}
+
+type messageDetailService interface {
+	GetMessageDetail(ctx context.Context, messageID int32) (*message.DetailResponse, error)
+}
+
+type workflowEventSource interface {
+	SubscribeWorkflow(ctx context.Context, messageID int32) (workflowEventSubscription, error)
+}
+
+type workflowEventSubscription interface {
+	Fetch(ctx context.Context, maxWait time.Duration) (temporaltypes.WorkflowEvent, bool, error)
+}
+
+type jetstreamWorkflowEventSource struct {
+	bus    *bus.Bus
+	logger *slog.Logger
+}
+
+func (s jetstreamWorkflowEventSource) SubscribeWorkflow(ctx context.Context, messageID int32) (workflowEventSubscription, error) {
+	subject := workflowEventSubject(messageID)
+	cons, err := s.bus.JS().CreateConsumer(ctx, "EVENTS", jetstream.ConsumerConfig{
+		FilterSubject:     subject,
+		AckPolicy:         jetstream.AckExplicitPolicy,
+		DeliverPolicy:     jetstream.DeliverNewPolicy, // only new events, snapshot covers history
+		InactiveThreshold: 2 * time.Minute,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return jetstreamWorkflowEventSubscription{consumer: cons, logger: s.logger}, nil
+}
+
+type jetstreamWorkflowEventSubscription struct {
+	consumer jetstream.Consumer
+	logger   *slog.Logger
+}
+
+func (s jetstreamWorkflowEventSubscription) Fetch(ctx context.Context, maxWait time.Duration) (temporaltypes.WorkflowEvent, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return temporaltypes.WorkflowEvent{}, false, err
+	}
+
+	msgs, err := s.consumer.Fetch(1, jetstream.FetchMaxWait(maxWait))
+	if err != nil {
+		return temporaltypes.WorkflowEvent{}, false, err
+	}
+
+	for natsMsg := range msgs.Messages() {
+		_ = natsMsg.Ack()
+
+		var event temporaltypes.WorkflowEvent
+		if err := json.Unmarshal(natsMsg.Data(), &event); err != nil {
+			if s.logger != nil {
+				s.logger.Warn("unmarshal workflow event failed", slog.String("error", err.Error()))
+			}
+			return temporaltypes.WorkflowEvent{}, false, nil
+		}
+		return event, true, nil
+	}
+
+	if err := msgs.Error(); err != nil {
+		return temporaltypes.WorkflowEvent{}, false, err
+	}
+	return temporaltypes.WorkflowEvent{}, false, nil
+}
+
+func workflowEventSubject(messageID int32) string {
+	return fmt.Sprintf("event.workflow.%d", messageID)
+}
+
+func (h *Hub) effectiveStatePollInterval() time.Duration {
+	if h.statePollInterval > 0 {
+		return h.statePollInterval
+	}
+	return defaultStatePollInterval
+}
+
+func (h *Hub) effectiveEventFetchMaxWait() time.Duration {
+	if h.eventFetchMaxWait > 0 {
+		return h.eventFetchMaxWait
+	}
+	return defaultEventFetchMaxWait
 }
 
 // HandleWS is the Gin handler for WebSocket connections at /ws/workflow/:messageID (per D-12).
@@ -57,10 +145,11 @@ func New(b *bus.Bus, msgSvc *message.Service, authSvc *auth.Service, s *store.St
 //  2. Upgrade to WebSocket.
 //  3. Auth handshake: read first message within 5s, validate JWT or system token (per D-13).
 //  4. Send auth_ok.
-//  5. Build and send snapshot from DB (per D-14).
-//  6. If workflow already done/failed, send terminal event and close (per D-18).
-//  7. Subscribe to NATS event.workflow.{messageID} and forward delta events.
-//  8. Ping/pong heartbeat every 30s (per D-19).
+//  5. Subscribe to NATS event.workflow.{messageID}.
+//  6. Build and send snapshot from DB (per D-14).
+//  7. If workflow already done/failed, send terminal event and close (per D-18).
+//  8. Forward buffered and new delta events.
+//  9. Ping/pong heartbeat every 30s (per D-19).
 func (h *Hub) HandleWS(c *gin.Context) { //nolint:gocognit // WS lifecycle keeps auth, snapshot, subscription, and ping handling together.
 	// 1. Extract and validate messageID (pre-upgrade).
 	messageIDStr := c.Param("messageID")
@@ -107,7 +196,15 @@ func (h *Hub) HandleWS(c *gin.Context) { //nolint:gocognit // WS lifecycle keeps
 		return
 	}
 
-	// 5. Snapshot (per D-14): query current detail from DB.
+	// 5. Subscribe before snapshot so events that happen during the DB read are buffered.
+	eventSub, err := h.events.SubscribeWorkflow(ctx, msgID)
+	if err != nil {
+		h.logger.Error("create NATS consumer failed", slog.String("error", err.Error()), slog.String("subject", workflowEventSubject(msgID)))
+		conn.Close(websocket.StatusInternalError, "event subscription failed")
+		return
+	}
+
+	// 6. Snapshot (per D-14): query current detail from DB.
 	detail, err := h.msgService.GetMessageDetail(ctx, msgID)
 	if err != nil {
 		h.logger.Error("get message detail failed", slog.String("error", err.Error()), slog.Int("messageID", int(msgID)))
@@ -120,26 +217,12 @@ func (h *Hub) HandleWS(c *gin.Context) { //nolint:gocognit // WS lifecycle keeps
 		return
 	}
 
-	// 6. Terminal check (per D-18): if already done/failed, send terminal event and close.
+	// 7. Terminal check (per D-18): if already done/failed, send terminal event and close.
 	if detail.WorkflowRun != nil &&
 		(detail.WorkflowRun.Status == temporaltypes.RunStatusCompleted ||
 			detail.WorkflowRun.Status == temporaltypes.RunStatusFailed) {
 		h.sendTerminalEvent(ctx, conn, detail.WorkflowRun.Status, detail)
 		conn.Close(websocket.StatusNormalClosure, "workflow finished")
-		return
-	}
-
-	// 7. NATS subscription: subscribe to event.workflow.{messageID}.
-	subject := fmt.Sprintf("event.workflow.%d", msgID)
-	cons, err := h.bus.JS().CreateConsumer(ctx, "EVENTS", jetstream.ConsumerConfig{
-		FilterSubject:     subject,
-		AckPolicy:         jetstream.AckExplicitPolicy,
-		DeliverPolicy:     jetstream.DeliverNewPolicy, // only new events, snapshot covers history
-		InactiveThreshold: 2 * time.Minute,
-	})
-	if err != nil {
-		h.logger.Error("create NATS consumer failed", slog.String("error", err.Error()), slog.String("subject", subject))
-		conn.Close(websocket.StatusInternalError, "event subscription failed")
 		return
 	}
 
@@ -161,6 +244,8 @@ func (h *Hub) HandleWS(c *gin.Context) { //nolint:gocognit // WS lifecycle keeps
 	// writePump: ping + NATS event forwarding.
 	pingTicker := time.NewTicker(pingInterval)
 	defer pingTicker.Stop()
+	stateTicker := time.NewTicker(h.effectiveStatePollInterval())
+	defer stateTicker.Stop()
 
 	for {
 		select {
@@ -182,48 +267,75 @@ func (h *Hub) HandleWS(c *gin.Context) { //nolint:gocognit // WS lifecycle keeps
 			}
 			pingCancel()
 
+		case <-stateTicker.C:
+			terminal, err := h.sendSnapshotFromDB(ctx, conn, msgID)
+			if err != nil {
+				return
+			}
+			if terminal {
+				conn.Close(websocket.StatusNormalClosure, "workflow finished")
+				return
+			}
+
 		default:
 			// Poll for NATS messages with short timeout.
-			fetchCtx, fetchCancel := context.WithTimeout(ctx, 500*time.Millisecond)
-			msgs, err := cons.Fetch(1, jetstream.FetchMaxWait(500*time.Millisecond))
-			fetchCancel()
+			event, ok, err := eventSub.Fetch(ctx, h.effectiveEventFetchMaxWait())
 			if err != nil {
 				// Timeout or context cancel — continue loop.
 				continue
 			}
 
-			for natsMsg := range msgs.Messages() {
-				natsMsg.Ack()
-
-				var event temporaltypes.WorkflowEvent
-				if err := json.Unmarshal(natsMsg.Data(), &event); err != nil {
-					h.logger.Warn("unmarshal workflow event failed", slog.String("error", err.Error()))
-					continue
-				}
-
-				// Forward event to WS client as-is (same JSON structure).
-				if err := wsjson.Write(ctx, conn, event); err != nil {
-					return
-				}
-
-				// Check for terminal events.
-				if event.Type == "workflow_done" || event.Type == "workflow_failed" {
-					// Per D-18: send terminal event (already done above), then close.
-					conn.Close(websocket.StatusNormalClosure, "workflow finished")
-					return
-				}
+			if !ok {
+				continue
 			}
 
-			if msgs.Error() != nil {
-				// Subscription error — check if fatal.
-				if ctx.Err() != nil {
+			if isTerminalWorkflowEvent(event) {
+				terminal, err := h.sendSnapshotFromDB(ctx, conn, msgID)
+				if err != nil {
 					return
 				}
+				if !terminal {
+					if err := wsjson.Write(ctx, conn, event); err != nil {
+						return
+					}
+				}
+				conn.Close(websocket.StatusNormalClosure, "workflow finished")
+				return
 			}
 
-			_ = fetchCtx // suppress unused warning
+			// Forward event to WS client as-is (same JSON structure).
+			if err := wsjson.Write(ctx, conn, event); err != nil {
+				return
+			}
 		}
 	}
+}
+
+func isTerminalWorkflowEvent(event temporaltypes.WorkflowEvent) bool {
+	return event.Type == "workflow_done" || event.Type == "workflow_failed"
+}
+
+func (h *Hub) sendSnapshotFromDB(ctx context.Context, conn *websocket.Conn, messageID int32) (bool, error) {
+	detail, err := h.msgService.GetMessageDetail(ctx, messageID)
+	if err != nil {
+		h.logger.Warn("refresh message detail failed", slog.String("error", err.Error()), slog.Int("messageID", int(messageID)))
+		return false, nil
+	}
+	if err := wsjson.Write(ctx, conn, h.buildSnapshot(detail)); err != nil {
+		return false, err
+	}
+	if isTerminalDetail(detail) {
+		h.sendTerminalEvent(ctx, conn, detail.WorkflowRun.Status, detail)
+		return true, nil
+	}
+	return false, nil
+}
+
+func isTerminalDetail(detail *message.DetailResponse) bool {
+	return detail != nil &&
+		detail.WorkflowRun != nil &&
+		(detail.WorkflowRun.Status == temporaltypes.RunStatusCompleted ||
+			detail.WorkflowRun.Status == temporaltypes.RunStatusFailed)
 }
 
 // buildSnapshot constructs a SnapshotEvent from the DB detail response.

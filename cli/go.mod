@@ -191,3 +191,4 @@ require (
 )
 
 tool github.com/caddyserver/caddy/v2/cmd/caddy
+tool github.com/google/pprof

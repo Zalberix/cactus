@@ -7,6 +7,7 @@ export interface WsStepStatus {
   status: string
   started_at?: string
   completed_at?: string
+  duration_ms?: number
   error?: string
 }
 
@@ -96,6 +97,7 @@ export function useWebSocketStatus(messageId: Ref<number>) {
             output_data?: Record<string, unknown>
             started_at?: string
             completed_at?: string
+            duration_ms?: number
             error?: string
           }
           const existing = runSteps.value.get(update.step_id) ?? {
@@ -111,6 +113,7 @@ export function useWebSocketStatus(messageId: Ref<number>) {
             output_data: update.output_data ?? existing.output_data,
             started_at: update.started_at ?? existing.started_at,
             completed_at: update.completed_at ?? existing.completed_at,
+            duration_ms: update.duration_ms ?? existing.duration_ms,
             error_message: update.error ?? existing.error_message,
           })
           runSteps.value = new Map(runSteps.value)
