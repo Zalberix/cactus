@@ -15,7 +15,10 @@ import (
 	"github.com/zalberix/cactus/libs/worker"
 )
 
-const smtpModeNone = "none"
+const (
+	smtpModeNone           = "none"
+	defaultSMTPSendTimeout = 15 * time.Second
+)
 
 type emailMessage struct {
 	From    string
@@ -36,18 +39,20 @@ type emailSender interface {
 }
 
 type smtpSettings struct {
-	host string
-	port int
-	from string
-	auth string
-	tls  string
+	host           string
+	port           int
+	from           string
+	auth           string
+	tls            string
+	sendTimeoutSec int
 }
 
 type smtpSender struct {
-	host string
-	port int
-	auth string
-	tls  string
+	host           string
+	port           int
+	auth           string
+	tls            string
+	sendTimeoutSec int
 }
 
 func (s smtpSender) Send(_ context.Context, msg emailMessage) (emailSendResult, error) {
@@ -74,7 +79,10 @@ func (s smtpSender) Send(_ context.Context, msg emailMessage) (emailSendResult, 
 		slog.Int("recipients_cc", len(msg.CC)),
 	)
 
-	opts := []mail.Option{mail.WithPort(s.port)}
+	opts := []mail.Option{
+		mail.WithPort(s.port),
+		mail.WithTimeout(smtpSendTimeout(smtpSettings{sendTimeoutSec: s.sendTimeoutSec})),
+	}
 	switch s.auth {
 	case smtpModeNone, "":
 		opts = append(opts, mail.WithSMTPAuth(mail.SMTPAuthNoAuth))
@@ -136,10 +144,11 @@ func (h SMTPHandler) Handle(ctx context.Context, task worker.TaskMessage) (worke
 	if senderFactory == nil {
 		senderFactory = func(settings smtpSettings) emailSender {
 			return smtpSender{
-				host: settings.host,
-				port: settings.port,
-				auth: settings.auth,
-				tls:  settings.tls,
+				host:           settings.host,
+				port:           settings.port,
+				auth:           settings.auth,
+				tls:            settings.tls,
+				sendTimeoutSec: settings.sendTimeoutSec,
 			}
 		}
 	}
@@ -275,13 +284,22 @@ func smtpSettingsFromTask(settings map[string]any) (smtpSettings, error) {
 	if tlsMode == "" {
 		tlsMode = smtpModeNone
 	}
+	sendTimeoutSec, _ := intSetting(settings, "send_timeout_seconds")
 	return smtpSettings{
-		host: host,
-		port: port,
-		from: from,
-		auth: auth,
-		tls:  tlsMode,
+		host:           host,
+		port:           port,
+		from:           from,
+		auth:           auth,
+		tls:            tlsMode,
+		sendTimeoutSec: sendTimeoutSec,
 	}, nil
+}
+
+func smtpSendTimeout(settings smtpSettings) time.Duration {
+	if settings.sendTimeoutSec <= 0 {
+		return defaultSMTPSendTimeout
+	}
+	return time.Duration(settings.sendTimeoutSec) * time.Second
 }
 
 func stringSetting(settings map[string]any, key string) (string, bool) {

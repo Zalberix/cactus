@@ -130,8 +130,14 @@ func (s *registerWorkerStore) ListNewWorkersByOrganizationID(context.Context, in
 	return nil, nil
 }
 func (s *registerWorkerStore) UpdateNewWorkerHeartbeat(context.Context, int32) error { return nil }
-func (s *registerWorkerStore) UpdateNewWorkerSchema(context.Context, db.UpdateNewWorkerSchemaParams) (db.Worker, error) {
-	return db.Worker{}, nil
+func (s *registerWorkerStore) UpdateNewWorkerSchema(_ context.Context, arg db.UpdateNewWorkerSchemaParams) (db.Worker, error) {
+	worker := s.existingWorker
+	if worker.ID == 0 {
+		worker = db.Worker{ID: arg.ID}
+	}
+	worker.WorkerSettingsSchemaID = arg.WorkerSettingsSchemaID
+	s.existingWorker = worker
+	return worker, nil
 }
 
 func (s *registerWorkerStore) DeleteWorker(context.Context, int32) error { return nil }
@@ -169,6 +175,9 @@ func (s *registerWorkerStore) RevokeWorkerNATSSessionsByBootstrapToken(context.C
 
 func (s *registerWorkerStore) CreateWorkerSettingsSchema(_ context.Context, arg db.CreateWorkerSettingsSchemaParams) (db.WorkerSettingsSchema, error) {
 	s.createdSchemaArg = arg
+	if s.settingsSchema.ID != 0 {
+		return s.settingsSchema, nil
+	}
 	return db.WorkerSettingsSchema{ID: 55, WorkTypeID: arg.WorkTypeID, SettingsSchema: arg.SettingsSchema, InputSchema: arg.InputSchema, OutputSchema: arg.OutputSchema}, nil
 }
 
@@ -262,6 +271,7 @@ type issuingNATSManager struct {
 	issueCalls       int
 	accountPublicKey string
 	creds            natsauth.WorkerCredentials
+	scopes           []natsauth.WorkerScope
 }
 
 func (m *issuingNATSManager) AccountPublicKey(context.Context) (string, error) {
@@ -270,6 +280,7 @@ func (m *issuingNATSManager) AccountPublicKey(context.Context) (string, error) {
 
 func (m *issuingNATSManager) IssueWorker(_ context.Context, scope natsauth.WorkerScope) (natsauth.WorkerCredentials, error) {
 	m.issueCalls++
+	m.scopes = append(m.scopes, scope)
 	if m.creds.UserJWT == "" {
 		return natsauth.WorkerCredentials{
 			AccountPublicKey: "ANEW",
@@ -380,7 +391,8 @@ func TestRegisterWorkerUsesOrgScopedBootstrapTokenAndReturnsNATSCredentials(t *t
 		},
 		revisions: []db.WorkerSettingsRevision{{ID: 73, WorkerSettingsSchemaID: 55}},
 	}
-	service := NewService(store, natsauth.NoopManager{})
+	manager := &issuingNATSManager{}
+	service := NewService(store, manager)
 
 	registration, err := service.RegisterWorker(context.Background(), RegisterWorkerRequest{
 		BootstrapToken: "token",
@@ -405,6 +417,15 @@ func TestRegisterWorkerUsesOrgScopedBootstrapTokenAndReturnsNATSCredentials(t *t
 	}
 	if store.createdNATSSessionArg.BootstrapTokenID != 9 {
 		t.Fatalf("expected bootstrap token 9 in nats session, got %#v", store.createdNATSSessionArg)
+	}
+	wantScope := natsauth.WorkerScope{
+		WorkerID:               registration.ID,
+		OrganizationID:         12,
+		WorkTypeID:             3,
+		WorkerSettingsSchemaID: 55,
+	}
+	if len(manager.scopes) != 1 || manager.scopes[0] != wantScope {
+		t.Fatalf("IssueWorker scope = %#v, want %#v", manager.scopes, wantScope)
 	}
 }
 
@@ -434,9 +455,10 @@ func TestRegisterWorkerReusesActiveNATSSessionForSameWorkerAndBootstrap(t *testi
 			NatsUserSeed:         "SUoldseed",
 			NatsUserCredentials:  "old.creds",
 			Permissions: mustPermissionsJSON(t, natsauth.WorkerPermissions(natsauth.WorkerScope{
-				OrganizationID: 12,
-				WorkTypeID:     3,
-				WorkerID:       77,
+				OrganizationID:         12,
+				WorkTypeID:             3,
+				WorkerID:               77,
+				WorkerSettingsSchemaID: 55,
 			})),
 		}},
 		revisions: []db.WorkerSettingsRevision{{ID: 73, WorkerSettingsSchemaID: 55}},
@@ -493,9 +515,10 @@ func TestRegisterWorkerReplacesActiveNATSSessionWhenAccountChanged(t *testing.T)
 			NatsUserSeed:         "SUoldseed",
 			NatsUserCredentials:  "old.creds",
 			Permissions: mustPermissionsJSON(t, natsauth.WorkerPermissions(natsauth.WorkerScope{
-				OrganizationID: 12,
-				WorkTypeID:     3,
-				WorkerID:       77,
+				OrganizationID:         12,
+				WorkTypeID:             3,
+				WorkerID:               77,
+				WorkerSettingsSchemaID: 55,
 			})),
 		}},
 		revisions: []db.WorkerSettingsRevision{{ID: 73, WorkerSettingsSchemaID: 55}},
@@ -586,6 +609,72 @@ func TestRegisterWorkerReplacesActiveNATSSessionWhenPermissionsAreStale(t *testi
 	}
 	if registration.NATS.UserJWT != "new.jwt" || registration.NATS.UserSeed != "SUnewseed" {
 		t.Fatalf("expected new NATS credentials from replacement, got %#v", registration.NATS)
+	}
+}
+
+func TestRegisterWorkerReplacesActiveNATSSessionWhenSchemaChanges(t *testing.T) {
+	store := &registerWorkerStore{
+		bootstrapToken: db.WorkerBootstrapToken{
+			ID:               9,
+			OrganizationID:   12,
+			WorkTypeID:       3,
+			Status:           "active",
+			MaxActiveWorkers: 1,
+		},
+		existingWorker: db.Worker{
+			ID:                     77,
+			OrganizationID:         12,
+			WorkTypeID:             3,
+			Name:                   "smtp-worker",
+			WorkerSettingsSchemaID: 3,
+		},
+		settingsSchema: db.WorkerSettingsSchema{
+			ID: 4,
+		},
+		activeNATSSessions: []db.WorkerNatsSession{{
+			ID:                   44,
+			WorkerID:             77,
+			BootstrapTokenID:     9,
+			NatsAccountPublicKey: "AOLD",
+			NatsUserPublicKey:    "UOLD",
+			NatsUserJwt:          "old.jwt",
+			NatsUserSeed:         "SUoldseed",
+			NatsUserCredentials:  "old.creds",
+			Permissions: mustPermissionsJSON(t, natsauth.WorkerPermissions(natsauth.WorkerScope{
+				OrganizationID:         12,
+				WorkTypeID:             3,
+				WorkerID:               77,
+				WorkerSettingsSchemaID: 3,
+			})),
+		}},
+		revisions: []db.WorkerSettingsRevision{{ID: 73, WorkerSettingsSchemaID: 4}},
+	}
+	manager := &issuingNATSManager{}
+	service := NewService(store, manager)
+
+	registration, err := service.RegisterWorker(context.Background(), RegisterWorkerRequest{
+		BootstrapToken: "token",
+		Name:           "smtp-worker",
+		Manifest:       validManifestJSON(),
+	})
+	if err != nil {
+		t.Fatalf("RegisterWorker error: %v", err)
+	}
+
+	if manager.issueCalls != 1 {
+		t.Fatalf("expected schema change to trigger credential replacement, got %d issues", manager.issueCalls)
+	}
+	if registration.NATS.UserJWT != "new.jwt" || registration.NATS.UserSeed != "SUnewseed" {
+		t.Fatalf("expected new NATS credentials from schema change, got %#v", registration.NATS)
+	}
+	wantScope := natsauth.WorkerScope{
+		WorkerID:               77,
+		OrganizationID:         12,
+		WorkTypeID:             3,
+		WorkerSettingsSchemaID: 4,
+	}
+	if len(manager.scopes) != 1 || manager.scopes[0] != wantScope {
+		t.Fatalf("IssueWorker scope = %#v, want %#v", manager.scopes, wantScope)
 	}
 }
 

@@ -64,6 +64,7 @@ type Config struct {
 	WorkerIDPath           string                            `json:"worker_id_file"`
 	WorkerName             string                            `json:"worker_name"`
 	HeartbeatInterval      time.Duration                     `json:"heartbeat_interval"`
+	TaskTimeout            time.Duration                     `json:"task_timeout"`
 	Manifest               ManifestSpec                      `json:"manifest"`
 	OnWorkerID             func(workerID int32) *slog.Logger `json:"-"`
 }

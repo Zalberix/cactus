@@ -11,6 +11,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/nats-io/nats.go/jetstream"
 )
 
 // TestRegisterRequestJSON verifies that registerRequest marshals to JSON
@@ -213,19 +216,63 @@ func TestRequireRoutingConfiguredRejectsMissingRegistrationIDs(t *testing.T) {
 	}
 }
 
-func TestTaskFilterSubjectIncludesOrgAndWorkType(t *testing.T) {
-	got := taskFilterSubject(12, 3)
-	want := "task.org.12.work_type.3.>"
+func TestTaskFilterSubjectIncludesSettingsSchema(t *testing.T) {
+	got := taskFilterSubject(12, 3, 7)
+	want := "task.org.12.work_type.3.schema.7.>"
 	if got != want {
 		t.Fatalf("taskFilterSubject() = %q, want %q", got, want)
 	}
 }
 
+func TestTaskConsumerNameIsSharedBySchema(t *testing.T) {
+	got := taskConsumerName(12, 3, 7)
+	want := "task-org-12-work-type-3-schema-7"
+	if got != want {
+		t.Fatalf("consumer name = %q, want %q", got, want)
+	}
+}
+
+func TestTaskConsumerConfigUsesSharedSchemaConsumer(t *testing.T) {
+	cfg := taskConsumerConfig(12, 3, 7)
+
+	if cfg.Name != "task-org-12-work-type-3-schema-7" {
+		t.Fatalf("name = %q", cfg.Name)
+	}
+	if cfg.Durable != cfg.Name {
+		t.Fatalf("durable = %q, want %q", cfg.Durable, cfg.Name)
+	}
+	if cfg.FilterSubject != "task.org.12.work_type.3.schema.7.>" {
+		t.Fatalf("filter = %q", cfg.FilterSubject)
+	}
+	if cfg.AckPolicy != jetstream.AckExplicitPolicy {
+		t.Fatalf("ack policy = %v", cfg.AckPolicy)
+	}
+	if cfg.MaxDeliver != 5 {
+		t.Fatalf("max deliver = %d", cfg.MaxDeliver)
+	}
+}
+
 func TestTaskConsumerConfigDoesNotExpireDurableWorker(t *testing.T) {
-	cfg := taskConsumerConfig("worker-42", "task.org.12.work_type.3.>")
+	cfg := taskConsumerConfig(12, 3, 7)
 
 	if cfg.InactiveThreshold != 0 {
 		t.Fatalf("durable worker consumer must not expire while worker is alive, got %s", cfg.InactiveThreshold)
+	}
+}
+
+func TestNewDefaultsTaskTimeout(t *testing.T) {
+	w := New(Config{}, nil, nil)
+
+	if w.cfg.TaskTimeout != defaultTaskTimeout {
+		t.Fatalf("task timeout = %s, want %s", w.cfg.TaskTimeout, defaultTaskTimeout)
+	}
+}
+
+func TestNewKeepsConfiguredTaskTimeout(t *testing.T) {
+	w := New(Config{TaskTimeout: 3 * time.Second}, nil, nil)
+
+	if w.cfg.TaskTimeout != 3*time.Second {
+		t.Fatalf("task timeout = %s, want 3s", w.cfg.TaskTimeout)
 	}
 }
 

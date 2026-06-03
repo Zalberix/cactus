@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/zalberix/cactus/libs/worker"
 )
@@ -137,6 +138,58 @@ func TestSMTPHandlerUsesTaskSettingsFromNATS(t *testing.T) {
 	}
 	if recorder.messages[0].From != "noreply@example.test" {
 		t.Fatalf("expected from from task settings, got %q", recorder.messages[0].From)
+	}
+}
+
+func TestSMTPSendTimeoutDoesNotChangeRegisteredSettingsSchema(t *testing.T) {
+	var basicSettings map[string]any
+	if err := json.Unmarshal(basicSMTPManifest().SettingsSchema, &basicSettings); err != nil {
+		t.Fatalf("unmarshal basic settings schema: %v", err)
+	}
+	basicProps := basicSettings["properties"].(map[string]any)
+	if _, ok := basicProps["send_timeout_seconds"]; ok {
+		t.Fatalf("basic settings schema must remain backward-compatible without send_timeout_seconds: %#v", basicProps)
+	}
+
+	var authSettings map[string]any
+	if err := json.Unmarshal(authSMTPManifest().SettingsSchema, &authSettings); err != nil {
+		t.Fatalf("unmarshal auth settings schema: %v", err)
+	}
+	authProps := authSettings["properties"].(map[string]any)
+	if _, ok := authProps["send_timeout_seconds"]; ok {
+		t.Fatalf("auth settings schema must remain backward-compatible without send_timeout_seconds: %#v", authProps)
+	}
+}
+
+func TestSMTPSendTimeoutDefaults(t *testing.T) {
+	got := smtpSendTimeout(smtpSettings{})
+
+	if got != defaultSMTPSendTimeout {
+		t.Fatalf("timeout = %s, want %s", got, defaultSMTPSendTimeout)
+	}
+}
+
+func TestSMTPSendTimeoutFromSettings(t *testing.T) {
+	got := smtpSendTimeout(smtpSettings{sendTimeoutSec: 3})
+
+	if got != 3*time.Second {
+		t.Fatalf("timeout = %s, want 3s", got)
+	}
+}
+
+func TestSMTPSettingsFromTaskParsesSendTimeout(t *testing.T) {
+	settings, err := smtpSettingsFromTask(map[string]any{
+		"host":                 "smtp.from.nats",
+		"port":                 float64(2525),
+		"from":                 "noreply@example.test",
+		"send_timeout_seconds": float64(4),
+	})
+	if err != nil {
+		t.Fatalf("smtpSettingsFromTask returned error: %v", err)
+	}
+
+	if settings.sendTimeoutSec != 4 {
+		t.Fatalf("send timeout seconds = %d, want 4", settings.sendTimeoutSec)
 	}
 }
 

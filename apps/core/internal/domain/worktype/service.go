@@ -467,9 +467,10 @@ func (s *Service) RegisterWorker(ctx context.Context, req RegisterWorkerRequest)
 		}
 
 		workerScope := natsauth.WorkerScope{
-			OrganizationID: token.OrganizationID,
-			WorkTypeID:     token.WorkTypeID,
-			WorkerID:       worker.ID,
+			OrganizationID:         token.OrganizationID,
+			WorkTypeID:             token.WorkTypeID,
+			WorkerID:               worker.ID,
+			WorkerSettingsSchemaID: schema.ID,
 		}
 		expectedPermissions := natsauth.WorkerPermissions(workerScope)
 

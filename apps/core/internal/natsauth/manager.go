@@ -3,9 +3,10 @@ package natsauth
 import "context"
 
 type WorkerScope struct {
-	OrganizationID int32
-	WorkTypeID     int32
-	WorkerID       int32
+	OrganizationID         int32
+	WorkTypeID             int32
+	WorkerID               int32
+	WorkerSettingsSchemaID int32
 }
 
 type Permissions struct {

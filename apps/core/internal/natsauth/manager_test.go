@@ -12,25 +12,52 @@ import (
 )
 
 func TestWorkerPermissions(t *testing.T) {
-	perms := WorkerPermissions(WorkerScope{OrganizationID: 12, WorkTypeID: 3, WorkerID: 42})
+	perms := WorkerPermissions(WorkerScope{
+		OrganizationID:         12,
+		WorkTypeID:             3,
+		WorkerID:               42,
+		WorkerSettingsSchemaID: 7,
+	})
 
 	wantPub := []string{
 		"result.org.12.>",
 		"config.request.org.12.work_type.3.>",
 		"$JS.API.STREAM.INFO.CONFIGS",
 		"$JS.API.DIRECT.GET.CONFIGS.config.org.12.work_type.3.>",
-		"$JS.API.CONSUMER.CREATE.TASKS.worker-42.task.org.12.work_type.3.>",
-		"$JS.API.CONSUMER.MSG.NEXT.TASKS.worker-42",
-		"$JS.ACK.TASKS.worker-42.>",
+		"$JS.API.CONSUMER.CREATE.TASKS.task-org-12-work-type-3-schema-7.task.org.12.work_type.3.schema.7.>",
+		"$JS.API.CONSUMER.MSG.NEXT.TASKS.task-org-12-work-type-3-schema-7",
+		"$JS.ACK.TASKS.task-org-12-work-type-3-schema-7.>",
 		"_INBOX.>",
 	}
-	wantSub := []string{"task.org.12.work_type.3.>", "config.org.12.work_type.3.>", "_INBOX.>"}
+	wantSub := []string{"task.org.12.work_type.3.schema.7.>", "config.org.12.work_type.3.>", "_INBOX.>"}
 
 	if !sameStrings(perms.PublishAllow, wantPub) {
 		t.Fatalf("publish permissions mismatch: %#v", perms.PublishAllow)
 	}
 	if !sameStrings(perms.SubscribeAllow, wantSub) {
 		t.Fatalf("subscribe permissions mismatch: %#v", perms.SubscribeAllow)
+	}
+}
+
+func TestWorkerPermissionsDoNotAllowOtherSchemaConsumer(t *testing.T) {
+	perms := WorkerPermissions(WorkerScope{
+		OrganizationID:         1,
+		WorkTypeID:             1,
+		WorkerID:               8,
+		WorkerSettingsSchemaID: 3,
+	})
+
+	disallowed := []string{
+		"$JS.API.CONSUMER.CREATE.TASKS.task-org-1-work-type-1-schema-4.task.org.1.work_type.1.schema.4.>",
+		"$JS.API.CONSUMER.MSG.NEXT.TASKS.task-org-1-work-type-1-schema-4",
+		"$JS.ACK.TASKS.task-org-1-work-type-1-schema-4.>",
+		"$JS.API.CONSUMER.CREATE.TASKS.worker-8.task.org.1.work_type.1.>",
+		"task.org.1.work_type.1.>",
+	}
+	for _, subject := range disallowed {
+		if containsString(perms.PublishAllow, subject) || containsString(perms.SubscribeAllow, subject) {
+			t.Fatalf("permissions unexpectedly allow %q: %#v %#v", subject, perms.PublishAllow, perms.SubscribeAllow)
+		}
 	}
 }
 
@@ -44,6 +71,15 @@ func sameStrings(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+func containsString(items []string, want string) bool {
+	for _, item := range items {
+		if item == want {
+			return true
+		}
+	}
+	return false
 }
 
 func TestJWTManagerIssueWorkerReadsSeedFileAndDerivesAccountPublicKey(t *testing.T) {
@@ -68,9 +104,10 @@ func TestJWTManagerIssueWorkerReadsSeedFileAndDerivesAccountPublicKey(t *testing
 
 	manager := NewJWTManager("", "", "CACTUS_TEST_MISSING_NATS_ACCOUNT_SEED", seedFile, nil)
 	creds, err := manager.IssueWorker(context.Background(), WorkerScope{
-		OrganizationID: 12,
-		WorkTypeID:     3,
-		WorkerID:       42,
+		OrganizationID:         12,
+		WorkTypeID:             3,
+		WorkerID:               42,
+		WorkerSettingsSchemaID: 7,
 	})
 	if err != nil {
 		t.Fatalf("issue worker: %v", err)
@@ -121,9 +158,10 @@ func TestJWTManagerIssueWorkerRejectsSeedThatDoesNotMatchAccountJWT(t *testing.T
 	manager := NewJWTManager("", accountJWTFile, "CACTUS_TEST_MISSING_NATS_ACCOUNT_SEED", seedFile, nil)
 
 	_, err = manager.IssueWorker(context.Background(), WorkerScope{
-		OrganizationID: 1,
-		WorkTypeID:     2,
-		WorkerID:       3,
+		OrganizationID:         1,
+		WorkTypeID:             2,
+		WorkerID:               3,
+		WorkerSettingsSchemaID: 4,
 	})
 	if err == nil {
 		t.Fatalf("expected account seed/account jwt mismatch error")
