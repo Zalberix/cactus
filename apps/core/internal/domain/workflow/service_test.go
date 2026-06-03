@@ -85,7 +85,7 @@ func (m *mockStorage) GetWorkflowByID(_ context.Context, _ int32) (db.Workflow, 
 }
 
 func (m *mockStorage) ListWorkflowsBySystemID(_ context.Context, _ int32) ([]db.Workflow, error) {
-	return nil, nil
+	return []db.Workflow{{ID: 10, SystemID: 3, Name: "Process", Priority: 1}}, nil
 }
 
 func (m *mockStorage) UpdateWorkflow(_ context.Context, _ db.UpdateWorkflowParams) (db.Workflow, error) {
@@ -375,6 +375,23 @@ func TestActivateVersion_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int32(2), store.lastUpdateActiveArg.ID)
 	assert.True(t, store.lastUpdateActiveArg.IsActive)
+}
+
+func TestListWorkflows_ReturnsVersionCount(t *testing.T) {
+	store := &mockStorage{
+		listVersions: []db.WorkflowVersion{
+			{ID: 1, WorkflowID: 10, IsActive: false},
+			{ID: 2, WorkflowID: 10, IsActive: true},
+			{ID: 3, WorkflowID: 10, DeletedAt: pgtype.Timestamp{Valid: true}},
+		},
+	}
+	svc := workflow.NewService(store)
+
+	workflows, err := svc.ListWorkflows(context.Background(), 3)
+
+	require.NoError(t, err)
+	require.Len(t, workflows, 1)
+	assert.Equal(t, int32(2), workflows[0].VersionCount)
 }
 
 func TestGetWorkflowInputSchema_ReturnsStoredSchema(t *testing.T) {

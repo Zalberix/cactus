@@ -6,6 +6,7 @@ export interface Workflow {
   priority: number
   system_id: number
   system_name?: string
+  version_count?: number
   created_at: string
   updated_at: string
   active_version_count?: number
@@ -33,6 +34,10 @@ export function workflowOverviewPath(orgId: number, workflowId: number) {
 
 export function workflowVersionEditorPath(orgId: number, workflowId: number, versionId: number) {
   return `/org/${orgId}/workflows/${workflowId}/versions/${versionId}/edit`
+}
+
+export function workflowVersionCount(workflow: Pick<Workflow, 'version_count' | 'active_version_count'>): number {
+  return workflow.version_count ?? workflow.active_version_count ?? 0
 }
 
 export function useWorkflows() {

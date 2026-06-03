@@ -5,7 +5,7 @@ import { Workflow as WorkflowIcon, MoreHorizontal, Pencil, Trash2, Search } from
 import { toTypedSchema } from '@vee-validate/zod'
 import { z } from 'zod'
 import type { Workflow } from '~/composables/useWorkflows'
-import { workflowOverviewPath } from '~/composables/useWorkflows'
+import { workflowOverviewPath, workflowVersionCount } from '~/composables/useWorkflows'
 import type { System } from '~/composables/useSystems'
 import DataTable from '~/components/tables/DataTable.vue'
 import DataTableColumnHeader from '~/components/tables/DataTableColumnHeader.vue'
@@ -144,7 +144,7 @@ const columns: ColumnDef<Workflow>[] = [
     id: 'activeVersions',
     header: t('editor.versions'),
     cell: ({ row }) => {
-      const count = row.original.active_version_count ?? 0
+      const count = workflowVersionCount(row.original)
       return h(Badge, { variant: 'secondary' }, () => String(count))
     },
   },

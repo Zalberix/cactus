@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	dagpkg "github.com/zalberix/cactus/apps/core/internal/dag"
+	db "github.com/zalberix/cactus/apps/core/storage/db"
 )
 
 // CreateWorkflowRequest — запрос на создание workflow.
@@ -18,6 +19,13 @@ type UpdateWorkflowRequest struct {
 	Name        string `json:"name" binding:"required,min=2,max=255"`
 	Priority    int    `json:"priority" binding:"min=0,max=3"`
 	Description string `json:"description"`
+}
+
+// WorkflowListResponse — workflow с агрегированными счетчиками для списка.
+type WorkflowListResponse struct {
+	db.Workflow
+	VersionCount       int32 `json:"version_count"`
+	ActiveVersionCount int32 `json:"active_version_count"`
 }
 
 // CreateStepRequest — запрос на создание шага.

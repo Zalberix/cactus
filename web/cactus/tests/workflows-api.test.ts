@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useWorkflows } from '../app/composables/useWorkflows'
+import { useWorkflows, workflowVersionCount } from '../app/composables/useWorkflows'
 
 describe('workflow API composable', () => {
   beforeEach(() => {
@@ -25,5 +25,11 @@ describe('workflow API composable', () => {
       ['/workflows/42/input-schema/fields/email', { method: 'DELETE' }],
     ])
     expect(schema).toEqual({ type: 'object', properties: {} })
+  })
+
+  it('uses total workflow version count before the legacy active count', () => {
+    expect(workflowVersionCount({ version_count: 3, active_version_count: 0 })).toBe(3)
+    expect(workflowVersionCount({ active_version_count: 2 })).toBe(2)
+    expect(workflowVersionCount({})).toBe(0)
   })
 })

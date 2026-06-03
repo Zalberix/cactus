@@ -97,8 +97,38 @@ func (s *Service) CreateWorkflow(ctx context.Context, systemID int32, req Create
 }
 
 // ListWorkflows возвращает список workflow системы.
-func (s *Service) ListWorkflows(ctx context.Context, systemID int32) ([]db.Workflow, error) {
-	return s.store.ListWorkflowsBySystemID(ctx, systemID)
+func (s *Service) ListWorkflows(ctx context.Context, systemID int32) ([]WorkflowListResponse, error) {
+	workflows, err := s.store.ListWorkflowsBySystemID(ctx, systemID)
+	if err != nil {
+		return nil, err
+	}
+
+	responses := make([]WorkflowListResponse, 0, len(workflows))
+	for _, wf := range workflows {
+		versions, err := s.store.ListWorkflowVersionsByWorkflowID(ctx, wf.ID)
+		if err != nil {
+			return nil, fmt.Errorf("list workflow versions for workflow %d: %w", wf.ID, err)
+		}
+
+		var versionCount int32
+		var activeVersionCount int32
+		for _, version := range versions {
+			if version.DeletedAt.Valid {
+				continue
+			}
+			versionCount++
+			if version.IsActive {
+				activeVersionCount++
+			}
+		}
+
+		responses = append(responses, WorkflowListResponse{
+			Workflow:           wf,
+			VersionCount:       versionCount,
+			ActiveVersionCount: activeVersionCount,
+		})
+	}
+	return responses, nil
 }
 
 // GetWorkflow возвращает workflow по ID.
