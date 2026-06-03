@@ -240,7 +240,7 @@ function onRename() {
 
     <div
       data-testid="step-node-label"
-      class="mt-2 max-w-[180px] truncate text-center text-sm font-semibold leading-tight text-foreground"
+      class="mt-2 max-w-[180px] whitespace-normal break-words text-center text-sm font-semibold leading-tight text-foreground"
       :title="label"
     >
       {{ label }}

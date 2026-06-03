@@ -2,6 +2,7 @@
 import { Key, Route, Split } from 'lucide-vue-next'
 import type { VersionSummary } from '~/composables/useVersions'
 import type { WorkflowInputSchemaField } from '~/composables/useWorkflows'
+import { workflowVersionEditorPath } from '~/composables/useWorkflows'
 import WorkflowVersionCreateMenu from '~/components/dag/WorkflowVersionCreateMenu.vue'
 import WorkflowVersionTable from '~/components/dag/WorkflowVersionTable.vue'
 import WorkflowSchemaDialog from '~/components/dag/WorkflowSchemaDialog.vue'
@@ -21,6 +22,7 @@ const workflowId = computed(() => Number(route.params.workflowId))
 const { fetchWorkflow, updateWorkflow, fetchWorkflowInputSchema, upsertWorkflowInputSchemaField, deleteWorkflowInputSchemaField } = useWorkflows()
 const {
   fetchVersionSummaries,
+  createVersion,
   activateVersion,
   deactivateVersion,
   deleteVersion,
@@ -89,6 +91,16 @@ async function onDelete(version: VersionSummary) {
   try {
     await deleteVersion(version.id)
     await loadData()
+  }
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
+  }
+}
+
+async function onCreateInitialVersion() {
+  try {
+    const version = await createVersion(workflowId.value)
+    await router.push(workflowVersionEditorPath(orgId.value, workflowId.value, version.id))
   }
   catch (err) {
     toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
@@ -188,6 +200,7 @@ onMounted(loadData)
       :heading="t('empty.versions.heading')"
       :body="t('empty.versions.body')"
       :cta-label="t('empty.versions.cta')"
+      @cta="onCreateInitialVersion"
     />
 
     <WorkflowTokensDialog
