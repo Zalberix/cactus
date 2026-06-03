@@ -1,5 +1,5 @@
 import type { Edge, Node } from '@vue-flow/core'
-import type { MessageDetail, StepRunDetail } from './useMessages'
+import type { GraphStep, MessageDetail, StepRunDetail } from './useMessages'
 
 const NODE_WIDTH = 200
 const NODE_HEIGHT = 60
@@ -85,6 +85,11 @@ export function useDagViewer(messageId: Ref<number>) {
     return runtimeStepMap(detail.value?.run_steps ?? [])
   })
 
+function stepDisplayName(step: GraphStep): string {
+  if (step.control_kind === 'start' && !step.name) return 'System Trigger'
+  return step.name ?? step.work_type_name ?? step.control_kind ?? `Step ${step.id}`
+}
+
   async function loadInitialDetail() {
     try {
       restDetail.value = await fetchMessageDetail(messageId.value)
@@ -106,9 +111,7 @@ export function useDagViewer(messageId: Ref<number>) {
         position: toCanvasPosition(step.canvas_position, index),
         draggable: false,
         data: {
-          label: step.control_kind === 'start'
-            ? 'System Trigger'
-            : step.work_type_name ?? step.control_kind ?? `Step ${step.id}`,
+          label: stepDisplayName(step),
           stepType: step.step_type,
           controlKind: step.control_kind,
           workTypeName: step.work_type_name,

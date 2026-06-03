@@ -52,8 +52,8 @@ func (r *workflowVersionScanRows) Next() bool {
 }
 
 func (r *workflowVersionScanRows) Scan(dest ...any) error {
-	if len(dest) != 12 {
-		r.err = fmt.Errorf("scan destination count mismatch: got %d, want 12", len(dest))
+	if len(dest) != 13 {
+		r.err = fmt.Errorf("scan destination count mismatch: got %d, want 13", len(dest))
 		return r.err
 	}
 	return nil

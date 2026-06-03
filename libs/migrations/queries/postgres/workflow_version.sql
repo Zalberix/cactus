@@ -37,6 +37,24 @@ WHERE wv.workflow_id = $1
 GROUP BY wv.id
 ORDER BY wv.is_active DESC, wv.version_number DESC;
 
+-- name: ListWorkflowTrafficCandidatesByWorkflowID :many
+SELECT
+    wv.id,
+    wv.workflow_id,
+    wv.version_number,
+    wv.is_active,
+    wv.traffic_weight,
+    wv.deleted_at,
+    COUNT(msg.id)::bigint AS run_count
+FROM "workflow_version" wv
+LEFT JOIN "workflow_run" wr ON wr.workflow_version_id = wv.id
+LEFT JOIN "message" msg
+    ON msg.id = wr.message_id
+    AND msg.created_at >= wv.traffic_updated_at
+WHERE wv.workflow_id = $1
+GROUP BY wv.id
+ORDER BY wv.is_active DESC, wv.version_number DESC;
+
 -- name: UpdateWorkflowVersionName :one
 UPDATE "workflow_version"
 SET name = $2, updated_at = CURRENT_TIMESTAMP
@@ -67,13 +85,13 @@ RETURNING *;
 
 -- name: UpdateWorkflowVersionTrafficWeight :one
 UPDATE "workflow_version"
-SET traffic_weight = $2, updated_at = CURRENT_TIMESTAMP
+SET traffic_weight = $2, traffic_updated_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;
 
 -- name: UpdateWorkflowVersionTrafficWeightIncludingDeleted :one
 UPDATE "workflow_version"
-SET traffic_weight = $2, updated_at = CURRENT_TIMESTAMP
+SET traffic_weight = $2, traffic_updated_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
 RETURNING *;
 

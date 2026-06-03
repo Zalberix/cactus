@@ -278,16 +278,17 @@ type WorkflowToken struct {
 }
 
 type WorkflowVersion struct {
-	ID              int32            `json:"id"`
-	WorkflowID      int32            `json:"workflow_id"`
-	CreatedByUserID pgtype.Int4      `json:"created_by_user_id"`
-	VersionNumber   int32            `json:"version_number"`
-	Name            pgtype.Text      `json:"name"`
-	IsValid         bool             `json:"is_valid"`
-	IsActive        bool             `json:"is_active"`
-	TrafficWeight   int32            `json:"traffic_weight"`
-	IsControlGroup  bool             `json:"is_control_group"`
-	CreatedAt       pgtype.Timestamp `json:"created_at"`
-	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
-	DeletedAt       pgtype.Timestamp `json:"deleted_at"`
+	ID               int32            `json:"id"`
+	WorkflowID       int32            `json:"workflow_id"`
+	CreatedByUserID  pgtype.Int4      `json:"created_by_user_id"`
+	VersionNumber    int32            `json:"version_number"`
+	Name             pgtype.Text      `json:"name"`
+	IsValid          bool             `json:"is_valid"`
+	IsActive         bool             `json:"is_active"`
+	TrafficWeight    int32            `json:"traffic_weight"`
+	TrafficUpdatedAt pgtype.Timestamp `json:"traffic_updated_at"`
+	IsControlGroup   bool             `json:"is_control_group"`
+	CreatedAt        pgtype.Timestamp `json:"created_at"`
+	UpdatedAt        pgtype.Timestamp `json:"updated_at"`
+	DeletedAt        pgtype.Timestamp `json:"deleted_at"`
 }

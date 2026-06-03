@@ -88,6 +88,7 @@ services:
       - "31311:31311"
     volumes:
       - ./docker/assets/nui:/db
+      - ./configs/nats:/configs/nats:ro
     networks:
       - cactus-net
     depends_on:

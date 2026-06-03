@@ -28,46 +28,49 @@
     "priority": "Приоритет",
     "status": "Статус",
     "createdAt": "Создан",
-    "updatedAt": "Обновлён"
+    "updatedAt": "Обновлён",
+    "created": "Процесс успешно создан",
+    "deleted": "Процесс успешно удалён",
+    "updated": "Процесс успешно обновлён"
   },
   "workflowTraffic": {
-    "title": "Workflow traffic",
-    "settingsTitle": "Traffic distribution",
-    "settingsDescription": "Choose how new messages are routed across active versions.",
-    "equalShare": "Equal share",
-    "customPercent": "Custom percent",
-    "share": "Share",
-    "fixed": "Fixed",
-    "shareMode": "Split remaining traffic",
-    "fixedTotal": "Fixed total",
-    "sharedRemainder": "Shared remainder",
-    "noShareForRemainder": "Add a share version or allocate 100% as fixed traffic.",
-    "preview": "Preview",
-    "currentWeight": "Current: {weight}%",
-    "total": "Total",
-    "totalOver": "Total traffic cannot be above 100%.",
-    "totalUnder": "Unused traffic remains unassigned.",
-    "noActiveVersions": "No active versions are available for traffic.",
-    "controlGroup": "Control",
-    "save": "Save traffic",
-    "saved": "Traffic settings saved"
+    "title": "Трафик процесса",
+    "settingsTitle": "Распределение трафика",
+    "settingsDescription": "Выберите, как новые сообщения распределяются между активными версиями.",
+    "equalShare": "Равные доли",
+    "customPercent": "Процент вручную",
+    "share": "Доля",
+    "fixed": "Фиксировано",
+    "shareMode": "Распределить оставшийся трафик",
+    "fixedTotal": "Фиксированный объём",
+    "sharedRemainder": "Остаток по долям",
+    "noShareForRemainder": "Добавьте версию с долей или распределите 100% как фиксированный трафик.",
+    "preview": "Предпросмотр",
+    "currentWeight": "Текущий: {weight}%",
+    "total": "Всего",
+    "totalOver": "Общий трафик не может превышать 100%.",
+    "totalUnder": "Часть трафика остаётся нераспределённой.",
+    "noActiveVersions": "Нет активных версий для трафика.",
+    "controlGroup": "Контрольная",
+    "save": "Сохранить трафик",
+    "saved": "Настройки трафика сохранены"
   },
   "workflowInputs": {
-    "addInput": "Добавить input",
+    "addInput": "Добавить вход",
     "name": "Имя",
     "type": "Тип",
     "required": "Обязательный",
     "optional": "Опциональный",
     "description": "Описание",
     "actions": "Действия",
-    "empty": "Workflow inputs не объявлены.",
+    "empty": "Входы процесса не объявлены.",
     "noDescription": "Без описания",
-    "editInput": "Редактировать input",
-    "deleteInput": "Удалить input",
+    "editInput": "Редактировать вход",
+    "deleteInput": "Удалить вход",
     "deleteConfirmTitle": "Удалить {name}?",
-    "deleteConfirmBody": "Маппинги, которые используют этот input, станут невалидными до обновления.",
-    "saved": "Workflow input сохранён",
-    "deleted": "Workflow input удалён"
+    "deleteConfirmBody": "Маппинги, которые используют этот вход, станут невалидными до обновления.",
+    "saved": "Вход процесса сохранён",
+    "deleted": "Вход процесса удалён"
   },
   "workflowVersions": {
     "headers": {
@@ -132,13 +135,13 @@
     "task": "Задача",
     "control": "Управление",
     "configure": "Настроить",
-    "validate": "Validate",
-    "inputSchema": "Input schema",
-    "inputSchemaDescription": "JSON Schema generated from declared workflow inputs.",
-    "validationRequired": "Validation required",
-    "readOnly": "Read-only",
-    "createEditableCopy": "Create editable copy",
-    "startStepReadOnly": "Start step is managed by the system and cannot be edited."
+    "validate": "Проверить",
+    "inputSchema": "Схема входных данных",
+    "inputSchemaDescription": "JSON-схема, созданная на основе объявленных входов процесса.",
+    "validationRequired": "Требуется валидация",
+    "readOnly": "Только чтение",
+    "createEditableCopy": "Создать редактируемую копию",
+    "startStepReadOnly": "Стартовый шаг управляется системой и не может быть отредактирован."
   },
   "nodeEditor": {
     "title": "Настройка шага",
@@ -175,11 +178,11 @@
     "channels": "Каналы",
     "logic": "Логика",
     "other": "Другое",
-    "searchSteps": "Search steps...",
-    "noWorkersAvailable": "No ready workers available",
-    "readyWorkers": "{ready}/{total} ready",
-    "chooseSchema": "Choose settings schema",
-    "schemaVersion": "Schema {version}",
+    "searchSteps": "Поиск шагов...",
+    "noWorkersAvailable": "Нет готовых сервисов",
+    "readyWorkers": "Готово {ready}/{total}",
+    "chooseSchema": "Выберите схему настроек",
+    "schemaVersion": "Схема {version}",
     "schemaAddedAt": "Добавлена {date}",
     "schemaWorkers": "Готовые сервисы: {ready}/{total}",
     "settingsSchemaPreview": "Схема настроек",
@@ -188,9 +191,32 @@
   "users": {
     "invite": "Пригласить",
     "title": "Пользователи",
+    "name": "Имя",
     "email": "Email",
     "role": "Роль",
-    "joinedAt": "Присоединился"
+    "joinedAt": "Присоединился",
+    "inviteDescription": "Добавьте нового участника в эту организацию.",
+    "namePlaceholder": "Полное имя",
+    "passwordPlaceholder": "Минимум 6 символов",
+    "selectRole": "Выберите роль (необязательно)",
+    "invited": "Пользователь успешно приглашён",
+    "deleted": "Пользователь удалён из организации",
+    "updated": "Пользователь успешно обновлён",
+    "backToUsers": "Назад к пользователям",
+    "editUser": "Редактировать пользователя",
+    "lastName": "Фамилия",
+    "firstName": "Имя",
+    "roles": "Роли",
+    "noRoles": "У этого пользователя нет назначенных ролей.",
+    "assignRole": "Назначить роль",
+    "assign": "Назначить",
+    "roleAssigned": "Роль успешно назначена",
+    "roleRemoved": "Роль успешно снята",
+    "validation": {
+      "emailInvalid": "Введите корректный email-адрес",
+      "nameRequired": "Имя обязательно",
+      "passwordMin": "Пароль должен быть не короче 6 символов"
+    }
   },
   "roles": {
     "create": "Создать роль",
@@ -198,14 +224,46 @@
     "name": "Название",
     "permissions": "Права",
     "usersCount": "Пользователи",
-    "description": "Описание"
+    "description": "Описание",
+    "namePlaceholder": "Название роли",
+    "descriptionPlaceholder": "Необязательное описание",
+    "createDescription": "Создайте новую роль. Права можно назначить после создания.",
+    "permissionsCount": "{count} прав",
+    "noPermissions": "Нет прав",
+    "created": "Роль успешно создана",
+    "updated": "Роль успешно обновлена",
+    "deleted": "Роль успешно удалена",
+    "backToRoles": "Назад к ролям",
+    "editRole": "Редактировать роль",
+    "saveChanges": "Сохранить изменения",
+    "searchPermissions": "Поиск прав...",
+    "selectedCount": "Выбрано {n} из {total}",
+    "validation": {
+      "nameRequired": "Название роли обязательно",
+      "nameMin": "Название должно быть не короче 2 символов"
+    }
   },
   "systems": {
+    "description": "Описание",
     "create": "Создать систему",
     "title": "Системы",
     "name": "Название",
     "slug": "Slug",
-    "tokensCount": "Токены"
+    "createdAt": "Время создания",
+    "manageTokens": "Управление токенами",
+    "tokensCount": "Токены",
+    "namePlaceholder": "Название системы",
+    "descriptionPlaceholder": "Необязательное описание",
+    "createDescription": "Зарегистрируйте новую внешнюю систему.",
+    "created": "Система успешно создана",
+    "updated": "Система успешно обновлена",
+    "deleted": "Система успешно удалена",
+    "validation": {
+      "nameRequired": "Название системы обязательно",
+      "nameMin": "Название должно быть не короче 2 символов"
+    },
+    "backToSystems": "Назад к системам",
+    "editSystem": "Редактировать систему"
   },
   "tokens": {
     "create": "Создать токен",
@@ -280,10 +338,10 @@
         "hours": "ч назад",
         "days": "д назад"
       },
-    "viewWorkflowUsages": "Версии workflow",
-    "workflowVersionsTitle": "Версии workflow",
-    "workflowVersionsDescription": "Все версии workflow, в которых используется этот сервис.",
-    "noWorkflowUsages": "Этот сервис пока не используется в версиях workflow.",
+    "viewWorkflowUsages": "Версии процесса",
+    "workflowVersionsTitle": "Версии процесса",
+    "workflowVersionsDescription": "Все версии процесса, в которых используется этот сервис.",
+    "noWorkflowUsages": "Этот сервис пока не используется в версиях процесса.",
     "viewRevisions": "Ревизии",
     "settingsRevisions": "Ревизии настроек",
     "revisionsDescription": "Просмотр и создание ревизий настроек сервиса.",
@@ -293,12 +351,12 @@
     "revisionCreated": "Ревизия создана",
     "settingsJson": "Настройки (JSON)",
     "delete": "Удалить сервис",
-    "deleteOfflineOnly": "Можно удалять только offline-сервисы",
+    "deleteOfflineOnly": "Можно удалять только оффлайн-сервисы",
     "deleted": "Сервис удалён",
-    "inUse": "Сервис используется в workflow",
-    "onlineDeleteBlocked": "Сервис online и не может быть удалён",
+    "inUse": "Сервис используется в процессе",
+    "onlineDeleteBlocked": "Сервис онлайн и не может быть удалён",
     "notFound": "Сервис не найден",
-    "usedByWorkflows": "\"{name}\" используется в этих workflow:"
+    "usedByWorkflows": "\"{name}\" используется в этих процессах:"
   },
   "messages": {
     "title": "Сообщения",
@@ -308,7 +366,7 @@
     "createdAt": "Создано",
     "viewDetails": "Просмотр",
     "autoRefresh": "Автообновление каждые {seconds}с",
-    "stubBanner": "Endpoint списка сообщений ещё не реализован. Сообщения появятся после добавления поддержки в бэкенде.",
+    "stubBanner": "Эндпоинт списка сообщений ещё не реализован. Сообщения появятся после добавления поддержки в бэкенде.",
     "detail": {
       "title": "Сообщение #{id}",
       "workflowStatus": "Статус процесса",
@@ -436,7 +494,7 @@
       "title": "Деактивировать версию",
       "body": "Деактивировать версию {number}? Новые сообщения не будут использовать эту версию.",
       "confirm": "Деактивировать",
-      "trafficBody": " New send endpoint traffic will stop using this version, and its traffic share becomes available to other active versions."
+      "trafficBody": "Трафик нового эндпоинта отправки перестанет использовать эту версию, а её доля станет доступна другим активным версиям."
     },
     "deleteVersion": {
       "title": "Удалить версию",
@@ -473,7 +531,13 @@
   },
   "language": {
     "ru": "Русский",
-    "en": "English"
+    "en": "Английский"
+  },
+  "layout": {
+    "desktopRequired": "Требуется настольный экран",
+    "desktopRequiredBody": "Для работы приложения нужна ширина экрана не менее 1024px. Откройте его в настольном браузере.",
+    "collapse": "Свернуть",
+    "expand": "Развернуть"
   },
   "org": {
     "switch": "Сменить организацию",

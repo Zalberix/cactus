@@ -60,9 +60,9 @@ func (s *Service) SendMessage(ctx context.Context, req SendMessageRequest, publi
 	}
 
 	// 3. Найти активную версию
-	versionSummaries, err := s.store.ListWorkflowVersionSummariesByWorkflowID(ctx, req.WorkflowID)
+	versionSummaries, err := s.store.ListWorkflowTrafficCandidatesByWorkflowID(ctx, req.WorkflowID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("list workflow version summaries: %w", err)
+		return nil, nil, fmt.Errorf("list workflow traffic candidates: %w", err)
 	}
 	activeVersion, err := selectWorkflowVersionByTrafficDeficit(versionSummaries)
 	if err != nil {
@@ -132,10 +132,10 @@ func (s *Service) SendMessage(ctx context.Context, req SendMessageRequest, publi
 	}, nil, nil
 }
 
-func selectWorkflowVersionByTrafficDeficit(versions []db.ListWorkflowVersionSummariesByWorkflowIDRow) (db.ListWorkflowVersionSummariesByWorkflowIDRow, error) {
+func selectWorkflowVersionByTrafficDeficit(versions []db.ListWorkflowTrafficCandidatesByWorkflowIDRow) (db.ListWorkflowTrafficCandidatesByWorkflowIDRow, error) {
 	activeVersions := activeWorkflowVersionSummaries(versions)
 	if len(activeVersions) == 0 {
-		return db.ListWorkflowVersionSummariesByWorkflowIDRow{}, fmt.Errorf("no active workflow versions")
+		return db.ListWorkflowTrafficCandidatesByWorkflowIDRow{}, fmt.Errorf("no active workflow versions")
 	}
 
 	totalWeight := positiveTrafficWeightSummaryTotal(activeVersions)
@@ -145,7 +145,7 @@ func selectWorkflowVersionByTrafficDeficit(versions []db.ListWorkflowVersionSumm
 
 	totalRuns := workflowVersionRunTotal(activeVersions)
 	nextTotal := totalRuns + 1
-	var selected db.ListWorkflowVersionSummariesByWorkflowIDRow
+	var selected db.ListWorkflowTrafficCandidatesByWorkflowIDRow
 	var bestDeficit int64
 	hasSelected := false
 
@@ -168,8 +168,8 @@ func selectWorkflowVersionByTrafficDeficit(versions []db.ListWorkflowVersionSumm
 	return selected, nil
 }
 
-func activeWorkflowVersionSummaries(versions []db.ListWorkflowVersionSummariesByWorkflowIDRow) []db.ListWorkflowVersionSummariesByWorkflowIDRow {
-	active := make([]db.ListWorkflowVersionSummariesByWorkflowIDRow, 0, len(versions))
+func activeWorkflowVersionSummaries(versions []db.ListWorkflowTrafficCandidatesByWorkflowIDRow) []db.ListWorkflowTrafficCandidatesByWorkflowIDRow {
+	active := make([]db.ListWorkflowTrafficCandidatesByWorkflowIDRow, 0, len(versions))
 	for _, version := range versions {
 		if version.IsActive && !version.DeletedAt.Valid {
 			active = append(active, version)
@@ -178,7 +178,7 @@ func activeWorkflowVersionSummaries(versions []db.ListWorkflowVersionSummariesBy
 	return active
 }
 
-func positiveTrafficWeightSummaryTotal(versions []db.ListWorkflowVersionSummariesByWorkflowIDRow) int64 {
+func positiveTrafficWeightSummaryTotal(versions []db.ListWorkflowTrafficCandidatesByWorkflowIDRow) int64 {
 	var total int64
 	for _, version := range versions {
 		if version.TrafficWeight > 0 {
@@ -188,7 +188,7 @@ func positiveTrafficWeightSummaryTotal(versions []db.ListWorkflowVersionSummarie
 	return total
 }
 
-func workflowVersionRunTotal(versions []db.ListWorkflowVersionSummariesByWorkflowIDRow) int64 {
+func workflowVersionRunTotal(versions []db.ListWorkflowTrafficCandidatesByWorkflowIDRow) int64 {
 	var total int64
 	for _, version := range versions {
 		if version.TrafficWeight > 0 {
@@ -198,7 +198,7 @@ func workflowVersionRunTotal(versions []db.ListWorkflowVersionSummariesByWorkflo
 	return total
 }
 
-func firstActiveWorkflowVersionSummary(versions []db.ListWorkflowVersionSummariesByWorkflowIDRow) db.ListWorkflowVersionSummariesByWorkflowIDRow {
+func firstActiveWorkflowVersionSummary(versions []db.ListWorkflowTrafficCandidatesByWorkflowIDRow) db.ListWorkflowTrafficCandidatesByWorkflowIDRow {
 	selected := versions[0]
 	for _, version := range versions[1:] {
 		if trafficSelectionTieLess(version, selected) {
@@ -208,7 +208,7 @@ func firstActiveWorkflowVersionSummary(versions []db.ListWorkflowVersionSummarie
 	return selected
 }
 
-func trafficSelectionTieLess(a, b db.ListWorkflowVersionSummariesByWorkflowIDRow) bool {
+func trafficSelectionTieLess(a, b db.ListWorkflowTrafficCandidatesByWorkflowIDRow) bool {
 	if a.VersionNumber != b.VersionNumber {
 		return a.VersionNumber < b.VersionNumber
 	}
@@ -488,6 +488,7 @@ func buildMessageGraph(versionID int32, steps []db.ListEnrichedStepsByVersionIDR
 		dto := GraphStepDTO{
 			ID:             step.ID,
 			StepType:       step.StepType,
+			Name:           step.Name,
 			WorkTypeMeta:   jsonObjectFromBytes(step.WorkTypeMeta),
 			InputMapping:   mappingFromRawJSON(step.InputMapping),
 			CanvasPosition: jsonObjectFromBytes(step.CanvasPosition),

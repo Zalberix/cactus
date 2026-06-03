@@ -23,7 +23,7 @@ func (detailStore) GetWorkflowByID(context.Context, int32) (db.Workflow, error) 
 	return db.Workflow{}, nil
 }
 
-func (detailStore) ListWorkflowVersionSummariesByWorkflowID(context.Context, int32) ([]db.ListWorkflowVersionSummariesByWorkflowIDRow, error) {
+func (detailStore) ListWorkflowTrafficCandidatesByWorkflowID(context.Context, int32) ([]db.ListWorkflowTrafficCandidatesByWorkflowIDRow, error) {
 	return nil, nil
 }
 
@@ -218,8 +218,8 @@ func (s *sendMessageStore) GetWorkflowByID(context.Context, int32) (db.Workflow,
 	return db.Workflow{ID: 100}, nil
 }
 
-func (s *sendMessageStore) ListWorkflowVersionSummariesByWorkflowID(context.Context, int32) ([]db.ListWorkflowVersionSummariesByWorkflowIDRow, error) {
-	return []db.ListWorkflowVersionSummariesByWorkflowIDRow{
+func (s *sendMessageStore) ListWorkflowTrafficCandidatesByWorkflowID(context.Context, int32) ([]db.ListWorkflowTrafficCandidatesByWorkflowIDRow, error) {
+	return []db.ListWorkflowTrafficCandidatesByWorkflowIDRow{
 		{ID: 10, WorkflowID: 100, IsActive: true, TrafficWeight: 50, RunCount: 1},
 		{ID: 20, WorkflowID: 100, IsActive: true, TrafficWeight: 50, RunCount: 0},
 	}, nil
@@ -288,7 +288,7 @@ func (executeWorkflowClient) ExecuteWorkflow(context.Context, client.StartWorkfl
 }
 
 func TestSelectWorkflowVersionByTrafficDeficitChoosesUnderAllocatedVersion(t *testing.T) {
-	version, err := selectWorkflowVersionByTrafficDeficit([]db.ListWorkflowVersionSummariesByWorkflowIDRow{
+	version, err := selectWorkflowVersionByTrafficDeficit([]db.ListWorkflowTrafficCandidatesByWorkflowIDRow{
 		{ID: 10, WorkflowID: 100, IsActive: true, TrafficWeight: 50, RunCount: 1},
 		{ID: 20, WorkflowID: 100, IsActive: true, TrafficWeight: 50, RunCount: 0},
 	})

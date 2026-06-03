@@ -2,14 +2,14 @@ workers:
   - name: smtp-basic
     app: smtp
     variant: basic
-    count: 1
+    count: 2
 
   - name: smtp-auth
     app: smtp
     variant: auth
-    count: 1
+    count: 2
 
   - name: template-html
     app: template
     variant: html
-    count: 1
+    count: 2

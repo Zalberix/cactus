@@ -267,6 +267,7 @@ CREATE TABLE "workflow_version" (
     is_valid BOOLEAN DEFAULT FALSE NOT NULL,
     is_active BOOLEAN DEFAULT FALSE NOT NULL,
     traffic_weight INT NOT NULL DEFAULT 100 CHECK (traffic_weight >= 0 AND traffic_weight <= 100),
+    traffic_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     is_control_group BOOLEAN DEFAULT FALSE NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

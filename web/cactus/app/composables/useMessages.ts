@@ -65,6 +65,7 @@ export interface MessageGraph {
 export interface GraphStep {
   id: number
   step_type: string
+  name?: string
   control_kind?: string
   work_type_id?: number
   work_type_name?: string

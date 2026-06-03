@@ -14,7 +14,7 @@ import (
 const createWorkflowVersion = `-- name: CreateWorkflowVersion :one
 INSERT INTO "workflow_version" (workflow_id, created_by_user_id, version_number, name, is_valid, is_active, traffic_weight, is_control_group)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, workflow_id, created_by_user_id, version_number, name, is_valid, is_active, traffic_weight, is_control_group, created_at, updated_at, deleted_at
+RETURNING id, workflow_id, created_by_user_id, version_number, name, is_valid, is_active, traffic_weight, traffic_updated_at, is_control_group, created_at, updated_at, deleted_at
 `
 
 type CreateWorkflowVersionParams struct {
@@ -49,6 +49,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, arg CreateWorkflowV
 		&i.IsValid,
 		&i.IsActive,
 		&i.TrafficWeight,
+		&i.TrafficUpdatedAt,
 		&i.IsControlGroup,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -70,7 +71,7 @@ func (q *Queries) GetMaxVersionNumberByWorkflowID(ctx context.Context, workflowI
 }
 
 const getWorkflowVersionByID = `-- name: GetWorkflowVersionByID :one
-SELECT id, workflow_id, created_by_user_id, version_number, name, is_valid, is_active, traffic_weight, is_control_group, created_at, updated_at, deleted_at FROM "workflow_version"
+SELECT id, workflow_id, created_by_user_id, version_number, name, is_valid, is_active, traffic_weight, traffic_updated_at, is_control_group, created_at, updated_at, deleted_at FROM "workflow_version"
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -86,6 +87,7 @@ func (q *Queries) GetWorkflowVersionByID(ctx context.Context, id int32) (Workflo
 		&i.IsValid,
 		&i.IsActive,
 		&i.TrafficWeight,
+		&i.TrafficUpdatedAt,
 		&i.IsControlGroup,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -106,7 +108,7 @@ func (q *Queries) InvalidateWorkflowVersionsByWorkflowID(ctx context.Context, wo
 }
 
 const listActiveWorkflowVersions = `-- name: ListActiveWorkflowVersions :many
-SELECT id, workflow_id, created_by_user_id, version_number, name, is_valid, is_active, traffic_weight, is_control_group, created_at, updated_at, deleted_at FROM "workflow_version"
+SELECT id, workflow_id, created_by_user_id, version_number, name, is_valid, is_active, traffic_weight, traffic_updated_at, is_control_group, created_at, updated_at, deleted_at FROM "workflow_version"
 WHERE workflow_id = $1 AND is_active = TRUE AND deleted_at IS NULL
 ORDER BY version_number
 `
@@ -129,6 +131,7 @@ func (q *Queries) ListActiveWorkflowVersions(ctx context.Context, workflowID int
 			&i.IsValid,
 			&i.IsActive,
 			&i.TrafficWeight,
+			&i.TrafficUpdatedAt,
 			&i.IsControlGroup,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -145,7 +148,7 @@ func (q *Queries) ListActiveWorkflowVersions(ctx context.Context, workflowID int
 }
 
 const listAllWorkflowVersionsByWorkflowID = `-- name: ListAllWorkflowVersionsByWorkflowID :many
-SELECT id, workflow_id, created_by_user_id, version_number, name, is_valid, is_active, traffic_weight, is_control_group, created_at, updated_at, deleted_at FROM "workflow_version"
+SELECT id, workflow_id, created_by_user_id, version_number, name, is_valid, is_active, traffic_weight, traffic_updated_at, is_control_group, created_at, updated_at, deleted_at FROM "workflow_version"
 WHERE workflow_id = $1
 ORDER BY version_number
 `
@@ -168,10 +171,68 @@ func (q *Queries) ListAllWorkflowVersionsByWorkflowID(ctx context.Context, workf
 			&i.IsValid,
 			&i.IsActive,
 			&i.TrafficWeight,
+			&i.TrafficUpdatedAt,
 			&i.IsControlGroup,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkflowTrafficCandidatesByWorkflowID = `-- name: ListWorkflowTrafficCandidatesByWorkflowID :many
+SELECT
+    wv.id,
+    wv.workflow_id,
+    wv.version_number,
+    wv.is_active,
+    wv.traffic_weight,
+    wv.deleted_at,
+    COUNT(msg.id)::bigint AS run_count
+FROM "workflow_version" wv
+LEFT JOIN "workflow_run" wr ON wr.workflow_version_id = wv.id
+LEFT JOIN "message" msg
+    ON msg.id = wr.message_id
+    AND msg.created_at >= wv.traffic_updated_at
+WHERE wv.workflow_id = $1
+GROUP BY wv.id
+ORDER BY wv.is_active DESC, wv.version_number DESC
+`
+
+type ListWorkflowTrafficCandidatesByWorkflowIDRow struct {
+	ID            int32            `json:"id"`
+	WorkflowID    int32            `json:"workflow_id"`
+	VersionNumber int32            `json:"version_number"`
+	IsActive      bool             `json:"is_active"`
+	TrafficWeight int32            `json:"traffic_weight"`
+	DeletedAt     pgtype.Timestamp `json:"deleted_at"`
+	RunCount      int64            `json:"run_count"`
+}
+
+func (q *Queries) ListWorkflowTrafficCandidatesByWorkflowID(ctx context.Context, workflowID int32) ([]ListWorkflowTrafficCandidatesByWorkflowIDRow, error) {
+	rows, err := q.db.Query(ctx, listWorkflowTrafficCandidatesByWorkflowID, workflowID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListWorkflowTrafficCandidatesByWorkflowIDRow
+	for rows.Next() {
+		var i ListWorkflowTrafficCandidatesByWorkflowIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkflowID,
+			&i.VersionNumber,
+			&i.IsActive,
+			&i.TrafficWeight,
+			&i.DeletedAt,
+			&i.RunCount,
 		); err != nil {
 			return nil, err
 		}
@@ -253,7 +314,7 @@ func (q *Queries) ListWorkflowVersionSummariesByWorkflowID(ctx context.Context, 
 }
 
 const listWorkflowVersionsByWorkflowID = `-- name: ListWorkflowVersionsByWorkflowID :many
-SELECT id, workflow_id, created_by_user_id, version_number, name, is_valid, is_active, traffic_weight, is_control_group, created_at, updated_at, deleted_at FROM "workflow_version"
+SELECT id, workflow_id, created_by_user_id, version_number, name, is_valid, is_active, traffic_weight, traffic_updated_at, is_control_group, created_at, updated_at, deleted_at FROM "workflow_version"
 WHERE workflow_id = $1 AND deleted_at IS NULL
 ORDER BY version_number
 `
@@ -276,6 +337,7 @@ func (q *Queries) ListWorkflowVersionsByWorkflowID(ctx context.Context, workflow
 			&i.IsValid,
 			&i.IsActive,
 			&i.TrafficWeight,
+			&i.TrafficUpdatedAt,
 			&i.IsControlGroup,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -306,7 +368,7 @@ const updateWorkflowVersionActive = `-- name: UpdateWorkflowVersionActive :one
 UPDATE "workflow_version"
 SET is_active = $2, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, workflow_id, created_by_user_id, version_number, name, is_valid, is_active, traffic_weight, is_control_group, created_at, updated_at, deleted_at
+RETURNING id, workflow_id, created_by_user_id, version_number, name, is_valid, is_active, traffic_weight, traffic_updated_at, is_control_group, created_at, updated_at, deleted_at
 `
 
 type UpdateWorkflowVersionActiveParams struct {
@@ -326,6 +388,7 @@ func (q *Queries) UpdateWorkflowVersionActive(ctx context.Context, arg UpdateWor
 		&i.IsValid,
 		&i.IsActive,
 		&i.TrafficWeight,
+		&i.TrafficUpdatedAt,
 		&i.IsControlGroup,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -338,7 +401,7 @@ const updateWorkflowVersionName = `-- name: UpdateWorkflowVersionName :one
 UPDATE "workflow_version"
 SET name = $2, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, workflow_id, created_by_user_id, version_number, name, is_valid, is_active, traffic_weight, is_control_group, created_at, updated_at, deleted_at
+RETURNING id, workflow_id, created_by_user_id, version_number, name, is_valid, is_active, traffic_weight, traffic_updated_at, is_control_group, created_at, updated_at, deleted_at
 `
 
 type UpdateWorkflowVersionNameParams struct {
@@ -358,6 +421,7 @@ func (q *Queries) UpdateWorkflowVersionName(ctx context.Context, arg UpdateWorkf
 		&i.IsValid,
 		&i.IsActive,
 		&i.TrafficWeight,
+		&i.TrafficUpdatedAt,
 		&i.IsControlGroup,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -368,9 +432,9 @@ func (q *Queries) UpdateWorkflowVersionName(ctx context.Context, arg UpdateWorkf
 
 const updateWorkflowVersionTrafficWeight = `-- name: UpdateWorkflowVersionTrafficWeight :one
 UPDATE "workflow_version"
-SET traffic_weight = $2, updated_at = CURRENT_TIMESTAMP
+SET traffic_weight = $2, traffic_updated_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, workflow_id, created_by_user_id, version_number, name, is_valid, is_active, traffic_weight, is_control_group, created_at, updated_at, deleted_at
+RETURNING id, workflow_id, created_by_user_id, version_number, name, is_valid, is_active, traffic_weight, traffic_updated_at, is_control_group, created_at, updated_at, deleted_at
 `
 
 type UpdateWorkflowVersionTrafficWeightParams struct {
@@ -390,6 +454,7 @@ func (q *Queries) UpdateWorkflowVersionTrafficWeight(ctx context.Context, arg Up
 		&i.IsValid,
 		&i.IsActive,
 		&i.TrafficWeight,
+		&i.TrafficUpdatedAt,
 		&i.IsControlGroup,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -400,9 +465,9 @@ func (q *Queries) UpdateWorkflowVersionTrafficWeight(ctx context.Context, arg Up
 
 const updateWorkflowVersionTrafficWeightIncludingDeleted = `-- name: UpdateWorkflowVersionTrafficWeightIncludingDeleted :one
 UPDATE "workflow_version"
-SET traffic_weight = $2, updated_at = CURRENT_TIMESTAMP
+SET traffic_weight = $2, traffic_updated_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
-RETURNING id, workflow_id, created_by_user_id, version_number, name, is_valid, is_active, traffic_weight, is_control_group, created_at, updated_at, deleted_at
+RETURNING id, workflow_id, created_by_user_id, version_number, name, is_valid, is_active, traffic_weight, traffic_updated_at, is_control_group, created_at, updated_at, deleted_at
 `
 
 type UpdateWorkflowVersionTrafficWeightIncludingDeletedParams struct {
@@ -422,6 +487,7 @@ func (q *Queries) UpdateWorkflowVersionTrafficWeightIncludingDeleted(ctx context
 		&i.IsValid,
 		&i.IsActive,
 		&i.TrafficWeight,
+		&i.TrafficUpdatedAt,
 		&i.IsControlGroup,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -434,7 +500,7 @@ const updateWorkflowVersionValid = `-- name: UpdateWorkflowVersionValid :one
 UPDATE "workflow_version"
 SET is_valid = $2, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, workflow_id, created_by_user_id, version_number, name, is_valid, is_active, traffic_weight, is_control_group, created_at, updated_at, deleted_at
+RETURNING id, workflow_id, created_by_user_id, version_number, name, is_valid, is_active, traffic_weight, traffic_updated_at, is_control_group, created_at, updated_at, deleted_at
 `
 
 type UpdateWorkflowVersionValidParams struct {
@@ -454,6 +520,7 @@ func (q *Queries) UpdateWorkflowVersionValid(ctx context.Context, arg UpdateWork
 		&i.IsValid,
 		&i.IsActive,
 		&i.TrafficWeight,
+		&i.TrafficUpdatedAt,
 		&i.IsControlGroup,
 		&i.CreatedAt,
 		&i.UpdatedAt,

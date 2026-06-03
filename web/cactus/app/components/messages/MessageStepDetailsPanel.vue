@@ -57,8 +57,8 @@ function inputStateForMapping(mapping: MappingEntry): { value?: unknown; stateTe
 
 const title = computed(() => {
   if (!props.step) return t('messages.detail.noStepSelected')
-  if (props.step.control_kind === 'start') return 'System Trigger'
-  return props.step.work_type_name ?? props.step.control_kind ?? `Step ${props.step.id}`
+  if (props.step.control_kind === 'start' && !props.step.name) return 'System Trigger'
+  return props.step.name ?? props.step.work_type_name ?? props.step.control_kind ?? `Step ${props.step.id}`
 })
 
 const outputState = computed<{ value?: unknown; stateText?: string; tone?: StateTone }>(() => {

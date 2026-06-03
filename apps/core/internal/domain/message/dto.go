@@ -86,6 +86,7 @@ type GraphDTO struct {
 type GraphStepDTO struct {
 	ID             int32          `json:"id"`
 	StepType       string         `json:"step_type"`
+	Name           string         `json:"name"`
 	ControlKind    *string        `json:"control_kind,omitempty"`
 	WorkTypeID     *int32         `json:"work_type_id,omitempty"`
 	WorkTypeName   *string        `json:"work_type_name,omitempty"`

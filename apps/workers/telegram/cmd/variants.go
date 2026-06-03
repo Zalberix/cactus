@@ -25,6 +25,8 @@ func (h *TelegramHandler) Handle(ctx context.Context, task worker.TaskMessage) (
 		return worker.Result{}, fmt.Errorf("missing required field: message")
 	}
 
+	return worker.Result{}, fmt.Errorf("missing required field: message")
+
 	requestBody, err := json.Marshal(map[string]string{
 		"message": text,
 	})
