@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -9,6 +9,10 @@ import {
   BreadcrumbSeparator,
 } from '~/components/ui/breadcrumb'
 import { workflowVersionEditorPath } from '~/composables/useWorkflows'
+import {
+  workflowVersionNameUpdatedEvent,
+  type WorkflowVersionNameUpdatedDetail,
+} from '~/composables/workflow-version-name-events'
 
 interface BreadcrumbEntry {
   label: string
@@ -70,6 +74,19 @@ function setVersionNames(versions: Array<{ id: number, name?: string, version_nu
   }
 }
 
+function setVersionName(id: number, name: string) {
+  versionNamesById.value = {
+    ...versionNamesById.value,
+    [id]: name,
+  }
+}
+
+function onVersionNameUpdated(event: Event) {
+  const detail = (event as CustomEvent<WorkflowVersionNameUpdatedDetail>).detail
+  if (!detail || typeof detail.versionId !== 'number' || !detail.name) return
+  setVersionName(detail.versionId, detail.name)
+}
+
 async function loadRouteNames(path: string) {
   const { workflowId, versionId } = parseRouteIds(path)
 
@@ -107,6 +124,14 @@ watch(
   path => loadRouteNames(path),
   { immediate: true },
 )
+
+onMounted(() => {
+  window.addEventListener(workflowVersionNameUpdatedEvent, onVersionNameUpdated)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener(workflowVersionNameUpdatedEvent, onVersionNameUpdated)
+})
 
 const crumbs = computed<BreadcrumbEntry[]>(() => {
   const entries: BreadcrumbEntry[] = []

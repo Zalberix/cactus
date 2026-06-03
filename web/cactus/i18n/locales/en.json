@@ -482,6 +482,11 @@
       "body": "Delete workflow \"{name}\" and all its versions? Existing messages will not be affected.",
       "confirm": "Delete Workflow"
     },
+    "deleteStep": {
+      "title": "Delete Step",
+      "body": "Delete step \"{name}\"? All connections to it and mappings that use it will be removed.",
+      "confirm": "Delete Step"
+    },
     "deactivateVersion": {
       "title": "Deactivate Version",
       "body": "Deactivate version {number}? New messages will not use this version.",

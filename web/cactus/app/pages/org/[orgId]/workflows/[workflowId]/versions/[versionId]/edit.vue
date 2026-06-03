@@ -19,6 +19,7 @@ import {
 } from '~/components/dag/step-toolbar-utils'
 import type { StepAddPayload } from '~/components/dag/step-toolbar-utils'
 import { workflowVersionEditorPath } from '~/composables/useWorkflows'
+import { notifyWorkflowVersionNameUpdated } from '~/composables/workflow-version-name-events'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
@@ -63,6 +64,8 @@ const schemaChoiceOpen = ref(false)
 const pendingStepPayload = ref<StepAddPayload | null>(null)
 const renameOpen = ref(false)
 const renamingNodeId = ref<string | null>(null)
+const deleteStepOpen = ref(false)
+const deletingNodeId = ref<string | null>(null)
 const showValidationDialog = ref(false)
 
 const currentVersion = computed(() =>
@@ -112,6 +115,16 @@ const renamingNode = computed(() =>
 
 const renamingNodeName = computed(() =>
   String(renamingNode.value?.data.label ?? ''),
+)
+
+const deletingNode = computed(() =>
+  deletingNodeId.value
+    ? dagEditor.nodes.value.find(node => node.id === deletingNodeId.value) ?? null
+    : null,
+)
+
+const deletingNodeName = computed(() =>
+  String(deletingNode.value?.data.label ?? t('editor.stepName')),
 )
 
 // Load workflow data on mount
@@ -240,11 +253,16 @@ async function onVersionNameBlur() {
   const version = currentVersion.value
   if (!version || isCurrentVersionReadOnly.value) return
   try {
-    await updateVersionName(version.id, currentVersionName.value)
+    const updated = await updateVersionName(version.id, currentVersionName.value)
+    notifyWorkflowVersionNameUpdated({
+      versionId: updated.id,
+      name: updated.name || currentVersionName.value,
+      versionNumber: updated.version_number,
+    })
     versions.value = await fetchVersionSummaries(workflowId.value)
   }
-  catch {
-    // Non-critical inline rename.
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
   }
 }
 
@@ -385,13 +403,46 @@ function onDeleteSelected() {
   }
 
   if (dagEditor.selectedNodeId.value) {
-    dagEditor.removeStep(dagEditor.selectedNodeId.value)
+    requestDeleteNode(dagEditor.selectedNodeId.value)
   }
 }
 
 function onDeleteNode(nodeId: string) {
   if (isCurrentVersionReadOnly.value) return
-  dagEditor.removeStep(nodeId)
+  requestDeleteNode(nodeId)
+}
+
+function requestDeleteNode(nodeId: string) {
+  if (isCurrentVersionReadOnly.value) return
+  const node = dagEditor.nodes.value.find(item => item.id === nodeId)
+  if (!node || node.data.controlKind === 'start') return
+
+  deletingNodeId.value = nodeId
+  deleteStepOpen.value = true
+}
+
+function closeDeleteStepDialog() {
+  deleteStepOpen.value = false
+  deletingNodeId.value = null
+}
+
+function onDeleteStepDialogUpdate(open: boolean) {
+  deleteStepOpen.value = open
+  if (!open) {
+    deletingNodeId.value = null
+  }
+}
+
+async function onConfirmDeleteStep() {
+  if (isCurrentVersionReadOnly.value || !deletingNodeId.value) return
+  const nodeId = deletingNodeId.value
+  try {
+    await dagEditor.removeStep(nodeId)
+    closeDeleteStepDialog()
+  }
+  catch (err) {
+    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
+  }
 }
 
 function onRenameNode(nodeId: string) {
@@ -664,6 +715,35 @@ onMounted(() => {
       :names="stepNameEntries"
       @save="onSaveStepName"
     />
+
+    <!-- Delete Step Confirmation Dialog -->
+    <Dialog v-model:open="deleteStepOpen" @update:open="onDeleteStepDialogUpdate">
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{{ t('destructive.deleteStep.title') }}</DialogTitle>
+          <DialogDescription>
+            {{ t('destructive.deleteStep.body', { name: deletingNodeName }) }}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            data-testid="cancel-step-delete"
+            @click="closeDeleteStepDialog"
+          >
+            {{ t('destructive.cancel') }}
+          </Button>
+          <Button
+            variant="destructive"
+            data-testid="confirm-step-delete"
+            @click="onConfirmDeleteStep"
+          >
+            {{ t('destructive.deleteStep.confirm') }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <!-- Deactivate Confirmation Dialog -->
     <Dialog v-model:open="deactivateOpen">

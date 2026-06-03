@@ -1,11 +1,15 @@
 package workflow_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,6 +42,7 @@ type mockStorage struct {
 	listVersionSummaries               []db.ListWorkflowVersionSummariesByWorkflowIDRow
 	listVersionSummariesErr            error
 	createdWorkflowVersion             db.WorkflowVersion
+	lastCreateWorkflowVersionArg       db.CreateWorkflowVersionParams
 	createWorkflowVersionErr           error
 	createdWorkflowSteps               []db.WorkflowStep
 	createWorkflowStepParams           []db.CreateWorkflowStepParams
@@ -93,6 +98,7 @@ func (m *mockStorage) UpdateWorkflowInputSchema(_ context.Context, arg db.Update
 }
 func (m *mockStorage) SoftDeleteWorkflow(_ context.Context, _ int32) error { return nil }
 func (m *mockStorage) CreateWorkflowVersion(_ context.Context, arg db.CreateWorkflowVersionParams) (db.WorkflowVersion, error) {
+	m.lastCreateWorkflowVersionArg = arg
 	if m.createWorkflowVersionErr != nil {
 		return db.WorkflowVersion{}, m.createWorkflowVersionErr
 	}
@@ -601,6 +607,36 @@ func TestCopyVersion_ClonesStepsDependenciesAndTaskRevisions(t *testing.T) {
 	assert.True(t, store.lastCloneWorkerSettingsRevisionArg.CreatedByUserID.Valid)
 }
 
+func TestCopyVersion_AssignsUniqueCopyNameWithinWorkflow(t *testing.T) {
+	store := &mockStorage{
+		version: db.WorkflowVersion{
+			ID:            10,
+			WorkflowID:    100,
+			VersionNumber: 1,
+			Name:          pgtype.Text{String: "Source", Valid: true},
+		},
+		maxVersionNumber: 3,
+		listVersions: []db.WorkflowVersion{
+			{ID: 10, WorkflowID: 100, Name: pgtype.Text{String: "Source", Valid: true}},
+			{ID: 11, WorkflowID: 100, Name: pgtype.Text{String: "Source copy", Valid: true}},
+			{ID: 12, WorkflowID: 100, Name: pgtype.Text{String: "Source copy 2", Valid: true}},
+			{
+				ID:         13,
+				WorkflowID: 100,
+				Name:       pgtype.Text{String: "Source copy 3", Valid: true},
+				DeletedAt:  pgtype.Timestamp{Valid: true},
+			},
+		},
+	}
+	svc := workflow.NewService(store)
+
+	copied, err := svc.CopyVersion(context.Background(), 10, 55)
+
+	require.NoError(t, err)
+	assert.Equal(t, "Source copy 3", store.lastCreateWorkflowVersionArg.Name.String)
+	assert.Equal(t, "Source copy 3", copied.Name.String)
+}
+
 func TestUpdateVersionName_PassesNameToStorage(t *testing.T) {
 	store := &mockStorage{}
 	svc := workflow.NewService(store)
@@ -609,6 +645,60 @@ func TestUpdateVersionName_PassesNameToStorage(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int32(10), store.lastUpdateVersionNameArg.ID)
 	assert.Equal(t, "Release 42", store.lastUpdateVersionNameArg.Name.String)
+}
+
+func TestUpdateVersionName_RejectsDuplicateNameWithinWorkflow(t *testing.T) {
+	store := &mockStorage{
+		version: db.WorkflowVersion{
+			ID:         10,
+			WorkflowID: 100,
+			Name:       pgtype.Text{String: "Current", Valid: true},
+		},
+		listVersions: []db.WorkflowVersion{
+			{ID: 10, WorkflowID: 100, Name: pgtype.Text{String: "Current", Valid: true}},
+			{ID: 11, WorkflowID: 100, Name: pgtype.Text{String: "Release 42", Valid: true}},
+			{
+				ID:         12,
+				WorkflowID: 100,
+				Name:       pgtype.Text{String: "Release 42", Valid: true},
+				DeletedAt:  pgtype.Timestamp{Valid: true},
+			},
+		},
+	}
+	svc := workflow.NewService(store)
+
+	_, err := svc.UpdateVersionName(context.Background(), 10, workflow.UpdateVersionNameRequest{Name: " Release 42 "})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "VERSION_NAME_DUPLICATE")
+	assert.Zero(t, store.lastUpdateVersionNameArg.ID)
+}
+
+func TestUpdateVersionNameHandler_ReturnsRussianDuplicateMessage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	store := &mockStorage{
+		version: db.WorkflowVersion{
+			ID:         10,
+			WorkflowID: 100,
+			Name:       pgtype.Text{String: "Current", Valid: true},
+		},
+		listVersions: []db.WorkflowVersion{
+			{ID: 10, WorkflowID: 100, Name: pgtype.Text{String: "Current", Valid: true}},
+			{ID: 11, WorkflowID: 100, Name: pgtype.Text{String: "Release 42", Valid: true}},
+		},
+	}
+	handler := workflow.NewHandler(workflow.NewService(store), nil)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPatch, "/api/v1/versions/10/name", bytes.NewBufferString(`{"name":"Release 42"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Params = gin.Params{{Key: "versionId", Value: "10"}}
+
+	handler.UpdateVersionName(c)
+
+	assert.Equal(t, http.StatusUnprocessableEntity, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "VERSION_NAME_DUPLICATE")
+	assert.Contains(t, recorder.Body.String(), "Такое имя версии уже существует")
 }
 
 func TestCreateTaskStep_UsesSelectedSchemaAndCreatesPrivateRevision(t *testing.T) {

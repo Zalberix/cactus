@@ -276,6 +276,10 @@ CREATE TABLE "workflow_version" (
     CONSTRAINT workflow_version_user_id_fkey FOREIGN KEY (created_by_user_id) REFERENCES "user"(id) ON DELETE SET NULL
 );
 
+CREATE UNIQUE INDEX workflow_version_workflow_name_active_uq
+    ON "workflow_version" (workflow_id, "name")
+    WHERE deleted_at IS NULL;
+
 -- ============================================================
 -- Шаги рабочего процесса (DAG)
 -- ============================================================

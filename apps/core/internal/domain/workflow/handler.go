@@ -329,6 +329,10 @@ func (h *Handler) UpdateVersionName(c *gin.Context) {
 	}
 	version, err := h.service.UpdateVersionName(c.Request.Context(), versionID, req)
 	if err != nil {
+		if errors.Is(err, ErrVersionNameDuplicate) {
+			response.Fail(c, http.StatusUnprocessableEntity, "VERSION_NAME_DUPLICATE", "Такое имя версии уже существует")
+			return
+		}
 		response.InternalError(c, "Ошибка обновления имени версии")
 		return
 	}

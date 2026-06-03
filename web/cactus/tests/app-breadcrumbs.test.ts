@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { computed } from 'vue'
+import { computed, nextTick } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AppBreadcrumbs from '../app/components/layout/AppBreadcrumbs.vue'
 
@@ -103,5 +103,34 @@ describe('AppBreadcrumbs', () => {
       text: 'Draft with email checks',
     })
     expect(links.some(link => link.text === '3' || link.text === '7')).toBe(false)
+  })
+
+  it('updates the cached version name when the editor reports a successful rename', async () => {
+    const wrapper = mount(AppBreadcrumbs, {
+      global: {
+        stubs: {
+          NuxtLink: {
+            props: ['to'],
+            template: '<a :href="to"><slot /></a>',
+          },
+        },
+      },
+    })
+
+    await flushPromises()
+
+    window.dispatchEvent(new CustomEvent('cactus:workflow-version-name-updated', {
+      detail: {
+        versionId: 7,
+        name: 'Renamed release',
+      },
+    }))
+    await nextTick()
+
+    const versionLink = wrapper.findAll('a').find(link =>
+      link.attributes('href') === '/org/1/workflows/3/versions/7/edit',
+    )
+
+    expect(versionLink?.text()).toBe('Renamed release')
   })
 })

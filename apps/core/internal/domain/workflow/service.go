@@ -13,6 +13,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	dagpkg "github.com/zalberix/cactus/apps/core/internal/dag"
@@ -43,7 +44,11 @@ var ErrStepNameInvalid = errors.New("STEP_NAME_INVALID")
 
 var ErrStepNameDuplicate = errors.New("STEP_NAME_DUPLICATE")
 
+var ErrVersionNameDuplicate = errors.New("VERSION_NAME_DUPLICATE")
+
 const maxStepNameLength = 255
+
+const maxVersionNameLength = 255
 
 var allowedControlKinds = map[string]struct{}{
 	dagpkg.ControlKindStart:     {},
@@ -215,10 +220,31 @@ func (s *Service) ListVersionSummaries(ctx context.Context, workflowID int32) ([
 
 // UpdateVersionName обновляет название версии.
 func (s *Service) UpdateVersionName(ctx context.Context, versionID int32, req UpdateVersionNameRequest) (db.WorkflowVersion, error) {
-	return s.store.UpdateWorkflowVersionName(ctx, db.UpdateWorkflowVersionNameParams{
+	name := normalizeVersionName(req.Name)
+	version, err := s.store.GetWorkflowVersionByID(ctx, versionID)
+	if err != nil {
+		return db.WorkflowVersion{}, fmt.Errorf("get workflow version: %w", err)
+	}
+
+	versions, err := s.store.ListWorkflowVersionsByWorkflowID(ctx, version.WorkflowID)
+	if err != nil {
+		return db.WorkflowVersion{}, fmt.Errorf("list workflow versions: %w", err)
+	}
+	if hasDuplicateVersionName(name, versions, versionID) {
+		return db.WorkflowVersion{}, ErrVersionNameDuplicate
+	}
+
+	updated, err := s.store.UpdateWorkflowVersionName(ctx, db.UpdateWorkflowVersionNameParams{
 		ID:   versionID,
-		Name: pgtype.Text{String: req.Name, Valid: true},
+		Name: pgtype.Text{String: name, Valid: true},
 	})
+	if err != nil {
+		if isUniqueConstraintViolation(err, "workflow_version_workflow_name_active_uq") {
+			return db.WorkflowVersion{}, ErrVersionNameDuplicate
+		}
+		return db.WorkflowVersion{}, err
+	}
+	return updated, nil
 }
 
 // CopyVersion создаёт копию версии.
@@ -238,11 +264,17 @@ func (s *Service) CopyVersion(ctx context.Context, versionID, userID int32) (db.
 		sourceName = fmt.Sprintf("Version %d", source.VersionNumber)
 	}
 
+	versions, err := s.store.ListWorkflowVersionsByWorkflowID(ctx, source.WorkflowID)
+	if err != nil {
+		return db.WorkflowVersion{}, fmt.Errorf("list workflow versions: %w", err)
+	}
+	copyName := uniqueVersionName(sourceName+" copy", versions, 0)
+
 	newVersion, err := s.store.CreateWorkflowVersion(ctx, db.CreateWorkflowVersionParams{
 		WorkflowID:      source.WorkflowID,
 		CreatedByUserID: pgtype.Int4{Int32: userID, Valid: true},
 		VersionNumber:   maxVersion + 1,
-		Name:            pgtype.Text{String: sourceName + " copy", Valid: true},
+		Name:            pgtype.Text{String: copyName, Valid: true},
 		IsValid:         false,
 		IsActive:        false,
 		TrafficWeight:   0,
@@ -1304,6 +1336,77 @@ func pgTextString(text pgtype.Text) string {
 		return ""
 	}
 	return text.String
+}
+
+func normalizeVersionName(name string) string {
+	return strings.TrimSpace(name)
+}
+
+func hasDuplicateVersionName(name string, versions []db.WorkflowVersion, excludeID int32) bool {
+	_, exists := activeVersionNames(versions, excludeID)[normalizeVersionName(name)]
+	return exists
+}
+
+func uniqueVersionName(base string, versions []db.WorkflowVersion, excludeID int32) string {
+	base = truncateVersionName(normalizeVersionName(base))
+	used := activeVersionNames(versions, excludeID)
+	if _, exists := used[base]; !exists {
+		return base
+	}
+
+	maxSuffix := int64(1)
+	prefix := base + " "
+	for name := range used {
+		if name == base || !strings.HasPrefix(name, prefix) {
+			continue
+		}
+		n, err := strconv.ParseInt(strings.TrimPrefix(name, prefix), 10, 32)
+		if err != nil || n < 2 {
+			continue
+		}
+		if n > maxSuffix {
+			maxSuffix = n
+		}
+	}
+
+	for suffix := maxSuffix + 1; ; suffix++ {
+		suffixText := fmt.Sprintf(" %d", suffix)
+		candidate := truncateVersionNameForSuffix(base, suffixText) + suffixText
+		if _, exists := used[candidate]; !exists {
+			return candidate
+		}
+	}
+}
+
+func activeVersionNames(versions []db.WorkflowVersion, excludeID int32) map[string]struct{} {
+	names := make(map[string]struct{}, len(versions))
+	for _, version := range versions {
+		if version.ID == excludeID || version.DeletedAt.Valid || !version.Name.Valid {
+			continue
+		}
+		name := normalizeVersionName(version.Name.String)
+		if name == "" {
+			continue
+		}
+		names[name] = struct{}{}
+	}
+	return names
+}
+
+func truncateVersionName(name string) string {
+	return truncateRunes(name, maxVersionNameLength)
+}
+
+func truncateVersionNameForSuffix(name, suffix string) string {
+	return truncateRunes(name, maxVersionNameLength-utf8.RuneCountInString(suffix))
+}
+
+func isUniqueConstraintViolation(err error, constraint string) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	return pgErr.Code == "23505" && pgErr.ConstraintName == constraint
 }
 
 func isStartWorkflowStep(step db.WorkflowStep) bool {
