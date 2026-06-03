@@ -12,6 +12,8 @@ import (
 	"github.com/zalberix/cactus/apps/core/config"
 )
 
+const defaultNATSReconnectWait = time.Second
+
 type Bus struct {
 	nc *nats.Conn
 	js jetstream.JetStream
@@ -43,14 +45,7 @@ func newStreamConfig(name string, subjects []string, opts ...StreamOption) jetst
 }
 
 func NewWithOptions(opts Options) (*Bus, error) {
-	natsOpts := []nats.Option{}
-	if opts.CAFile != "" {
-		natsOpts = append(natsOpts, nats.RootCAs(opts.CAFile))
-	}
-	if opts.CredentialsFile != "" {
-		natsOpts = append(natsOpts, nats.UserCredentials(opts.CredentialsFile))
-	}
-	nc, err := nats.Connect(opts.URL, natsOpts...)
+	nc, err := nats.Connect(opts.URL, natsConnectOptions(opts)...)
 	if err != nil {
 		return nil, fmt.Errorf("не удалось подключиться к NATS: %w", err)
 	}
@@ -62,6 +57,20 @@ func NewWithOptions(opts Options) (*Bus, error) {
 	}
 
 	return &Bus{nc: nc, js: js}, nil
+}
+
+func natsConnectOptions(opts Options) []nats.Option {
+	natsOpts := []nats.Option{
+		nats.MaxReconnects(-1),
+		nats.ReconnectWait(defaultNATSReconnectWait),
+	}
+	if opts.CAFile != "" {
+		natsOpts = append(natsOpts, nats.RootCAs(opts.CAFile))
+	}
+	if opts.CredentialsFile != "" {
+		natsOpts = append(natsOpts, nats.UserCredentials(opts.CredentialsFile))
+	}
+	return natsOpts
 }
 
 func New(url string) (*Bus, error) {

@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
 
@@ -276,6 +278,48 @@ func TestNewKeepsConfiguredTaskTimeout(t *testing.T) {
 	}
 }
 
+func TestNATSConnectOptionsRetryForeverEverySecond(t *testing.T) {
+	w := New(Config{}, nil, nil)
+	w.natsCreds = NATSCredentials{
+		URL:      "tls://localhost:4222",
+		UserJWT:  "jwt",
+		UserSeed: "seed",
+	}
+
+	opts := nats.GetDefaultOptions()
+	for _, opt := range w.natsConnectOptions() {
+		if err := opt(&opts); err != nil {
+			t.Fatalf("apply option: %v", err)
+		}
+	}
+
+	if opts.MaxReconnect != -1 {
+		t.Fatalf("MaxReconnect = %d, want -1", opts.MaxReconnect)
+	}
+	if opts.ReconnectWait != time.Second {
+		t.Fatalf("ReconnectWait = %s, want 1s", opts.ReconnectWait)
+	}
+}
+
+func TestConsumeReturnsWhenNATSConnectionIsClosed(t *testing.T) {
+	w := New(Config{}, nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	consumer := &fetchErrorConsumer{err: nats.ErrConnectionClosed}
+	errCh := make(chan error, 1)
+
+	go func() {
+		errCh <- w.consume(context.Background(), consumer)
+	}()
+
+	select {
+	case err := <-errCh:
+		if !errors.Is(err, nats.ErrConnectionClosed) {
+			t.Fatalf("consume returned %v, want nats.ErrConnectionClosed", err)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("consume did not return after closed NATS connection")
+	}
+}
+
 func TestLoadOrRegisterUpdatesWorkerIDFileWhenManagerReturnsDifferentID(t *testing.T) {
 	idPath := filepath.Join(t.TempDir(), "worker-id")
 	if err := os.WriteFile(idPath, []byte("7"), 0o600); err != nil {
@@ -482,4 +526,40 @@ func TestSelectVariantRejectsUnknownVariant(t *testing.T) {
 	if !strings.Contains(err.Error(), `unknown worker variant "auth"`) {
 		t.Fatalf("unexpected error: %v", err)
 	}
+}
+
+type fetchErrorConsumer struct {
+	err error
+}
+
+func (c *fetchErrorConsumer) Fetch(int, ...jetstream.FetchOpt) (jetstream.MessageBatch, error) {
+	return nil, c.err
+}
+
+func (c *fetchErrorConsumer) FetchBytes(int, ...jetstream.FetchOpt) (jetstream.MessageBatch, error) {
+	return nil, c.err
+}
+
+func (c *fetchErrorConsumer) FetchNoWait(int) (jetstream.MessageBatch, error) {
+	return nil, c.err
+}
+
+func (c *fetchErrorConsumer) Consume(jetstream.MessageHandler, ...jetstream.PullConsumeOpt) (jetstream.ConsumeContext, error) {
+	return nil, c.err
+}
+
+func (c *fetchErrorConsumer) Messages(...jetstream.PullMessagesOpt) (jetstream.MessagesContext, error) {
+	return nil, c.err
+}
+
+func (c *fetchErrorConsumer) Next(...jetstream.FetchOpt) (jetstream.Msg, error) {
+	return nil, c.err
+}
+
+func (c *fetchErrorConsumer) Info(context.Context) (*jetstream.ConsumerInfo, error) {
+	return nil, c.err
+}
+
+func (c *fetchErrorConsumer) CachedInfo() *jetstream.ConsumerInfo {
+	return nil
 }

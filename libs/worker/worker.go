@@ -19,6 +19,7 @@ const (
 	defaultMaxDeliver        = 5
 	defaultConsumeRetryDelay = time.Second
 	defaultFetchMaxWait      = 2 * time.Second
+	defaultNATSReconnectWait = time.Second
 )
 
 func taskFilterSubject(orgID, workTypeID, settingsSchemaID int32) string {
@@ -82,14 +83,54 @@ func (w *Worker) Run(ctx context.Context) error {
 		return err
 	}
 
+	go w.heartbeatLoop(ctx)
+
+	return w.natsLoop(ctx)
+}
+
+func (w *Worker) natsLoop(ctx context.Context) error {
+	for {
+		if err := w.connectNATS(); err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			w.logger.Warn("connect to NATS failed, retrying",
+				slog.String("error", err.Error()),
+				slog.Duration("retry_in", defaultNATSReconnectWait),
+			)
+			if err := waitForRetry(ctx, defaultNATSReconnectWait); err != nil {
+				return err
+			}
+			continue
+		}
+
+		w.logger.Info("worker registered",
+			slog.Int("worker_id", int(w.workerID)),
+			slog.String("name", w.cfg.WorkerName),
+		)
+
+		err := w.consumeLoop(ctx)
+		if ctx.Err() != nil {
+			w.drainNATS()
+			return ctx.Err()
+		}
+
+		w.closeNATS()
+		w.logger.Warn("NATS connection lost, reconnecting",
+			slog.String("error", err.Error()),
+			slog.Duration("retry_in", defaultNATSReconnectWait),
+		)
+		if err := waitForRetry(ctx, defaultNATSReconnectWait); err != nil {
+			return err
+		}
+	}
+}
+
+func (w *Worker) connectNATS() error {
 	opts := []nats.Option{
 		nats.UserJWTAndSeed(w.natsCreds.UserJWT, w.natsCreds.UserSeed),
 	}
-	if w.natsCreds.CAFile != "" {
-		opts = append(opts, nats.RootCAs(w.natsCreds.CAFile))
-	} else if w.cfg.NatsCAFile != "" {
-		opts = append(opts, nats.RootCAs(w.cfg.NatsCAFile))
-	}
+	opts = append(opts, w.natsConnectOptions()...)
 	nc, err := nats.Connect(w.natsCreds.URL, opts...)
 	if err != nil {
 		return fmt.Errorf("connect to NATS: %w", err)
@@ -99,22 +140,52 @@ func (w *Worker) Run(ctx context.Context) error {
 	js, err := jetstream.New(nc)
 	if err != nil {
 		w.nc.Close()
+		w.nc = nil
 		return fmt.Errorf("init JetStream: %w", err)
 	}
 	w.js = js
 
-	defer func() {
-		_ = w.nc.Drain()
-	}()
+	return nil
+}
 
-	w.logger.Info("worker registered",
-		slog.Int("worker_id", int(w.workerID)),
-		slog.String("name", w.cfg.WorkerName),
-	)
+func (w *Worker) natsConnectOptions() []nats.Option {
+	opts := []nats.Option{
+		nats.MaxReconnects(-1),
+		nats.ReconnectWait(defaultNATSReconnectWait),
+	}
+	if w.natsCreds.CAFile != "" {
+		opts = append(opts, nats.RootCAs(w.natsCreds.CAFile))
+	} else if w.cfg.NatsCAFile != "" {
+		opts = append(opts, nats.RootCAs(w.cfg.NatsCAFile))
+	}
+	return opts
+}
 
-	go w.heartbeatLoop(ctx)
+func (w *Worker) drainNATS() {
+	if w.nc == nil {
+		return
+	}
+	_ = w.nc.Drain()
+	w.nc = nil
+	w.js = nil
+}
 
-	return w.consumeLoop(ctx)
+func (w *Worker) closeNATS() {
+	if w.nc == nil {
+		return
+	}
+	w.nc.Close()
+	w.nc = nil
+	w.js = nil
+}
+
+func waitForRetry(ctx context.Context, delay time.Duration) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(delay):
+		return nil
+	}
 }
 
 func (w *Worker) refreshLoggerAfterWorkerID() {
@@ -175,14 +246,15 @@ func (w *Worker) consumeLoop(ctx context.Context) error {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
+			if isNATSConnectionError(err) {
+				return err
+			}
 			w.logger.Warn("task consumer stopped, recreating",
 				slog.String("error", err.Error()),
 				slog.Duration("retry_in", defaultConsumeRetryDelay),
 			)
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(defaultConsumeRetryDelay):
+			if err := waitForRetry(ctx, defaultConsumeRetryDelay); err != nil {
+				return err
 			}
 			continue
 		}
@@ -227,6 +299,9 @@ func (w *Worker) consume(ctx context.Context, cons jetstream.Consumer) error {
 			if errors.Is(err, nats.ErrTimeout) {
 				continue
 			}
+			if isNATSConnectionError(err) {
+				return err
+			}
 			w.logger.Error("fetching task failed", slog.String("error", err.Error()))
 			continue
 		}
@@ -239,9 +314,16 @@ func (w *Worker) consume(ctx context.Context, cons jetstream.Consumer) error {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, nats.ErrTimeout) {
 				continue
 			}
+			if isNATSConnectionError(err) {
+				return err
+			}
 			w.logger.Error("task fetch batch failed", slog.String("error", err.Error()))
 		}
 	}
+}
+
+func isNATSConnectionError(err error) bool {
+	return errors.Is(err, nats.ErrConnectionClosed) || errors.Is(err, nats.ErrDisconnected)
 }
 
 func (w *Worker) processMessage(ctx context.Context, msg jetstream.Msg) {

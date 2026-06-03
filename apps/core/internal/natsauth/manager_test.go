@@ -6,8 +6,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	natsjwt "github.com/nats-io/jwt/v2"
+	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nkeys"
 )
 
@@ -58,6 +60,22 @@ func TestWorkerPermissionsDoNotAllowOtherSchemaConsumer(t *testing.T) {
 		if containsString(perms.PublishAllow, subject) || containsString(perms.SubscribeAllow, subject) {
 			t.Fatalf("permissions unexpectedly allow %q: %#v %#v", subject, perms.PublishAllow, perms.SubscribeAllow)
 		}
+	}
+}
+
+func TestResolverNATSOptionsRetryForeverEverySecond(t *testing.T) {
+	opts := nats.GetDefaultOptions()
+	for _, opt := range resolverNATSOptions("", "") {
+		if err := opt(&opts); err != nil {
+			t.Fatalf("apply option: %v", err)
+		}
+	}
+
+	if opts.MaxReconnect != -1 {
+		t.Fatalf("MaxReconnect = %d, want -1", opts.MaxReconnect)
+	}
+	if opts.ReconnectWait != time.Second {
+		t.Fatalf("ReconnectWait = %s, want 1s", opts.ReconnectWait)
 	}
 }
 

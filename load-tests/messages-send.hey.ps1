@@ -2,7 +2,7 @@ param(
     [string]$BaseUrl = $(if ($env:BASE_URL) { $env:BASE_URL } else { "http://localhost" }),
     [string]$PublicToken = $(if ($env:PUBLIC_TOKEN) { $env:PUBLIC_TOKEN } else { "demo-public-token" }),
     [string]$PrivateToken = $(if ($env:PRIVATE_TOKEN) { $env:PRIVATE_TOKEN } else { "demo-private-token" }),
-    [int]$Rate = $(if ($env:RATE) { [int]$env:RATE } else { 100 }),
+    [int]$Rate = $(if ($env:RATE) { [int]$env:RATE } else { 50 }),
     [int]$Concurrency = $(if ($env:CONCURRENCY) { [int]$env:CONCURRENCY } else { 50 }),
     [string]$Duration = $(if ($env:DURATION) { $env:DURATION } else { "1m" }),
     [int]$TimeoutSeconds = $(if ($env:TIMEOUT_SECONDS) { [int]$env:TIMEOUT_SECONDS } else { 20 }),

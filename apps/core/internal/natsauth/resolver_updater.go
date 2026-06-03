@@ -8,25 +8,35 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-const claimsUpdateSubject = "$SYS.REQ.CLAIMS.UPDATE"
+const (
+	claimsUpdateSubject       = "$SYS.REQ.CLAIMS.UPDATE"
+	resolverNATSReconnectWait = time.Second
+)
 
 type ResolverUpdater struct {
 	nc *nats.Conn
 }
 
 func NewResolverUpdater(url, caFile, credentialsFile string) (*ResolverUpdater, error) {
-	opts := []nats.Option{}
+	nc, err := nats.Connect(url, resolverNATSOptions(caFile, credentialsFile)...)
+	if err != nil {
+		return nil, fmt.Errorf("connect system nats account: %w", err)
+	}
+	return &ResolverUpdater{nc: nc}, nil
+}
+
+func resolverNATSOptions(caFile, credentialsFile string) []nats.Option {
+	opts := []nats.Option{
+		nats.MaxReconnects(-1),
+		nats.ReconnectWait(resolverNATSReconnectWait),
+	}
 	if caFile != "" {
 		opts = append(opts, nats.RootCAs(caFile))
 	}
 	if credentialsFile != "" {
 		opts = append(opts, nats.UserCredentials(credentialsFile))
 	}
-	nc, err := nats.Connect(url, opts...)
-	if err != nil {
-		return nil, fmt.Errorf("connect system nats account: %w", err)
-	}
-	return &ResolverUpdater{nc: nc}, nil
+	return opts
 }
 
 func (u *ResolverUpdater) UpdateAccountJWT(ctx context.Context, accountJWT string) error {
