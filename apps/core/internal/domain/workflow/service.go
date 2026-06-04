@@ -26,6 +26,10 @@ var ErrValidationRequired = errors.New("VALIDATION_REQUIRED: версия дол
 
 var ErrStartStepProtected = errors.New("START_STEP_PROTECTED: start step is managed by the system")
 
+var ErrWorkflowVersionLocked = errors.New("WORKFLOW_VERSION_LOCKED: active, locked, or published workflow version cannot be semantically edited")
+
+var ErrWorkflowVersionInUse = errors.New("WORKFLOW_VERSION_IN_USE: workflow version is referenced and cannot be deleted")
+
 var ErrTrafficWeightInvalid = errors.New("TRAFFIC_WEIGHT_INVALID: custom traffic weight total must be <= 100")
 
 var ErrTaskStepRequired = errors.New("TASK_STEP_REQUIRED: step must be a task")
@@ -37,6 +41,12 @@ var ErrControlKindInvalid = errors.New("CONTROL_KIND_INVALID: unsupported contro
 var ErrInvalidInputMapping = errors.New("INVALID_INPUT_MAPPING")
 
 var ErrInvalidSettings = errors.New("INVALID_SETTINGS")
+
+const legacyTrafficRolloutName = "Legacy traffic rollout"
+
+type workflowVersionReferenceQueries interface {
+	IsWorkflowVersionReferenced(ctx context.Context, id int32) (bool, error)
+}
 
 var ErrStepNameRequired = errors.New("STEP_NAME_REQUIRED")
 
@@ -412,7 +422,214 @@ func (s *Service) UpdateWorkflowTraffic(ctx context.Context, workflowID int32, r
 		}
 	}
 
+	if err := s.syncLegacyTrafficRolloutExperiment(ctx, workflowID, versions, traffic); err != nil {
+		if !errors.Is(err, ErrWorkflowConfigurationUnsupported) {
+			return err
+		}
+	}
+
 	return nil
+}
+
+func (s *Service) syncLegacyTrafficRolloutExperiment(ctx context.Context, workflowID int32, versions []db.WorkflowVersion, traffic map[int32]int32) error {
+	if _, err := s.experimentQueries(); err != nil {
+		return err
+	}
+	if _, err := s.inputSchemaQueries(); err != nil {
+		return err
+	}
+
+	targetStatus := "paused"
+	if hasPositiveActiveTraffic(versions, traffic) {
+		targetStatus = "active"
+	}
+
+	return s.store.WithTx(ctx, func(tx *db.Queries) error {
+		schema, err := tx.GetDefaultWorkflowInputSchema(ctx, workflowID)
+		if err != nil {
+			return fmt.Errorf("get default input schema for legacy traffic rollout: %w", err)
+		}
+
+		experiment, err := findLegacyTrafficRollout(ctx, tx, workflowID)
+		if err != nil {
+			return err
+		}
+		if experiment.ID == 0 {
+			experiment, err = tx.CreateWorkflowExperiment(ctx, db.CreateWorkflowExperimentParams{
+				WorkflowID:      workflowID,
+				Name:            legacyTrafficRolloutName,
+				Description:     pgText("Compatibility wrapper for the legacy workflow traffic endpoint."),
+				ExperimentType:  "rollout",
+				Status:          targetStatus,
+				StartedAt:       pgtype.Timestamp{},
+				EndedAt:         pgtype.Timestamp{},
+				CreatedByUserID: pgtype.Int4{},
+				UpdatedByUserID: pgtype.Int4{},
+			})
+			if err != nil {
+				return fmt.Errorf("create legacy traffic rollout: %w", err)
+			}
+		} else if experiment.Status != targetStatus {
+			experiment, err = tx.UpdateWorkflowExperimentStatus(ctx, db.UpdateWorkflowExperimentStatusParams{
+				ID:              experiment.ID,
+				Status:          targetStatus,
+				StartedAt:       pgtype.Timestamp{},
+				EndedAt:         pgtype.Timestamp{},
+				UpdatedByUserID: pgtype.Int4{},
+			})
+			if err != nil {
+				return fmt.Errorf("update legacy traffic rollout status: %w", err)
+			}
+		}
+
+		scope, err := findOrCreateLegacyTrafficScope(ctx, tx, experiment.ID, schema.ID)
+		if err != nil {
+			return err
+		}
+
+		return syncLegacyTrafficVariants(ctx, tx, scope.ID, versions, traffic)
+	})
+}
+
+func findLegacyTrafficRollout(ctx context.Context, q workflowExperimentQueries, workflowID int32) (db.WorkflowExperiment, error) {
+	experiments, err := q.ListWorkflowExperimentsByWorkflowID(ctx, workflowID)
+	if err != nil {
+		return db.WorkflowExperiment{}, fmt.Errorf("list workflow experiments for legacy traffic rollout: %w", err)
+	}
+	for _, experiment := range experiments {
+		if experiment.Name == legacyTrafficRolloutName && experiment.ExperimentType == "rollout" {
+			return experiment, nil
+		}
+	}
+	return db.WorkflowExperiment{}, nil
+}
+
+func findOrCreateLegacyTrafficScope(ctx context.Context, q workflowExperimentQueries, experimentID int32, inputSchemaID int32) (db.WorkflowExperimentScope, error) {
+	conditions, hash, err := normalizeConditions(json.RawMessage(`{}`))
+	if err != nil {
+		return db.WorkflowExperimentScope{}, err
+	}
+
+	scopes, err := q.ListWorkflowExperimentScopesByExperimentID(ctx, experimentID)
+	if err != nil {
+		return db.WorkflowExperimentScope{}, fmt.Errorf("list legacy traffic rollout scopes: %w", err)
+	}
+	for _, scope := range scopes {
+		if scope.WorkflowInputSchemaID != inputSchemaID {
+			continue
+		}
+		if scope.TrafficPercent == 100 && scope.FallbackPolicy == "error" && string(scope.TrafficConditions) == string(conditions) {
+			return scope, nil
+		}
+		updated, err := q.UpdateWorkflowExperimentScope(ctx, db.UpdateWorkflowExperimentScopeParams{
+			ID:                        scope.ID,
+			WorkflowInputSchemaID:     inputSchemaID,
+			TrafficConditions:         conditions,
+			ConditionsHash:            hash,
+			TrafficPercent:            100,
+			FallbackPolicy:            "error",
+			FallbackWorkflowVersionID: pgtype.Int4{},
+		})
+		if err != nil {
+			return db.WorkflowExperimentScope{}, fmt.Errorf("update legacy traffic rollout scope: %w", err)
+		}
+		return updated, nil
+	}
+
+	scope, err := q.CreateWorkflowExperimentScope(ctx, db.CreateWorkflowExperimentScopeParams{
+		WorkflowExperimentID:      experimentID,
+		WorkflowInputSchemaID:     inputSchemaID,
+		TrafficConditions:         conditions,
+		ConditionsHash:            hash,
+		TrafficPercent:            100,
+		FallbackPolicy:            "error",
+		FallbackWorkflowVersionID: pgtype.Int4{},
+	})
+	if err != nil {
+		return db.WorkflowExperimentScope{}, fmt.Errorf("create legacy traffic rollout scope: %w", err)
+	}
+	return scope, nil
+}
+
+func syncLegacyTrafficVariants(ctx context.Context, q workflowExperimentQueries, scopeID int32, versions []db.WorkflowVersion, traffic map[int32]int32) error {
+	variants, err := q.ListWorkflowExperimentVariantsByScopeID(ctx, scopeID)
+	if err != nil {
+		return fmt.Errorf("list legacy traffic rollout variants: %w", err)
+	}
+
+	variantByVersionID := make(map[int32]db.WorkflowExperimentVariant, len(variants))
+	for _, variant := range variants {
+		if _, exists := variantByVersionID[variant.WorkflowVersionID]; !exists {
+			variantByVersionID[variant.WorkflowVersionID] = variant
+		}
+	}
+
+	versionIDs := make(map[int32]struct{}, len(versions))
+	for _, version := range versions {
+		versionIDs[version.ID] = struct{}{}
+		weight := int32(0)
+		if version.IsActive {
+			weight = traffic[version.ID]
+		}
+		isActive := version.IsActive && weight > 0
+		existing, exists := variantByVersionID[version.ID]
+		if !exists {
+			if !isActive {
+				continue
+			}
+			if _, err := q.CreateWorkflowExperimentVariant(ctx, db.CreateWorkflowExperimentVariantParams{
+				WorkflowExperimentScopeID: scopeID,
+				WorkflowVersionID:         version.ID,
+				TrafficWeight:             weight,
+				IsControlGroup:            version.IsControlGroup,
+				IsActive:                  true,
+			}); err != nil {
+				return fmt.Errorf("create legacy traffic rollout variant for version %d: %w", version.ID, err)
+			}
+			continue
+		}
+		if existing.TrafficWeight == weight && existing.IsActive == isActive && existing.IsControlGroup == version.IsControlGroup {
+			continue
+		}
+		if _, err := q.UpdateWorkflowExperimentVariant(ctx, db.UpdateWorkflowExperimentVariantParams{
+			ID:                existing.ID,
+			WorkflowVersionID: version.ID,
+			TrafficWeight:     weight,
+			IsControlGroup:    version.IsControlGroup,
+			IsActive:          isActive,
+		}); err != nil {
+			return fmt.Errorf("update legacy traffic rollout variant for version %d: %w", version.ID, err)
+		}
+	}
+
+	for _, variant := range variants {
+		if _, exists := versionIDs[variant.WorkflowVersionID]; exists {
+			continue
+		}
+		if !variant.IsActive && variant.TrafficWeight == 0 && !variant.IsControlGroup {
+			continue
+		}
+		if _, err := q.UpdateWorkflowExperimentVariant(ctx, db.UpdateWorkflowExperimentVariantParams{
+			ID:                variant.ID,
+			WorkflowVersionID: variant.WorkflowVersionID,
+			TrafficWeight:     0,
+			IsControlGroup:    false,
+			IsActive:          false,
+		}); err != nil {
+			return fmt.Errorf("deactivate stale legacy traffic rollout variant %d: %w", variant.ID, err)
+		}
+	}
+
+	return nil
+}
+
+func hasPositiveActiveTraffic(versions []db.WorkflowVersion, traffic map[int32]int32) bool {
+	for _, version := range versions {
+		if version.IsActive && traffic[version.ID] > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func activeWorkflowVersions(versions []db.WorkflowVersion) ([]db.WorkflowVersion, map[int32]db.WorkflowVersion) {
@@ -567,6 +784,11 @@ func splitEvenly(total int32, count int) (int32, int32) {
 }
 
 func (s *Service) GetWorkflowInputSchema(ctx context.Context, workflowID int32) (json.RawMessage, error) {
+	if q, err := s.inputSchemaQueries(); err == nil {
+		if schema, err := q.GetDefaultWorkflowInputSchema(ctx, workflowID); err == nil {
+			return json.RawMessage(schema.SchemaJson), nil
+		}
+	}
 	wf, err := s.store.GetWorkflowByID(ctx, workflowID)
 	if err != nil {
 		return nil, fmt.Errorf("get workflow: %w", err)
@@ -582,6 +804,12 @@ func (s *Service) GetWorkflowInputSchema(ctx context.Context, workflowID int32) 
 }
 
 func (s *Service) UpsertWorkflowInputSchemaField(ctx context.Context, workflowID int32, req InputSchemaFieldRequest) (json.RawMessage, error) {
+	if updated, ok, err := s.updateDefaultWorkflowInputSchemaField(ctx, workflowID, func(schema []byte) ([]byte, error) {
+		return upsertWorkflowInputSchemaField(schema, req)
+	}); ok || err != nil {
+		return updated, err
+	}
+
 	wf, err := s.store.GetWorkflowByID(ctx, workflowID)
 	if err != nil {
 		return nil, fmt.Errorf("get workflow: %w", err)
@@ -604,6 +832,12 @@ func (s *Service) UpsertWorkflowInputSchemaField(ctx context.Context, workflowID
 }
 
 func (s *Service) DeleteWorkflowInputSchemaField(ctx context.Context, workflowID int32, fieldName string) (json.RawMessage, error) {
+	if updated, ok, err := s.updateDefaultWorkflowInputSchemaField(ctx, workflowID, func(schema []byte) ([]byte, error) {
+		return deleteWorkflowInputSchemaField(schema, fieldName)
+	}); ok || err != nil {
+		return updated, err
+	}
+
 	wf, err := s.store.GetWorkflowByID(ctx, workflowID)
 	if err != nil {
 		return nil, fmt.Errorf("get workflow: %w", err)
@@ -625,12 +859,59 @@ func (s *Service) DeleteWorkflowInputSchemaField(ctx context.Context, workflowID
 	return json.RawMessage(updated.InputSchema), nil
 }
 
+func (s *Service) updateDefaultWorkflowInputSchemaField(ctx context.Context, workflowID int32, mutate func([]byte) ([]byte, error)) (json.RawMessage, bool, error) {
+	q, err := s.inputSchemaQueries()
+	if err != nil {
+		return nil, false, nil
+	}
+	schema, err := q.GetDefaultWorkflowInputSchema(ctx, workflowID)
+	if err != nil {
+		return nil, false, nil
+	}
+	used, err := q.HasInputSchemaUsage(ctx, pgInt4(schema.ID))
+	if err != nil {
+		return nil, true, err
+	}
+	if used {
+		return nil, true, ErrWorkflowConfigurationInUse
+	}
+	schemaJSON, err := mutate(schema.SchemaJson)
+	if err != nil {
+		return nil, true, err
+	}
+	var updated db.WorkflowInputSchema
+	err = s.store.WithTx(ctx, func(tx *db.Queries) error {
+		var err error
+		updated, err = tx.UpdateWorkflowInputSchemaRecord(ctx, db.UpdateWorkflowInputSchemaRecordParams{
+			ID:              schema.ID,
+			Code:            schema.Code,
+			VersionNumber:   schema.VersionNumber,
+			SchemaJson:      schemaJSON,
+			UpdatedByUserID: pgtype.Int4{},
+		})
+		if err != nil {
+			return fmt.Errorf("update default workflow input schema: %w", err)
+		}
+		if err := tx.InvalidateWorkflowVersionsByWorkflowID(ctx, workflowID); err != nil {
+			return fmt.Errorf("invalidate workflow versions: %w", err)
+		}
+		return auditWorkflowConfigurationWithQueries(ctx, tx, "workflow_input_schema", updated.ID, "field_update", 0, schema, updated)
+	})
+	if err != nil {
+		return nil, true, err
+	}
+	return json.RawMessage(updated.SchemaJson), true, nil
+}
+
 // --- Step CRUD ---
 
 // CreateStep создаёт новый шаг в версии workflow (WF-03).
 // Если step_type=task и work_type_id указан, но worker_settings_revision_id нет —
 // автоматически находит последнюю ревизию для данного work_type.
 func (s *Service) CreateStep(ctx context.Context, versionID int32, req CreateStepRequest) (db.WorkflowStep, error) {
+	if err := s.ensureVersionEditable(ctx, versionID); err != nil {
+		return db.WorkflowStep{}, err
+	}
 	if isStartStepRequest(req.StepType, req.ControlKind) {
 		return db.WorkflowStep{}, ErrStartStepProtected
 	}
@@ -763,6 +1044,9 @@ func (s *Service) UpdateStep(ctx context.Context, stepID int32, req UpdateStepRe
 	if isStartWorkflowStep(current) {
 		return db.WorkflowStep{}, ErrStartStepProtected
 	}
+	if err := s.ensureVersionEditable(ctx, current.WorkflowVersionID); err != nil {
+		return db.WorkflowStep{}, err
+	}
 
 	stepType := current.StepType
 	if req.StepType != nil {
@@ -858,6 +1142,9 @@ func (s *Service) UpdateTaskSettings(ctx context.Context, stepID int32, req Upda
 	if current.StepType != string(dagpkg.StepTypeTask) || !current.WorkerSettingsRevisionID.Valid {
 		return ErrTaskStepRequired
 	}
+	if err := s.ensureVersionEditable(ctx, current.WorkflowVersionID); err != nil {
+		return err
+	}
 
 	settingsSchema, err := s.settingsSchemaForStep(ctx, current)
 	if err != nil {
@@ -924,6 +1211,9 @@ func (s *Service) UpdateTaskInputMapping(ctx context.Context, stepID int32, req 
 	}
 	if current.StepType != string(dagpkg.StepTypeTask) {
 		return ErrTaskStepRequired
+	}
+	if err := s.ensureVersionEditable(ctx, current.WorkflowVersionID); err != nil {
+		return err
 	}
 	if err := validateInputMappingShape(req.InputMapping); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidInputMapping, err)
@@ -1051,6 +1341,9 @@ func (s *Service) DeleteStep(ctx context.Context, stepID int32) error {
 	if isStartWorkflowStep(current) {
 		return ErrStartStepProtected
 	}
+	if err := s.ensureVersionEditable(ctx, current.WorkflowVersionID); err != nil {
+		return err
+	}
 
 	if err := s.removeInboundInputMappings(ctx, current.WorkflowVersionID, stepID); err != nil {
 		return fmt.Errorf("delete step input mappings: %w", err)
@@ -1157,6 +1450,20 @@ func (s *Service) ListDependencies(ctx context.Context, versionID int32) ([]db.W
 
 // CreateDependency создаёт зависимость между шагами (WF-04).
 func (s *Service) CreateDependency(ctx context.Context, stepID int32, req CreateDependencyRequest) error {
+	current, err := s.store.GetWorkflowStepByID(ctx, stepID)
+	if err != nil {
+		return fmt.Errorf("get step: %w", err)
+	}
+	dependency, err := s.store.GetWorkflowStepByID(ctx, req.DependsOnStepID)
+	if err != nil {
+		return fmt.Errorf("get dependency step: %w", err)
+	}
+	if dependency.WorkflowVersionID != current.WorkflowVersionID {
+		return fmt.Errorf("dependency step belongs to another workflow version")
+	}
+	if err := s.ensureVersionEditable(ctx, current.WorkflowVersionID); err != nil {
+		return err
+	}
 	if err := s.store.CreateWorkflowStepDependency(ctx, db.CreateWorkflowStepDependencyParams{
 		StepID:          stepID,
 		DependsOnStepID: req.DependsOnStepID,
@@ -1654,6 +1961,13 @@ func delayDurationMultiplier(unit string) (time.Duration, bool) {
 
 // DeleteDependency удаляет зависимость между шагами.
 func (s *Service) DeleteDependency(ctx context.Context, stepID, dependsOnStepID int32) error {
+	current, err := s.store.GetWorkflowStepByID(ctx, stepID)
+	if err != nil {
+		return fmt.Errorf("get step: %w", err)
+	}
+	if err := s.ensureVersionEditable(ctx, current.WorkflowVersionID); err != nil {
+		return err
+	}
 	if err := s.store.DeleteWorkflowStepDependency(ctx, db.DeleteWorkflowStepDependencyParams{
 		StepID:          stepID,
 		DependsOnStepID: dependsOnStepID,
@@ -1670,13 +1984,12 @@ func (s *Service) DeleteDependency(ctx context.Context, stepID, dependsOnStepID 
 // обновляет is_valid у версии.
 // Возвращает результат валидации со всеми ошибками сразу (D-12).
 func (s *Service) ValidateVersion(ctx context.Context, versionID int32) (ValidateVersionResponse, error) {
-	version, err := s.store.GetWorkflowVersionByID(ctx, versionID)
-	if err != nil {
+	if _, err := s.store.GetWorkflowVersionByID(ctx, versionID); err != nil {
 		return ValidateVersionResponse{}, fmt.Errorf("get workflow version: %w", err)
 	}
-	workflow, err := s.store.GetWorkflowByID(ctx, version.WorkflowID)
+	inputSchemas, compatibilityErrors, err := s.versionValidationInputSchemas(ctx, versionID)
 	if err != nil {
-		return ValidateVersionResponse{}, fmt.Errorf("get workflow: %w", err)
+		return ValidateVersionResponse{}, err
 	}
 	dbSteps, err := s.store.ListWorkflowStepsByVersionID(ctx, versionID)
 	if err != nil {
@@ -1693,7 +2006,11 @@ func (s *Service) ValidateVersion(ctx context.Context, versionID int32) (Validat
 		return ValidateVersionResponse{}, fmt.Errorf("list dependencies: %w", err)
 	}
 
-	inputNames := workflowInputNamesFromSchema(workflow.InputSchema)
+	primarySchema := json.RawMessage(`{"type":"object","properties":{}}`)
+	if len(inputSchemas) > 0 {
+		primarySchema = inputSchemas[0]
+	}
+	inputNames := workflowInputNamesFromSchema(primarySchema)
 
 	// Конвертируем в типы dag пакета
 	dagSteps := make([]dagpkg.Step, 0, len(dbSteps))
@@ -1735,9 +2052,12 @@ func (s *Service) ValidateVersion(ctx context.Context, versionID int32) (Validat
 	}
 
 	// Валидируем DAG
-	validationErrors := dagpkg.ValidateDAG(dagSteps, dagDeps)
+	validationErrors := compatibilityErrors
+	validationErrors = append(validationErrors, dagpkg.ValidateDAG(dagSteps, dagDeps)...)
 	validationErrors = append(validationErrors, validateVersionControlSteps(dbSteps)...)
-	validationErrors = append(validationErrors, validateStepInputsFilled(enrichedSteps, dbDeps, workflow.InputSchema)...)
+	for _, inputSchema := range inputSchemas {
+		validationErrors = append(validationErrors, validateStepInputsFilled(enrichedSteps, dbDeps, inputSchema)...)
+	}
 	validationErrors = append(validationErrors, validateStepSettings(enrichedSteps)...)
 	isValid := len(validationErrors) == 0
 
@@ -1753,6 +2073,88 @@ func (s *Service) ValidateVersion(ctx context.Context, versionID int32) (Validat
 		IsValid: isValid,
 		Errors:  validationErrors,
 	}, nil
+}
+
+func (s *Service) versionValidationInputSchemas(ctx context.Context, versionID int32) ([]json.RawMessage, []dagpkg.ValidationError, error) {
+	compatQueries, err := s.compatibilityQueries()
+	if err != nil {
+		return nil, nil, err
+	}
+	inputSchemaQueries, err := s.inputSchemaQueries()
+	if err != nil {
+		return nil, nil, err
+	}
+	compatibilities, err := compatQueries.ListCompatibilitiesByVersionID(ctx, versionID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("list version compatibilities: %w", err)
+	}
+
+	var validationErrors []dagpkg.ValidationError
+	inputSchemas := make([]json.RawMessage, 0, len(compatibilities))
+	for _, compatibility := range compatibilities {
+		if !compatibility.IsActive {
+			continue
+		}
+		validationErrors = append(validationErrors, validateVersionCompatibilityConfig(compatibility)...)
+
+		schema, err := inputSchemaQueries.GetWorkflowInputSchemaByID(ctx, compatibility.WorkflowInputSchemaID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("get compatibility input schema %d: %w", compatibility.WorkflowInputSchemaID, err)
+		}
+		if schema.Status != "active" {
+			validationErrors = append(validationErrors, dagpkg.ValidationError{
+				Type:    "inactive_input_schema",
+				Message: fmt.Sprintf("input schema %s v%d is not active", schema.Code, schema.VersionNumber),
+			})
+		}
+		inputSchemas = append(inputSchemas, json.RawMessage(schema.SchemaJson))
+	}
+	if len(inputSchemas) == 0 {
+		validationErrors = append(validationErrors, dagpkg.ValidationError{
+			Type:    "missing_compatibility",
+			Message: "workflow version must have at least one active input schema compatibility",
+		})
+	}
+	return inputSchemas, validationErrors, nil
+}
+
+func validateVersionCompatibilityConfig(compatibility db.WorkflowVersionInputSchemaCompatibility) []dagpkg.ValidationError {
+	hasMapper := compatibility.WorkflowInputMapperID.Valid
+	hasDefaults := hasCompatibilityDefaultValues(compatibility.DefaultValues)
+	switch compatibility.CompatibilityType {
+	case "native":
+		if hasMapper || hasDefaults {
+			return []dagpkg.ValidationError{{
+				Type:    "invalid_compatibility",
+				Message: fmt.Sprintf("native compatibility %d must not define mapper or default values", compatibility.ID),
+			}}
+		}
+	case "adapter", "partial":
+		if !hasMapper && !hasDefaults {
+			return []dagpkg.ValidationError{{
+				Type:    "invalid_compatibility",
+				Message: fmt.Sprintf("%s compatibility %d requires mapper or default values", compatibility.CompatibilityType, compatibility.ID),
+			}}
+		}
+	default:
+		return []dagpkg.ValidationError{{
+			Type:    "invalid_compatibility",
+			Message: fmt.Sprintf("compatibility %d has unsupported type %q", compatibility.ID, compatibility.CompatibilityType),
+		}}
+	}
+	return nil
+}
+
+func hasCompatibilityDefaultValues(raw []byte) bool {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return false
+	}
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		return true
+	}
+	return len(obj) > 0
 }
 
 func validateStepSettings(steps []db.ListEnrichedStepsByVersionIDRow) []dagpkg.ValidationError {
@@ -1801,6 +2203,14 @@ func (s *Service) ActivateVersion(ctx context.Context, versionID int32) error {
 	}
 
 	// Гард: нельзя активировать невалидную версию
+	_, compatibilityErrors, err := s.versionValidationInputSchemas(ctx, versionID)
+	if err != nil {
+		return err
+	}
+	if len(compatibilityErrors) > 0 {
+		return fmt.Errorf("%w: active input schema compatibility is required and must be valid", ErrWorkflowConfigurationInvalid)
+	}
+
 	if !version.IsValid {
 		return ErrValidationRequired
 	}
@@ -1833,8 +2243,8 @@ func (s *Service) DeactivateVersion(ctx context.Context, versionID int32) error 
 
 // DeleteVersion soft-deletes a workflow version and its steps.
 func (s *Service) DeleteVersion(ctx context.Context, versionID int32) error {
-	if _, err := s.store.GetWorkflowVersionByID(ctx, versionID); err != nil {
-		return fmt.Errorf("get version: %w", err)
+	if err := s.ensureVersionDeletable(ctx, versionID); err != nil {
+		return err
 	}
 
 	if err := s.store.WithTx(ctx, func(q *db.Queries) error {
@@ -1849,5 +2259,38 @@ func (s *Service) DeleteVersion(ctx context.Context, versionID int32) error {
 		return err
 	}
 
+	return nil
+}
+
+func (s *Service) ensureVersionEditable(ctx context.Context, versionID int32) error {
+	version, err := s.store.GetWorkflowVersionByID(ctx, versionID)
+	if err != nil {
+		return fmt.Errorf("get version: %w", err)
+	}
+	if version.IsActive || version.LockedAt.Valid || version.PublishedAt.Valid {
+		return ErrWorkflowVersionLocked
+	}
+	return nil
+}
+
+func (s *Service) ensureVersionDeletable(ctx context.Context, versionID int32) error {
+	version, err := s.store.GetWorkflowVersionByID(ctx, versionID)
+	if err != nil {
+		return fmt.Errorf("get version: %w", err)
+	}
+	if version.IsActive || version.LockedAt.Valid || version.PublishedAt.Valid {
+		return ErrWorkflowVersionLocked
+	}
+	q, ok := s.store.(workflowVersionReferenceQueries)
+	if !ok {
+		return nil
+	}
+	referenced, err := q.IsWorkflowVersionReferenced(ctx, versionID)
+	if err != nil {
+		return fmt.Errorf("check version references: %w", err)
+	}
+	if referenced {
+		return ErrWorkflowVersionInUse
+	}
 	return nil
 }

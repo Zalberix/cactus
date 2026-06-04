@@ -279,6 +279,48 @@ func (s *sendMessageStore) CountMessagesByOrganizationID(context.Context, pgtype
 	return 0, nil
 }
 
+func (s *sendMessageStore) ListActiveExperimentScopesForRouting(context.Context, db.ListActiveExperimentScopesForRoutingParams) ([]db.ListActiveExperimentScopesForRoutingRow, error) {
+	return nil, nil
+}
+
+func (s *sendMessageStore) ListActiveWorkflowExperimentVariantsByScopeID(context.Context, int32) ([]db.WorkflowExperimentVariant, error) {
+	return nil, nil
+}
+
+func (s *sendMessageStore) ListActiveRoutingCompatibilitiesByInputSchemaID(context.Context, int32) ([]db.ListActiveRoutingCompatibilitiesByInputSchemaIDRow, error) {
+	return []db.ListActiveRoutingCompatibilitiesByInputSchemaIDRow{{
+		ID:                1,
+		WorkflowVersionID: 20,
+		CompatibilityType: "native",
+		IsActive:          true,
+		IsDefaultRoute:    true,
+	}}, nil
+}
+
+func (s *sendMessageStore) GetDefaultRouteForInputSchema(context.Context, int32) (db.WorkflowVersionInputSchemaCompatibility, error) {
+	return db.WorkflowVersionInputSchemaCompatibility{
+		ID:                1,
+		WorkflowVersionID: 20,
+		CompatibilityType: "native",
+		IsActive:          true,
+		IsDefaultRoute:    true,
+	}, nil
+}
+
+func (s *sendMessageStore) GetActiveWorkflowVersionInputSchemaCompatibilityByPair(_ context.Context, arg db.GetActiveWorkflowVersionInputSchemaCompatibilityByPairParams) (db.WorkflowVersionInputSchemaCompatibility, error) {
+	return db.WorkflowVersionInputSchemaCompatibility{
+		ID:                    1,
+		WorkflowVersionID:     arg.WorkflowVersionID,
+		WorkflowInputSchemaID: arg.WorkflowInputSchemaID,
+		CompatibilityType:     "native",
+		IsActive:              true,
+	}, nil
+}
+
+func (s *sendMessageStore) GetWorkflowInputMapperByID(context.Context, int32) (db.WorkflowInputMapper, error) {
+	return db.WorkflowInputMapper{}, nil
+}
+
 type executeWorkflowClient struct {
 	client.Client
 }
@@ -297,7 +339,7 @@ func TestSelectWorkflowVersionByTrafficDeficitChoosesUnderAllocatedVersion(t *te
 	require.Equal(t, int32(20), version.ID)
 }
 
-func TestSendMessageUsesTrafficDeficitToSelectVersion(t *testing.T) {
+func TestSendMessageUsesDefaultRuntimeRouteToSelectVersion(t *testing.T) {
 	store := &sendMessageStore{}
 	svc := NewService(store, executeWorkflowClient{})
 

@@ -151,6 +151,7 @@ const crumbs = computed<BreadcrumbEntry[]>(() => {
 
   for (let i = 0; i < rest.length; i++) {
     const seg = rest[i]
+    if (!seg) continue
     const i18nKey = sectionLabels[seg]
     const previous = rest[i - 1]
     const next = rest[i + 1]
@@ -164,8 +165,9 @@ const crumbs = computed<BreadcrumbEntry[]>(() => {
 
     if (i < rest.length - 1) {
       const rawTo = `/org/${orgId}/${rest.slice(0, i + 1).join('/')}`
-      const to = isVersionId && next === 'edit'
-        ? workflowVersionEditorPath(Number(orgId), Number(rest[i - 2]), Number(seg))
+      const workflowSegment = rest[i - 2]
+      const to = isVersionId && next === 'edit' && workflowSegment
+        ? workflowVersionEditorPath(Number(orgId), Number(workflowSegment), Number(seg))
         : rawTo
       entries.push({ label, to: isBreadcrumbRouteLinkable(to) ? to : undefined })
     } else {

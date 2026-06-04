@@ -24,15 +24,19 @@ type File struct {
 }
 
 type Message struct {
-	ID                 int32            `json:"id"`
-	WorkflowID         int32            `json:"workflow_id"`
-	ExternalMessageID  pgtype.Text      `json:"external_message_id"`
-	OverriddenPriority pgtype.Int4      `json:"overridden_priority"`
-	Value              []byte           `json:"value"`
-	Status             string           `json:"status"`
-	CreatedAt          pgtype.Timestamp `json:"created_at"`
-	UpdatedAt          pgtype.Timestamp `json:"updated_at"`
-	DeletedAt          pgtype.Timestamp `json:"deleted_at"`
+	ID                    int32            `json:"id"`
+	WorkflowID            int32            `json:"workflow_id"`
+	ExternalMessageID     pgtype.Text      `json:"external_message_id"`
+	OverriddenPriority    pgtype.Int4      `json:"overridden_priority"`
+	Value                 []byte           `json:"value"`
+	Status                string           `json:"status"`
+	CreatedAt             pgtype.Timestamp `json:"created_at"`
+	UpdatedAt             pgtype.Timestamp `json:"updated_at"`
+	DeletedAt             pgtype.Timestamp `json:"deleted_at"`
+	WorkflowInputSchemaID pgtype.Int4      `json:"workflow_input_schema_id"`
+	IdempotencyKey        pgtype.Text      `json:"idempotency_key"`
+	Metadata              []byte           `json:"metadata"`
+	ErrorMessage          pgtype.Text      `json:"error_message"`
 }
 
 type Organization struct {
@@ -209,15 +213,104 @@ type Workflow struct {
 	DeletedAt   pgtype.Timestamp `json:"deleted_at"`
 }
 
+type WorkflowConfigurationAuditLog struct {
+	ID          int32            `json:"id"`
+	EntityType  string           `json:"entity_type"`
+	EntityID    int32            `json:"entity_id"`
+	Action      string           `json:"action"`
+	ActorUserID pgtype.Int4      `json:"actor_user_id"`
+	BeforeValue []byte           `json:"before_value"`
+	AfterValue  []byte           `json:"after_value"`
+	CreatedAt   pgtype.Timestamp `json:"created_at"`
+}
+
+type WorkflowExperiment struct {
+	ID              int32            `json:"id"`
+	WorkflowID      int32            `json:"workflow_id"`
+	Name            string           `json:"name"`
+	Description     pgtype.Text      `json:"description"`
+	ExperimentType  string           `json:"experiment_type"`
+	Status          string           `json:"status"`
+	StartedAt       pgtype.Timestamp `json:"started_at"`
+	EndedAt         pgtype.Timestamp `json:"ended_at"`
+	CreatedByUserID pgtype.Int4      `json:"created_by_user_id"`
+	UpdatedByUserID pgtype.Int4      `json:"updated_by_user_id"`
+	CreatedAt       pgtype.Timestamp `json:"created_at"`
+	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
+	DeletedAt       pgtype.Timestamp `json:"deleted_at"`
+}
+
+type WorkflowExperimentScope struct {
+	ID                        int32            `json:"id"`
+	WorkflowExperimentID      int32            `json:"workflow_experiment_id"`
+	WorkflowInputSchemaID     int32            `json:"workflow_input_schema_id"`
+	TrafficConditions         []byte           `json:"traffic_conditions"`
+	ConditionsHash            string           `json:"conditions_hash"`
+	TrafficPercent            int32            `json:"traffic_percent"`
+	FallbackPolicy            string           `json:"fallback_policy"`
+	FallbackWorkflowVersionID pgtype.Int4      `json:"fallback_workflow_version_id"`
+	CreatedAt                 pgtype.Timestamp `json:"created_at"`
+	UpdatedAt                 pgtype.Timestamp `json:"updated_at"`
+	DeletedAt                 pgtype.Timestamp `json:"deleted_at"`
+}
+
+type WorkflowExperimentVariant struct {
+	ID                        int32            `json:"id"`
+	WorkflowExperimentScopeID int32            `json:"workflow_experiment_scope_id"`
+	WorkflowVersionID         int32            `json:"workflow_version_id"`
+	TrafficWeight             int32            `json:"traffic_weight"`
+	IsControlGroup            bool             `json:"is_control_group"`
+	IsActive                  bool             `json:"is_active"`
+	CreatedAt                 pgtype.Timestamp `json:"created_at"`
+	UpdatedAt                 pgtype.Timestamp `json:"updated_at"`
+	DeletedAt                 pgtype.Timestamp `json:"deleted_at"`
+}
+
+type WorkflowInputMapper struct {
+	ID              int32            `json:"id"`
+	WorkflowID      int32            `json:"workflow_id"`
+	Name            string           `json:"name"`
+	MapperType      string           `json:"mapper_type"`
+	Rules           []byte           `json:"rules"`
+	IsActive        bool             `json:"is_active"`
+	CreatedByUserID pgtype.Int4      `json:"created_by_user_id"`
+	UpdatedByUserID pgtype.Int4      `json:"updated_by_user_id"`
+	CreatedAt       pgtype.Timestamp `json:"created_at"`
+	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
+	DeletedAt       pgtype.Timestamp `json:"deleted_at"`
+}
+
+type WorkflowInputSchema struct {
+	ID              int32            `json:"id"`
+	WorkflowID      int32            `json:"workflow_id"`
+	Code            string           `json:"code"`
+	VersionNumber   int32            `json:"version_number"`
+	SchemaJson      []byte           `json:"schema_json"`
+	Status          string           `json:"status"`
+	IsDefault       bool             `json:"is_default"`
+	CreatedByUserID pgtype.Int4      `json:"created_by_user_id"`
+	UpdatedByUserID pgtype.Int4      `json:"updated_by_user_id"`
+	CreatedAt       pgtype.Timestamp `json:"created_at"`
+	UpdatedAt       pgtype.Timestamp `json:"updated_at"`
+	DeletedAt       pgtype.Timestamp `json:"deleted_at"`
+}
+
 type WorkflowRun struct {
-	ID                 int32            `json:"id"`
-	WorkflowVersionID  int32            `json:"workflow_version_id"`
-	MessageID          int32            `json:"message_id"`
-	TemporalWorkflowID pgtype.Text      `json:"temporal_workflow_id"`
-	Status             string           `json:"status"`
-	StartedAt          pgtype.Timestamp `json:"started_at"`
-	CompletedAt        pgtype.Timestamp `json:"completed_at"`
-	ErrorMessage       pgtype.Text      `json:"error_message"`
+	ID                          int32            `json:"id"`
+	WorkflowVersionID           int32            `json:"workflow_version_id"`
+	MessageID                   int32            `json:"message_id"`
+	TemporalWorkflowID          pgtype.Text      `json:"temporal_workflow_id"`
+	Status                      string           `json:"status"`
+	StartedAt                   pgtype.Timestamp `json:"started_at"`
+	CompletedAt                 pgtype.Timestamp `json:"completed_at"`
+	ErrorMessage                pgtype.Text      `json:"error_message"`
+	WorkflowExperimentID        pgtype.Int4      `json:"workflow_experiment_id"`
+	WorkflowExperimentScopeID   pgtype.Int4      `json:"workflow_experiment_scope_id"`
+	WorkflowExperimentVariantID pgtype.Int4      `json:"workflow_experiment_variant_id"`
+	InputSchemaCompatibilityID  pgtype.Int4      `json:"input_schema_compatibility_id"`
+	SelectionReason             string           `json:"selection_reason"`
+	VersionInputData            []byte           `json:"version_input_data"`
+	RoutingDecision             []byte           `json:"routing_decision"`
 }
 
 type WorkflowRunStep struct {
@@ -291,4 +384,24 @@ type WorkflowVersion struct {
 	CreatedAt        pgtype.Timestamp `json:"created_at"`
 	UpdatedAt        pgtype.Timestamp `json:"updated_at"`
 	DeletedAt        pgtype.Timestamp `json:"deleted_at"`
+	LockedAt         pgtype.Timestamp `json:"locked_at"`
+	PublishedAt      pgtype.Timestamp `json:"published_at"`
+	ArchivedAt       pgtype.Timestamp `json:"archived_at"`
+	UpdatedByUserID  pgtype.Int4      `json:"updated_by_user_id"`
+}
+
+type WorkflowVersionInputSchemaCompatibility struct {
+	ID                    int32            `json:"id"`
+	WorkflowVersionID     int32            `json:"workflow_version_id"`
+	WorkflowInputSchemaID int32            `json:"workflow_input_schema_id"`
+	CompatibilityType     string           `json:"compatibility_type"`
+	WorkflowInputMapperID pgtype.Int4      `json:"workflow_input_mapper_id"`
+	DefaultValues         []byte           `json:"default_values"`
+	IsActive              bool             `json:"is_active"`
+	IsDefaultRoute        bool             `json:"is_default_route"`
+	CreatedByUserID       pgtype.Int4      `json:"created_by_user_id"`
+	UpdatedByUserID       pgtype.Int4      `json:"updated_by_user_id"`
+	CreatedAt             pgtype.Timestamp `json:"created_at"`
+	UpdatedAt             pgtype.Timestamp `json:"updated_at"`
+	DeletedAt             pgtype.Timestamp `json:"deleted_at"`
 }

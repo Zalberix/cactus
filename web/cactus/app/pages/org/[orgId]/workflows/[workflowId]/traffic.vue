@@ -77,8 +77,25 @@ onMounted(loadData)
       {{ t('common.loading') }}
     </div>
 
-    <WorkflowTrafficSettings
+    <div
       v-else
+      class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100"
+    >
+      <h2 class="font-semibold">{{ t('workflowTraffic.legacyTitle') }}</h2>
+      <p class="mt-1 text-amber-900 dark:text-amber-200">
+        {{ t('workflowTraffic.legacyDescription') }}
+      </p>
+      <Button
+        variant="outline"
+        class="mt-3 bg-background"
+        @click="router.push(`/org/${orgId}/workflows/${workflowId}/routing`)"
+      >
+        {{ t('workflowTraffic.openRouting') }}
+      </Button>
+    </div>
+
+    <WorkflowTrafficSettings
+      v-if="!loading"
       :versions="activeVersions"
       :saving="saving"
       @save="onSave"

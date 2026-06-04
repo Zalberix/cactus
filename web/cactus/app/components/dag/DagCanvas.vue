@@ -51,7 +51,10 @@ function snapToGrid(val: number): number {
 
 function onConnect(params: Connection) {
   if (!isEdit.value) return
-  if (!canConnectSteps({ ...params, nodes: props.nodes })) return
+  if (!canConnectSteps({
+    ...params,
+    nodes: props.nodes as Array<{ id: string; data: any }>,
+  })) return
   emit('connect', params)
 }
 

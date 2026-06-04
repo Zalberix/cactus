@@ -9,8 +9,11 @@ onMounted(async () => {
       await navigateTo(`/org/${orgStore.currentOrgId}/workflows`, { replace: true })
     }
     else if (orgStore.organizations.length > 0) {
-      orgStore.switchOrg(orgStore.organizations[0].id)
-      await navigateTo(`/org/${orgStore.organizations[0].id}/workflows`, { replace: true })
+      const firstOrg = orgStore.organizations[0]
+      if (firstOrg) {
+        orgStore.switchOrg(firstOrg.id)
+        await navigateTo(`/org/${firstOrg.id}/workflows`, { replace: true })
+      }
     }
   }
   catch {

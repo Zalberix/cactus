@@ -108,10 +108,8 @@ const filteredItems = computed(() =>
 const groupedItems = computed(() => {
   const groups: Record<string, ToolbarItem[]> = {}
   for (const item of filteredItems.value) {
-    if (!groups[item.category]) {
-      groups[item.category] = []
-    }
-    groups[item.category].push(item)
+    const group = groups[item.category] ?? (groups[item.category] = [])
+    group.push(item)
   }
   return groups
 })

@@ -140,12 +140,12 @@ async function loadAll() {
     versions.value = vers
 
     // Auto-select: query version, else active version, else latest
-    if (vers.length > 0) {
-      const routeVersion = vers.find(v => v.id === routeVersionId.value)
-      const active = vers.find(v => v.is_active)
-      const latest = vers[vers.length - 1]
-      selectedVersionId.value = (routeVersion ?? active ?? latest).id
-    }
+      if (vers.length > 0) {
+        const routeVersion = vers.find(v => v.id === routeVersionId.value)
+        const active = vers.find(v => v.is_active)
+        const latest = vers.at(-1)
+        selectedVersionId.value = (routeVersion ?? active ?? latest)?.id ?? null
+      }
   }
   catch (err) {
     toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })

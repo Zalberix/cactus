@@ -59,48 +59,80 @@ func (s *Service) SendMessage(ctx context.Context, req SendMessageRequest, publi
 		}
 	}
 
-	// 3. Найти активную версию
-	versionSummaries, err := s.store.ListWorkflowTrafficCandidatesByWorkflowID(ctx, req.WorkflowID)
+	resolvedSchema, err := s.resolveInputSchema(ctx, req, wf)
 	if err != nil {
-		return nil, nil, fmt.Errorf("list workflow traffic candidates: %w", err)
-	}
-	activeVersion, err := selectWorkflowVersionByTrafficDeficit(versionSummaries)
-	if err != nil {
-		return nil, nil, fmt.Errorf("select active workflow version: %w", err)
+		return nil, nil, err
 	}
 
-	// 4. Валидировать payload по JSON Schema
-	if validationErrors := ValidatePayload(wf.InputSchema, req.Value); len(validationErrors) > 0 {
-		return nil, validationErrors, nil
-	}
-
-	// 5. Создать message
 	valueJSON, err := json.Marshal(req.Value)
 	if err != nil {
 		return nil, nil, fmt.Errorf("marshal value: %w", err)
 	}
+	if existing, found, err := s.findExistingIdempotentMessage(ctx, req, valueJSON); err != nil {
+		return nil, nil, err
+	} else if found {
+		existing.WorkflowInputSchemaCode = resolvedSchema.Code
+		existing.WorkflowInputSchemaVersionNumber = pgInt4Ptr(resolvedSchema.VersionNumber)
+		return existing, nil, nil
+	}
+
+	// 3. Найти маршрут выполнения по input schema, compatibility и active experiments.
+	route, err := s.selectRuntimeRoute(ctx, req.WorkflowID, resolvedSchema.ID.Int32, valueJSON, req.IdempotencyKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("select workflow route: %w", err)
+	}
+
+	// 4. Валидировать payload по JSON Schema
+	if validationErrors := ValidatePayload(resolvedSchema.SchemaJSON, req.Value); len(validationErrors) > 0 {
+		return nil, validationErrors, nil
+	}
+
+	metadataJSON := []byte(`{}`)
+	if req.Metadata != nil {
+		metadataJSON, err = json.Marshal(req.Metadata)
+		if err != nil {
+			return nil, nil, fmt.Errorf("marshal metadata: %w", err)
+		}
+	}
+	var overriddenPriority pgtype.Int4
+	if req.OverriddenPriority != nil {
+		overriddenPriority = pgtype.Int4{Int32: *req.OverriddenPriority, Valid: true}
+	}
+	idempotencyKey := pgtype.Text{String: req.IdempotencyKey, Valid: req.IdempotencyKey != ""}
 	msg, err := s.store.CreateNewMessage(ctx, db.CreateNewMessageParams{
-		WorkflowID:        req.WorkflowID,
-		ExternalMessageID: pgtype.Text{String: req.ExternalID, Valid: req.ExternalID != ""},
-		Value:             valueJSON,
-		Status:            "created",
+		WorkflowID:            req.WorkflowID,
+		WorkflowInputSchemaID: resolvedSchema.ID,
+		ExternalMessageID:     pgtype.Text{String: req.ExternalID, Valid: req.ExternalID != ""},
+		IdempotencyKey:        idempotencyKey,
+		OverriddenPriority:    overriddenPriority,
+		Value:                 valueJSON,
+		Column7:               metadataJSON,
+		Status:                "created",
+		ErrorMessage:          pgtype.Text{},
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("create message: %w", err)
 	}
 
 	// 6. Сформировать DAGInput
-	dagInput, err := s.buildDAGInput(ctx, activeVersion.ID, msg.ID, valueJSON)
+	dagInput, err := s.buildDAGInput(ctx, route.WorkflowVersionID, msg.ID, route.VersionInputData)
 	if err != nil {
 		return nil, nil, fmt.Errorf("build DAG input: %w", err)
 	}
 
 	// 7. Создать workflow_run (ID будет использован как WorkflowRunID в DAGInput)
 	run, err := s.store.CreateWorkflowRun(ctx, db.CreateWorkflowRunParams{
-		WorkflowVersionID:  activeVersion.ID,
-		MessageID:          msg.ID,
-		TemporalWorkflowID: pgtype.Text{Valid: false},
-		Status:             temporaltypes.RunStatusRunning,
+		WorkflowVersionID:           route.WorkflowVersionID,
+		MessageID:                   msg.ID,
+		TemporalWorkflowID:          pgtype.Text{Valid: false},
+		Status:                      temporaltypes.RunStatusRunning,
+		WorkflowExperimentID:        route.WorkflowExperimentID,
+		WorkflowExperimentScopeID:   route.WorkflowExperimentScopeID,
+		WorkflowExperimentVariantID: route.WorkflowExperimentVariantID,
+		InputSchemaCompatibilityID:  route.InputSchemaCompatibilityID,
+		Column9:                     route.SelectionReason,
+		Column10:                    route.VersionInputData,
+		RoutingDecision:             route.RoutingDecision,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("create workflow_run: %w", err)
@@ -126,9 +158,18 @@ func (s *Service) SendMessage(ctx context.Context, req SendMessageRequest, publi
 
 	// 10. Ответ (per D-14)
 	return &SendMessageResponse{
-		MessageID:     msg.ID,
-		WorkflowRunID: run.ID,
-		Status:        "running",
+		MessageID:                        msg.ID,
+		WorkflowRunID:                    run.ID,
+		WorkflowInputSchemaID:            pgInt4Ptr(resolvedSchema.ID),
+		WorkflowInputSchemaCode:          resolvedSchema.Code,
+		WorkflowInputSchemaVersionNumber: pgInt4Ptr(resolvedSchema.VersionNumber),
+		WorkflowVersionID:                int32Ptr(route.WorkflowVersionID),
+		InputSchemaCompatibilityID:       pgInt4Ptr(route.InputSchemaCompatibilityID),
+		WorkflowExperimentID:             pgInt4Ptr(route.WorkflowExperimentID),
+		WorkflowExperimentScopeID:        pgInt4Ptr(route.WorkflowExperimentScopeID),
+		WorkflowExperimentVariantID:      pgInt4Ptr(route.WorkflowExperimentVariantID),
+		SelectionReason:                  route.SelectionReason,
+		Status:                           "running",
 	}, nil, nil
 }
 
@@ -318,15 +359,18 @@ func (s *Service) ListMessages(ctx context.Context, orgID int32, page, perPage i
 	items := make([]ListItem, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, ListItem{
-			ID:                    r.ID,
-			WorkflowID:            r.WorkflowID,
-			WorkflowName:          r.WorkflowName,
-			WorkflowVersionID:     pgInt4Ptr(r.WorkflowVersionID),
-			WorkflowVersionNumber: pgInt4Ptr(r.WorkflowVersionNumber),
-			WorkflowVersionName:   pgTextPtr(r.WorkflowVersionName),
-			Status:                r.Status,
-			CreatedAt:             r.CreatedAt.Time.Format(time.RFC3339),
-			UpdatedAt:             r.UpdatedAt.Time.Format(time.RFC3339),
+			ID:                               r.ID,
+			WorkflowID:                       r.WorkflowID,
+			WorkflowName:                     r.WorkflowName,
+			WorkflowInputSchemaID:            pgInt4Ptr(r.WorkflowInputSchemaID),
+			WorkflowInputSchemaCode:          pgTextPtr(r.WorkflowInputSchemaCode),
+			WorkflowInputSchemaVersionNumber: pgInt4Ptr(r.WorkflowInputSchemaVersionNumber),
+			WorkflowVersionID:                pgInt4Ptr(r.WorkflowVersionID),
+			WorkflowVersionNumber:            pgInt4Ptr(r.WorkflowVersionNumber),
+			WorkflowVersionName:              pgTextPtr(r.WorkflowVersionName),
+			Status:                           r.Status,
+			CreatedAt:                        r.CreatedAt.Time.Format(time.RFC3339),
+			UpdatedAt:                        r.UpdatedAt.Time.Format(time.RFC3339),
 		})
 	}
 

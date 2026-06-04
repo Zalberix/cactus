@@ -91,6 +91,35 @@ function renderWorkflowName(message: MessageListItem) {
   ])
 }
 
+function renderSchemaLabel(message: MessageListItem) {
+  const code = message.workflow_input_schema_code?.trim()
+  const version = typeof message.workflow_input_schema_version === 'number'
+    ? `v${message.workflow_input_schema_version}`
+    : ''
+
+  if (code && version) return `${code} ${version}`
+  if (code) return code
+  if (version) return version
+  return message.workflow_input_schema_id ? `#${message.workflow_input_schema_id}` : '-'
+}
+
+function renderRoutingLabel(message: MessageListItem) {
+  const reason = message.selection_reason?.trim()
+  const ids = [
+    message.experiment_id ? `exp #${message.experiment_id}` : '',
+    message.experiment_variant_id ? `variant #${message.experiment_variant_id}` : '',
+  ].filter(Boolean)
+
+  if (!reason && ids.length === 0) return '-'
+
+  return h('div', { class: 'space-y-0.5 text-sm' }, [
+    h('div', { class: 'font-medium' }, reason || t('messages.routingDefault')),
+    ids.length
+      ? h('div', { class: 'text-xs text-muted-foreground' }, ids.join(' · '))
+      : null,
+  ])
+}
+
 const columns: ColumnDef<MessageListItem>[] = [
   {
     accessorKey: 'id',
@@ -114,6 +143,16 @@ const columns: ColumnDef<MessageListItem>[] = [
       const mapped = status === 'completed' ? 'done' : status === 'failed' ? 'error' : status
       return h(StatusBadge, { status: mapped as any })
     },
+  },
+  {
+    accessorKey: 'workflow_input_schema_code',
+    header: ({ column }) => h(DataTableColumnHeader, { column: column as any, title: t('messages.schema') }),
+    cell: ({ row }) => h('span', { class: 'font-mono text-xs' }, renderSchemaLabel(row.original)),
+  },
+  {
+    accessorKey: 'selection_reason',
+    header: ({ column }) => h(DataTableColumnHeader, { column: column as any, title: t('messages.routing') }),
+    cell: ({ row }) => renderRoutingLabel(row.original),
   },
   {
     accessorKey: 'created_at',

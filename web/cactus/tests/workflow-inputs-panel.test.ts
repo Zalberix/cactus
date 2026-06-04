@@ -1,6 +1,11 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { workflowInputFieldsFromSchema, workflowInputPath } from '../app/components/dag/node-editor/workflow-input-utils'
+import {
+  deleteWorkflowInputFieldFromSchema,
+  upsertWorkflowInputFieldInSchema,
+  workflowInputFieldsFromSchema,
+  workflowInputPath,
+} from '../app/components/dag/node-editor/workflow-input-utils'
 import WorkflowInputsPanel from '../app/components/dag/node-editor/WorkflowInputsPanel.vue'
 
 describe('workflow inputs panel', () => {
@@ -32,6 +37,43 @@ describe('workflow inputs panel', () => {
         description: 'Recipient address',
       },
     ])
+  })
+
+  it('updates schema properties from workflow input fields', () => {
+    const schema = upsertWorkflowInputFieldInSchema({
+      type: 'object',
+      properties: {
+        count: { type: 'integer' },
+      },
+    }, {
+      name: 'email',
+      type: 'string',
+      required: true,
+      description: 'Recipient address',
+    })
+
+    expect(schema).toEqual({
+      type: 'object',
+      properties: {
+        count: { type: 'integer' },
+        email: { type: 'string', required: true, description: 'Recipient address' },
+      },
+    })
+  })
+
+  it('removes schema properties by workflow input name', () => {
+    expect(deleteWorkflowInputFieldFromSchema({
+      type: 'object',
+      properties: {
+        count: { type: 'integer' },
+        email: { type: 'string', required: true },
+      },
+    }, 'email')).toEqual({
+      type: 'object',
+      properties: {
+        count: { type: 'integer' },
+      },
+    })
   })
 
   it('emits edit and delete actions from the overflow menu without inserting the input expression', async () => {

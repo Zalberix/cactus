@@ -27,8 +27,8 @@ export function useApi() {
             const headers = new Headers(options.headers)
             headers.set('Authorization', `Bearer ${authStore.accessToken}`)
             options.headers = headers
-            return $fetch(request, {
-              ...options,
+            return ($fetch as any)(request, {
+              ...(options as any),
               headers,
             })
           }

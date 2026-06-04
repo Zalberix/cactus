@@ -4,19 +4,20 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   hooks: {
     'vite:extendConfig'(viteConfig) {
-      const fallbackClientEntry = '#app/entry';
-      const fallbackServerEntry = '#app/entry-spa';
+      const fallbackClientEntry = '#app/entry'
+      const fallbackServerEntry = '#app/entry-spa'
+      const mutableConfig = viteConfig as any
+      const build = mutableConfig.build ?? (mutableConfig.build = {})
+      const rollupOptions = build.rollupOptions ?? (build.rollupOptions = {})
 
-      const input = viteConfig.build?.rollupOptions?.input;
+      const input = rollupOptions.input
 
       if (!input) {
-        viteConfig.build = viteConfig.build || {};
-        viteConfig.build.rollupOptions = viteConfig.build.rollupOptions || {};
-        viteConfig.build.rollupOptions.input = {
+        rollupOptions.input = {
           entry: fallbackClientEntry,
           server: fallbackServerEntry,
-        };
-        return;
+        }
+        return
       }
 
       if (typeof input !== 'string' && !Array.isArray(input)) {
@@ -24,11 +25,9 @@ export default defineNuxtConfig({
           ...input as Record<string, string>,
           entry: (input as Record<string, string>).entry || fallbackClientEntry,
           server: (input as Record<string, string>).server || fallbackServerEntry,
-        };
+        }
 
-        viteConfig.build = viteConfig.build || {};
-        viteConfig.build.rollupOptions = viteConfig.build.rollupOptions || {};
-        viteConfig.build.rollupOptions.input = normalizedInput;
+        rollupOptions.input = normalizedInput
       }
     },
   },
@@ -56,7 +55,6 @@ export default defineNuxtConfig({
       { code: 'ru', language: 'ru-RU', file: 'ru.json' },
     ],
     defaultLocale: 'ru',
-    lazy: true,
     langDir: 'locales',
   },
   colorMode: {

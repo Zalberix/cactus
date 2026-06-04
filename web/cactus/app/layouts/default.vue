@@ -30,6 +30,12 @@ onMounted(async () => {
     }
   }
 })
+
+function onLocaleChange(value: unknown) {
+  if (value === 'en' || value === 'ru') {
+    void setLocale(value)
+  }
+}
 </script>
 
 <template>
@@ -79,7 +85,7 @@ onMounted(async () => {
                 </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>{{ t('common.language') }}</DropdownMenuLabel>
-                <DropdownMenuRadioGroup :model-value="locale" @update:model-value="setLocale">
+                <DropdownMenuRadioGroup :model-value="locale" @update:model-value="onLocaleChange">
                   <DropdownMenuRadioItem value="ru">
                     {{ t('language.ru') }}
                   </DropdownMenuRadioItem>

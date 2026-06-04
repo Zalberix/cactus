@@ -22,7 +22,7 @@ describe('profile language controls', () => {
     expect(layout).toContain('DropdownMenuRadioGroup')
     expect(layout).toContain('DropdownMenuRadioItem')
     expect(layout).toContain("t('common.language')")
-    expect(layout).toContain('@update:model-value="setLocale"')
+    expect(layout).toContain('@update:model-value="onLocaleChange"')
     expect(languageSwitcherPosition).toBeGreaterThan(-1)
     expect(logoutPosition).toBeGreaterThan(-1)
     expect(languageSwitcherPosition).toBeLessThan(logoutPosition)

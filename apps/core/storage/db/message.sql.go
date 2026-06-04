@@ -27,26 +27,44 @@ func (q *Queries) CountMessagesByOrganizationID(ctx context.Context, organizatio
 }
 
 const createNewMessage = `-- name: CreateNewMessage :one
-INSERT INTO "message" (workflow_id, external_message_id, overridden_priority, value, status)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, workflow_id, external_message_id, overridden_priority, value, status, created_at, updated_at, deleted_at
+INSERT INTO "message" (
+    workflow_id,
+    workflow_input_schema_id,
+    external_message_id,
+    idempotency_key,
+    overridden_priority,
+    value,
+    metadata,
+    status,
+    error_message
+)
+VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, '{}'::jsonb), $8, $9)
+RETURNING id, workflow_id, external_message_id, overridden_priority, value, status, created_at, updated_at, deleted_at, workflow_input_schema_id, idempotency_key, metadata, error_message
 `
 
 type CreateNewMessageParams struct {
-	WorkflowID         int32       `json:"workflow_id"`
-	ExternalMessageID  pgtype.Text `json:"external_message_id"`
-	OverriddenPriority pgtype.Int4 `json:"overridden_priority"`
-	Value              []byte      `json:"value"`
-	Status             string      `json:"status"`
+	WorkflowID            int32       `json:"workflow_id"`
+	WorkflowInputSchemaID pgtype.Int4 `json:"workflow_input_schema_id"`
+	ExternalMessageID     pgtype.Text `json:"external_message_id"`
+	IdempotencyKey        pgtype.Text `json:"idempotency_key"`
+	OverriddenPriority    pgtype.Int4 `json:"overridden_priority"`
+	Value                 []byte      `json:"value"`
+	Column7               interface{} `json:"column_7"`
+	Status                string      `json:"status"`
+	ErrorMessage          pgtype.Text `json:"error_message"`
 }
 
 func (q *Queries) CreateNewMessage(ctx context.Context, arg CreateNewMessageParams) (Message, error) {
 	row := q.db.QueryRow(ctx, createNewMessage,
 		arg.WorkflowID,
+		arg.WorkflowInputSchemaID,
 		arg.ExternalMessageID,
+		arg.IdempotencyKey,
 		arg.OverriddenPriority,
 		arg.Value,
+		arg.Column7,
 		arg.Status,
+		arg.ErrorMessage,
 	)
 	var i Message
 	err := row.Scan(
@@ -59,6 +77,44 @@ func (q *Queries) CreateNewMessage(ctx context.Context, arg CreateNewMessagePara
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.WorkflowInputSchemaID,
+		&i.IdempotencyKey,
+		&i.Metadata,
+		&i.ErrorMessage,
+	)
+	return i, err
+}
+
+const getMessageByIdempotencyKey = `-- name: GetMessageByIdempotencyKey :one
+SELECT id, workflow_id, external_message_id, overridden_priority, value, status, created_at, updated_at, deleted_at, workflow_input_schema_id, idempotency_key, metadata, error_message FROM "message"
+WHERE workflow_id = $1
+  AND idempotency_key = $2
+  AND deleted_at IS NULL
+LIMIT 1
+`
+
+type GetMessageByIdempotencyKeyParams struct {
+	WorkflowID     int32       `json:"workflow_id"`
+	IdempotencyKey pgtype.Text `json:"idempotency_key"`
+}
+
+func (q *Queries) GetMessageByIdempotencyKey(ctx context.Context, arg GetMessageByIdempotencyKeyParams) (Message, error) {
+	row := q.db.QueryRow(ctx, getMessageByIdempotencyKey, arg.WorkflowID, arg.IdempotencyKey)
+	var i Message
+	err := row.Scan(
+		&i.ID,
+		&i.WorkflowID,
+		&i.ExternalMessageID,
+		&i.OverriddenPriority,
+		&i.Value,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.WorkflowInputSchemaID,
+		&i.IdempotencyKey,
+		&i.Metadata,
+		&i.ErrorMessage,
 	)
 	return i, err
 }
@@ -68,20 +124,33 @@ SELECT
     m.id,
     m.workflow_id,
     w.name AS workflow_name,
+    m.workflow_input_schema_id,
+    wis.code AS workflow_input_schema_code,
+    wis.version_number AS workflow_input_schema_version_number,
     m.value AS message_value,
+    m.metadata AS message_metadata,
     m.status AS message_status,
+    m.error_message AS message_error_message,
     m.created_at,
     m.updated_at,
     wr.id AS workflow_run_id,
     wr.workflow_version_id,
     wv.version_number AS workflow_version_number,
     wv.name AS workflow_version_name,
+    wr.workflow_experiment_id,
+    wr.workflow_experiment_scope_id,
+    wr.workflow_experiment_variant_id,
+    wr.input_schema_compatibility_id,
+    wr.selection_reason,
+    wr.version_input_data,
+    wr.routing_decision,
     wr.status AS workflow_status,
     wr.started_at AS run_started_at,
     wr.completed_at AS run_completed_at,
     wr.error_message AS run_error_message
 FROM "message" m
 JOIN "workflow" w ON w.id = m.workflow_id AND w.deleted_at IS NULL
+LEFT JOIN "workflow_input_schema" wis ON wis.id = m.workflow_input_schema_id AND wis.deleted_at IS NULL
 LEFT JOIN "workflow_run" wr ON wr.message_id = m.id
 LEFT JOIN "workflow_version" wv ON wv.id = wr.workflow_version_id AND wv.deleted_at IS NULL
 WHERE m.id = $1 AND m.deleted_at IS NULL
@@ -90,21 +159,33 @@ LIMIT 1
 `
 
 type GetMessageDetailByIDRow struct {
-	ID                    int32            `json:"id"`
-	WorkflowID            int32            `json:"workflow_id"`
-	WorkflowName          string           `json:"workflow_name"`
-	MessageValue          []byte           `json:"message_value"`
-	MessageStatus         string           `json:"message_status"`
-	CreatedAt             pgtype.Timestamp `json:"created_at"`
-	UpdatedAt             pgtype.Timestamp `json:"updated_at"`
-	WorkflowRunID         pgtype.Int4      `json:"workflow_run_id"`
-	WorkflowVersionID     pgtype.Int4      `json:"workflow_version_id"`
-	WorkflowVersionNumber pgtype.Int4      `json:"workflow_version_number"`
-	WorkflowVersionName   pgtype.Text      `json:"workflow_version_name"`
-	WorkflowStatus        pgtype.Text      `json:"workflow_status"`
-	RunStartedAt          pgtype.Timestamp `json:"run_started_at"`
-	RunCompletedAt        pgtype.Timestamp `json:"run_completed_at"`
-	RunErrorMessage       pgtype.Text      `json:"run_error_message"`
+	ID                               int32            `json:"id"`
+	WorkflowID                       int32            `json:"workflow_id"`
+	WorkflowName                     string           `json:"workflow_name"`
+	WorkflowInputSchemaID            pgtype.Int4      `json:"workflow_input_schema_id"`
+	WorkflowInputSchemaCode          pgtype.Text      `json:"workflow_input_schema_code"`
+	WorkflowInputSchemaVersionNumber pgtype.Int4      `json:"workflow_input_schema_version_number"`
+	MessageValue                     []byte           `json:"message_value"`
+	MessageMetadata                  []byte           `json:"message_metadata"`
+	MessageStatus                    string           `json:"message_status"`
+	MessageErrorMessage              pgtype.Text      `json:"message_error_message"`
+	CreatedAt                        pgtype.Timestamp `json:"created_at"`
+	UpdatedAt                        pgtype.Timestamp `json:"updated_at"`
+	WorkflowRunID                    pgtype.Int4      `json:"workflow_run_id"`
+	WorkflowVersionID                pgtype.Int4      `json:"workflow_version_id"`
+	WorkflowVersionNumber            pgtype.Int4      `json:"workflow_version_number"`
+	WorkflowVersionName              pgtype.Text      `json:"workflow_version_name"`
+	WorkflowExperimentID             pgtype.Int4      `json:"workflow_experiment_id"`
+	WorkflowExperimentScopeID        pgtype.Int4      `json:"workflow_experiment_scope_id"`
+	WorkflowExperimentVariantID      pgtype.Int4      `json:"workflow_experiment_variant_id"`
+	InputSchemaCompatibilityID       pgtype.Int4      `json:"input_schema_compatibility_id"`
+	SelectionReason                  pgtype.Text      `json:"selection_reason"`
+	VersionInputData                 []byte           `json:"version_input_data"`
+	RoutingDecision                  []byte           `json:"routing_decision"`
+	WorkflowStatus                   pgtype.Text      `json:"workflow_status"`
+	RunStartedAt                     pgtype.Timestamp `json:"run_started_at"`
+	RunCompletedAt                   pgtype.Timestamp `json:"run_completed_at"`
+	RunErrorMessage                  pgtype.Text      `json:"run_error_message"`
 }
 
 func (q *Queries) GetMessageDetailByID(ctx context.Context, id int32) (GetMessageDetailByIDRow, error) {
@@ -114,14 +195,26 @@ func (q *Queries) GetMessageDetailByID(ctx context.Context, id int32) (GetMessag
 		&i.ID,
 		&i.WorkflowID,
 		&i.WorkflowName,
+		&i.WorkflowInputSchemaID,
+		&i.WorkflowInputSchemaCode,
+		&i.WorkflowInputSchemaVersionNumber,
 		&i.MessageValue,
+		&i.MessageMetadata,
 		&i.MessageStatus,
+		&i.MessageErrorMessage,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.WorkflowRunID,
 		&i.WorkflowVersionID,
 		&i.WorkflowVersionNumber,
 		&i.WorkflowVersionName,
+		&i.WorkflowExperimentID,
+		&i.WorkflowExperimentScopeID,
+		&i.WorkflowExperimentVariantID,
+		&i.InputSchemaCompatibilityID,
+		&i.SelectionReason,
+		&i.VersionInputData,
+		&i.RoutingDecision,
 		&i.WorkflowStatus,
 		&i.RunStartedAt,
 		&i.RunCompletedAt,
@@ -171,7 +264,7 @@ func (q *Queries) GetMessageStatusByID(ctx context.Context, id int32) (GetMessag
 }
 
 const getNewMessageByID = `-- name: GetNewMessageByID :one
-SELECT id, workflow_id, external_message_id, overridden_priority, value, status, created_at, updated_at, deleted_at FROM "message"
+SELECT id, workflow_id, external_message_id, overridden_priority, value, status, created_at, updated_at, deleted_at, workflow_input_schema_id, idempotency_key, metadata, error_message FROM "message"
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -188,6 +281,10 @@ func (q *Queries) GetNewMessageByID(ctx context.Context, id int32) (Message, err
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.WorkflowInputSchemaID,
+		&i.IdempotencyKey,
+		&i.Metadata,
+		&i.ErrorMessage,
 	)
 	return i, err
 }
@@ -197,17 +294,28 @@ SELECT
     m.id,
     m.workflow_id,
     w."name" AS workflow_name,
+    m.workflow_input_schema_id,
+    wis.code AS workflow_input_schema_code,
+    wis.version_number AS workflow_input_schema_version_number,
     m.status,
     m.created_at,
     m.updated_at,
     wv.id AS workflow_version_id,
     wv.version_number AS workflow_version_number,
-    wv.name AS workflow_version_name
+    wv.name AS workflow_version_name,
+    wr.workflow_experiment_id,
+    wr.workflow_experiment_variant_id,
+    wr.selection_reason
 FROM "message" m
 JOIN "workflow" w ON w.id = m.workflow_id AND w.deleted_at IS NULL
 JOIN "system" s ON s.id = w.system_id AND s.deleted_at IS NULL
+LEFT JOIN "workflow_input_schema" wis ON wis.id = m.workflow_input_schema_id AND wis.deleted_at IS NULL
 LEFT JOIN LATERAL (
-    SELECT run.workflow_version_id
+    SELECT
+        run.workflow_version_id,
+        run.workflow_experiment_id,
+        run.workflow_experiment_variant_id,
+        run.selection_reason
     FROM "workflow_run" run
     WHERE run.message_id = m.id
     ORDER BY run.id DESC
@@ -226,15 +334,21 @@ type ListMessagesByOrganizationIDParams struct {
 }
 
 type ListMessagesByOrganizationIDRow struct {
-	ID                    int32            `json:"id"`
-	WorkflowID            int32            `json:"workflow_id"`
-	WorkflowName          string           `json:"workflow_name"`
-	Status                string           `json:"status"`
-	CreatedAt             pgtype.Timestamp `json:"created_at"`
-	UpdatedAt             pgtype.Timestamp `json:"updated_at"`
-	WorkflowVersionID     pgtype.Int4      `json:"workflow_version_id"`
-	WorkflowVersionNumber pgtype.Int4      `json:"workflow_version_number"`
-	WorkflowVersionName   pgtype.Text      `json:"workflow_version_name"`
+	ID                               int32            `json:"id"`
+	WorkflowID                       int32            `json:"workflow_id"`
+	WorkflowName                     string           `json:"workflow_name"`
+	WorkflowInputSchemaID            pgtype.Int4      `json:"workflow_input_schema_id"`
+	WorkflowInputSchemaCode          pgtype.Text      `json:"workflow_input_schema_code"`
+	WorkflowInputSchemaVersionNumber pgtype.Int4      `json:"workflow_input_schema_version_number"`
+	Status                           string           `json:"status"`
+	CreatedAt                        pgtype.Timestamp `json:"created_at"`
+	UpdatedAt                        pgtype.Timestamp `json:"updated_at"`
+	WorkflowVersionID                pgtype.Int4      `json:"workflow_version_id"`
+	WorkflowVersionNumber            pgtype.Int4      `json:"workflow_version_number"`
+	WorkflowVersionName              pgtype.Text      `json:"workflow_version_name"`
+	WorkflowExperimentID             pgtype.Int4      `json:"workflow_experiment_id"`
+	WorkflowExperimentVariantID      pgtype.Int4      `json:"workflow_experiment_variant_id"`
+	SelectionReason                  string           `json:"selection_reason"`
 }
 
 // List messages for all workflows belonging to systems within an organization.
@@ -252,12 +366,18 @@ func (q *Queries) ListMessagesByOrganizationID(ctx context.Context, arg ListMess
 			&i.ID,
 			&i.WorkflowID,
 			&i.WorkflowName,
+			&i.WorkflowInputSchemaID,
+			&i.WorkflowInputSchemaCode,
+			&i.WorkflowInputSchemaVersionNumber,
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.WorkflowVersionID,
 			&i.WorkflowVersionNumber,
 			&i.WorkflowVersionName,
+			&i.WorkflowExperimentID,
+			&i.WorkflowExperimentVariantID,
+			&i.SelectionReason,
 		); err != nil {
 			return nil, err
 		}
@@ -270,7 +390,7 @@ func (q *Queries) ListMessagesByOrganizationID(ctx context.Context, arg ListMess
 }
 
 const listNewMessagesByWorkflowID = `-- name: ListNewMessagesByWorkflowID :many
-SELECT id, workflow_id, external_message_id, overridden_priority, value, status, created_at, updated_at, deleted_at FROM "message"
+SELECT id, workflow_id, external_message_id, overridden_priority, value, status, created_at, updated_at, deleted_at, workflow_input_schema_id, idempotency_key, metadata, error_message FROM "message"
 WHERE workflow_id = $1 AND deleted_at IS NULL
 ORDER BY created_at DESC
 `
@@ -294,6 +414,10 @@ func (q *Queries) ListNewMessagesByWorkflowID(ctx context.Context, workflowID in
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+			&i.WorkflowInputSchemaID,
+			&i.IdempotencyKey,
+			&i.Metadata,
+			&i.ErrorMessage,
 		); err != nil {
 			return nil, err
 		}
@@ -320,7 +444,7 @@ const updateNewMessageStatus = `-- name: UpdateNewMessageStatus :one
 UPDATE "message"
 SET status = $2, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, workflow_id, external_message_id, overridden_priority, value, status, created_at, updated_at, deleted_at
+RETURNING id, workflow_id, external_message_id, overridden_priority, value, status, created_at, updated_at, deleted_at, workflow_input_schema_id, idempotency_key, metadata, error_message
 `
 
 type UpdateNewMessageStatusParams struct {
@@ -341,6 +465,10 @@ func (q *Queries) UpdateNewMessageStatus(ctx context.Context, arg UpdateNewMessa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.WorkflowInputSchemaID,
+		&i.IdempotencyKey,
+		&i.Metadata,
+		&i.ErrorMessage,
 	)
 	return i, err
 }

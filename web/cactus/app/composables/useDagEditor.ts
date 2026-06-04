@@ -227,7 +227,10 @@ export function useDagEditor(
 
   async function connectSteps(params: Connection): Promise<void> {
     if (isReadOnly.value) return
-    if (!canConnectSteps({ ...params, nodes: nodes.value })) return
+    if (!canConnectSteps({
+      ...params,
+      nodes: nodes.value as Array<{ id: string; data: any }>,
+    })) return
     if (!params.source || !params.target) return
     const target = nodes.value.find(n => n.id === params.target)
     if (target?.data.controlKind === 'start') return

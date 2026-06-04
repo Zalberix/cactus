@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { Key, Route, Split } from 'lucide-vue-next'
+import { GitBranch, Key, Route, Split } from 'lucide-vue-next'
 import type { VersionSummary } from '~/composables/useVersions'
 import type { WorkflowInputSchemaField } from '~/composables/useWorkflows'
+import type { WorkflowInputSchemaRecord, WorkflowSchemaCompatibility } from '~/composables/useWorkflowRouting'
+import { buildSupportedSchemaLabelsByVersionId } from '~/components/dag/supported-schema-utils'
 import { workflowVersionEditorPath } from '~/composables/useWorkflows'
 import WorkflowVersionCreateMenu from '~/components/dag/WorkflowVersionCreateMenu.vue'
 import WorkflowVersionTable from '~/components/dag/WorkflowVersionTable.vue'
@@ -27,28 +29,47 @@ const {
   deactivateVersion,
   deleteVersion,
 } = useVersions()
+const {
+  fetchInputSchemas,
+  fetchCompatibilities,
+} = useWorkflowRouting()
 
 const workflowName = ref('')
 const workflowSystemId = ref<number | null>(null)
 const workflowPriority = ref(1)
 const versions = ref<VersionSummary[]>([])
+const inputSchemas = ref<WorkflowInputSchemaRecord[]>([])
+const compatibilities = ref<WorkflowSchemaCompatibility[]>([])
 const loading = ref(true)
 const tokensOpen = ref(false)
 const schemaOpen = ref(false)
 const schemaSaving = ref(false)
 const inputSchema = ref<Record<string, unknown> | null>(null)
+const supportedSchemaLabelsByVersionId = computed(() =>
+  buildSupportedSchemaLabelsByVersionId(inputSchemas.value, compatibilities.value),
+)
+
+async function loadVersionRoutingData() {
+  const [summaries, schemas, schemaCompatibilities] = await Promise.all([
+    fetchVersionSummaries(workflowId.value),
+    fetchInputSchemas(workflowId.value),
+    fetchCompatibilities(workflowId.value),
+  ])
+  versions.value = summaries
+  inputSchemas.value = schemas
+  compatibilities.value = schemaCompatibilities
+}
 
 async function loadData() {
   loading.value = true
   try {
-    const [workflow, summaries] = await Promise.all([
+    const [workflow] = await Promise.all([
       fetchWorkflow(workflowId.value),
-      fetchVersionSummaries(workflowId.value),
+      loadVersionRoutingData(),
     ])
     workflowName.value = workflow.name
     workflowSystemId.value = workflow.system_id
     workflowPriority.value = workflow.priority
-    versions.value = summaries
   }
   catch (err) {
     toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
@@ -121,7 +142,7 @@ async function onSchemaSaveField(field: WorkflowInputSchemaField) {
   schemaSaving.value = true
   try {
     inputSchema.value = await upsertWorkflowInputSchemaField(workflowId.value, field)
-    versions.value = await fetchVersionSummaries(workflowId.value)
+    await loadVersionRoutingData()
     toast({ title: t('workflowInputs.saved') })
   }
   catch (err) {
@@ -136,7 +157,7 @@ async function onSchemaDeleteField(field: { name: string }) {
   schemaSaving.value = true
   try {
     inputSchema.value = await deleteWorkflowInputSchemaField(workflowId.value, field.name)
-    versions.value = await fetchVersionSummaries(workflowId.value)
+    await loadVersionRoutingData()
     toast({ title: t('workflowInputs.deleted') })
   }
   catch (err) {
@@ -172,6 +193,10 @@ onMounted(loadData)
           <Split class="h-4 w-4" />
           {{ t('workflowVersions.traffic') }}
         </Button>
+        <Button variant="outline" class="gap-2" @click="router.push(`/org/${orgId}/workflows/${workflowId}/routing`)">
+          <GitBranch class="h-4 w-4" />
+          {{ t('workflowRouting.nav') }}
+        </Button>
         <Button variant="outline" class="gap-2" :disabled="!workflowSystemId" @click="tokensOpen = true">
           <Key class="h-4 w-4" />
           {{ t('workflowVersions.tokens') }}
@@ -188,6 +213,7 @@ onMounted(loadData)
       :versions="versions"
       :org-id="orgId"
       :workflow-id="workflowId"
+      :supported-schema-labels-by-version-id="supportedSchemaLabelsByVersionId"
       @activate="onActivate"
       @deactivate="onDeactivate"
       @delete="onDelete"

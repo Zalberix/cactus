@@ -38,6 +38,8 @@ type mockStorage struct {
 	revisionsBySchema map[int32][]db.WorkerSettingsRevision
 	settingsSchema    db.WorkerSettingsSchema
 	settingsSchemaErr error
+	compatibilities   []db.WorkflowVersionInputSchemaCompatibility
+	inputSchemas      map[int32]db.WorkflowInputSchema
 
 	listVersionSummaries               []db.ListWorkflowVersionSummariesByWorkflowIDRow
 	listVersionSummariesErr            error
@@ -292,6 +294,172 @@ func (m *mockStorage) UpdateWorkflowStepPosition(_ context.Context, _ db.UpdateW
 
 func (m *mockStorage) ListEnrichedStepsByVersionID(_ context.Context, _ int32) ([]db.ListEnrichedStepsByVersionIDRow, error) {
 	return m.enrichedSteps, nil
+}
+
+func (m *mockStorage) ClearDefaultWorkflowInputSchema(context.Context, db.ClearDefaultWorkflowInputSchemaParams) error {
+	return nil
+}
+
+func (m *mockStorage) CreateWorkflowInputSchema(_ context.Context, arg db.CreateWorkflowInputSchemaParams) (db.WorkflowInputSchema, error) {
+	return db.WorkflowInputSchema{
+		ID:            1,
+		WorkflowID:    arg.WorkflowID,
+		Code:          arg.Code,
+		VersionNumber: arg.VersionNumber,
+		SchemaJson:    arg.SchemaJson,
+		Status:        arg.Status,
+		IsDefault:     arg.IsDefault,
+	}, nil
+}
+
+func (m *mockStorage) GetDefaultWorkflowInputSchema(_ context.Context, workflowID int32) (db.WorkflowInputSchema, error) {
+	if m.inputSchemas != nil {
+		if schema, ok := m.inputSchemas[1]; ok {
+			return schema, nil
+		}
+	}
+	return db.WorkflowInputSchema{}, errors.New("no default input schema")
+}
+
+func (m *mockStorage) defaultWorkflowInputSchema(workflowID int32) db.WorkflowInputSchema {
+	return db.WorkflowInputSchema{
+		ID:            1,
+		WorkflowID:    workflowID,
+		Code:          "public",
+		VersionNumber: 1,
+		SchemaJson:    []byte(`{"type":"object","properties":{}}`),
+		Status:        "active",
+		IsDefault:     true,
+	}
+}
+
+func (m *mockStorage) GetNextWorkflowInputSchemaVersionNumber(context.Context, int32) (int32, error) {
+	return 1, nil
+}
+
+func (m *mockStorage) GetWorkflowInputSchemaByCode(_ context.Context, arg db.GetWorkflowInputSchemaByCodeParams) (db.WorkflowInputSchema, error) {
+	return db.WorkflowInputSchema{
+		ID:            1,
+		WorkflowID:    arg.WorkflowID,
+		Code:          arg.Code,
+		VersionNumber: 1,
+		SchemaJson:    []byte(`{"type":"object","properties":{}}`),
+		Status:        "active",
+	}, nil
+}
+
+func (m *mockStorage) GetWorkflowInputSchemaByID(_ context.Context, id int32) (db.WorkflowInputSchema, error) {
+	if m.inputSchemas != nil {
+		if schema, ok := m.inputSchemas[id]; ok {
+			return schema, nil
+		}
+	}
+	return db.WorkflowInputSchema{
+		ID:            id,
+		WorkflowID:    m.version.WorkflowID,
+		Code:          "public",
+		VersionNumber: 1,
+		SchemaJson:    []byte(`{"type":"object","properties":{}}`),
+		Status:        "active",
+	}, nil
+}
+
+func (m *mockStorage) HasInputSchemaUsage(context.Context, pgtype.Int4) (bool, error) {
+	return false, nil
+}
+
+func (m *mockStorage) ListWorkflowInputSchemasByWorkflowID(_ context.Context, workflowID int32) ([]db.WorkflowInputSchema, error) {
+	return []db.WorkflowInputSchema{{
+		ID:            1,
+		WorkflowID:    workflowID,
+		Code:          "public",
+		VersionNumber: 1,
+		SchemaJson:    []byte(`{"type":"object","properties":{}}`),
+		Status:        "active",
+	}}, nil
+}
+
+func (m *mockStorage) SetDefaultWorkflowInputSchema(_ context.Context, arg db.SetDefaultWorkflowInputSchemaParams) (db.WorkflowInputSchema, error) {
+	return db.WorkflowInputSchema{ID: arg.ID, Status: "active", IsDefault: true}, nil
+}
+
+func (m *mockStorage) SoftDeleteWorkflowInputSchema(context.Context, int32) error {
+	return nil
+}
+
+func (m *mockStorage) UpdateWorkflowInputSchemaRecord(_ context.Context, arg db.UpdateWorkflowInputSchemaRecordParams) (db.WorkflowInputSchema, error) {
+	return db.WorkflowInputSchema{
+		ID:            arg.ID,
+		Code:          arg.Code,
+		VersionNumber: arg.VersionNumber,
+		SchemaJson:    arg.SchemaJson,
+		Status:        "active",
+	}, nil
+}
+
+func (m *mockStorage) UpdateWorkflowInputSchemaStatus(_ context.Context, arg db.UpdateWorkflowInputSchemaStatusParams) (db.WorkflowInputSchema, error) {
+	return db.WorkflowInputSchema{ID: arg.ID, Status: arg.Status}, nil
+}
+
+func (m *mockStorage) CreateWorkflowVersionInputSchemaCompatibility(_ context.Context, arg db.CreateWorkflowVersionInputSchemaCompatibilityParams) (db.WorkflowVersionInputSchemaCompatibility, error) {
+	return db.WorkflowVersionInputSchemaCompatibility{
+		ID:                    1,
+		WorkflowVersionID:     arg.WorkflowVersionID,
+		WorkflowInputSchemaID: arg.WorkflowInputSchemaID,
+		CompatibilityType:     arg.CompatibilityType,
+		IsActive:              arg.IsActive,
+		IsDefaultRoute:        arg.IsDefaultRoute,
+	}, nil
+}
+
+func (m *mockStorage) DeactivateWorkflowVersionInputSchemaCompatibility(_ context.Context, arg db.DeactivateWorkflowVersionInputSchemaCompatibilityParams) (db.WorkflowVersionInputSchemaCompatibility, error) {
+	return db.WorkflowVersionInputSchemaCompatibility{ID: arg.ID, IsActive: false}, nil
+}
+
+func (m *mockStorage) GetWorkflowVersionInputSchemaCompatibilityByID(_ context.Context, id int32) (db.WorkflowVersionInputSchemaCompatibility, error) {
+	return db.WorkflowVersionInputSchemaCompatibility{ID: id, WorkflowVersionID: m.version.ID, WorkflowInputSchemaID: 1, CompatibilityType: "native", IsActive: true}, nil
+}
+
+func (m *mockStorage) HasCompatibilityHistoricalRun(context.Context, int32) (bool, error) {
+	return false, nil
+}
+
+func (m *mockStorage) ListCompatibilitiesByInputSchemaID(context.Context, int32) ([]db.WorkflowVersionInputSchemaCompatibility, error) {
+	return nil, nil
+}
+
+func (m *mockStorage) ListCompatibilitiesByVersionID(_ context.Context, versionID int32) ([]db.WorkflowVersionInputSchemaCompatibility, error) {
+	if m.compatibilities != nil {
+		return m.compatibilities, nil
+	}
+	return []db.WorkflowVersionInputSchemaCompatibility{{
+		ID:                    1,
+		WorkflowVersionID:     versionID,
+		WorkflowInputSchemaID: 1,
+		CompatibilityType:     "native",
+		IsActive:              true,
+	}}, nil
+}
+
+func (m *mockStorage) ListCompatibilitiesByWorkflowID(context.Context, int32) ([]db.WorkflowVersionInputSchemaCompatibility, error) {
+	return m.compatibilities, nil
+}
+
+func (m *mockStorage) SoftDeleteWorkflowVersionInputSchemaCompatibility(context.Context, int32) error {
+	return nil
+}
+
+func (m *mockStorage) UpdateCompatibilityDefaultRoute(_ context.Context, arg db.UpdateCompatibilityDefaultRouteParams) (db.WorkflowVersionInputSchemaCompatibility, error) {
+	return db.WorkflowVersionInputSchemaCompatibility{ID: arg.ID, IsDefaultRoute: arg.IsDefaultRoute}, nil
+}
+
+func (m *mockStorage) UpdateWorkflowVersionInputSchemaCompatibility(_ context.Context, arg db.UpdateWorkflowVersionInputSchemaCompatibilityParams) (db.WorkflowVersionInputSchemaCompatibility, error) {
+	return db.WorkflowVersionInputSchemaCompatibility{
+		ID:                arg.ID,
+		CompatibilityType: arg.CompatibilityType,
+		IsActive:          arg.IsActive,
+		IsDefaultRoute:    arg.IsDefaultRoute,
+	}, nil
 }
 
 func makeDBStartStep(id, versionID int32) db.WorkflowStep {

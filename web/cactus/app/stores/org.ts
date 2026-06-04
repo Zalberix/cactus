@@ -27,8 +27,9 @@ export const useOrgStore = defineStore('org', () => {
     organizations.value = resp.data
 
     // If no org selected yet, pick the first one
-    if (currentOrgId.value === null && resp.data.length > 0) {
-      switchOrg(resp.data[0].id)
+    if (currentOrgId.value === null) {
+      const firstOrg = resp.data[0]
+      if (firstOrg) switchOrg(firstOrg.id)
     }
   }
 

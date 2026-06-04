@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { FileJson, MoreHorizontal, Pause, Play, Trash2 } from 'lucide-vue-next'
 import type { VersionSummary } from '~/composables/useVersions'
+import type { SupportedSchemaLabelsByVersionId } from '~/components/dag/supported-schema-utils'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { workflowVersionEditorPath } from '~/composables/useWorkflows'
@@ -15,6 +16,7 @@ const props = defineProps<{
   versions: VersionSummary[]
   orgId: number
   workflowId: number
+  supportedSchemaLabelsByVersionId?: SupportedSchemaLabelsByVersionId
 }>()
 
 const emit = defineEmits<{
@@ -28,6 +30,10 @@ const { t } = useI18n()
 function editPath(version: VersionSummary) {
   return workflowVersionEditorPath(props.orgId, props.workflowId, version.id)
 }
+
+function supportedSchemaLabels(version: VersionSummary) {
+  return props.supportedSchemaLabelsByVersionId?.[version.id] ?? []
+}
 </script>
 
 <template>
@@ -38,6 +44,7 @@ function editPath(version: VersionSummary) {
           <th class="px-4 py-3 font-medium">{{ t('workflowVersions.headers.name') }}</th>
           <th class="px-4 py-3 font-medium">{{ t('workflowVersions.headers.status') }}</th>
           <th class="px-4 py-3 font-medium">{{ t('workflowVersions.headers.editing') }}</th>
+          <th class="px-4 py-3 font-medium">{{ t('workflowVersions.headers.supportedSchemas') }}</th>
           <th class="px-4 py-3 font-medium">{{ t('workflowVersions.headers.runs') }}</th>
           <th class="px-4 py-3 font-medium">{{ t('workflowVersions.headers.traffic') }}</th>
           <th class="w-12 px-4 py-3" />
@@ -74,6 +81,18 @@ function editPath(version: VersionSummary) {
             <span class="text-muted-foreground">
               {{ version.is_active && version.run_count > 0 ? t('workflowVersions.editing.readOnly') : t('workflowVersions.editing.editable') }}
             </span>
+          </td>
+          <td class="px-4 py-3">
+            <div v-if="supportedSchemaLabels(version).length > 0" class="flex flex-wrap gap-1.5">
+              <Badge
+                v-for="schemaLabel in supportedSchemaLabels(version)"
+                :key="schemaLabel"
+                variant="outline"
+              >
+                {{ schemaLabel }}
+              </Badge>
+            </div>
+            <span v-else class="text-muted-foreground">-</span>
           </td>
           <td class="px-4 py-3">{{ version.run_count }}</td>
           <td class="px-4 py-3">{{ version.traffic_weight }}%</td>

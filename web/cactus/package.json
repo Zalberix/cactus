@@ -5,6 +5,7 @@
   "packageManager": "pnpm@8.8.0",
   "scripts": {
     "build": "nuxt build",
+    "typecheck": "nuxi typecheck",
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",

@@ -52,7 +52,7 @@ function updatePageSize(value: unknown) {
     </div>
 
     <div class="flex items-center space-x-6 lg:space-x-8">
-      <div class="flex w-[120px] items-center justify-center text-sm font-medium">
+      <div class="flex w-[140px] items-center justify-center text-sm font-medium">
         {{ t('common.page', { page: table.getState().pagination.pageIndex + 1, total: table.getPageCount() }) }}
       </div>
       <div class="flex items-center space-x-2">

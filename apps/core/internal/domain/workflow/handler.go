@@ -53,6 +53,8 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc) {
 	// DELETE /api/v1/workflows/:workflowId/input-schema/fields/:fieldName
 	v1.DELETE("/workflows/:workflowId/input-schema/fields/:fieldName",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.DeleteWorkflowInputSchemaField)
+	h.registerWorkflowConfigurationRoutes(v1)
+	h.registerWorkflowExperimentRoutes(v1)
 	// DELETE /api/v1/workflows/:workflowId
 	v1.DELETE("/workflows/:workflowId",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.DeleteWorkflow)

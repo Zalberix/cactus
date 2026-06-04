@@ -12,16 +12,35 @@ import (
 )
 
 const createWorkflowRun = `-- name: CreateWorkflowRun :one
-INSERT INTO "workflow_run" (workflow_version_id, message_id, temporal_workflow_id, status)
-VALUES ($1, $2, $3, $4)
-RETURNING id, workflow_version_id, message_id, temporal_workflow_id, status, started_at, completed_at, error_message
+INSERT INTO "workflow_run" (
+    workflow_version_id,
+    message_id,
+    temporal_workflow_id,
+    status,
+    workflow_experiment_id,
+    workflow_experiment_scope_id,
+    workflow_experiment_variant_id,
+    input_schema_compatibility_id,
+    selection_reason,
+    version_input_data,
+    routing_decision
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE(NULLIF($9, ''), 'standard'), COALESCE($10, '{}'::jsonb), $11)
+RETURNING id, workflow_version_id, message_id, temporal_workflow_id, status, started_at, completed_at, error_message, workflow_experiment_id, workflow_experiment_scope_id, workflow_experiment_variant_id, input_schema_compatibility_id, selection_reason, version_input_data, routing_decision
 `
 
 type CreateWorkflowRunParams struct {
-	WorkflowVersionID  int32       `json:"workflow_version_id"`
-	MessageID          int32       `json:"message_id"`
-	TemporalWorkflowID pgtype.Text `json:"temporal_workflow_id"`
-	Status             string      `json:"status"`
+	WorkflowVersionID           int32       `json:"workflow_version_id"`
+	MessageID                   int32       `json:"message_id"`
+	TemporalWorkflowID          pgtype.Text `json:"temporal_workflow_id"`
+	Status                      string      `json:"status"`
+	WorkflowExperimentID        pgtype.Int4 `json:"workflow_experiment_id"`
+	WorkflowExperimentScopeID   pgtype.Int4 `json:"workflow_experiment_scope_id"`
+	WorkflowExperimentVariantID pgtype.Int4 `json:"workflow_experiment_variant_id"`
+	InputSchemaCompatibilityID  pgtype.Int4 `json:"input_schema_compatibility_id"`
+	Column9                     interface{} `json:"column_9"`
+	Column10                    interface{} `json:"column_10"`
+	RoutingDecision             []byte      `json:"routing_decision"`
 }
 
 func (q *Queries) CreateWorkflowRun(ctx context.Context, arg CreateWorkflowRunParams) (WorkflowRun, error) {
@@ -30,6 +49,13 @@ func (q *Queries) CreateWorkflowRun(ctx context.Context, arg CreateWorkflowRunPa
 		arg.MessageID,
 		arg.TemporalWorkflowID,
 		arg.Status,
+		arg.WorkflowExperimentID,
+		arg.WorkflowExperimentScopeID,
+		arg.WorkflowExperimentVariantID,
+		arg.InputSchemaCompatibilityID,
+		arg.Column9,
+		arg.Column10,
+		arg.RoutingDecision,
 	)
 	var i WorkflowRun
 	err := row.Scan(
@@ -41,12 +67,49 @@ func (q *Queries) CreateWorkflowRun(ctx context.Context, arg CreateWorkflowRunPa
 		&i.StartedAt,
 		&i.CompletedAt,
 		&i.ErrorMessage,
+		&i.WorkflowExperimentID,
+		&i.WorkflowExperimentScopeID,
+		&i.WorkflowExperimentVariantID,
+		&i.InputSchemaCompatibilityID,
+		&i.SelectionReason,
+		&i.VersionInputData,
+		&i.RoutingDecision,
+	)
+	return i, err
+}
+
+const getLatestWorkflowRunByMessageID = `-- name: GetLatestWorkflowRunByMessageID :one
+SELECT id, workflow_version_id, message_id, temporal_workflow_id, status, started_at, completed_at, error_message, workflow_experiment_id, workflow_experiment_scope_id, workflow_experiment_variant_id, input_schema_compatibility_id, selection_reason, version_input_data, routing_decision FROM "workflow_run"
+WHERE message_id = $1
+ORDER BY id DESC
+LIMIT 1
+`
+
+func (q *Queries) GetLatestWorkflowRunByMessageID(ctx context.Context, messageID int32) (WorkflowRun, error) {
+	row := q.db.QueryRow(ctx, getLatestWorkflowRunByMessageID, messageID)
+	var i WorkflowRun
+	err := row.Scan(
+		&i.ID,
+		&i.WorkflowVersionID,
+		&i.MessageID,
+		&i.TemporalWorkflowID,
+		&i.Status,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.ErrorMessage,
+		&i.WorkflowExperimentID,
+		&i.WorkflowExperimentScopeID,
+		&i.WorkflowExperimentVariantID,
+		&i.InputSchemaCompatibilityID,
+		&i.SelectionReason,
+		&i.VersionInputData,
+		&i.RoutingDecision,
 	)
 	return i, err
 }
 
 const getWorkflowRunByID = `-- name: GetWorkflowRunByID :one
-SELECT id, workflow_version_id, message_id, temporal_workflow_id, status, started_at, completed_at, error_message FROM "workflow_run"
+SELECT id, workflow_version_id, message_id, temporal_workflow_id, status, started_at, completed_at, error_message, workflow_experiment_id, workflow_experiment_scope_id, workflow_experiment_variant_id, input_schema_compatibility_id, selection_reason, version_input_data, routing_decision FROM "workflow_run"
 WHERE id = $1
 `
 
@@ -62,12 +125,19 @@ func (q *Queries) GetWorkflowRunByID(ctx context.Context, id int32) (WorkflowRun
 		&i.StartedAt,
 		&i.CompletedAt,
 		&i.ErrorMessage,
+		&i.WorkflowExperimentID,
+		&i.WorkflowExperimentScopeID,
+		&i.WorkflowExperimentVariantID,
+		&i.InputSchemaCompatibilityID,
+		&i.SelectionReason,
+		&i.VersionInputData,
+		&i.RoutingDecision,
 	)
 	return i, err
 }
 
 const getWorkflowRunByTemporalID = `-- name: GetWorkflowRunByTemporalID :one
-SELECT id, workflow_version_id, message_id, temporal_workflow_id, status, started_at, completed_at, error_message FROM "workflow_run"
+SELECT id, workflow_version_id, message_id, temporal_workflow_id, status, started_at, completed_at, error_message, workflow_experiment_id, workflow_experiment_scope_id, workflow_experiment_variant_id, input_schema_compatibility_id, selection_reason, version_input_data, routing_decision FROM "workflow_run"
 WHERE temporal_workflow_id = $1
 LIMIT 1
 `
@@ -84,12 +154,19 @@ func (q *Queries) GetWorkflowRunByTemporalID(ctx context.Context, temporalWorkfl
 		&i.StartedAt,
 		&i.CompletedAt,
 		&i.ErrorMessage,
+		&i.WorkflowExperimentID,
+		&i.WorkflowExperimentScopeID,
+		&i.WorkflowExperimentVariantID,
+		&i.InputSchemaCompatibilityID,
+		&i.SelectionReason,
+		&i.VersionInputData,
+		&i.RoutingDecision,
 	)
 	return i, err
 }
 
 const listWorkflowRunsByMessageID = `-- name: ListWorkflowRunsByMessageID :many
-SELECT id, workflow_version_id, message_id, temporal_workflow_id, status, started_at, completed_at, error_message FROM "workflow_run"
+SELECT id, workflow_version_id, message_id, temporal_workflow_id, status, started_at, completed_at, error_message, workflow_experiment_id, workflow_experiment_scope_id, workflow_experiment_variant_id, input_schema_compatibility_id, selection_reason, version_input_data, routing_decision FROM "workflow_run"
 WHERE message_id = $1
 ORDER BY id
 `
@@ -112,6 +189,13 @@ func (q *Queries) ListWorkflowRunsByMessageID(ctx context.Context, messageID int
 			&i.StartedAt,
 			&i.CompletedAt,
 			&i.ErrorMessage,
+			&i.WorkflowExperimentID,
+			&i.WorkflowExperimentScopeID,
+			&i.WorkflowExperimentVariantID,
+			&i.InputSchemaCompatibilityID,
+			&i.SelectionReason,
+			&i.VersionInputData,
+			&i.RoutingDecision,
 		); err != nil {
 			return nil, err
 		}
@@ -127,7 +211,7 @@ const updateWorkflowRunStarted = `-- name: UpdateWorkflowRunStarted :one
 UPDATE "workflow_run"
 SET status = 'running', started_at = CURRENT_TIMESTAMP
 WHERE id = $1
-RETURNING id, workflow_version_id, message_id, temporal_workflow_id, status, started_at, completed_at, error_message
+RETURNING id, workflow_version_id, message_id, temporal_workflow_id, status, started_at, completed_at, error_message, workflow_experiment_id, workflow_experiment_scope_id, workflow_experiment_variant_id, input_schema_compatibility_id, selection_reason, version_input_data, routing_decision
 `
 
 func (q *Queries) UpdateWorkflowRunStarted(ctx context.Context, id int32) (WorkflowRun, error) {
@@ -142,6 +226,13 @@ func (q *Queries) UpdateWorkflowRunStarted(ctx context.Context, id int32) (Workf
 		&i.StartedAt,
 		&i.CompletedAt,
 		&i.ErrorMessage,
+		&i.WorkflowExperimentID,
+		&i.WorkflowExperimentScopeID,
+		&i.WorkflowExperimentVariantID,
+		&i.InputSchemaCompatibilityID,
+		&i.SelectionReason,
+		&i.VersionInputData,
+		&i.RoutingDecision,
 	)
 	return i, err
 }
@@ -150,7 +241,7 @@ const updateWorkflowRunStatus = `-- name: UpdateWorkflowRunStatus :one
 UPDATE "workflow_run"
 SET status = $2, completed_at = $3, error_message = $4
 WHERE id = $1
-RETURNING id, workflow_version_id, message_id, temporal_workflow_id, status, started_at, completed_at, error_message
+RETURNING id, workflow_version_id, message_id, temporal_workflow_id, status, started_at, completed_at, error_message, workflow_experiment_id, workflow_experiment_scope_id, workflow_experiment_variant_id, input_schema_compatibility_id, selection_reason, version_input_data, routing_decision
 `
 
 type UpdateWorkflowRunStatusParams struct {
@@ -177,6 +268,13 @@ func (q *Queries) UpdateWorkflowRunStatus(ctx context.Context, arg UpdateWorkflo
 		&i.StartedAt,
 		&i.CompletedAt,
 		&i.ErrorMessage,
+		&i.WorkflowExperimentID,
+		&i.WorkflowExperimentScopeID,
+		&i.WorkflowExperimentVariantID,
+		&i.InputSchemaCompatibilityID,
+		&i.SelectionReason,
+		&i.VersionInputData,
+		&i.RoutingDecision,
 	)
 	return i, err
 }

@@ -7,6 +7,14 @@ export interface MessageListItem {
   workflow_version_id?: number
   workflow_version_number?: number
   workflow_version_name?: string
+  workflow_input_schema_id?: number
+  workflow_input_schema_code?: string
+  workflow_input_schema_version?: number
+  input_schema_compatibility_id?: number
+  experiment_id?: number
+  experiment_scope_id?: number
+  experiment_variant_id?: number
+  selection_reason?: string
   status: string
   created_at: string
   updated_at: string
@@ -27,6 +35,13 @@ export interface StepStatus {
 export interface WorkflowRunStatus {
   id: number
   status: string
+  version_input_data?: Record<string, unknown>
+  input_schema_compatibility_id?: number
+  experiment_id?: number
+  experiment_scope_id?: number
+  experiment_variant_id?: number
+  selection_reason?: string
+  routing_decision?: Record<string, unknown>
   started_at?: string
   completed_at?: string
   error_message?: string
@@ -47,6 +62,16 @@ export interface MessageDetail {
   workflow_version_id?: number
   workflow_version_number?: number
   workflow_version_name?: string
+  workflow_input_schema_id?: number
+  workflow_input_schema_code?: string
+  workflow_input_schema_version?: number
+  input_schema_compatibility_id?: number
+  experiment_id?: number
+  experiment_scope_id?: number
+  experiment_variant_id?: number
+  selection_reason?: string
+  version_input_data?: Record<string, unknown>
+  routing_decision?: Record<string, unknown>
   message_status: string
   message_value: Record<string, unknown>
   created_at: string

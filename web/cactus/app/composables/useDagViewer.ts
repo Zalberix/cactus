@@ -34,7 +34,7 @@ export function toCanvasPosition(
   }
 }
 
-export function runtimeStepMap(steps: StepRunDetail[] = []): Map<number, StepRunDetail> {
+export function runtimeStepMap(steps: readonly StepRunDetail[] = []): Map<number, StepRunDetail> {
   const map = new Map<number, StepRunDetail>()
   for (const step of steps) {
     map.set(step.step_id, step)
@@ -85,7 +85,7 @@ export function useDagViewer(messageId: Ref<number>) {
     return runtimeStepMap(detail.value?.run_steps ?? [])
   })
 
-function stepDisplayName(step: GraphStep): string {
+function stepDisplayName(step: Pick<GraphStep, 'id' | 'name' | 'work_type_name' | 'control_kind'>): string {
   if (step.control_kind === 'start' && !step.name) return 'System Trigger'
   return step.name ?? step.work_type_name ?? step.control_kind ?? `Step ${step.id}`
 }
@@ -117,7 +117,7 @@ function stepDisplayName(step: GraphStep): string {
           workTypeName: step.work_type_name,
           workTypeCode: step.work_type_code,
           workTypeMeta: step.work_type_meta,
-          inputMapping: step.input_mapping,
+          inputMapping: [...(step.input_mapping ?? [])],
           inputSchema: step.input_schema,
           outputSchema: step.output_schema,
           status: normalizeRuntimeStatus(runtime?.status),
