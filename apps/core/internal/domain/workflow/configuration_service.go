@@ -361,7 +361,7 @@ func (s *Service) CreateWorkflowInputMapperRecord(ctx context.Context, workflowI
 	}
 	mapperType := strings.TrimSpace(req.MapperType)
 	if mapperType == "" {
-		mapperType = "json"
+		mapperType = "internal"
 	}
 	rules, err := normalizeJSON(req.Rules, []byte(`{}`))
 	if err != nil {

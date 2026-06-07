@@ -11,6 +11,13 @@ import {
   DialogTitle,
 } from '~/components/ui/dialog'
 import { Input } from '~/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '~/components/ui/select'
 
 const props = defineProps<{
   open: boolean
@@ -26,6 +33,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const mapperTypeOptions = ['internal'] as const
 
 const isOpen = computed({
   get: () => props.open,
@@ -53,7 +61,20 @@ function cancel() {
           </label>
           <label class="block space-y-1.5">
             <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldMapperType') }}</span>
-            <Input v-model="form.mapperType" :placeholder="t('workflowRouting.placeholderMapperType')" />
+            <Select v-model="form.mapperType">
+              <SelectTrigger>
+                <SelectValue :placeholder="t('workflowRouting.placeholderMapperType')" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="mapperType in mapperTypeOptions"
+                  :key="mapperType"
+                  :value="mapperType"
+                >
+                  {{ mapperType }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </label>
           <label class="block space-y-1.5">
             <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldMapperRulesJson') }}</span>

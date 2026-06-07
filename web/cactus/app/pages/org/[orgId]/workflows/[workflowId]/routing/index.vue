@@ -55,7 +55,7 @@ const deleteTarget = ref<RoutingDeleteTarget | null>(null)
 
 const mapperForm = reactive({
   name: 'Map public payload',
-  mapperType: 'json',
+  mapperType: 'internal',
   rulesJson: '{\n  "copy_all": true,\n  "mapping": {}\n}',
 })
 
@@ -317,7 +317,7 @@ function startEditMapper(mapper: WorkflowInputMapperRecord) {
 function cancelEditMapper() {
   editingMapperId.value = null
   mapperForm.name = 'Map public payload'
-  mapperForm.mapperType = 'json'
+  mapperForm.mapperType = 'internal'
   mapperForm.rulesJson = '{\n  "copy_all": true,\n  "mapping": {}\n}'
 }
 
