@@ -15,7 +15,6 @@ type Storage interface {
 	GetWorkflowByID(ctx context.Context, id int32) (db.Workflow, error)
 	ListWorkflowsBySystemID(ctx context.Context, systemID int32) ([]db.Workflow, error)
 	UpdateWorkflow(ctx context.Context, arg db.UpdateWorkflowParams) (db.Workflow, error)
-	UpdateWorkflowInputSchema(ctx context.Context, arg db.UpdateWorkflowInputSchemaParams) (db.Workflow, error)
 	SoftDeleteWorkflow(ctx context.Context, id int32) error
 
 	// WorkflowVersion
@@ -28,11 +27,15 @@ type Storage interface {
 	ListActiveWorkflowVersions(ctx context.Context, workflowID int32) ([]db.WorkflowVersion, error)
 	UpdateWorkflowVersionValid(ctx context.Context, arg db.UpdateWorkflowVersionValidParams) (db.WorkflowVersion, error)
 	UpdateWorkflowVersionActive(ctx context.Context, arg db.UpdateWorkflowVersionActiveParams) (db.WorkflowVersion, error)
-	UpdateWorkflowVersionTrafficWeight(ctx context.Context, arg db.UpdateWorkflowVersionTrafficWeightParams) (db.WorkflowVersion, error)
-	UpdateWorkflowVersionTrafficWeightIncludingDeleted(ctx context.Context, arg db.UpdateWorkflowVersionTrafficWeightIncludingDeletedParams) (db.WorkflowVersion, error)
 	UpdateWorkflowVersionName(ctx context.Context, arg db.UpdateWorkflowVersionNameParams) (db.WorkflowVersion, error)
 	InvalidateWorkflowVersionsByWorkflowID(ctx context.Context, workflowID int32) error
 	SoftDeleteWorkflowVersion(ctx context.Context, id int32) error
+
+	// Workflow input schema
+	CreateWorkflowInputSchema(ctx context.Context, arg db.CreateWorkflowInputSchemaParams) (db.WorkflowInputSchema, error)
+	UpdateWorkflowInputSchemaStatus(ctx context.Context, arg db.UpdateWorkflowInputSchemaStatusParams) (db.WorkflowInputSchema, error)
+	CreateWorkflowVersionInputSchemaCompatibility(ctx context.Context, arg db.CreateWorkflowVersionInputSchemaCompatibilityParams) (db.WorkflowVersionInputSchemaCompatibility, error)
+	GetNativeInputSchemaForWorkflowVersion(ctx context.Context, workflowVersionID int32) (db.WorkflowInputSchema, error)
 
 	// WorkflowStep
 	CreateWorkflowStep(ctx context.Context, arg db.CreateWorkflowStepParams) (db.WorkflowStep, error)

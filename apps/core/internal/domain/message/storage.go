@@ -15,7 +15,6 @@ type Storage interface {
 
 	// Workflow (для получения активной версии и валидации)
 	GetWorkflowByID(ctx context.Context, id int32) (db.Workflow, error)
-	ListWorkflowTrafficCandidatesByWorkflowID(ctx context.Context, workflowID int32) ([]db.ListWorkflowTrafficCandidatesByWorkflowIDRow, error)
 
 	// Workflow steps и dependencies (для формирования DAGInput)
 	ListWorkflowStepsByVersionID(ctx context.Context, workflowVersionID int32) ([]db.WorkflowStep, error)

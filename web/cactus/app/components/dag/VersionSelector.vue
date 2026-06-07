@@ -64,12 +64,6 @@ function versionLabel(version: Version) {
           >
             {{ t('editor.validationRequired') }}
           </Badge>
-          <Badge v-if="version.is_control_group" variant="outline" class="h-5 px-1.5 text-[10px]">
-            {{ t('workflowTraffic.controlGroup') }}
-          </Badge>
-          <span v-if="version.traffic_weight !== undefined" class="text-xs text-muted-foreground">
-            {{ version.traffic_weight }}%
-          </span>
         </div>
       </SelectItem>
     </SelectContent>

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -42,6 +43,20 @@ func NewService(store Storage, tc client.Client) *Service {
 // 9. Обновить workflow_run с temporal_workflow_id
 // 10. Вернуть response
 func (s *Service) SendMessage(ctx context.Context, req SendMessageRequest, publicToken string) (*SendMessageResponse, []response.ErrorDetail, error) {
+	if strings.TrimSpace(req.Process) != "" {
+		ref, err := parseProcessRef(req.Process)
+		if err != nil {
+			return nil, nil, err
+		}
+		if req.WorkflowID != 0 && req.WorkflowID != ref.WorkflowID {
+			return nil, nil, fmt.Errorf("PROCESS_WORKFLOW_MISMATCH")
+		}
+		req.WorkflowID = ref.WorkflowID
+	}
+	if req.WorkflowID <= 0 {
+		return nil, nil, fmt.Errorf("PROCESS_REQUIRED: process is required")
+	}
+
 	// 1. Загрузить workflow
 	wf, err := s.store.GetWorkflowByID(ctx, req.WorkflowID)
 	if err != nil {
@@ -77,7 +92,7 @@ func (s *Service) SendMessage(ctx context.Context, req SendMessageRequest, publi
 	}
 
 	// 3. Найти маршрут выполнения по input schema, compatibility и active experiments.
-	route, err := s.selectRuntimeRoute(ctx, req.WorkflowID, resolvedSchema.ID.Int32, valueJSON, req.IdempotencyKey)
+	route, err := s.selectRuntimeRoute(ctx, req.WorkflowID, resolvedSchema.ID.Int32, req.Experimental, valueJSON, req.IdempotencyKey)
 	if err != nil {
 		return nil, nil, fmt.Errorf("select workflow route: %w", err)
 	}
@@ -171,89 +186,6 @@ func (s *Service) SendMessage(ctx context.Context, req SendMessageRequest, publi
 		SelectionReason:                  route.SelectionReason,
 		Status:                           "running",
 	}, nil, nil
-}
-
-func selectWorkflowVersionByTrafficDeficit(versions []db.ListWorkflowTrafficCandidatesByWorkflowIDRow) (db.ListWorkflowTrafficCandidatesByWorkflowIDRow, error) {
-	activeVersions := activeWorkflowVersionSummaries(versions)
-	if len(activeVersions) == 0 {
-		return db.ListWorkflowTrafficCandidatesByWorkflowIDRow{}, fmt.Errorf("no active workflow versions")
-	}
-
-	totalWeight := positiveTrafficWeightSummaryTotal(activeVersions)
-	if totalWeight == 0 {
-		return firstActiveWorkflowVersionSummary(activeVersions), nil
-	}
-
-	totalRuns := workflowVersionRunTotal(activeVersions)
-	nextTotal := totalRuns + 1
-	var selected db.ListWorkflowTrafficCandidatesByWorkflowIDRow
-	var bestDeficit int64
-	hasSelected := false
-
-	for _, version := range activeVersions {
-		if version.TrafficWeight <= 0 {
-			continue
-		}
-
-		deficit := nextTotal*int64(version.TrafficWeight) - version.RunCount*totalWeight
-		if !hasSelected || deficit > bestDeficit || (deficit == bestDeficit && trafficSelectionTieLess(version, selected)) {
-			selected = version
-			bestDeficit = deficit
-			hasSelected = true
-		}
-	}
-
-	if !hasSelected {
-		return firstActiveWorkflowVersionSummary(activeVersions), nil
-	}
-	return selected, nil
-}
-
-func activeWorkflowVersionSummaries(versions []db.ListWorkflowTrafficCandidatesByWorkflowIDRow) []db.ListWorkflowTrafficCandidatesByWorkflowIDRow {
-	active := make([]db.ListWorkflowTrafficCandidatesByWorkflowIDRow, 0, len(versions))
-	for _, version := range versions {
-		if version.IsActive && !version.DeletedAt.Valid {
-			active = append(active, version)
-		}
-	}
-	return active
-}
-
-func positiveTrafficWeightSummaryTotal(versions []db.ListWorkflowTrafficCandidatesByWorkflowIDRow) int64 {
-	var total int64
-	for _, version := range versions {
-		if version.TrafficWeight > 0 {
-			total += int64(version.TrafficWeight)
-		}
-	}
-	return total
-}
-
-func workflowVersionRunTotal(versions []db.ListWorkflowTrafficCandidatesByWorkflowIDRow) int64 {
-	var total int64
-	for _, version := range versions {
-		if version.TrafficWeight > 0 {
-			total += version.RunCount
-		}
-	}
-	return total
-}
-
-func firstActiveWorkflowVersionSummary(versions []db.ListWorkflowTrafficCandidatesByWorkflowIDRow) db.ListWorkflowTrafficCandidatesByWorkflowIDRow {
-	selected := versions[0]
-	for _, version := range versions[1:] {
-		if trafficSelectionTieLess(version, selected) {
-			selected = version
-		}
-	}
-	return selected
-}
-
-func trafficSelectionTieLess(a, b db.ListWorkflowTrafficCandidatesByWorkflowIDRow) bool {
-	if a.VersionNumber != b.VersionNumber {
-		return a.VersionNumber < b.VersionNumber
-	}
-	return a.ID < b.ID
 }
 
 // buildDAGInput собирает DAGInput из steps и deps активной версии.

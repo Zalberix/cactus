@@ -81,6 +81,20 @@ export function workflowInputSchemaEditorPath(orgId: number, workflowId: number,
   return `${workflowRoutingPath(orgId, workflowId)}/input-schemas/${inputSchemaId}/edit`
 }
 
+export function nativeInputSchemaForVersion(
+  versionId: number,
+  schemas: WorkflowInputSchemaRecord[],
+  compatibilities: WorkflowSchemaCompatibility[],
+): WorkflowInputSchemaRecord | undefined {
+  const compatibility = compatibilities.find(item =>
+    item.workflow_version_id === versionId
+    && item.compatibility_type === 'native'
+    && item.is_active,
+  )
+  if (!compatibility) return undefined
+  return schemas.find(schema => schema.id === compatibility.workflow_input_schema_id)
+}
+
 export interface CreateInputMapperPayload {
   name: string
   mapper_type: string

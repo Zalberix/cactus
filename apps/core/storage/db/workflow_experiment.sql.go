@@ -232,12 +232,14 @@ WHERE e.workflow_id = $1
   AND (e.started_at IS NULL OR e.started_at <= CURRENT_TIMESTAMP)
   AND (e.ended_at IS NULL OR e.ended_at > CURRENT_TIMESTAMP)
   AND s.workflow_input_schema_id = $2
-ORDER BY e.id, s.id
+  AND ($3::int IS NULL OR e.id = $3::int)
+ORDER BY e.id DESC, s.id DESC
 `
 
 type ListActiveExperimentScopesForRoutingParams struct {
-	WorkflowID            int32 `json:"workflow_id"`
-	WorkflowInputSchemaID int32 `json:"workflow_input_schema_id"`
+	WorkflowID            int32       `json:"workflow_id"`
+	WorkflowInputSchemaID int32       `json:"workflow_input_schema_id"`
+	ExperimentID          pgtype.Int4 `json:"experiment_id"`
 }
 
 type ListActiveExperimentScopesForRoutingRow struct {
@@ -254,7 +256,7 @@ type ListActiveExperimentScopesForRoutingRow struct {
 }
 
 func (q *Queries) ListActiveExperimentScopesForRouting(ctx context.Context, arg ListActiveExperimentScopesForRoutingParams) ([]ListActiveExperimentScopesForRoutingRow, error) {
-	rows, err := q.db.Query(ctx, listActiveExperimentScopesForRouting, arg.WorkflowID, arg.WorkflowInputSchemaID)
+	rows, err := q.db.Query(ctx, listActiveExperimentScopesForRouting, arg.WorkflowID, arg.WorkflowInputSchemaID, arg.ExperimentID)
 	if err != nil {
 		return nil, err
 	}

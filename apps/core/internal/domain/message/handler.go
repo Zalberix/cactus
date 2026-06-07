@@ -50,6 +50,14 @@ func (h *Handler) SendMessage(c *gin.Context) {
 		// Различаем типы ошибок
 		errMsg := err.Error()
 		switch {
+		case strings.Contains(errMsg, "PROCESS_INVALID"):
+			response.BadRequest(c, "PROCESS_INVALID", err.Error())
+		case strings.Contains(errMsg, "PROCESS_REQUIRED"):
+			response.BadRequest(c, "PROCESS_REQUIRED", err.Error())
+		case strings.Contains(errMsg, "PROCESS_WORKFLOW_MISMATCH"):
+			response.BadRequest(c, "PROCESS_WORKFLOW_MISMATCH", err.Error())
+		case strings.Contains(errMsg, "EXPERIMENT_NOT_ROUTABLE"):
+			response.BadRequest(c, "EXPERIMENT_NOT_ROUTABLE", err.Error())
 		case strings.Contains(errMsg, "not found"):
 			response.NotFound(c, err.Error())
 		case strings.Contains(errMsg, "access denied"):
@@ -132,7 +140,7 @@ func (h *Handler) ListMessages(c *gin.Context) {
 
 	items, total, err := h.service.ListMessages(c.Request.Context(), int32(orgID), page, perPage)
 	if err != nil {
-		response.InternalError(c, "Ошибка получения списка сообщений")
+		response.InternalError(c, "Ошибка получения списка сообщений: "+err.Error())
 		return
 	}
 

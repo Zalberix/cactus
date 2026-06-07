@@ -31,6 +31,10 @@ describe('workflow step delete confirmation', () => {
     }))
     vi.stubGlobal('useRouter', () => ({ replace: vi.fn() }))
     vi.stubGlobal('getErrorMessage', getErrorMessage)
+    vi.stubGlobal('useWorkflowRouting', () => ({
+      fetchCompatibilities: vi.fn(),
+      fetchInputSchemas: vi.fn(),
+    }))
   })
 
   it('requires confirmation before deleting a step', async () => {

@@ -2,6 +2,7 @@
 import { Search } from 'lucide-vue-next'
 import type { Node, Edge } from '@vue-flow/core'
 import type { WorkflowInputSchemaField } from '~/composables/useWorkflows'
+import type { WorkflowInputSchemaRecord } from '~/composables/useWorkflowRouting'
 import type { StepData } from '~/composables/useDagEditor'
 import type { WorkflowInputField } from './workflow-input-utils'
 import { Button } from '~/components/ui/button'
@@ -11,12 +12,13 @@ import { Separator } from '~/components/ui/separator'
 import { toast } from '~/components/ui/toast/use-toast'
 import SchemaTree from './SchemaTree.vue'
 import WorkflowInputsPanel from './WorkflowInputsPanel.vue'
-import { workflowInputFieldsFromSchema, workflowInputPath } from './workflow-input-utils'
+import { deleteWorkflowInputFieldFromSchema, upsertWorkflowInputFieldInSchema, workflowInputFieldsFromSchema, workflowInputPath } from './workflow-input-utils'
 
 const props = defineProps<{
   stepId: string
   workflowId: number
   versionId: number | null
+  workflowInputSchemaId: number | null
   allNodes: Node[]
   allEdges: Edge[]
 }>()
@@ -27,9 +29,10 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const { fetchWorkflowInputSchema, upsertWorkflowInputSchemaField, deleteWorkflowInputSchemaField } = useWorkflows()
+const routing = useWorkflowRouting()
 const searchQuery = ref('')
 const workflowInputs = ref<WorkflowInputField[]>([])
+const workflowInputSchema = ref<WorkflowInputSchemaRecord | null>(null)
 const workflowInputSaving = ref(false)
 const editingWorkflowInput = ref<WorkflowInputField | null>(null)
 const deletingWorkflowInput = ref<WorkflowInputField | null>(null)
@@ -134,12 +137,35 @@ function onFieldClick(path: string) {
 }
 
 async function loadWorkflowInputs() {
-  if (!props.workflowId) {
+  if (!props.workflowInputSchemaId) {
     workflowInputs.value = []
+    workflowInputSchema.value = null
     return
   }
-  const schema = await fetchWorkflowInputSchema(props.workflowId)
-  workflowInputs.value = workflowInputFieldsFromSchema(schema)
+  const schema = await routing.fetchInputSchema(props.workflowInputSchemaId)
+  workflowInputSchema.value = schema
+  workflowInputs.value = workflowInputFieldsFromSchema(schema.schema_json)
+}
+
+async function updateLinkedWorkflowInputSchema(
+  mutate: (schema: Record<string, unknown>) => Record<string, unknown>,
+) {
+  if (!props.workflowInputSchemaId) {
+    throw new Error(t('workflowRouting.errorNativeSchemaMissing'))
+  }
+  let schema = workflowInputSchema.value
+  if (!schema || schema.id !== props.workflowInputSchemaId) {
+    schema = await routing.fetchInputSchema(props.workflowInputSchemaId)
+  }
+  const schemaJson = mutate(schema.schema_json)
+  const updated = await routing.updateInputSchema(schema.id, {
+    code: schema.code,
+    version_number: schema.version_number,
+    schema_json: schemaJson,
+  })
+  workflowInputSchema.value = updated
+  workflowInputs.value = workflowInputFieldsFromSchema(updated.schema_json)
+  return updated
 }
 
 async function createWorkflowInputFromField(
@@ -149,15 +175,14 @@ async function createWorkflowInputFromField(
 ) {
   const type = typeof property.type === 'string' ? property.type : 'string'
   const allowedTypes: WorkflowInputSchemaField['type'][] = ['string', 'number', 'integer', 'boolean', 'object', 'array']
-  await upsertWorkflowInputSchemaField(props.workflowId, {
+  await updateLinkedWorkflowInputSchema(schema => upsertWorkflowInputFieldInSchema(schema, {
     name: field,
     type: allowedTypes.includes(type as WorkflowInputSchemaField['type'])
       ? type as WorkflowInputSchemaField['type']
       : 'string',
     required: property.required === true,
     description: typeof property.description === 'string' ? property.description : undefined,
-  })
-  await loadWorkflowInputs()
+  }))
   emit('workflowInputsChanged')
   onCreated(workflowInputPath(field))
 }
@@ -183,13 +208,12 @@ async function saveWorkflowInput() {
   workflowInputSaving.value = true
   try {
     const description = workflowInputForm.value.description?.trim()
-    await upsertWorkflowInputSchemaField(props.workflowId, {
+    await updateLinkedWorkflowInputSchema(schema => upsertWorkflowInputFieldInSchema(schema, {
       name: workflowInputForm.value.name.trim(),
       type: workflowInputForm.value.type,
       required: workflowInputForm.value.required,
       description: description || undefined,
-    })
-    await loadWorkflowInputs()
+    }))
     editingWorkflowInput.value = null
     emit('workflowInputsChanged')
   }
@@ -205,8 +229,7 @@ async function deleteWorkflowInput() {
   if (!deletingWorkflowInput.value || workflowInputSaving.value) return
   workflowInputSaving.value = true
   try {
-    await deleteWorkflowInputSchemaField(props.workflowId, deletingWorkflowInput.value.name)
-    await loadWorkflowInputs()
+    await updateLinkedWorkflowInputSchema(schema => deleteWorkflowInputFieldFromSchema(schema, deletingWorkflowInput.value!.name))
     deletingWorkflowInput.value = null
     emit('workflowInputsChanged')
   }
@@ -218,7 +241,7 @@ async function deleteWorkflowInput() {
   }
 }
 
-watch(() => props.workflowId, loadWorkflowInputs, { immediate: true })
+watch(() => props.workflowInputSchemaId, loadWorkflowInputs, { immediate: true })
 
 defineExpose({ createWorkflowInputFromField })
 </script>

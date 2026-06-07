@@ -5,6 +5,12 @@ import VersionEditorPage from '../app/pages/org/[orgId]/workflows/[workflowId]/v
 import { getErrorMessage } from '../app/utils/errors'
 
 const toastMock = vi.hoisted(() => vi.fn())
+const routerPushMock = vi.hoisted(() => vi.fn())
+const routerReplaceMock = vi.hoisted(() => vi.fn())
+const routingMock = vi.hoisted(() => ({
+  fetchInputSchemas: vi.fn(),
+  fetchCompatibilities: vi.fn(),
+}))
 
 vi.mock('~/components/ui/toast/use-toast', () => ({
   toast: toastMock,
@@ -14,6 +20,9 @@ describe('workflow version name save', () => {
   beforeEach(() => {
     vi.unstubAllGlobals()
     toastMock.mockClear()
+    routerPushMock.mockReset()
+    routerReplaceMock.mockReset()
+    for (const mock of Object.values(routingMock)) mock.mockReset()
 
     vi.stubGlobal('computed', computed)
     vi.stubGlobal('ref', ref)
@@ -26,7 +35,8 @@ describe('workflow version name save', () => {
     vi.stubGlobal('useRoute', () => ({
       params: { orgId: '7', workflowId: '42', versionId: '10' },
     }))
-    vi.stubGlobal('useRouter', () => ({ replace: vi.fn() }))
+    vi.stubGlobal('useRouter', () => ({ push: routerPushMock, replace: routerReplaceMock }))
+    vi.stubGlobal('useWorkflowRouting', () => routingMock)
     vi.stubGlobal('getErrorMessage', getErrorMessage)
   })
 
@@ -199,6 +209,89 @@ describe('workflow version name save', () => {
     finally {
       window.removeEventListener('cactus:workflow-version-name-updated', onNameUpdated)
     }
+  })
+
+  it('routes the header input schema button to the current version native schema editor', async () => {
+    vi.stubGlobal('useWorkflows', () => ({
+      fetchWorkflow: vi.fn().mockResolvedValue({ id: 42, name: 'Process' }),
+    }))
+    vi.stubGlobal('useVersions', () => ({
+      fetchVersionSummaries: vi.fn().mockResolvedValue([{
+        id: 10,
+        workflow_id: 42,
+        name: 'Current',
+        version_number: 1,
+        is_valid: false,
+        is_active: false,
+        traffic_weight: 100,
+        is_control_group: false,
+        run_count: 0,
+        created_at: '',
+      }]),
+      copyVersion: vi.fn(),
+      updateVersionName: vi.fn(),
+      activateVersion: vi.fn(),
+      deactivateVersion: vi.fn(),
+    }))
+    routingMock.fetchInputSchemas.mockResolvedValue([{
+      id: 11,
+      workflow_id: 42,
+      code: 'v1',
+      version_number: 1,
+      schema_json: { type: 'object', properties: {} },
+      status: 'draft',
+      is_default: false,
+    }])
+    routingMock.fetchCompatibilities.mockResolvedValue([{
+      id: 31,
+      workflow_version_id: 10,
+      workflow_input_schema_id: 11,
+      compatibility_type: 'native',
+      default_values: {},
+      is_active: true,
+      is_default_route: true,
+    }])
+    vi.stubGlobal('useDagEditor', () => ({
+      nodes: ref([]),
+      edges: ref([]),
+      selectedEdgeId: ref(null),
+      selectedNodeId: ref(null),
+      isDirty: ref(false),
+      validationErrors: ref([]),
+      loadSteps: vi.fn(),
+      saveVersion: vi.fn(),
+      connectSteps: vi.fn(),
+      onNodeDragStop: vi.fn(),
+      selectNode: vi.fn(),
+      removeEdge: vi.fn(),
+      addStep: vi.fn(),
+      removeStep: vi.fn(),
+      renameStepOnServer: vi.fn(),
+      updateTaskSettingsOnServer: vi.fn(),
+      updateStepOnServer: vi.fn(),
+      updateTaskInputMappingOnServer: vi.fn(),
+      updateNodeData: vi.fn(),
+    }))
+    vi.stubGlobal('useNodeEditor', () => ({
+      isOpen: ref(false),
+      editingNodeId: ref(null),
+      open: vi.fn(),
+      close: vi.fn(),
+    }))
+
+    const wrapper = mount(VersionEditorPage, {
+      global: {
+        stubs: pageStubs(),
+      },
+    })
+    await flushPromises()
+
+    const button = wrapper.findAll('button').find(item => item.text().includes('editor.inputSchema'))
+    expect(button).toBeTruthy()
+    await button!.trigger('click')
+    await flushPromises()
+
+    expect(routerPushMock).toHaveBeenCalledWith('/org/7/workflows/42/routing/input-schemas/11/edit')
   })
 })
 

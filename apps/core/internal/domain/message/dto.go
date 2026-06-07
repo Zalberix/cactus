@@ -4,7 +4,9 @@ import "time"
 
 // SendMessageRequest is the inbound message request.
 type SendMessageRequest struct {
-	WorkflowID         int32          `json:"workflow_id" binding:"required"`
+	Process            string         `json:"process"`
+	Experimental       *int32         `json:"experimental,omitempty"`
+	WorkflowID         int32          `json:"workflow_id,omitempty"`
 	InputSchemaID      *int32         `json:"input_schema_id,omitempty"`
 	InputSchemaCode    string         `json:"input_schema_code,omitempty"`
 	IdempotencyKey     string         `json:"idempotency_key,omitempty"`

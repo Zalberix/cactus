@@ -23,7 +23,7 @@ const emit = defineEmits<{
   activate: [version: VersionSummary]
   deactivate: [version: VersionSummary]
   delete: [version: VersionSummary]
-  showInputSchema: []
+  showInputSchema: [version: VersionSummary]
 }>()
 const { t } = useI18n()
 
@@ -46,7 +46,6 @@ function supportedSchemaLabels(version: VersionSummary) {
           <th class="px-4 py-3 font-medium">{{ t('workflowVersions.headers.editing') }}</th>
           <th class="px-4 py-3 font-medium">{{ t('workflowVersions.headers.supportedSchemas') }}</th>
           <th class="px-4 py-3 font-medium">{{ t('workflowVersions.headers.runs') }}</th>
-          <th class="px-4 py-3 font-medium">{{ t('workflowVersions.headers.traffic') }}</th>
           <th class="w-12 px-4 py-3" />
         </tr>
       </thead>
@@ -74,7 +73,6 @@ function supportedSchemaLabels(version: VersionSummary) {
               >
                 {{ version.is_valid ? t('editor.valid') : t('workflowVersions.status.validationRequired') }}
               </Badge>
-              <Badge v-if="version.is_control_group" variant="outline">{{ t('workflowVersions.status.control') }}</Badge>
             </div>
           </td>
           <td class="px-4 py-3">
@@ -95,7 +93,6 @@ function supportedSchemaLabels(version: VersionSummary) {
             <span v-else class="text-muted-foreground">-</span>
           </td>
           <td class="px-4 py-3">{{ version.run_count }}</td>
-          <td class="px-4 py-3">{{ version.traffic_weight }}%</td>
           <td class="px-4 py-3 text-right">
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
@@ -104,7 +101,7 @@ function supportedSchemaLabels(version: VersionSummary) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem @click="emit('showInputSchema')">
+                <DropdownMenuItem @click="emit('showInputSchema', version)">
                   <FileJson class="mr-2 h-4 w-4" />
                   {{ t('workflowVersions.actions.workflowInputSchema') }}
                 </DropdownMenuItem>

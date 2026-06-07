@@ -8,8 +8,6 @@ export interface Version {
   version_number: number
   is_valid: boolean
   is_active: boolean
-  traffic_weight?: number
-  is_control_group?: boolean
   created_at: string
 }
 
@@ -20,8 +18,6 @@ export interface VersionSummary {
   version_number: number
   is_valid: boolean
   is_active: boolean
-  traffic_weight: number
-  is_control_group: boolean
   run_count: number
   created_at: string
   updated_at?: string
@@ -64,16 +60,6 @@ export interface ValidationIssue {
 export interface ValidationResult {
   isValid: boolean
   errors: ValidationIssue[]
-}
-
-export interface WorkflowTrafficVersionUpdate {
-  version_id: number
-  mode: 'share' | 'fixed'
-  weight?: number
-}
-
-export interface WorkflowTrafficUpdate {
-  versions: WorkflowTrafficVersionUpdate[]
 }
 
 export function normalizeValidationIssue(value: unknown): ValidationIssue | null {
@@ -183,19 +169,6 @@ export function useVersions() {
       throw new Error(resp.error?.message ?? 'Failed to update version name')
     }
     return resp.data
-  }
-
-  async function updateWorkflowTraffic(workflowId: number, data: WorkflowTrafficUpdate): Promise<void> {
-    const resp = await api<ApiResponse<null>>(
-      `/workflows/${workflowId}/traffic`,
-      {
-        method: 'PUT',
-        body: data,
-      },
-    )
-    if (!resp.success) {
-      throw new Error(resp.error?.message ?? 'Failed to update workflow traffic')
-    }
   }
 
   async function validateVersion(versionId: number): Promise<ValidationResult> {
@@ -405,7 +378,6 @@ export function useVersions() {
     fetchVersionSummaries,
     copyVersion,
     updateVersionName,
-    updateWorkflowTraffic,
     validateVersion,
     activateVersion,
     deactivateVersion,

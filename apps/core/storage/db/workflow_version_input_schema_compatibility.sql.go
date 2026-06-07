@@ -175,6 +175,39 @@ func (q *Queries) GetDefaultRouteForInputSchema(ctx context.Context, workflowInp
 	return i, err
 }
 
+const getNativeInputSchemaForWorkflowVersion = `-- name: GetNativeInputSchemaForWorkflowVersion :one
+SELECT wis.id, wis.workflow_id, wis.code, wis.version_number, wis.schema_json, wis.status, wis.is_default, wis.created_by_user_id, wis.updated_by_user_id, wis.created_at, wis.updated_at, wis.deleted_at
+FROM "workflow_version_input_schema_compatibility" c
+JOIN "workflow_input_schema" wis ON wis.id = c.workflow_input_schema_id
+WHERE c.workflow_version_id = $1
+  AND c.compatibility_type = 'native'
+  AND c.is_active = TRUE
+  AND c.deleted_at IS NULL
+  AND wis.deleted_at IS NULL
+ORDER BY wis.version_number DESC, wis.id DESC
+LIMIT 1
+`
+
+func (q *Queries) GetNativeInputSchemaForWorkflowVersion(ctx context.Context, workflowVersionID int32) (WorkflowInputSchema, error) {
+	row := q.db.QueryRow(ctx, getNativeInputSchemaForWorkflowVersion, workflowVersionID)
+	var i WorkflowInputSchema
+	err := row.Scan(
+		&i.ID,
+		&i.WorkflowID,
+		&i.Code,
+		&i.VersionNumber,
+		&i.SchemaJson,
+		&i.Status,
+		&i.IsDefault,
+		&i.CreatedByUserID,
+		&i.UpdatedByUserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const getWorkflowVersionInputSchemaCompatibilityByID = `-- name: GetWorkflowVersionInputSchemaCompatibilityByID :one
 SELECT id, workflow_version_id, workflow_input_schema_id, compatibility_type, workflow_input_mapper_id, default_values, is_active, is_default_route, created_by_user_id, updated_by_user_id, created_at, updated_at, deleted_at FROM "workflow_version_input_schema_compatibility"
 WHERE id = $1 AND deleted_at IS NULL

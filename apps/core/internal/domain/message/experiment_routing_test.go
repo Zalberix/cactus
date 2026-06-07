@@ -17,14 +17,16 @@ import (
 type runtimeRoutingTestStore struct {
 	detailStore
 
-	scopes       []db.ListActiveExperimentScopesForRoutingRow
-	variants     map[int32][]db.WorkflowExperimentVariant
-	defaultRoute db.WorkflowVersionInputSchemaCompatibility
-	pairRoutes   map[[2]int32]db.WorkflowVersionInputSchemaCompatibility
-	mapper       db.WorkflowInputMapper
+	scopes        []db.ListActiveExperimentScopesForRoutingRow
+	variants      map[int32][]db.WorkflowExperimentVariant
+	defaultRoute  db.WorkflowVersionInputSchemaCompatibility
+	pairRoutes    map[[2]int32]db.WorkflowVersionInputSchemaCompatibility
+	mapper        db.WorkflowInputMapper
+	routingParams db.ListActiveExperimentScopesForRoutingParams
 }
 
-func (s *runtimeRoutingTestStore) ListActiveExperimentScopesForRouting(context.Context, db.ListActiveExperimentScopesForRoutingParams) ([]db.ListActiveExperimentScopesForRoutingRow, error) {
+func (s *runtimeRoutingTestStore) ListActiveExperimentScopesForRouting(_ context.Context, arg db.ListActiveExperimentScopesForRoutingParams) ([]db.ListActiveExperimentScopesForRoutingRow, error) {
+	s.routingParams = arg
 	return s.scopes, nil
 }
 
@@ -119,7 +121,7 @@ func TestSelectRuntimeRouteErrorsWhenExperimentFallbackPolicyIsError(t *testing.
 	}
 	svc := NewService(store, client.Client(nil))
 
-	_, err := svc.selectRuntimeRoute(context.Background(), 1, 2, []byte(`{"email":"ada@example.com"}`), "stable-key")
+	_, err := svc.selectRuntimeRoute(context.Background(), 1, 2, nil, []byte(`{"email":"ada@example.com"}`), "stable-key")
 
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "fallback policy is error"), err.Error())
@@ -150,7 +152,7 @@ func TestSelectRuntimeRouteUsesFallbackVersionWhenScopeTrafficIsExcluded(t *test
 	}
 	svc := NewService(store, client.Client(nil))
 
-	got, err := svc.selectRuntimeRoute(context.Background(), 1, 2, []byte(`{"email":"ada@example.com"}`), "stable-key")
+	got, err := svc.selectRuntimeRoute(context.Background(), 1, 2, nil, []byte(`{"email":"ada@example.com"}`), "stable-key")
 
 	require.NoError(t, err)
 	require.Equal(t, int32(22), got.WorkflowVersionID)
@@ -158,5 +160,45 @@ func TestSelectRuntimeRouteUsesFallbackVersionWhenScopeTrafficIsExcluded(t *test
 	require.Equal(t, int32(7), got.WorkflowExperimentID.Int32)
 	require.Equal(t, int32(77), got.WorkflowExperimentScopeID.Int32)
 	require.False(t, got.WorkflowExperimentVariantID.Valid)
-	require.Equal(t, "experiment_scope_traffic_excluded_fallback_version", got.SelectionReason)
+	require.Equal(t, "fallback", got.SelectionReason)
+}
+
+func TestSelectRuntimeRouteUsesExplicitExperiment(t *testing.T) {
+	expID := int32(7)
+	store := &runtimeRoutingTestStore{
+		scopes: []db.ListActiveExperimentScopesForRoutingRow{{
+			WorkflowExperimentID:      7,
+			WorkflowExperimentScopeID: 77,
+			TrafficConditions:         []byte(`{}`),
+			TrafficPercent:            100,
+			FallbackPolicy:            "default_route",
+		}},
+		variants: map[int32][]db.WorkflowExperimentVariant{77: {
+			{ID: 88, WorkflowExperimentScopeID: 77, WorkflowVersionID: 33, TrafficWeight: 100, IsActive: true},
+		}},
+		pairRoutes: map[[2]int32]db.WorkflowVersionInputSchemaCompatibility{
+			{33, 2}: {ID: 99, WorkflowVersionID: 33, WorkflowInputSchemaID: 2, CompatibilityType: "native", IsActive: true},
+		},
+	}
+	svc := NewService(store, client.Client(nil))
+
+	got, err := svc.selectRuntimeRoute(context.Background(), 1, 2, &expID, []byte(`{"email":"ada@example.com"}`), "stable-key")
+
+	require.NoError(t, err)
+	require.True(t, store.routingParams.ExperimentID.Valid)
+	require.Equal(t, int32(7), store.routingParams.ExperimentID.Int32)
+	require.Equal(t, int32(7), got.WorkflowExperimentID.Int32)
+	require.Equal(t, int32(88), got.WorkflowExperimentVariantID.Int32)
+	require.Equal(t, int32(33), got.WorkflowVersionID)
+}
+
+func TestSelectRuntimeRouteErrorsWhenExplicitExperimentHasNoActiveScope(t *testing.T) {
+	expID := int32(7)
+	store := &runtimeRoutingTestStore{scopes: []db.ListActiveExperimentScopesForRoutingRow{}}
+	svc := NewService(store, client.Client(nil))
+
+	_, err := svc.selectRuntimeRoute(context.Background(), 1, 2, &expID, []byte(`{"email":"ada@example.com"}`), "stable-key")
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "EXPERIMENT_NOT_ROUTABLE")
 }

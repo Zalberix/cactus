@@ -1,6 +1,6 @@
 -- name: CreateWorkflow :one
-INSERT INTO "workflow" (system_id, "name", priority, input_schema, description)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO "workflow" (system_id, "name", priority, description)
+VALUES ($1, $2, $3, $4)
 RETURNING *;
 
 -- name: GetWorkflowByID :one
@@ -15,12 +15,6 @@ ORDER BY id;
 -- name: UpdateWorkflow :one
 UPDATE "workflow"
 SET "name" = $2, priority = $3, description = $4, updated_at = CURRENT_TIMESTAMP
-WHERE id = $1 AND deleted_at IS NULL
-RETURNING *;
-
--- name: UpdateWorkflowInputSchema :one
-UPDATE "workflow"
-SET input_schema = $2, updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;
 

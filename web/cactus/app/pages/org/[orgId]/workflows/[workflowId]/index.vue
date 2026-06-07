@@ -1,13 +1,12 @@
 <script setup lang="ts">
-import { GitBranch, Key, Route, Split } from 'lucide-vue-next'
+import { GitBranch, Key, Route } from 'lucide-vue-next'
 import type { VersionSummary } from '~/composables/useVersions'
-import type { WorkflowInputSchemaField } from '~/composables/useWorkflows'
 import type { WorkflowInputSchemaRecord, WorkflowSchemaCompatibility } from '~/composables/useWorkflowRouting'
 import { buildSupportedSchemaLabelsByVersionId } from '~/components/dag/supported-schema-utils'
 import { workflowVersionEditorPath } from '~/composables/useWorkflows'
+import { nativeInputSchemaForVersion, workflowInputSchemaEditorPath } from '~/composables/useWorkflowRouting'
 import WorkflowVersionCreateMenu from '~/components/dag/WorkflowVersionCreateMenu.vue'
 import WorkflowVersionTable from '~/components/dag/WorkflowVersionTable.vue'
-import WorkflowSchemaDialog from '~/components/dag/WorkflowSchemaDialog.vue'
 import WorkflowTokensDialog from '~/components/dag/WorkflowTokensDialog.vue'
 import EmptyState from '~/components/feedback/EmptyState.vue'
 import { Button } from '~/components/ui/button'
@@ -21,7 +20,7 @@ const router = useRouter()
 const orgId = computed(() => Number(route.params.orgId))
 const workflowId = computed(() => Number(route.params.workflowId))
 
-const { fetchWorkflow, updateWorkflow, fetchWorkflowInputSchema, upsertWorkflowInputSchemaField, deleteWorkflowInputSchemaField } = useWorkflows()
+const { fetchWorkflow, updateWorkflow } = useWorkflows()
 const {
   fetchVersionSummaries,
   createVersion,
@@ -42,9 +41,6 @@ const inputSchemas = ref<WorkflowInputSchemaRecord[]>([])
 const compatibilities = ref<WorkflowSchemaCompatibility[]>([])
 const loading = ref(true)
 const tokensOpen = ref(false)
-const schemaOpen = ref(false)
-const schemaSaving = ref(false)
-const inputSchema = ref<Record<string, unknown> | null>(null)
 const supportedSchemaLabelsByVersionId = computed(() =>
   buildSupportedSchemaLabelsByVersionId(inputSchemas.value, compatibilities.value),
 )
@@ -128,43 +124,19 @@ async function onCreateInitialVersion() {
   }
 }
 
-async function onShowInputSchema() {
+async function onShowInputSchema(version: VersionSummary) {
   try {
-    inputSchema.value = await fetchWorkflowInputSchema(workflowId.value)
-    schemaOpen.value = true
+    if (inputSchemas.value.length === 0 || compatibilities.value.length === 0) {
+      await loadVersionRoutingData()
+    }
+    const schema = nativeInputSchemaForVersion(version.id, inputSchemas.value, compatibilities.value)
+    if (!schema) {
+      throw new Error(t('workflowRouting.errorNativeSchemaMissing'))
+    }
+    await router.push(workflowInputSchemaEditorPath(orgId.value, workflowId.value, schema.id))
   }
   catch (err) {
     toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
-  }
-}
-
-async function onSchemaSaveField(field: WorkflowInputSchemaField) {
-  schemaSaving.value = true
-  try {
-    inputSchema.value = await upsertWorkflowInputSchemaField(workflowId.value, field)
-    await loadVersionRoutingData()
-    toast({ title: t('workflowInputs.saved') })
-  }
-  catch (err) {
-    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
-  }
-  finally {
-    schemaSaving.value = false
-  }
-}
-
-async function onSchemaDeleteField(field: { name: string }) {
-  schemaSaving.value = true
-  try {
-    inputSchema.value = await deleteWorkflowInputSchemaField(workflowId.value, field.name)
-    await loadVersionRoutingData()
-    toast({ title: t('workflowInputs.deleted') })
-  }
-  catch (err) {
-    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
-  }
-  finally {
-    schemaSaving.value = false
   }
 }
 
@@ -189,10 +161,6 @@ onMounted(loadData)
           :versions="versions"
           @created="loadData"
         />
-        <Button variant="outline" class="gap-2" @click="router.push(`/org/${orgId}/workflows/${workflowId}/traffic`)">
-          <Split class="h-4 w-4" />
-          {{ t('workflowVersions.traffic') }}
-        </Button>
         <Button variant="outline" class="gap-2" @click="router.push(`/org/${orgId}/workflows/${workflowId}/routing`)">
           <GitBranch class="h-4 w-4" />
           {{ t('workflowRouting.nav') }}
@@ -233,14 +201,6 @@ onMounted(loadData)
       v-model:open="tokensOpen"
       :workflow-id="workflowId"
       :system-id="workflowSystemId"
-    />
-
-    <WorkflowSchemaDialog
-      v-model:open="schemaOpen"
-      :schema="inputSchema"
-      :saving="schemaSaving"
-      @save-field="onSchemaSaveField"
-      @delete-field="onSchemaDeleteField"
     />
   </div>
 </template>

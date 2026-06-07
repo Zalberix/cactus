@@ -40,7 +40,39 @@ type runtimeRouteSelection struct {
 	RoutingDecision             []byte
 }
 
-func (s *Service) selectRuntimeRoute(ctx context.Context, workflowID int32, inputSchemaID int32, payloadJSON []byte, idempotencyKey string) (runtimeRouteSelection, error) {
+const (
+	selectionReasonStandard   = "standard"
+	selectionReasonCanary     = "canary"
+	selectionReasonExperiment = "experiment"
+	selectionReasonRollout    = "rollout"
+	selectionReasonFallback   = "fallback"
+)
+
+func canonicalSelectionReason(reason string) string {
+	switch reason {
+	case selectionReasonStandard, selectionReasonCanary, selectionReasonExperiment, selectionReasonRollout, selectionReasonFallback:
+		return reason
+	}
+
+	switch reason {
+	case "default_route":
+		return selectionReasonStandard
+	case "experiment_variant":
+		return selectionReasonExperiment
+	case "experiment_no_variant":
+		return selectionReasonFallback
+	case "experiment_scope_traffic_excluded":
+		return selectionReasonFallback
+	}
+
+	if strings.HasPrefix(reason, "experiment_scope_traffic_excluded_") {
+		return selectionReasonFallback
+	}
+
+	return selectionReasonStandard
+}
+
+func (s *Service) selectRuntimeRoute(ctx context.Context, workflowID int32, inputSchemaID int32, experimentID *int32, payloadJSON []byte, idempotencyKey string) (runtimeRouteSelection, error) {
 	store, ok := s.store.(runtimeRoutingStore)
 	if !ok {
 		return runtimeRouteSelection{}, errors.New("runtime routing storage is unsupported")
@@ -52,13 +84,13 @@ func (s *Service) selectRuntimeRoute(ctx context.Context, workflowID int32, inpu
 		seed = canonicalRouteSeed(payload)
 	}
 
-	if selected, ok, err := s.selectExperimentRuntimeRoute(ctx, store, workflowID, inputSchemaID, payload, seed); err != nil || ok {
+	if selected, ok, err := s.selectExperimentRuntimeRoute(ctx, store, workflowID, inputSchemaID, experimentID, payload, seed); err != nil || ok {
 		if err != nil {
 			return runtimeRouteSelection{}, err
 		}
 		return s.withVersionInputData(ctx, store, selected, payloadJSON)
 	}
-	selected, err := s.selectDefaultRuntimeRoute(ctx, store, inputSchemaID, "default_route")
+	selected, err := s.selectDefaultRuntimeRoute(ctx, store, inputSchemaID, selectionReasonStandard)
 	if err != nil {
 		return runtimeRouteSelection{}, err
 	}
@@ -70,15 +102,25 @@ func (s *Service) selectExperimentRuntimeRoute(
 	store runtimeRoutingStore,
 	workflowID int32,
 	inputSchemaID int32,
+	experimentID *int32,
 	payload map[string]any,
 	seed string,
 ) (runtimeRouteSelection, bool, error) {
+	var experimentIDParam pgtype.Int4
+	if experimentID != nil && *experimentID > 0 {
+		experimentIDParam = pgtype.Int4{Int32: *experimentID, Valid: true}
+	}
+
 	scopes, err := store.ListActiveExperimentScopesForRouting(ctx, db.ListActiveExperimentScopesForRoutingParams{
 		WorkflowID:            workflowID,
 		WorkflowInputSchemaID: inputSchemaID,
+		ExperimentID:          experimentIDParam,
 	})
 	if err != nil {
 		return runtimeRouteSelection{}, false, fmt.Errorf("list active experiment scopes: %w", err)
+	}
+	if experimentIDParam.Valid && len(scopes) == 0 {
+		return runtimeRouteSelection{}, false, fmt.Errorf("EXPERIMENT_NOT_ROUTABLE: experiment %d is not active for workflow %d and input schema %d", experimentIDParam.Int32, workflowID, inputSchemaID)
 	}
 
 	for _, scope := range scopes {
@@ -124,6 +166,10 @@ func (s *Service) selectExperimentRuntimeRoute(
 			"traffic_weight":                 variant.TrafficWeight,
 		})
 		return selected, true, nil
+	}
+
+	if experimentIDParam.Valid {
+		return runtimeRouteSelection{}, false, fmt.Errorf("EXPERIMENT_NOT_ROUTABLE: experiment %d has no matching active scope for workflow %d and input schema %d", experimentIDParam.Int32, workflowID, inputSchemaID)
 	}
 
 	return runtimeRouteSelection{}, false, nil
@@ -194,7 +240,7 @@ func (s *Service) selectDefaultRuntimeRoute(ctx context.Context, store runtimeRo
 			WorkflowInputMapperID:      active[0].WorkflowInputMapperID,
 			CompatibilityType:          active[0].CompatibilityType,
 			DefaultValues:              active[0].DefaultValues,
-			SelectionReason:            reason,
+			SelectionReason:            canonicalSelectionReason(reason),
 			RoutingDecision: routingDecisionJSON(map[string]any{
 				"reason":                        reason,
 				"workflow_version_id":           active[0].WorkflowVersionID,
@@ -203,16 +249,16 @@ func (s *Service) selectDefaultRuntimeRoute(ctx context.Context, store runtimeRo
 			}),
 		}, nil
 	}
-	return runtimeRouteSelection{
-		WorkflowVersionID:          route.WorkflowVersionID,
-		InputSchemaCompatibilityID: routePgInt4(route.ID),
-		WorkflowInputMapperID:      route.WorkflowInputMapperID,
-		CompatibilityType:          route.CompatibilityType,
-		DefaultValues:              route.DefaultValues,
-		SelectionReason:            reason,
-		RoutingDecision: routingDecisionJSON(map[string]any{
-			"reason":                        reason,
-			"workflow_version_id":           route.WorkflowVersionID,
+		return runtimeRouteSelection{
+			WorkflowVersionID:          route.WorkflowVersionID,
+			InputSchemaCompatibilityID: routePgInt4(route.ID),
+			WorkflowInputMapperID:      route.WorkflowInputMapperID,
+			CompatibilityType:          route.CompatibilityType,
+			DefaultValues:              route.DefaultValues,
+			SelectionReason:            canonicalSelectionReason(reason),
+			RoutingDecision: routingDecisionJSON(map[string]any{
+				"reason":                        reason,
+				"workflow_version_id":           route.WorkflowVersionID,
 			"input_schema_compatibility_id": route.ID,
 			"default_route":                 route.IsDefaultRoute,
 		}),
@@ -233,7 +279,7 @@ func (s *Service) selectionForVersion(ctx context.Context, store runtimeRoutingS
 		WorkflowInputMapperID:      compatibility.WorkflowInputMapperID,
 		CompatibilityType:          compatibility.CompatibilityType,
 		DefaultValues:              compatibility.DefaultValues,
-		SelectionReason:            reason,
+		SelectionReason:            canonicalSelectionReason(reason),
 		RoutingDecision: routingDecisionJSON(map[string]any{
 			"reason":                        reason,
 			"workflow_version_id":           versionID,

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -15,6 +16,7 @@ import (
 type inputSchemaReadStore interface {
 	GetWorkflowInputSchemaByID(ctx context.Context, id int32) (db.WorkflowInputSchema, error)
 	GetWorkflowInputSchemaByCode(ctx context.Context, arg db.GetWorkflowInputSchemaByCodeParams) (db.WorkflowInputSchema, error)
+	GetWorkflowInputSchemaByVersionNumber(ctx context.Context, arg db.GetWorkflowInputSchemaByVersionNumberParams) (db.WorkflowInputSchema, error)
 	GetDefaultWorkflowInputSchema(ctx context.Context, workflowID int32) (db.WorkflowInputSchema, error)
 }
 
@@ -34,10 +36,73 @@ type resolvedInputSchema struct {
 	SchemaJSON    []byte
 }
 
+type processRef struct {
+	WorkflowID         int32
+	InputSchemaVersion int32
+}
+
+func parseProcessRef(raw string) (processRef, error) {
+	raw = strings.TrimSpace(raw)
+	parts := strings.Split(raw, ".")
+	if len(parts) != 2 {
+		return processRef{}, fmt.Errorf("PROCESS_INVALID: expected workflowId.vSchemaVersion")
+	}
+
+	workflowID64, err := strconv.ParseInt(strings.TrimSpace(parts[0]), 10, 32)
+	if err != nil || workflowID64 <= 0 {
+		return processRef{}, fmt.Errorf("PROCESS_INVALID: workflow id must be positive")
+	}
+
+	versionPart := strings.ToLower(strings.TrimSpace(parts[1]))
+	if !strings.HasPrefix(versionPart, "v") {
+		return processRef{}, fmt.Errorf("PROCESS_INVALID: schema version must be formatted as vN")
+	}
+	versionText := strings.TrimPrefix(versionPart, "v")
+	schemaVersion64, err := strconv.ParseInt(versionText, 10, 32)
+	if err != nil || schemaVersion64 <= 0 {
+		return processRef{}, fmt.Errorf("PROCESS_INVALID: schema version must be formatted as vN")
+	}
+
+	return processRef{
+		WorkflowID:         int32(workflowID64),
+		InputSchemaVersion: int32(schemaVersion64),
+	}, nil
+}
+
 func (s *Service) resolveInputSchema(ctx context.Context, req SendMessageRequest, wf db.Workflow) (resolvedInputSchema, error) {
 	reader, ok := s.store.(inputSchemaReadStore)
 	if !ok {
-		return resolvedInputSchema{SchemaJSON: wf.InputSchema}, nil
+		return resolvedInputSchema{}, fmt.Errorf("INPUT_SCHEMA_RESOLUTION_UNSUPPORTED")
+	}
+
+	if strings.TrimSpace(req.Process) != "" {
+		ref, err := parseProcessRef(req.Process)
+		if err != nil {
+			return resolvedInputSchema{}, err
+		}
+		if req.WorkflowID != 0 && req.WorkflowID != ref.WorkflowID {
+			return resolvedInputSchema{}, fmt.Errorf("PROCESS_WORKFLOW_MISMATCH")
+		}
+		req.WorkflowID = ref.WorkflowID
+		schema, err := reader.GetWorkflowInputSchemaByVersionNumber(ctx, db.GetWorkflowInputSchemaByVersionNumberParams{
+			WorkflowID:    ref.WorkflowID,
+			VersionNumber: ref.InputSchemaVersion,
+		})
+		if err != nil {
+			return resolvedInputSchema{}, fmt.Errorf("resolve process input schema: %w", err)
+		}
+		if schema.WorkflowID != wf.ID {
+			return resolvedInputSchema{}, fmt.Errorf("INPUT_SCHEMA_WORKFLOW_MISMATCH")
+		}
+		if err := ensureInputSchemaAcceptsMessages(schema, true); err != nil {
+			return resolvedInputSchema{}, err
+		}
+		return resolvedInputSchema{
+			ID:            pgtype.Int4{Int32: schema.ID, Valid: true},
+			Code:          schema.Code,
+			VersionNumber: pgtype.Int4{Int32: schema.VersionNumber, Valid: true},
+			SchemaJSON:    schema.SchemaJson,
+		}, nil
 	}
 
 	if req.InputSchemaID != nil && strings.TrimSpace(req.InputSchemaCode) != "" {

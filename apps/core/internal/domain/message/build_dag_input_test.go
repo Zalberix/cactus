@@ -21,10 +21,6 @@ func (buildDAGInputStore) GetWorkflowByID(context.Context, int32) (db.Workflow, 
 	return db.Workflow{}, nil
 }
 
-func (buildDAGInputStore) ListWorkflowTrafficCandidatesByWorkflowID(context.Context, int32) ([]db.ListWorkflowTrafficCandidatesByWorkflowIDRow, error) {
-	return nil, nil
-}
-
 func (buildDAGInputStore) ListWorkflowStepsByVersionID(context.Context, int32) ([]db.WorkflowStep, error) {
 	return nil, nil
 }

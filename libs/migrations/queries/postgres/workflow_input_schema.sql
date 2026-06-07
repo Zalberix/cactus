@@ -11,6 +11,12 @@ WHERE id = $1 AND deleted_at IS NULL;
 SELECT * FROM "workflow_input_schema"
 WHERE workflow_id = $1 AND code = $2 AND deleted_at IS NULL;
 
+-- name: GetWorkflowInputSchemaByVersionNumber :one
+SELECT * FROM "workflow_input_schema"
+WHERE workflow_id = $1
+  AND version_number = $2
+  AND deleted_at IS NULL;
+
 -- name: GetDefaultWorkflowInputSchema :one
 SELECT * FROM "workflow_input_schema"
 WHERE workflow_id = $1 AND is_default = TRUE AND deleted_at IS NULL;
@@ -67,9 +73,6 @@ WHERE id = $1 AND deleted_at IS NULL;
 SELECT EXISTS (
     SELECT 1 FROM "message" m
     WHERE m.workflow_input_schema_id = $1 AND m.deleted_at IS NULL
-    UNION ALL
-    SELECT 1 FROM "workflow_version_input_schema_compatibility" c
-    WHERE c.workflow_input_schema_id = $1 AND c.deleted_at IS NULL
     UNION ALL
     SELECT 1 FROM "workflow_experiment_scope" s
     WHERE s.workflow_input_schema_id = $1 AND s.deleted_at IS NULL

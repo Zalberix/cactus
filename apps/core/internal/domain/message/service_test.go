@@ -23,10 +23,6 @@ func (detailStore) GetWorkflowByID(context.Context, int32) (db.Workflow, error) 
 	return db.Workflow{}, nil
 }
 
-func (detailStore) ListWorkflowTrafficCandidatesByWorkflowID(context.Context, int32) ([]db.ListWorkflowTrafficCandidatesByWorkflowIDRow, error) {
-	return nil, nil
-}
-
 func (detailStore) ListWorkflowStepsByVersionID(context.Context, int32) ([]db.WorkflowStep, error) {
 	return nil, nil
 }
@@ -206,23 +202,23 @@ func TestListMessagesIncludesWorkflowVersion(t *testing.T) {
 }
 
 type sendMessageStore struct {
-	workflowRunArg db.CreateWorkflowRunParams
-	dagVersionID   int32
+	messageArg       db.CreateNewMessageParams
+	workflowRunArg   db.CreateWorkflowRunParams
+	dagVersionID     int32
+	schemasByVersion map[[2]int32]db.WorkflowInputSchema
+	scopes           []db.ListActiveExperimentScopesForRoutingRow
+	variants         map[int32][]db.WorkflowExperimentVariant
+	pairRoutes       map[[2]int32]db.WorkflowVersionInputSchemaCompatibility
+	routingParams    db.ListActiveExperimentScopesForRoutingParams
 }
 
-func (s *sendMessageStore) CreateNewMessage(context.Context, db.CreateNewMessageParams) (db.Message, error) {
-	return db.Message{ID: 501}, nil
+func (s *sendMessageStore) CreateNewMessage(_ context.Context, arg db.CreateNewMessageParams) (db.Message, error) {
+	s.messageArg = arg
+	return db.Message{ID: 501, WorkflowID: arg.WorkflowID, WorkflowInputSchemaID: arg.WorkflowInputSchemaID}, nil
 }
 
-func (s *sendMessageStore) GetWorkflowByID(context.Context, int32) (db.Workflow, error) {
-	return db.Workflow{ID: 100}, nil
-}
-
-func (s *sendMessageStore) ListWorkflowTrafficCandidatesByWorkflowID(context.Context, int32) ([]db.ListWorkflowTrafficCandidatesByWorkflowIDRow, error) {
-	return []db.ListWorkflowTrafficCandidatesByWorkflowIDRow{
-		{ID: 10, WorkflowID: 100, IsActive: true, TrafficWeight: 50, RunCount: 1},
-		{ID: 20, WorkflowID: 100, IsActive: true, TrafficWeight: 50, RunCount: 0},
-	}, nil
+func (s *sendMessageStore) GetWorkflowByID(_ context.Context, id int32) (db.Workflow, error) {
+	return db.Workflow{ID: id}, nil
 }
 
 func (s *sendMessageStore) ListWorkflowStepsByVersionID(context.Context, int32) ([]db.WorkflowStep, error) {
@@ -279,12 +275,34 @@ func (s *sendMessageStore) CountMessagesByOrganizationID(context.Context, pgtype
 	return 0, nil
 }
 
-func (s *sendMessageStore) ListActiveExperimentScopesForRouting(context.Context, db.ListActiveExperimentScopesForRoutingParams) ([]db.ListActiveExperimentScopesForRoutingRow, error) {
-	return nil, nil
+func (s *sendMessageStore) GetWorkflowInputSchemaByID(_ context.Context, id int32) (db.WorkflowInputSchema, error) {
+	return db.WorkflowInputSchema{ID: id, WorkflowID: 100, Code: "public", VersionNumber: 1, SchemaJson: []byte(`{"type":"object","properties":{}}`), Status: "active"}, nil
 }
 
-func (s *sendMessageStore) ListActiveWorkflowExperimentVariantsByScopeID(context.Context, int32) ([]db.WorkflowExperimentVariant, error) {
-	return nil, nil
+func (s *sendMessageStore) GetWorkflowInputSchemaByCode(_ context.Context, arg db.GetWorkflowInputSchemaByCodeParams) (db.WorkflowInputSchema, error) {
+	return db.WorkflowInputSchema{ID: 2, WorkflowID: arg.WorkflowID, Code: arg.Code, VersionNumber: 1, SchemaJson: []byte(`{"type":"object","properties":{}}`), Status: "active"}, nil
+}
+
+func (s *sendMessageStore) GetWorkflowInputSchemaByVersionNumber(_ context.Context, arg db.GetWorkflowInputSchemaByVersionNumberParams) (db.WorkflowInputSchema, error) {
+	if s.schemasByVersion != nil {
+		if schema, ok := s.schemasByVersion[[2]int32{arg.WorkflowID, arg.VersionNumber}]; ok {
+			return schema, nil
+		}
+	}
+	return db.WorkflowInputSchema{ID: arg.VersionNumber + 10, WorkflowID: arg.WorkflowID, Code: "v2", VersionNumber: arg.VersionNumber, SchemaJson: []byte(`{"type":"object","properties":{}}`), Status: "active"}, nil
+}
+
+func (s *sendMessageStore) GetDefaultWorkflowInputSchema(_ context.Context, workflowID int32) (db.WorkflowInputSchema, error) {
+	return db.WorkflowInputSchema{ID: 2, WorkflowID: workflowID, Code: "public", VersionNumber: 1, SchemaJson: []byte(`{"type":"object","properties":{}}`), Status: "active"}, nil
+}
+
+func (s *sendMessageStore) ListActiveExperimentScopesForRouting(_ context.Context, arg db.ListActiveExperimentScopesForRoutingParams) ([]db.ListActiveExperimentScopesForRoutingRow, error) {
+	s.routingParams = arg
+	return s.scopes, nil
+}
+
+func (s *sendMessageStore) ListActiveWorkflowExperimentVariantsByScopeID(_ context.Context, workflowExperimentScopeID int32) ([]db.WorkflowExperimentVariant, error) {
+	return s.variants[workflowExperimentScopeID], nil
 }
 
 func (s *sendMessageStore) ListActiveRoutingCompatibilitiesByInputSchemaID(context.Context, int32) ([]db.ListActiveRoutingCompatibilitiesByInputSchemaIDRow, error) {
@@ -308,6 +326,11 @@ func (s *sendMessageStore) GetDefaultRouteForInputSchema(context.Context, int32)
 }
 
 func (s *sendMessageStore) GetActiveWorkflowVersionInputSchemaCompatibilityByPair(_ context.Context, arg db.GetActiveWorkflowVersionInputSchemaCompatibilityByPairParams) (db.WorkflowVersionInputSchemaCompatibility, error) {
+	if s.pairRoutes != nil {
+		if route, ok := s.pairRoutes[[2]int32{arg.WorkflowVersionID, arg.WorkflowInputSchemaID}]; ok {
+			return route, nil
+		}
+	}
 	return db.WorkflowVersionInputSchemaCompatibility{
 		ID:                    1,
 		WorkflowVersionID:     arg.WorkflowVersionID,
@@ -329,16 +352,6 @@ func (executeWorkflowClient) ExecuteWorkflow(context.Context, client.StartWorkfl
 	return nil, nil
 }
 
-func TestSelectWorkflowVersionByTrafficDeficitChoosesUnderAllocatedVersion(t *testing.T) {
-	version, err := selectWorkflowVersionByTrafficDeficit([]db.ListWorkflowTrafficCandidatesByWorkflowIDRow{
-		{ID: 10, WorkflowID: 100, IsActive: true, TrafficWeight: 50, RunCount: 1},
-		{ID: 20, WorkflowID: 100, IsActive: true, TrafficWeight: 50, RunCount: 0},
-	})
-
-	require.NoError(t, err)
-	require.Equal(t, int32(20), version.ID)
-}
-
 func TestSendMessageUsesDefaultRuntimeRouteToSelectVersion(t *testing.T) {
 	store := &sendMessageStore{}
 	svc := NewService(store, executeWorkflowClient{})
@@ -352,6 +365,86 @@ func TestSendMessageUsesDefaultRuntimeRouteToSelectVersion(t *testing.T) {
 	require.Empty(t, validationErrors)
 	require.Equal(t, int32(20), store.workflowRunArg.WorkflowVersionID)
 	require.Equal(t, int32(20), store.dagVersionID)
+}
+
+func TestSendMessageResolvesProcessToWorkflowAndSchemaVersion(t *testing.T) {
+	store := &sendMessageStore{
+		schemasByVersion: map[[2]int32]db.WorkflowInputSchema{
+			{1, 2}: {
+				ID:            12,
+				WorkflowID:    1,
+				Code:          "v2",
+				VersionNumber: 2,
+				SchemaJson:    []byte(`{"type":"object","properties":{}}`),
+				Status:        "active",
+			},
+		},
+	}
+	svc := NewService(store, executeWorkflowClient{})
+
+	resp, validationErrors, err := svc.SendMessage(context.Background(), SendMessageRequest{
+		Process: "1.v2",
+		Value:   map[string]any{"email": "ada@example.com"},
+	}, "")
+
+	require.NoError(t, err)
+	require.Empty(t, validationErrors)
+	require.NotNil(t, resp)
+	require.Equal(t, int32(1), store.messageArg.WorkflowID)
+	require.Equal(t, int32(12), store.messageArg.WorkflowInputSchemaID.Int32)
+	require.True(t, store.messageArg.WorkflowInputSchemaID.Valid)
+	require.Equal(t, int32(12), *resp.WorkflowInputSchemaID)
+	require.Equal(t, int32(2), *resp.WorkflowInputSchemaVersionNumber)
+}
+
+func TestSendMessageUsesExplicitExperiment(t *testing.T) {
+	experimentID := int32(3)
+	store := &sendMessageStore{
+		schemasByVersion: map[[2]int32]db.WorkflowInputSchema{
+			{1, 2}: {
+				ID:            12,
+				WorkflowID:    1,
+				Code:          "v2",
+				VersionNumber: 2,
+				SchemaJson:    []byte(`{"type":"object","properties":{}}`),
+				Status:        "active",
+			},
+		},
+		scopes: []db.ListActiveExperimentScopesForRoutingRow{{
+			WorkflowExperimentID:      3,
+			WorkflowID:                1,
+			ExperimentType:            "rollout",
+			WorkflowExperimentScopeID: 30,
+			WorkflowInputSchemaID:     12,
+			TrafficConditions:         []byte(`{}`),
+			TrafficPercent:            100,
+			FallbackPolicy:            "default_route",
+		}},
+		variants: map[int32][]db.WorkflowExperimentVariant{
+			30: {
+				{ID: 88, WorkflowExperimentScopeID: 30, WorkflowVersionID: 20, TrafficWeight: 100, IsActive: true},
+			},
+		},
+		pairRoutes: map[[2]int32]db.WorkflowVersionInputSchemaCompatibility{
+			{20, 12}: {ID: 91, WorkflowVersionID: 20, WorkflowInputSchemaID: 12, CompatibilityType: "native", IsActive: true},
+		},
+	}
+	svc := NewService(store, executeWorkflowClient{})
+
+	resp, validationErrors, err := svc.SendMessage(context.Background(), SendMessageRequest{
+		Process:      "1.v2",
+		Experimental: &experimentID,
+		Value:        map[string]any{"email": "ada@example.com"},
+	}, "")
+
+	require.NoError(t, err)
+	require.Empty(t, validationErrors)
+	require.NotNil(t, resp)
+	require.Equal(t, int32(3), store.routingParams.ExperimentID.Int32)
+	require.True(t, store.routingParams.ExperimentID.Valid)
+	require.Equal(t, int32(3), store.workflowRunArg.WorkflowExperimentID.Int32)
+	require.Equal(t, int32(20), store.workflowRunArg.WorkflowVersionID)
+	require.Equal(t, int32(88), store.workflowRunArg.WorkflowExperimentVariantID.Int32)
 }
 
 var _ Storage = (*sendMessageStore)(nil)

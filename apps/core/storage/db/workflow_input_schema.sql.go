@@ -205,13 +205,42 @@ func (q *Queries) GetWorkflowInputSchemaByID(ctx context.Context, id int32) (Wor
 	return i, err
 }
 
+const getWorkflowInputSchemaByVersionNumber = `-- name: GetWorkflowInputSchemaByVersionNumber :one
+SELECT id, workflow_id, code, version_number, schema_json, status, is_default, created_by_user_id, updated_by_user_id, created_at, updated_at, deleted_at FROM "workflow_input_schema"
+WHERE workflow_id = $1
+  AND version_number = $2
+  AND deleted_at IS NULL
+`
+
+type GetWorkflowInputSchemaByVersionNumberParams struct {
+	WorkflowID    int32 `json:"workflow_id"`
+	VersionNumber int32 `json:"version_number"`
+}
+
+func (q *Queries) GetWorkflowInputSchemaByVersionNumber(ctx context.Context, arg GetWorkflowInputSchemaByVersionNumberParams) (WorkflowInputSchema, error) {
+	row := q.db.QueryRow(ctx, getWorkflowInputSchemaByVersionNumber, arg.WorkflowID, arg.VersionNumber)
+	var i WorkflowInputSchema
+	err := row.Scan(
+		&i.ID,
+		&i.WorkflowID,
+		&i.Code,
+		&i.VersionNumber,
+		&i.SchemaJson,
+		&i.Status,
+		&i.IsDefault,
+		&i.CreatedByUserID,
+		&i.UpdatedByUserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const hasInputSchemaUsage = `-- name: HasInputSchemaUsage :one
 SELECT EXISTS (
     SELECT 1 FROM "message" m
     WHERE m.workflow_input_schema_id = $1 AND m.deleted_at IS NULL
-    UNION ALL
-    SELECT 1 FROM "workflow_version_input_schema_compatibility" c
-    WHERE c.workflow_input_schema_id = $1 AND c.deleted_at IS NULL
     UNION ALL
     SELECT 1 FROM "workflow_experiment_scope" s
     WHERE s.workflow_input_schema_id = $1 AND s.deleted_at IS NULL

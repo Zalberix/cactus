@@ -34,6 +34,7 @@ const props = defineProps<{
   nodeId: string | null
   workflowId: number
   versionId: number | null
+  workflowInputSchemaId?: number | null
   allNodes: Node[]
   allEdges: Edge[]
 }>()
@@ -166,6 +167,7 @@ function onCreateWorkflowInput(field: string, property: Record<string, unknown>)
             :step-id="nodeId"
             :workflow-id="workflowId"
             :version-id="versionId"
+            :workflow-input-schema-id="workflowInputSchemaId ?? null"
             :all-nodes="allNodes"
             :all-edges="allEdges"
             @insert-expression="onInsertExpression"

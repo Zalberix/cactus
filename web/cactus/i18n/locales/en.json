@@ -33,31 +33,6 @@
     "deleted": "Workflow deleted successfully",
     "updated": "Workflow updated successfully"
   },
-  "workflowTraffic": {
-    "title": "Workflow traffic",
-    "settingsTitle": "Traffic distribution",
-    "settingsDescription": "Choose how new messages are routed across active versions.",
-    "equalShare": "Equal share",
-    "customPercent": "Custom percent",
-    "share": "Share",
-    "fixed": "Fixed",
-    "shareMode": "Split remaining traffic",
-    "fixedTotal": "Fixed total",
-    "sharedRemainder": "Shared remainder",
-    "noShareForRemainder": "Add a share version or allocate 100% as fixed traffic.",
-    "preview": "Preview",
-    "currentWeight": "Current: {weight}%",
-    "total": "Total",
-    "totalOver": "Total traffic cannot be above 100%.",
-    "totalUnder": "Unused traffic remains unassigned.",
-    "noActiveVersions": "No active versions are available for traffic.",
-    "controlGroup": "Control",
-    "save": "Save traffic",
-    "saved": "Traffic settings saved",
-    "legacyTitle": "Legacy traffic settings",
-    "legacyDescription": "Version-level traffic is kept for compatibility. Use workflow routing to manage schemas, compatibility, and rollout experiments.",
-    "openRouting": "Open routing"
-  },
   "workflowRouting": {
     "nav": "Routing",
     "title": "Workflow routing",
@@ -80,6 +55,7 @@
     "noInputMappers": "No input mappers yet.",
     "noCompatibilities": "No schema compatibilities yet.",
     "noExperiments": "No experiments yet.",
+    "errorNativeSchemaMissing": "Native input schema for this workflow version was not found",
     "errorCreateInputSchema": "Failed to create input schema",
     "errorCreateMapper": "Failed to create mapper",
     "errorCreateCompatibility": "Failed to create compatibility",
@@ -203,8 +179,7 @@
       "status": "Status",
       "editing": "Editing",
       "supportedSchemas": "Supported schema versions",
-      "runs": "Runs",
-      "traffic": "Traffic"
+      "runs": "Runs"
     },
     "editing": {
       "readOnly": "Read-only",
@@ -217,7 +192,6 @@
       "control": "Control"
     },
     "versionFallback": "Version",
-    "traffic": "Traffic",
     "tokens": "Tokens",
     "createMenu": {
       "create": "Create Version",

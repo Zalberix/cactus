@@ -305,7 +305,7 @@ SELECT
     wv.name AS workflow_version_name,
     wr.workflow_experiment_id,
     wr.workflow_experiment_variant_id,
-    wr.selection_reason
+    COALESCE(wr.selection_reason, 'standard') AS selection_reason
 FROM "message" m
 JOIN "workflow" w ON w.id = m.workflow_id AND w.deleted_at IS NULL
 JOIN "system" s ON s.id = w.system_id AND s.deleted_at IS NULL

@@ -532,6 +532,9 @@ func (s *Service) CreateWorkflowCompatibility(ctx context.Context, versionID int
 	if compatibilityType == "" {
 		compatibilityType = "native"
 	}
+	if err := validateCompatibilityMutationConfig(compatibilityType, req.WorkflowInputMapperID, defaultValues); err != nil {
+		return db.WorkflowVersionInputSchemaCompatibility{}, err
+	}
 	isDefaultRoute := boolValue(req.IsDefaultRoute, false)
 	isActive := boolValue(req.IsActive, true)
 
@@ -597,6 +600,9 @@ func (s *Service) UpdateWorkflowCompatibility(ctx context.Context, compatibility
 		if err != nil {
 			return db.WorkflowVersionInputSchemaCompatibility{}, err
 		}
+	}
+	if err := validateCompatibilityMutationConfig(compatibilityType, mapperID, defaultValues); err != nil {
+		return db.WorkflowVersionInputSchemaCompatibility{}, err
 	}
 	isDefaultRoute := boolValue(req.IsDefaultRoute, existing.IsDefaultRoute)
 	isActive := boolValue(req.IsActive, existing.IsActive)
@@ -748,6 +754,24 @@ func clearCompatibilityDefaultRoute(ctx context.Context, q workflowCompatibility
 		}); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func validateCompatibilityMutationConfig(compatibilityType string, mapperID *int32, defaultValues []byte) error {
+	hasMapper := mapperID != nil && *mapperID > 0
+	hasDefaults := hasCompatibilityDefaultValues(defaultValues)
+	switch compatibilityType {
+	case "native":
+		if hasMapper || hasDefaults {
+			return fmt.Errorf("%w: native compatibility must not define mapper or default values", ErrWorkflowConfigurationInvalid)
+		}
+	case "adapter", "partial":
+		if !hasMapper && !hasDefaults {
+			return fmt.Errorf("%w: %s compatibility requires mapper or default values", ErrWorkflowConfigurationInvalid, compatibilityType)
+		}
+	default:
+		return fmt.Errorf("%w: unsupported compatibility type %q", ErrWorkflowConfigurationInvalid, compatibilityType)
 	}
 	return nil
 }

@@ -42,21 +42,12 @@ func SeedDemo(ctx context.Context, db *pgxpool.Pool) error {
 
 	// 2. Workflow с JSON Schema валидацией
 	_, err = db.Exec(ctx, `
-		INSERT INTO workflow (system_id, name, priority, description, input_schema)
+		INSERT INTO workflow (system_id, name, priority, description)
 		VALUES (
 			(SELECT id FROM system WHERE name = 'Тестовая система' LIMIT 1),
 			'Demo Email Notification',
 			1,
-			'Демо workflow: отправка email и telegram уведомлений',
-			'{
-				"type": "object",
-				"properties": {
-					"to": {"type": "string", "format": "email", "required": true},
-					"subject": {"type": "string", "minLength": 1, "maxLength": 200, "required": true},
-					"body": {"type": "string", "required": true},
-					"telegram_chat_id": {"type": "string", "required": true}
-				}
-			}'::jsonb
+			'Демо workflow: отправка email и telegram уведомлений'
 		)
 		ON CONFLICT DO NOTHING
 	`)
@@ -67,16 +58,14 @@ func SeedDemo(ctx context.Context, db *pgxpool.Pool) error {
 	// 3. Активная версия
 	_, err = db.Exec(ctx, `
 		INSERT INTO workflow_version (
-			workflow_id, created_by_user_id, version_number, is_valid, is_active, traffic_weight, is_control_group
+			workflow_id, created_by_user_id, version_number, is_valid, is_active
 		)
 		VALUES (
 			(SELECT id FROM workflow WHERE name = 'Demo Email Notification' ORDER BY id LIMIT 1),
 			(SELECT id FROM "user" WHERE email = 'admin@test.local' ORDER BY id LIMIT 1),
 			1,
 			true,
-			true,
-			100,
-			false
+			true
 		)
 		ON CONFLICT DO NOTHING
 	`)
@@ -84,6 +73,86 @@ func SeedDemo(ctx context.Context, db *pgxpool.Pool) error {
 		return fmt.Errorf("seed workflow version: %w", err)
 	}
 
+	_, err = db.Exec(ctx, `
+		WITH wf AS (
+			SELECT id
+			FROM workflow
+			WHERE name = 'Demo Email Notification'
+			ORDER BY id
+			LIMIT 1
+		),
+		ver AS (
+			SELECT id, workflow_id
+			FROM workflow_version
+			WHERE workflow_id = (SELECT id FROM wf)
+			  AND version_number = 1
+			  AND deleted_at IS NULL
+			ORDER BY id
+			LIMIT 1
+		),
+		inserted_schema AS (
+			INSERT INTO workflow_input_schema (workflow_id, code, version_number, schema_json, status, is_default)
+			SELECT
+				(SELECT id FROM wf),
+				'v1',
+				1,
+				'{
+					"type": "object",
+					"properties": {
+						"to": {"type": "string", "format": "email", "required": true},
+						"subject": {"type": "string", "minLength": 1, "maxLength": 200, "required": true},
+						"body": {"type": "string", "required": true},
+						"telegram_chat_id": {"type": "string", "required": true}
+					}
+				}'::jsonb,
+				'active',
+				true
+			WHERE NOT EXISTS (
+				SELECT 1
+				FROM workflow_input_schema wis
+				WHERE wis.workflow_id = (SELECT id FROM wf)
+				  AND wis.version_number = 1
+				  AND wis.deleted_at IS NULL
+			)
+			RETURNING id
+		),
+		schema_row AS (
+			SELECT id FROM inserted_schema
+			UNION ALL
+			SELECT wis.id
+			FROM workflow_input_schema wis
+			WHERE wis.workflow_id = (SELECT id FROM wf)
+			  AND wis.version_number = 1
+			  AND wis.deleted_at IS NULL
+			ORDER BY id
+			LIMIT 1
+		)
+		INSERT INTO workflow_version_input_schema_compatibility (
+			workflow_version_id,
+			workflow_input_schema_id,
+			compatibility_type,
+			default_values,
+			is_active,
+			is_default_route
+		)
+		SELECT
+			(SELECT id FROM ver),
+			(SELECT id FROM schema_row),
+			'native',
+			'{}'::jsonb,
+			true,
+			true
+		WHERE NOT EXISTS (
+			SELECT 1
+			FROM workflow_version_input_schema_compatibility c
+			WHERE c.workflow_version_id = (SELECT id FROM ver)
+			  AND c.workflow_input_schema_id = (SELECT id FROM schema_row)
+			  AND c.deleted_at IS NULL
+		)
+	`)
+	if err != nil {
+		return fmt.Errorf("seed workflow input schema: %w", err)
+	}
 	// 4. Схемы настроек работников (Схема_настроек_работников) для smtp и telegram
 	_, err = db.Exec(ctx, `
 		INSERT INTO worker_settings_schema (work_type_id, version, settings_schema, input_schema, output_schema)

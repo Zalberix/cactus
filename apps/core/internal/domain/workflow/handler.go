@@ -44,15 +44,6 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc) {
 	// PUT /api/v1/workflows/:workflowId
 	v1.PUT("/workflows/:workflowId",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.UpdateWorkflow)
-	// GET /api/v1/workflows/:workflowId/input-schema
-	v1.GET("/workflows/:workflowId/input-schema",
-		middleware.RequirePermission(h.permChecker, permissions.WorkflowRead), h.GetWorkflowInputSchema)
-	// POST /api/v1/workflows/:workflowId/input-schema/fields
-	v1.POST("/workflows/:workflowId/input-schema/fields",
-		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.UpsertWorkflowInputSchemaField)
-	// DELETE /api/v1/workflows/:workflowId/input-schema/fields/:fieldName
-	v1.DELETE("/workflows/:workflowId/input-schema/fields/:fieldName",
-		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.DeleteWorkflowInputSchemaField)
 	h.registerWorkflowConfigurationRoutes(v1)
 	h.registerWorkflowExperimentRoutes(v1)
 	// DELETE /api/v1/workflows/:workflowId
@@ -75,9 +66,6 @@ func (h *Handler) RegisterRoutes(r *gin.Engine, authMw gin.HandlerFunc) {
 	// POST /api/v1/versions/:versionId/copy
 	v1.POST("/versions/:versionId/copy",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.CopyVersion)
-	// PUT /api/v1/workflows/:workflowId/traffic
-	v1.PUT("/workflows/:workflowId/traffic",
-		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.UpdateWorkflowTraffic)
 	// POST /api/v1/versions/:versionId/validate
 	v1.POST("/versions/:versionId/validate",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.ValidateVersion)
@@ -218,51 +206,6 @@ func (h *Handler) DeleteWorkflow(c *gin.Context) {
 		return
 	}
 	response.OK(c, gin.H{"message": "Workflow удалён"})
-}
-
-func (h *Handler) GetWorkflowInputSchema(c *gin.Context) {
-	workflowID, ok := parseID(c, "workflowId")
-	if !ok {
-		return
-	}
-	schema, err := h.service.GetWorkflowInputSchema(c.Request.Context(), workflowID)
-	if err != nil {
-		response.InternalError(c, "Ошибка получения схемы входных параметров")
-		return
-	}
-	response.OK(c, gin.H{"schema": schema})
-}
-
-func (h *Handler) UpsertWorkflowInputSchemaField(c *gin.Context) {
-	workflowID, ok := parseID(c, "workflowId")
-	if !ok {
-		return
-	}
-	var req InputSchemaFieldRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "INVALID_BODY", err.Error())
-		return
-	}
-	schema, err := h.service.UpsertWorkflowInputSchemaField(c.Request.Context(), workflowID, req)
-	if err != nil {
-		response.Fail(c, http.StatusUnprocessableEntity, "INVALID_INPUT_SCHEMA", err.Error())
-		return
-	}
-	response.OK(c, gin.H{"schema": schema})
-}
-
-func (h *Handler) DeleteWorkflowInputSchemaField(c *gin.Context) {
-	workflowID, ok := parseID(c, "workflowId")
-	if !ok {
-		return
-	}
-	fieldName := c.Param("fieldName")
-	schema, err := h.service.DeleteWorkflowInputSchemaField(c.Request.Context(), workflowID, fieldName)
-	if err != nil {
-		response.Fail(c, http.StatusUnprocessableEntity, "INVALID_INPUT_SCHEMA", err.Error())
-		return
-	}
-	response.OK(c, gin.H{"schema": schema})
 }
 
 // --- Version handlers ---
@@ -433,29 +376,6 @@ func (h *Handler) DeleteVersion(c *gin.Context) {
 		return
 	}
 	response.OK(c, gin.H{"message": "Версия удалена"})
-}
-
-// UpdateWorkflowTraffic godoc
-// PUT /api/v1/workflows/:workflowId/traffic
-func (h *Handler) UpdateWorkflowTraffic(c *gin.Context) {
-	workflowID, ok := parseID(c, "workflowId")
-	if !ok {
-		return
-	}
-	var req UpdateTrafficRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "INVALID_BODY", err.Error())
-		return
-	}
-	if err := h.service.UpdateWorkflowTraffic(c.Request.Context(), workflowID, req); err != nil {
-		if errors.Is(err, ErrTrafficWeightInvalid) {
-			response.Fail(c, http.StatusUnprocessableEntity, "TRAFFIC_WEIGHT_INVALID", "Сумма весов трафика не может превышать 100")
-			return
-		}
-		response.InternalError(c, "Ошибка обновления настроек трафика")
-		return
-	}
-	response.OK(c, gin.H{"message": "Настройки трафика сохранены"})
 }
 
 // --- Step handlers ---

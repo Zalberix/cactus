@@ -13,7 +13,7 @@ const defaultOrganizationCode = "test"
 func SeedOrganization(ctx context.Context, db *pgxpool.Pool) error {
 	_, err := db.Exec(ctx, `
 		INSERT INTO organization (name, code)
-		VALUES ('Test Organization', $1)
+		VALUES ('Организация', $1)
 		ON CONFLICT (code) DO NOTHING
 	`, defaultOrganizationCode)
 	if err != nil {

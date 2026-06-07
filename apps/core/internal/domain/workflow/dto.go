@@ -198,8 +198,6 @@ type VersionSummaryResponse struct {
 	VersionNumber         int32  `json:"version_number"`
 	IsValid               bool   `json:"is_valid"`
 	IsActive              bool   `json:"is_active"`
-	TrafficWeight         int32  `json:"traffic_weight,omitempty"`
-	IsControlGroup        bool   `json:"is_control_group,omitempty"`
 	CompatibleSchemaCount int64  `json:"compatible_schema_count"`
 	RunCount              int64  `json:"run_count"`
 	LockedAt              string `json:"locked_at,omitempty"`
@@ -212,23 +210,6 @@ type VersionSummaryResponse struct {
 
 type UpdateVersionNameRequest struct {
 	Name string `json:"name" binding:"required,min=1,max=255"`
-}
-
-type UpdateTrafficRequest struct {
-	Mode     string                `json:"mode" binding:"omitempty,oneof=equal custom"`
-	Weights  []TrafficWeightInput  `json:"weights"`
-	Versions []TrafficVersionInput `json:"versions"`
-}
-
-type TrafficWeightInput struct {
-	VersionID int32 `json:"version_id" binding:"required"`
-	Weight    int32 `json:"weight" binding:"min=0,max=100"`
-}
-
-type TrafficVersionInput struct {
-	VersionID int32  `json:"version_id" binding:"required"`
-	Mode      string `json:"mode" binding:"required,oneof=share fixed"`
-	Weight    int32  `json:"weight" binding:"min=0,max=100"`
 }
 
 type InputSchemaFieldRequest struct {

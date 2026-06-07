@@ -2,12 +2,10 @@
 import { Save, Play, Pause, AlertCircle, Copy, FileJson } from 'lucide-vue-next'
 import type { Connection } from '@vue-flow/core'
 import type { VersionSummary } from '~/composables/useVersions'
-import type { WorkflowInputSchemaField } from '~/composables/useWorkflows'
 import DagCanvas from '~/components/dag/DagCanvas.vue'
 import StepToolbar from '~/components/dag/StepToolbar.vue'
 import StepSchemaChoiceDialog from '~/components/dag/StepSchemaChoiceDialog.vue'
 import StepRenameDialog from '~/components/dag/StepRenameDialog.vue'
-import WorkflowSchemaDialog from '~/components/dag/WorkflowSchemaDialog.vue'
 import NodeEditor from '~/components/dag/node-editor/NodeEditor.vue'
 import EmptyState from '~/components/feedback/EmptyState.vue'
 import { editorSurfaceForStep, isVersionReadOnly } from '~/components/dag/editor-utils'
@@ -19,6 +17,8 @@ import {
 } from '~/components/dag/step-toolbar-utils'
 import type { StepAddPayload } from '~/components/dag/step-toolbar-utils'
 import { workflowVersionEditorPath } from '~/composables/useWorkflows'
+import type { WorkflowInputSchemaRecord, WorkflowSchemaCompatibility } from '~/composables/useWorkflowRouting'
+import { nativeInputSchemaForVersion, workflowInputSchemaEditorPath } from '~/composables/useWorkflowRouting'
 import { notifyWorkflowVersionNameUpdated } from '~/composables/workflow-version-name-events'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
@@ -41,7 +41,8 @@ const orgId = computed(() => Number(route.params.orgId))
 const workflowId = computed(() => Number(route.params.workflowId))
 const routeVersionId = computed(() => Number(route.params.versionId || 0))
 
-const { fetchWorkflow, fetchWorkflowInputSchema, upsertWorkflowInputSchemaField, deleteWorkflowInputSchemaField } = useWorkflows()
+const { fetchWorkflow } = useWorkflows()
+const routing = useWorkflowRouting()
 const {
   fetchVersionSummaries,
   copyVersion,
@@ -53,12 +54,11 @@ const {
 // Workflow state
 const workflowName = ref('')
 const versions = ref<VersionSummary[]>([])
+const inputSchemas = ref<WorkflowInputSchemaRecord[]>([])
+const compatibilities = ref<WorkflowSchemaCompatibility[]>([])
 const selectedVersionId = ref<number | null>(null)
 const pageLoading = ref(true)
 const saving = ref(false)
-const schemaOpen = ref(false)
-const schemaSaving = ref(false)
-const inputSchema = ref<Record<string, unknown> | null>(null)
 const deactivateOpen = ref(false)
 const schemaChoiceOpen = ref(false)
 const pendingStepPayload = ref<StepAddPayload | null>(null)
@@ -70,6 +70,12 @@ const showValidationDialog = ref(false)
 
 const currentVersion = computed(() =>
   versions.value.find(v => v.id === selectedVersionId.value),
+)
+
+const currentNativeInputSchema = computed(() =>
+  currentVersion.value
+    ? nativeInputSchemaForVersion(currentVersion.value.id, inputSchemas.value, compatibilities.value)
+    : undefined,
 )
 
 const currentVersionName = computed({
@@ -131,13 +137,17 @@ const deletingNodeName = computed(() =>
 async function loadAll() {
   pageLoading.value = true
   try {
-    const [wf, vers] = await Promise.all([
+    const [wf, vers, schemas, schemaCompatibilities] = await Promise.all([
       fetchWorkflow(workflowId.value),
       fetchVersionSummaries(workflowId.value),
+      routing.fetchInputSchemas(workflowId.value),
+      routing.fetchCompatibilities(workflowId.value),
     ])
 
     workflowName.value = wf.name
     versions.value = vers
+    inputSchemas.value = schemas ?? []
+    compatibilities.value = schemaCompatibilities ?? []
 
     // Auto-select: query version, else active version, else latest
       if (vers.length > 0) {
@@ -155,12 +165,24 @@ async function loadAll() {
   }
 }
 
+async function loadVersionRoutingData() {
+  const [schemas, schemaCompatibilities] = await Promise.all([
+    routing.fetchInputSchemas(workflowId.value),
+    routing.fetchCompatibilities(workflowId.value),
+  ])
+  inputSchemas.value = schemas ?? []
+  compatibilities.value = schemaCompatibilities ?? []
+}
+
 // When version changes, load its steps
 watch(selectedVersionId, async (vid) => {
   showValidationDialog.value = false
   if (vid) {
     try {
-      await dagEditor.loadSteps(vid)
+      await Promise.all([
+        dagEditor.loadSteps(vid),
+        loadVersionRoutingData(),
+      ])
     }
     catch (err) {
       toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
@@ -186,9 +208,6 @@ async function onSave() {
     if (success) {
       toast({ title: t('editor.validated') })
       versions.value = await fetchVersionSummaries(workflowId.value)
-      if (selectedVersionId.value) {
-        inputSchema.value = await fetchWorkflowInputSchema(workflowId.value)
-      }
     }
     else if (dagEditor.validationErrors.value.length > 0) {
       showValidationDialog.value = true
@@ -267,52 +286,28 @@ async function onVersionNameBlur() {
 }
 
 async function openSchemaDialog() {
-  if (!currentVersion.value) return
+  const version = currentVersion.value
+  if (!version) return
   try {
-    inputSchema.value = await fetchWorkflowInputSchema(workflowId.value)
-    schemaOpen.value = true
+    await loadVersionRoutingData()
+    const schema = currentNativeInputSchema.value
+    if (!schema) {
+      throw new Error(t('workflowRouting.errorNativeSchemaMissing'))
+    }
+    await router.push(workflowInputSchemaEditorPath(orgId.value, workflowId.value, schema.id))
   }
   catch (err) {
     toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
-  }
-}
-
-async function onSchemaSaveField(field: WorkflowInputSchemaField) {
-  schemaSaving.value = true
-  try {
-    inputSchema.value = await upsertWorkflowInputSchemaField(workflowId.value, field)
-    versions.value = await fetchVersionSummaries(workflowId.value)
-    toast({ title: t('workflowInputs.saved') })
-  }
-  catch (err) {
-    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
-  }
-  finally {
-    schemaSaving.value = false
-  }
-}
-
-async function onSchemaDeleteField(field: { name: string }) {
-  schemaSaving.value = true
-  try {
-    inputSchema.value = await deleteWorkflowInputSchemaField(workflowId.value, field.name)
-    versions.value = await fetchVersionSummaries(workflowId.value)
-    toast({ title: t('workflowInputs.deleted') })
-  }
-  catch (err) {
-    toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
-  }
-  finally {
-    schemaSaving.value = false
   }
 }
 
 async function onWorkflowInputsChanged() {
   try {
-    versions.value = await fetchVersionSummaries(workflowId.value)
-    if (schemaOpen.value) {
-      inputSchema.value = await fetchWorkflowInputSchema(workflowId.value)
-    }
+    const [summaries] = await Promise.all([
+      fetchVersionSummaries(workflowId.value),
+      loadVersionRoutingData(),
+    ])
+    versions.value = summaries
   }
   catch (err) {
     toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
@@ -685,20 +680,13 @@ onMounted(() => {
       :node-id="nodeEditor.editingNodeId.value"
       :workflow-id="workflowId"
       :version-id="selectedVersionId"
+      :workflow-input-schema-id="currentNativeInputSchema?.id ?? null"
       :all-nodes="dagEditor.nodes.value"
       :all-edges="dagEditor.edges.value"
       @save-settings="onNodeEditorSaveSettings"
       @save-control-settings="onNodeEditorSaveControlSettings"
       @save-input-mapping="onNodeEditorSaveInputMapping"
       @workflow-inputs-changed="onWorkflowInputsChanged"
-    />
-
-    <WorkflowSchemaDialog
-      v-model:open="schemaOpen"
-      :schema="inputSchema"
-      :saving="schemaSaving"
-      @save-field="onSchemaSaveField"
-      @delete-field="onSchemaDeleteField"
     />
 
     <StepSchemaChoiceDialog

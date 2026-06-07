@@ -27,7 +27,7 @@ describe('messages API composable', () => {
             experiment_id: 51,
             experiment_scope_id: 61,
             experiment_variant_id: 71,
-            selection_reason: 'experiment_variant',
+            selection_reason: 'experiment',
             status: 'running',
             created_at: '2026-06-04T10:00:00Z',
             updated_at: '2026-06-04T10:00:01Z',
@@ -52,7 +52,7 @@ describe('messages API composable', () => {
       experiment_id: 51,
       experiment_scope_id: 61,
       experiment_variant_id: 71,
-      selection_reason: 'experiment_variant',
+            selection_reason: 'experiment',
     })
     expect(result.meta).toEqual({ total: 1, page: 2, per_page: 10, total_pages: 1 })
   })
@@ -75,7 +75,7 @@ describe('messages API composable', () => {
           experiment_id: 51,
           experiment_scope_id: 61,
           experiment_variant_id: 71,
-          selection_reason: 'experiment_variant',
+          selection_reason: 'experiment',
           version_input_data: { recipient: { email: 'ada@example.com' } },
           routing_decision: { reason: 'experiment_variant', workflow_version_id: 31 },
           message_status: 'running',
@@ -96,6 +96,6 @@ describe('messages API composable', () => {
     expect(detail.routing_decision).toEqual({ reason: 'experiment_variant', workflow_version_id: 31 })
     expect(detail.input_schema_compatibility_id).toBe(41)
     expect(detail.experiment_variant_id).toBe(71)
-    expect(detail.selection_reason).toBe('experiment_variant')
+    expect(detail.selection_reason).toBe('experiment')
   })
 })

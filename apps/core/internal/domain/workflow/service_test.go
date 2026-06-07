@@ -25,9 +25,7 @@ type mockStorage struct {
 	getVersionErr     error
 	activateErr       error
 	updateValidErr    error
-	updateSchemaErr   error
 	updateNameErr     error
-	updateTrafficErr  error
 	steps             []db.WorkflowStep
 	enrichedSteps     []db.ListEnrichedStepsByVersionIDRow
 	deps              []db.WorkflowStepDependency
@@ -53,7 +51,6 @@ type mockStorage struct {
 	createDependencyParams             []db.CreateWorkflowStepDependencyParams
 	createDependencyErr                error
 	createdRevisionSettings            []byte
-	updateTrafficArgs                  []updateTrafficArg
 	updateRevisionSettingsArg          db.UpdateWorkerSettingsRevisionSettingsParams
 	lastUpdateVersionNameArg           db.UpdateWorkflowVersionNameParams
 	lastCloneWorkerSettingsRevisionArg db.CloneWorkerSettingsRevisionParams
@@ -62,16 +59,11 @@ type mockStorage struct {
 	getWorkflowStepErr                 error
 	workflowStep                       db.WorkflowStep
 	// capture args
-	lastUpdateValidArg    db.UpdateWorkflowVersionValidParams
-	lastUpdateActiveArg   db.UpdateWorkflowVersionActiveParams
-	lastUpdateSchemaArg   db.UpdateWorkflowInputSchemaParams
-	lastUpdateStepArg     db.UpdateWorkflowStepParams
-	invalidatedWorkflowID int32
-}
-
-type updateTrafficArg struct {
-	ID            int32
-	TrafficWeight int32
+	lastUpdateValidArg             db.UpdateWorkflowVersionValidParams
+	lastUpdateActiveArg            db.UpdateWorkflowVersionActiveParams
+	lastUpdateInputSchemaStatusArg db.UpdateWorkflowInputSchemaStatusParams
+	lastUpdateStepArg              db.UpdateWorkflowStepParams
+	invalidatedWorkflowID          int32
 }
 
 func (m *mockStorage) WithTx(_ context.Context, _ func(q *db.Queries) error) error {
@@ -94,10 +86,6 @@ func (m *mockStorage) UpdateWorkflow(_ context.Context, _ db.UpdateWorkflowParam
 	return db.Workflow{}, nil
 }
 
-func (m *mockStorage) UpdateWorkflowInputSchema(_ context.Context, arg db.UpdateWorkflowInputSchemaParams) (db.Workflow, error) {
-	m.lastUpdateSchemaArg = arg
-	return db.Workflow{ID: arg.ID, InputSchema: arg.InputSchema}, m.updateSchemaErr
-}
 func (m *mockStorage) SoftDeleteWorkflow(_ context.Context, _ int32) error { return nil }
 func (m *mockStorage) CreateWorkflowVersion(_ context.Context, arg db.CreateWorkflowVersionParams) (db.WorkflowVersion, error) {
 	m.lastCreateWorkflowVersionArg = arg
@@ -112,8 +100,6 @@ func (m *mockStorage) CreateWorkflowVersion(_ context.Context, arg db.CreateWork
 			Name:           arg.Name,
 			IsValid:        arg.IsValid,
 			IsActive:       arg.IsActive,
-			TrafficWeight:  arg.TrafficWeight,
-			IsControlGroup: arg.IsControlGroup,
 		}
 	}
 	m.createdWorkflowVersion.WorkflowID = arg.WorkflowID
@@ -153,16 +139,6 @@ func (m *mockStorage) ListActiveWorkflowVersions(_ context.Context, _ int32) ([]
 func (m *mockStorage) UpdateWorkflowVersionName(_ context.Context, arg db.UpdateWorkflowVersionNameParams) (db.WorkflowVersion, error) {
 	m.lastUpdateVersionNameArg = arg
 	return db.WorkflowVersion{ID: arg.ID}, m.updateNameErr
-}
-
-func (m *mockStorage) UpdateWorkflowVersionTrafficWeight(_ context.Context, arg db.UpdateWorkflowVersionTrafficWeightParams) (db.WorkflowVersion, error) {
-	m.updateTrafficArgs = append(m.updateTrafficArgs, updateTrafficArg{ID: arg.ID, TrafficWeight: arg.TrafficWeight})
-	return db.WorkflowVersion{ID: arg.ID, TrafficWeight: arg.TrafficWeight}, m.updateTrafficErr
-}
-
-func (m *mockStorage) UpdateWorkflowVersionTrafficWeightIncludingDeleted(_ context.Context, arg db.UpdateWorkflowVersionTrafficWeightIncludingDeletedParams) (db.WorkflowVersion, error) {
-	m.updateTrafficArgs = append(m.updateTrafficArgs, updateTrafficArg{ID: arg.ID, TrafficWeight: arg.TrafficWeight})
-	return db.WorkflowVersion{ID: arg.ID, TrafficWeight: arg.TrafficWeight}, m.updateTrafficErr
 }
 
 func (m *mockStorage) UpdateWorkflowVersionValid(_ context.Context, arg db.UpdateWorkflowVersionValidParams) (db.WorkflowVersion, error) {
@@ -398,7 +374,40 @@ func (m *mockStorage) UpdateWorkflowInputSchemaRecord(_ context.Context, arg db.
 }
 
 func (m *mockStorage) UpdateWorkflowInputSchemaStatus(_ context.Context, arg db.UpdateWorkflowInputSchemaStatusParams) (db.WorkflowInputSchema, error) {
+	m.lastUpdateInputSchemaStatusArg = arg
 	return db.WorkflowInputSchema{ID: arg.ID, Status: arg.Status}, nil
+}
+
+func (m *mockStorage) GetNativeInputSchemaForWorkflowVersion(_ context.Context, workflowVersionID int32) (db.WorkflowInputSchema, error) {
+	compatibilities := m.compatibilities
+	if compatibilities == nil {
+		compatibilities = []db.WorkflowVersionInputSchemaCompatibility{{
+			ID:                    1,
+			WorkflowVersionID:     workflowVersionID,
+			WorkflowInputSchemaID: 1,
+			CompatibilityType:     "native",
+			IsActive:              true,
+		}}
+	}
+	for _, compatibility := range compatibilities {
+		if compatibility.WorkflowVersionID != workflowVersionID || compatibility.CompatibilityType != "native" || !compatibility.IsActive {
+			continue
+		}
+		if m.inputSchemas != nil {
+			if schema, ok := m.inputSchemas[compatibility.WorkflowInputSchemaID]; ok {
+				return schema, nil
+			}
+		}
+		return db.WorkflowInputSchema{
+			ID:            compatibility.WorkflowInputSchemaID,
+			WorkflowID:    m.version.WorkflowID,
+			Code:          "v1",
+			VersionNumber: 1,
+			SchemaJson:    []byte(`{"type":"object","properties":{}}`),
+			Status:        "active",
+		}, nil
+	}
+	return db.WorkflowInputSchema{}, errors.New("native input schema not found")
 }
 
 func (m *mockStorage) CreateWorkflowVersionInputSchemaCompatibility(_ context.Context, arg db.CreateWorkflowVersionInputSchemaCompatibilityParams) (db.WorkflowVersionInputSchemaCompatibility, error) {
@@ -545,6 +554,43 @@ func TestActivateVersion_Success(t *testing.T) {
 	assert.True(t, store.lastUpdateActiveArg.IsActive)
 }
 
+func TestActivateVersion_ActivatesDraftNativeInputSchema(t *testing.T) {
+	store := &mockStorage{
+		version: db.WorkflowVersion{
+			ID:            2,
+			WorkflowID:    20,
+			VersionNumber: 1,
+			IsValid:       true,
+		},
+		compatibilities: []db.WorkflowVersionInputSchemaCompatibility{{
+			ID:                    10,
+			WorkflowVersionID:     2,
+			WorkflowInputSchemaID: 30,
+			CompatibilityType:     "native",
+			IsActive:              true,
+		}},
+		inputSchemas: map[int32]db.WorkflowInputSchema{
+			30: {
+				ID:            30,
+				WorkflowID:    20,
+				Code:          "v1",
+				VersionNumber: 1,
+				SchemaJson:    []byte(`{"type":"object","properties":{}}`),
+				Status:        "draft",
+			},
+		},
+	}
+	svc := workflow.NewService(store)
+
+	err := svc.ActivateVersion(context.Background(), 2)
+
+	require.NoError(t, err)
+	assert.Equal(t, int32(30), store.lastUpdateInputSchemaStatusArg.ID)
+	assert.Equal(t, "active", store.lastUpdateInputSchemaStatusArg.Status)
+	assert.Equal(t, int32(2), store.lastUpdateActiveArg.ID)
+	assert.True(t, store.lastUpdateActiveArg.IsActive)
+}
+
 func TestListWorkflows_ReturnsVersionCount(t *testing.T) {
 	store := &mockStorage{
 		listVersions: []db.WorkflowVersion{
@@ -560,34 +606,6 @@ func TestListWorkflows_ReturnsVersionCount(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, workflows, 1)
 	assert.Equal(t, int32(2), workflows[0].VersionCount)
-}
-
-func TestGetWorkflowInputSchema_ReturnsStoredSchema(t *testing.T) {
-	store := &mockStorage{
-		workflow: db.Workflow{ID: 30, InputSchema: []byte(`{"type":"object","properties":{"email":{"type":"string","required":true}}}`)},
-	}
-	svc := workflow.NewService(store)
-	schema, err := svc.GetWorkflowInputSchema(context.Background(), 30)
-	require.NoError(t, err)
-	assert.JSONEq(t, `{"type":"object","properties":{"email":{"type":"string","required":true}}}`, string(schema))
-}
-
-func TestUpsertWorkflowInputSchemaField_UpdatesSchemaAndInvalidatesVersions(t *testing.T) {
-	store := &mockStorage{
-		workflow:       db.Workflow{ID: 40, InputSchema: []byte(`{"type":"object","properties":{}}`)},
-		activeVersions: []db.WorkflowVersion{}, // пустой список после деактивации
-	}
-	svc := workflow.NewService(store)
-	schema, err := svc.UpsertWorkflowInputSchemaField(context.Background(), 40, workflow.InputSchemaFieldRequest{
-		Name:     "email",
-		Type:     "string",
-		Required: true,
-	})
-	require.NoError(t, err)
-	assert.JSONEq(t, `{"type":"object","properties":{"email":{"type":"string","required":true}}}`, string(schema))
-	assert.Equal(t, int32(40), store.lastUpdateSchemaArg.ID)
-	assert.JSONEq(t, `{"type":"object","properties":{"email":{"type":"string","required":true}}}`, string(store.lastUpdateSchemaArg.InputSchema))
-	assert.Equal(t, int32(40), store.invalidatedWorkflowID)
 }
 
 // TestValidateVersion_CycleReturnsErrors — ValidateVersion обнаруживает цикл в DAG.
@@ -623,6 +641,48 @@ func TestValidateVersion_ValidDAGSetsIsValid(t *testing.T) {
 	}
 	svc := workflow.NewService(store)
 	resp, err := svc.ValidateVersion(context.Background(), 20)
+	require.NoError(t, err)
+	assert.True(t, resp.IsValid)
+	assert.Empty(t, resp.Errors)
+	assert.True(t, store.lastUpdateValidArg.IsValid)
+}
+
+func TestValidateVersion_AllowsDraftNativeInputSchemaForSameVersion(t *testing.T) {
+	store := &mockStorage{
+		version: db.WorkflowVersion{
+			ID:            20,
+			WorkflowID:    100,
+			VersionNumber: 2,
+		},
+		compatibilities: []db.WorkflowVersionInputSchemaCompatibility{{
+			ID:                    10,
+			WorkflowVersionID:     20,
+			WorkflowInputSchemaID: 30,
+			CompatibilityType:     "native",
+			IsActive:              true,
+		}},
+		inputSchemas: map[int32]db.WorkflowInputSchema{
+			30: {
+				ID:            30,
+				WorkflowID:    100,
+				Code:          "v2",
+				VersionNumber: 2,
+				SchemaJson:    []byte(`{"type":"object","properties":{}}`),
+				Status:        "draft",
+			},
+		},
+		steps: []db.WorkflowStep{
+			makeDBStartStep(1, 20),
+			makeDBTaskStep(2, 20, 7, 70),
+		},
+		deps: []db.WorkflowStepDependency{
+			makeDBDep(2, 1, "success"),
+		},
+	}
+	svc := workflow.NewService(store)
+
+	resp, err := svc.ValidateVersion(context.Background(), 20)
+
 	require.NoError(t, err)
 	assert.True(t, resp.IsValid)
 	assert.Empty(t, resp.Errors)
@@ -684,7 +744,7 @@ func TestValidateVersion_InvalidPersistedControlSettingsReturnsError(t *testing.
 func TestValidateVersionRejectsTaskWithMissingRequiredSettings(t *testing.T) {
 	store := &mockStorage{
 		version:  db.WorkflowVersion{ID: 20, WorkflowID: 100},
-		workflow: db.Workflow{ID: 100, InputSchema: []byte(`{"type":"object","properties":{}}`)},
+		workflow: db.Workflow{ID: 100},
 		steps: []db.WorkflowStep{
 			makeDBStartStep(1, 20),
 			makeDBTaskStep(2, 20, 7, 70),
@@ -763,14 +823,12 @@ func TestCopyVersion_ClonesStepsDependenciesAndTaskRevisions(t *testing.T) {
 		createStepNextID:                2000,
 		cloneWorkerSettingsRevisionResp: db.WorkerSettingsRevision{ID: 701},
 		createdWorkflowVersion: db.WorkflowVersion{
-			ID:             11,
-			WorkflowID:     100,
-			VersionNumber:  11,
-			Name:           pgtype.Text{String: "Source copy", Valid: true},
-			IsValid:        false,
-			IsActive:       false,
-			TrafficWeight:  0,
-			IsControlGroup: false,
+			ID:            11,
+			WorkflowID:    100,
+			VersionNumber: 11,
+			Name:          pgtype.Text{String: "Source copy", Valid: true},
+			IsValid:       false,
+			IsActive:      false,
 		},
 	}
 	svc := workflow.NewService(store)
@@ -1012,7 +1070,7 @@ func TestCreateSwitchStep_UsesObjectCaseDefaultSettingsWhenOmitted(t *testing.T)
 func TestValidateVersion_AcceptsSwitchObjectCaseSettingsAndOutcomes(t *testing.T) {
 	store := &mockStorage{
 		version:  db.WorkflowVersion{ID: 20, WorkflowID: 100},
-		workflow: db.Workflow{ID: 100, InputSchema: []byte(`{"type":"object","properties":{"type":{"type":"string"}}}`)},
+		workflow: db.Workflow{ID: 100},
 		steps: []db.WorkflowStep{
 			makeDBStartStep(1, 20),
 			{
@@ -1043,7 +1101,7 @@ func TestValidateVersion_AcceptsSwitchObjectCaseSettingsAndOutcomes(t *testing.T
 func TestValidateVersion_RejectsInvalidSwitchCaseSettings(t *testing.T) {
 	store := &mockStorage{
 		version:  db.WorkflowVersion{ID: 20, WorkflowID: 100},
-		workflow: db.Workflow{ID: 100, InputSchema: []byte(`{"type":"object","properties":{}}`)},
+		workflow: db.Workflow{ID: 100},
 		steps: []db.WorkflowStep{
 			makeDBStartStep(1, 20),
 			{
@@ -1252,7 +1310,7 @@ func TestUpdateTaskSettingsRejectsMissingRequiredSettings(t *testing.T) {
 func TestUpdateTaskInputMappingDoesNotUpdateSettingsRevision(t *testing.T) {
 	store := &mockStorage{
 		version:  db.WorkflowVersion{ID: 99, WorkflowID: 100},
-		workflow: db.Workflow{ID: 100, InputSchema: []byte(`{"type":"object","properties":{}}`)},
+		workflow: db.Workflow{ID: 100},
 		workflowStep: db.WorkflowStep{
 			ID:                       12,
 			WorkflowVersionID:        99,
@@ -1280,183 +1338,4 @@ func TestUpdateTaskInputMappingDoesNotUpdateSettingsRevision(t *testing.T) {
 	assert.Equal(t, int32(12), store.lastUpdateStepArg.ID)
 	assert.JSONEq(t, `[]`, string(store.lastUpdateStepArg.InputMapping))
 	assert.Equal(t, int32(99), store.lastUpdateValidArg.ID)
-}
-
-func TestUpdateTraffic_EqualModeSplitsActiveVersions(t *testing.T) {
-	store := &mockStorage{
-		listVersions: []db.WorkflowVersion{
-			{ID: 1, WorkflowID: 100, IsActive: true},
-			{ID: 2, WorkflowID: 100, IsActive: true},
-			{ID: 3, WorkflowID: 100, IsActive: true},
-			{ID: 4, WorkflowID: 100, IsActive: false},
-		},
-	}
-	svc := workflow.NewService(store)
-
-	err := svc.UpdateWorkflowTraffic(context.Background(), 100, workflow.UpdateTrafficRequest{
-		Mode: "equal",
-	})
-	require.NoError(t, err)
-	require.Len(t, store.updateTrafficArgs, 4)
-
-	got := make(map[int32]int32, 4)
-	for _, arg := range store.updateTrafficArgs {
-		got[arg.ID] = arg.TrafficWeight
-	}
-	assert.Equal(t, int32(34), got[1])
-	assert.Equal(t, int32(33), got[2])
-	assert.Equal(t, int32(33), got[3])
-	assert.Equal(t, int32(0), got[4])
-}
-
-func TestUpdateTraffic_CustomModeRejectsTotalAbove100(t *testing.T) {
-	store := &mockStorage{
-		listVersions: []db.WorkflowVersion{
-			{ID: 1, WorkflowID: 100, IsActive: true},
-			{ID: 2, WorkflowID: 100, IsActive: true},
-		},
-	}
-	svc := workflow.NewService(store)
-
-	err := svc.UpdateWorkflowTraffic(context.Background(), 100, workflow.UpdateTrafficRequest{
-		Mode: "custom",
-		Weights: []workflow.TrafficWeightInput{
-			{VersionID: 1, Weight: 90},
-			{VersionID: 2, Weight: 20},
-		},
-	})
-	require.Error(t, err)
-	assert.ErrorIs(t, err, workflow.ErrTrafficWeightInvalid)
-	assert.Empty(t, store.updateTrafficArgs)
-}
-
-func TestUpdateTraffic_PerVersionFixedAndShareDistributesRemaining(t *testing.T) {
-	store := &mockStorage{
-		listVersions: []db.WorkflowVersion{
-			{ID: 1, WorkflowID: 100, IsActive: true},
-			{ID: 2, WorkflowID: 100, IsActive: true},
-			{ID: 3, WorkflowID: 100, IsActive: true},
-		},
-	}
-	svc := workflow.NewService(store)
-
-	err := svc.UpdateWorkflowTraffic(context.Background(), 100, workflow.UpdateTrafficRequest{
-		Versions: []workflow.TrafficVersionInput{
-			{VersionID: 3, Mode: "share"},
-			{VersionID: 2, Mode: "fixed", Weight: 70},
-			{VersionID: 1, Mode: "share"},
-		},
-	})
-	require.NoError(t, err)
-	require.Len(t, store.updateTrafficArgs, 3)
-
-	got := make(map[int32]int32, 3)
-	for _, arg := range store.updateTrafficArgs {
-		got[arg.ID] = arg.TrafficWeight
-	}
-	assert.Equal(t, int32(15), got[1])
-	assert.Equal(t, int32(70), got[2])
-	assert.Equal(t, int32(15), got[3])
-}
-
-func TestUpdateTraffic_PerVersionClearsInactiveVersionTraffic(t *testing.T) {
-	store := &mockStorage{
-		listVersions: []db.WorkflowVersion{
-			{ID: 1, WorkflowID: 100, IsActive: true, TrafficWeight: 50},
-			{ID: 2, WorkflowID: 100, IsActive: true, TrafficWeight: 50},
-			{ID: 3, WorkflowID: 100, IsActive: false, TrafficWeight: 100},
-		},
-	}
-	svc := workflow.NewService(store)
-
-	err := svc.UpdateWorkflowTraffic(context.Background(), 100, workflow.UpdateTrafficRequest{
-		Versions: []workflow.TrafficVersionInput{
-			{VersionID: 1, Mode: "fixed", Weight: 70},
-			{VersionID: 2, Mode: "share"},
-		},
-	})
-	require.NoError(t, err)
-	require.Len(t, store.updateTrafficArgs, 3)
-
-	got := make(map[int32]int32, 3)
-	for _, arg := range store.updateTrafficArgs {
-		got[arg.ID] = arg.TrafficWeight
-	}
-	assert.Equal(t, int32(70), got[1])
-	assert.Equal(t, int32(30), got[2])
-	assert.Equal(t, int32(0), got[3])
-}
-
-func TestUpdateTraffic_PerVersionClearsDeletedVersionTraffic(t *testing.T) {
-	store := &mockStorage{
-		listVersions: []db.WorkflowVersion{
-			{ID: 1, WorkflowID: 100, IsActive: true, TrafficWeight: 50},
-			{ID: 2, WorkflowID: 100, IsActive: true, TrafficWeight: 50},
-			{
-				ID:            3,
-				WorkflowID:    100,
-				IsActive:      false,
-				TrafficWeight: 100,
-				DeletedAt:     pgtype.Timestamp{Valid: true},
-			},
-		},
-	}
-	svc := workflow.NewService(store)
-
-	err := svc.UpdateWorkflowTraffic(context.Background(), 100, workflow.UpdateTrafficRequest{
-		Versions: []workflow.TrafficVersionInput{
-			{VersionID: 1, Mode: "fixed", Weight: 70},
-			{VersionID: 2, Mode: "share"},
-		},
-	})
-	require.NoError(t, err)
-	require.Len(t, store.updateTrafficArgs, 3)
-
-	got := make(map[int32]int32, 3)
-	for _, arg := range store.updateTrafficArgs {
-		got[arg.ID] = arg.TrafficWeight
-	}
-	assert.Equal(t, int32(70), got[1])
-	assert.Equal(t, int32(30), got[2])
-	assert.Equal(t, int32(0), got[3])
-}
-
-func TestUpdateTraffic_PerVersionRejectsFixedTotalAbove100(t *testing.T) {
-	store := &mockStorage{
-		listVersions: []db.WorkflowVersion{
-			{ID: 1, WorkflowID: 100, IsActive: true},
-			{ID: 2, WorkflowID: 100, IsActive: true},
-		},
-	}
-	svc := workflow.NewService(store)
-
-	err := svc.UpdateWorkflowTraffic(context.Background(), 100, workflow.UpdateTrafficRequest{
-		Versions: []workflow.TrafficVersionInput{
-			{VersionID: 1, Mode: "fixed", Weight: 80},
-			{VersionID: 2, Mode: "fixed", Weight: 30},
-		},
-	})
-	require.Error(t, err)
-	assert.ErrorIs(t, err, workflow.ErrTrafficWeightInvalid)
-	assert.Empty(t, store.updateTrafficArgs)
-}
-
-func TestDeleteWorkflowInputSchemaField_UpdatesSchemaAndInvalidatesVersions(t *testing.T) {
-	store := &mockStorage{
-		workflow: db.Workflow{ID: 40, InputSchema: []byte(`{
-			"type":"object",
-			"properties":{
-				"email":{"type":"string","required":true},
-				"subject":{"type":"string"}
-			}
-		}`)},
-	}
-	svc := workflow.NewService(store)
-	schema, err := svc.DeleteWorkflowInputSchemaField(context.Background(), 40, "email")
-	require.NoError(t, err)
-
-	assert.JSONEq(t, `{"type":"object","properties":{"subject":{"type":"string"}}}`, string(schema))
-	assert.Equal(t, int32(40), store.lastUpdateSchemaArg.ID)
-	assert.JSONEq(t, `{"type":"object","properties":{"subject":{"type":"string"}}}`, string(store.lastUpdateSchemaArg.InputSchema))
-	assert.Equal(t, int32(40), store.invalidatedWorkflowID)
 }

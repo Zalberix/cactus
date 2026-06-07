@@ -24,6 +24,7 @@ const routingMock = vi.hoisted(() => ({
   fetchInputSchemas: vi.fn(),
   fetchCompatibilities: vi.fn(),
 }))
+const routerPushMock = vi.hoisted(() => vi.fn())
 
 vi.mock('~/components/ui/toast/use-toast', () => ({
   toast: toastMock,
@@ -36,6 +37,7 @@ describe('workflow version supported schemas', () => {
     for (const mock of Object.values(workflowMock)) mock.mockReset()
     for (const mock of Object.values(versionsMock)) mock.mockReset()
     for (const mock of Object.values(routingMock)) mock.mockReset()
+    routerPushMock.mockReset()
 
     vi.stubGlobal('computed', computed)
     vi.stubGlobal('ref', ref)
@@ -45,7 +47,7 @@ describe('workflow version supported schemas', () => {
       params: { orgId: '7', workflowId: '42' },
     }))
     vi.stubGlobal('useRouter', () => ({
-      push: vi.fn(),
+      push: routerPushMock,
     }))
     vi.stubGlobal('useI18n', () => ({
       t: translate,
@@ -84,6 +86,37 @@ describe('workflow version supported schemas', () => {
     expect(wrapper.text()).toContain('Supported schema versions')
     expect(wrapper.text()).toContain('partner v2')
     expect(wrapper.text()).toContain('public v1')
+  })
+
+  it('emits the selected version for the input schema action', async () => {
+    const version = {
+      id: 101,
+      workflow_id: 42,
+      name: 'Current',
+      version_number: 3,
+      is_valid: true,
+      is_active: true,
+      traffic_weight: 100,
+      is_control_group: false,
+      run_count: 0,
+      created_at: '',
+    }
+    const wrapper = mount(WorkflowVersionTable, {
+      props: {
+        versions: [version],
+        orgId: 7,
+        workflowId: 42,
+      },
+      global: {
+        stubs: tableStubs(),
+      },
+    })
+
+    const action = wrapper.findAll('button').find(button => button.text().includes('Workflow input schema'))
+    expect(action).toBeTruthy()
+    await action!.trigger('click')
+
+    expect(wrapper.emitted('showInputSchema')?.[0]).toEqual([version])
   })
 
   it('loads routing compatibilities and passes active schema labels to the overview table', async () => {
@@ -176,12 +209,78 @@ describe('workflow version supported schemas', () => {
     expect(wrapper.text()).toContain('partner v2')
     expect(wrapper.text()).not.toContain('internal v9')
   })
+
+  it('routes overview input schema action to the selected version native schema editor', async () => {
+    workflowMock.fetchWorkflow.mockResolvedValue({
+      id: 42,
+      name: 'Notify customer',
+      system_id: 3,
+      priority: 1,
+    })
+    versionsMock.fetchVersionSummaries.mockResolvedValue([{
+      id: 101,
+      workflow_id: 42,
+      name: 'Current',
+      version_number: 3,
+      is_valid: true,
+      is_active: true,
+      traffic_weight: 100,
+      is_control_group: false,
+      run_count: 0,
+      created_at: '',
+    }])
+    routingMock.fetchInputSchemas.mockResolvedValue([{
+      id: 11,
+      workflow_id: 42,
+      code: 'v3',
+      version_number: 3,
+      schema_json: { type: 'object', properties: {} },
+      status: 'draft',
+      is_default: false,
+    }])
+    routingMock.fetchCompatibilities.mockResolvedValue([{
+      id: 31,
+      workflow_version_id: 101,
+      workflow_input_schema_id: 11,
+      compatibility_type: 'native',
+      default_values: {},
+      is_active: true,
+      is_default_route: true,
+    }])
+
+    const wrapper = mount(WorkflowOverviewPage, {
+      global: {
+        stubs: {
+          ...tableStubs(),
+          WorkflowVersionCreateMenu: true,
+          WorkflowTokensDialog: true,
+          WorkflowSchemaDialog: true,
+          EmptyState: true,
+          Input: inputStub(),
+        },
+      },
+    })
+    await flushPromises()
+
+    const action = wrapper.findAll('button').find(button => button.text().includes('Workflow input schema'))
+    expect(action).toBeTruthy()
+    await action!.trigger('click')
+    await flushPromises()
+
+    expect(routerPushMock).toHaveBeenCalledWith('/org/7/workflows/42/routing/input-schemas/11/edit')
+    expect(workflowMock.fetchWorkflowInputSchema).not.toHaveBeenCalled()
+  })
 })
 
 function tableStubs() {
   const passthrough = defineComponent({
-    setup(_, { slots }) {
-      return () => h('div', slots.default?.())
+    setup(_, { attrs, slots }) {
+      return () => h('div', attrs, slots.default?.())
+    },
+  })
+  const buttonPassthrough = defineComponent({
+    setup(_, { attrs, slots }) {
+      return () => h('button', attrs, slots.default?.())
     },
   })
 
@@ -197,7 +296,7 @@ function tableStubs() {
     }),
     DropdownMenu: passthrough,
     DropdownMenuContent: passthrough,
-    DropdownMenuItem: passthrough,
+    DropdownMenuItem: buttonPassthrough,
     DropdownMenuTrigger: passthrough,
     NuxtLink: defineComponent({
       props: {

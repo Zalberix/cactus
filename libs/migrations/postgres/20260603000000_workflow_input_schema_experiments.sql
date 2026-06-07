@@ -253,77 +253,141 @@ ALTER TABLE "workflow_run"
 CREATE INDEX workflow_run_routing_idx
     ON "workflow_run" (input_schema_compatibility_id, workflow_experiment_id, workflow_experiment_variant_id);
 
-INSERT INTO "workflow_input_schema" (workflow_id, code, version_number, schema_json, status, is_default, created_at, updated_at)
-SELECT w.id, 'default', 1, w.input_schema, 'active', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-FROM "workflow" w
-WHERE w.deleted_at IS NULL
-  AND NOT EXISTS (
-      SELECT 1 FROM "workflow_input_schema" wis
-      WHERE wis.workflow_id = w.id AND wis.deleted_at IS NULL
-  );
-
-UPDATE "message" m
-SET workflow_input_schema_id = wis.id
-FROM "workflow_input_schema" wis
-WHERE wis.workflow_id = m.workflow_id
-  AND wis.is_default = TRUE
-  AND wis.deleted_at IS NULL
-  AND m.workflow_input_schema_id IS NULL;
-
-WITH ranked_compatibilities AS (
+WITH ranked_versions AS (
     SELECT
         wv.id AS workflow_version_id,
-        wis.id AS workflow_input_schema_id,
-        ROW_NUMBER() OVER (
-            PARTITION BY wis.id
-            ORDER BY wv.is_active DESC, wv.is_valid DESC, wv.traffic_weight DESC, wv.version_number DESC, wv.id DESC
-        ) AS route_rank,
+        wv.workflow_id,
+        wv.version_number,
         wv.is_active,
-        wv.is_valid
+        wv.is_valid,
+        w.input_schema,
+        ROW_NUMBER() OVER (
+            PARTITION BY wv.workflow_id
+            ORDER BY wv.is_active DESC, wv.is_valid DESC, wv.version_number DESC, wv.id DESC
+        ) AS default_rank
     FROM "workflow_version" wv
-    JOIN "workflow_input_schema" wis ON wis.workflow_id = wv.workflow_id AND wis.is_default = TRUE AND wis.deleted_at IS NULL
+    JOIN "workflow" w ON w.id = wv.workflow_id AND w.deleted_at IS NULL
     WHERE wv.deleted_at IS NULL
 )
+INSERT INTO "workflow_input_schema" (
+    workflow_id,
+    code,
+    version_number,
+    schema_json,
+    status,
+    is_default,
+    created_at,
+    updated_at
+)
+SELECT
+    workflow_id,
+    'v' || version_number::text,
+    version_number,
+    COALESCE(input_schema, '{"type":"object","properties":{}}'::jsonb),
+    CASE WHEN is_active THEN 'active' ELSE 'draft' END,
+    default_rank = 1 AND is_active = TRUE,
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP
+FROM ranked_versions;
+
 INSERT INTO "workflow_version_input_schema_compatibility" (
     workflow_version_id,
     workflow_input_schema_id,
     compatibility_type,
+    workflow_input_mapper_id,
+    default_values,
     is_active,
     is_default_route,
     created_at,
     updated_at
 )
 SELECT
-    workflow_version_id,
-    workflow_input_schema_id,
+    wv.id,
+    wis.id,
     'native',
+    NULL,
+    '{}'::jsonb,
     TRUE,
-    route_rank = 1 AND is_active = TRUE AND is_valid = TRUE,
+    TRUE,
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
-FROM ranked_compatibilities;
+FROM "workflow_version" wv
+JOIN "workflow_input_schema" wis
+  ON wis.workflow_id = wv.workflow_id
+ AND wis.version_number = wv.version_number
+ AND wis.deleted_at IS NULL
+WHERE wv.deleted_at IS NULL
+  AND NOT EXISTS (
+      SELECT 1
+      FROM "workflow_version_input_schema_compatibility" c
+      WHERE c.workflow_version_id = wv.id
+        AND c.workflow_input_schema_id = wis.id
+        AND c.deleted_at IS NULL
+  );
+
+WITH message_native_schema AS (
+    SELECT DISTINCT ON (wr.message_id)
+        wr.message_id,
+        wis.id AS workflow_input_schema_id
+    FROM "workflow_run" wr
+    JOIN "workflow_version" wv ON wv.id = wr.workflow_version_id
+    JOIN "workflow_input_schema" wis
+      ON wis.workflow_id = wv.workflow_id
+     AND wis.version_number = wv.version_number
+     AND wis.deleted_at IS NULL
+    ORDER BY wr.message_id, wr.id DESC
+)
+UPDATE "message" m
+SET workflow_input_schema_id = mns.workflow_input_schema_id
+FROM message_native_schema mns
+WHERE mns.message_id = m.id
+  AND m.workflow_input_schema_id IS NULL;
+
+WITH fallback_schema AS (
+    SELECT DISTINCT ON (workflow_id)
+        workflow_id,
+        id
+    FROM "workflow_input_schema"
+    WHERE deleted_at IS NULL
+    ORDER BY workflow_id, is_default DESC, version_number DESC, id DESC
+)
+UPDATE "message" m
+SET workflow_input_schema_id = fs.id
+FROM fallback_schema fs
+WHERE fs.workflow_id = m.workflow_id
+  AND m.workflow_input_schema_id IS NULL;
 
 WITH rollout_workflows AS (
     SELECT DISTINCT wv.workflow_id
     FROM "workflow_version" wv
-    WHERE wv.is_active = TRUE AND wv.deleted_at IS NULL
+    WHERE wv.is_active = TRUE
+      AND wv.deleted_at IS NULL
+      AND (wv.traffic_weight > 0 OR wv.is_control_group = TRUE)
 ), inserted_experiments AS (
     INSERT INTO "workflow_experiment" (workflow_id, name, description, experiment_type, status, started_at, created_at, updated_at)
-    SELECT rw.workflow_id, 'Migrated Rollout', 'Backfilled from workflow_version traffic weights', 'rollout', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+    SELECT rw.workflow_id, 'Migrated Rollout', 'Backfilled from legacy workflow_version traffic weights', 'rollout', 'paused', NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     FROM rollout_workflows rw
     RETURNING id, workflow_id
 ), inserted_scopes AS (
     INSERT INTO "workflow_experiment_scope" (workflow_experiment_id, workflow_input_schema_id, traffic_conditions, conditions_hash, traffic_percent, fallback_policy, created_at, updated_at)
     SELECT ie.id, wis.id, '{}'::jsonb, '44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a', 100, 'default_route', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     FROM inserted_experiments ie
-    JOIN "workflow_input_schema" wis ON wis.workflow_id = ie.workflow_id AND wis.is_default = TRUE AND wis.deleted_at IS NULL
-    RETURNING id, workflow_experiment_id
+    JOIN "workflow_input_schema" wis ON wis.workflow_id = ie.workflow_id AND wis.status = 'active' AND wis.deleted_at IS NULL
+    RETURNING id, workflow_experiment_id, workflow_input_schema_id
 )
 INSERT INTO "workflow_experiment_variant" (workflow_experiment_scope_id, workflow_version_id, traffic_weight, is_control_group, is_active, created_at, updated_at)
 SELECT iscope.id, wv.id, wv.traffic_weight, wv.is_control_group, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 FROM inserted_scopes iscope
 JOIN inserted_experiments ie ON ie.id = iscope.workflow_experiment_id
-JOIN "workflow_version" wv ON wv.workflow_id = ie.workflow_id AND wv.is_active = TRUE AND wv.deleted_at IS NULL;
+JOIN "workflow_version_input_schema_compatibility" compat
+  ON compat.workflow_input_schema_id = iscope.workflow_input_schema_id
+ AND compat.is_active = TRUE
+ AND compat.deleted_at IS NULL
+JOIN "workflow_version" wv
+  ON wv.id = compat.workflow_version_id
+ AND wv.workflow_id = ie.workflow_id
+ AND wv.is_active = TRUE
+ AND wv.deleted_at IS NULL;
 
 UPDATE "workflow_run" wr
 SET version_input_data = m.value
@@ -341,7 +405,60 @@ WHERE m.id = wr.message_id
   AND compat.workflow_version_id = wr.workflow_version_id
   AND wr.input_schema_compatibility_id IS NULL;
 
+ALTER TABLE "workflow" DROP COLUMN IF EXISTS input_schema;
+
+ALTER TABLE "workflow_version"
+    DROP COLUMN IF EXISTS traffic_weight,
+    DROP COLUMN IF EXISTS traffic_updated_at,
+    DROP COLUMN IF EXISTS is_control_group;
+
 -- +goose Down
+
+ALTER TABLE "workflow"
+    ADD COLUMN IF NOT EXISTS input_schema JSONB NOT NULL DEFAULT '{"type":"object","properties":{}}'::jsonb;
+
+WITH fallback_schema AS (
+    SELECT DISTINCT ON (workflow_id)
+        workflow_id,
+        schema_json
+    FROM "workflow_input_schema"
+    WHERE deleted_at IS NULL
+    ORDER BY workflow_id, is_default DESC, version_number DESC, id DESC
+)
+UPDATE "workflow" w
+SET input_schema = fs.schema_json
+FROM fallback_schema fs
+WHERE fs.workflow_id = w.id;
+
+ALTER TABLE "workflow_version"
+    ADD COLUMN IF NOT EXISTS traffic_weight INT NOT NULL DEFAULT 100,
+    ADD COLUMN IF NOT EXISTS traffic_updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS is_control_group BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE "workflow_version" DROP CONSTRAINT IF EXISTS workflow_version_traffic_weight_check;
+ALTER TABLE "workflow_version"
+    ADD CONSTRAINT workflow_version_traffic_weight_check CHECK (traffic_weight >= 0 AND traffic_weight <= 100);
+
+WITH variant_traffic AS (
+    SELECT DISTINCT ON (ev.workflow_version_id)
+        ev.workflow_version_id,
+        ev.traffic_weight,
+        ev.is_control_group
+    FROM "workflow_experiment_variant" ev
+    JOIN "workflow_experiment_scope" es ON es.id = ev.workflow_experiment_scope_id
+    JOIN "workflow_experiment" e ON e.id = es.workflow_experiment_id
+    WHERE e.name = 'Migrated Rollout'
+      AND e.deleted_at IS NULL
+      AND es.deleted_at IS NULL
+      AND ev.deleted_at IS NULL
+    ORDER BY ev.workflow_version_id, ev.updated_at DESC NULLS LAST, ev.id DESC
+)
+UPDATE "workflow_version" wv
+SET traffic_weight = vt.traffic_weight,
+    traffic_updated_at = CURRENT_TIMESTAMP,
+    is_control_group = vt.is_control_group
+FROM variant_traffic vt
+WHERE vt.workflow_version_id = wv.id;
 
 ALTER TABLE "workflow_run" DROP CONSTRAINT IF EXISTS workflow_run_experiment_id_fkey;
 ALTER TABLE "workflow_run" DROP CONSTRAINT IF EXISTS workflow_run_experiment_scope_id_fkey;

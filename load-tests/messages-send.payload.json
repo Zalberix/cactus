@@ -1,12 +1,12 @@
 {
-  "workflow_id": 1,
+  "process": "2.v2",
   "value": {
-    "to": "zalberix2@gmail.com",
-    "subject": "\u041f\u0440\u0438\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435",
+    "to": "zalberix@gmail.com",
+    "subject": "Приветствие",
     "is_admin": false,
     "fields": {
-      "name": "\u041d\u043e\u0432\u044b\u0439 \u043a\u043b\u0438\u0435\u043d\u0442 2",
-      "message": "\u041f\u0440\u0438\u0432\u0435\u0442!"
+      "name": "Игнат",
+      "message": "Привет! Как ты?"
     },
     "template": "welcome"
   }

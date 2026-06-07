@@ -24,6 +24,18 @@ WHERE workflow_version_id = $1
   AND is_active = TRUE
   AND deleted_at IS NULL;
 
+-- name: GetNativeInputSchemaForWorkflowVersion :one
+SELECT wis.*
+FROM "workflow_version_input_schema_compatibility" c
+JOIN "workflow_input_schema" wis ON wis.id = c.workflow_input_schema_id
+WHERE c.workflow_version_id = $1
+  AND c.compatibility_type = 'native'
+  AND c.is_active = TRUE
+  AND c.deleted_at IS NULL
+  AND wis.deleted_at IS NULL
+ORDER BY wis.version_number DESC, wis.id DESC
+LIMIT 1;
+
 -- name: ListCompatibilitiesByWorkflowID :many
 SELECT c.*
 FROM "workflow_version_input_schema_compatibility" c

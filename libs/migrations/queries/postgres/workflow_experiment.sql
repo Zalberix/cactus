@@ -92,7 +92,8 @@ WHERE e.workflow_id = $1
   AND (e.started_at IS NULL OR e.started_at <= CURRENT_TIMESTAMP)
   AND (e.ended_at IS NULL OR e.ended_at > CURRENT_TIMESTAMP)
   AND s.workflow_input_schema_id = $2
-ORDER BY e.id, s.id;
+  AND (sqlc.narg(experiment_id)::int IS NULL OR e.id = sqlc.narg(experiment_id)::int)
+ORDER BY e.id DESC, s.id DESC;
 
 -- name: CreateWorkflowExperimentVariant :one
 INSERT INTO "workflow_experiment_variant" (workflow_experiment_scope_id, workflow_version_id, traffic_weight, is_control_group, is_active)
