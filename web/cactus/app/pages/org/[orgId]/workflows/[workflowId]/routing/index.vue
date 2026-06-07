@@ -97,65 +97,8 @@ const editingExperimentId = ref<number | null>(null)
 const editingScopeId = ref<number | null>(null)
 const editingVariantId = ref<number | null>(null)
 
-const mapperBaseline = ref('')
-const compatibilityBaseline = ref('')
-const experimentBaseline = ref('')
-const scopeBaseline = ref('')
-const variantBaseline = ref('')
-
 const activeVersions = computed(() => versions.value.filter(version => version.is_active && version.is_valid))
 const activeSchemas = computed(() => schemas.value.filter(schema => schema.status === 'active'))
-
-const isMapperDirty = computed(() => snapshotForm(mapperForm) !== mapperBaseline.value)
-const isCompatibilityDirty = computed(() => snapshotForm(compatibilityForm) !== compatibilityBaseline.value)
-const isExperimentDirty = computed(() => snapshotForm(experimentForm) !== experimentBaseline.value)
-const isScopeDirty = computed(() => snapshotForm(scopeForm) !== scopeBaseline.value)
-const isVariantDirty = computed(() => snapshotForm(variantForm) !== variantBaseline.value)
-const dirtyForms = computed(() => [
-  isMapperDirty.value ? t('workflowRouting.inputMappers') : '',
-  isCompatibilityDirty.value ? t('workflowRouting.compatibilities') : '',
-  isExperimentDirty.value ? t('workflowRouting.experiments') : '',
-  isScopeDirty.value ? t('workflowRouting.scopeNumber', { id: editingScopeId.value || '' }) : '',
-  isVariantDirty.value ? t('workflowRouting.variant') : '',
-].filter(Boolean))
-const hasUnsavedRoutingChanges = computed(() => dirtyForms.value.length > 0)
-
-function snapshotForm(value: unknown) {
- return JSON.stringify(value)
-}
-
-function markMapperClean() {
-  mapperBaseline.value = snapshotForm(mapperForm)
-}
-
-function markCompatibilityClean() {
-  compatibilityBaseline.value = snapshotForm(compatibilityForm)
-}
-
-function markExperimentClean() {
-  experimentBaseline.value = snapshotForm(experimentForm)
-}
-
-function markScopeClean() {
-  scopeBaseline.value = snapshotForm(scopeForm)
-}
-
-function markVariantClean() {
-  variantBaseline.value = snapshotForm(variantForm)
-}
-
-function markAllFormsClean() {
-  markMapperClean()
-  markCompatibilityClean()
-  markExperimentClean()
-  markScopeClean()
-  markVariantClean()
-}
-
-function confirmDiscardRoutingChanges() {
-  if (!hasUnsavedRoutingChanges.value) return true
-  return window.confirm(t('workflowRouting.confirmDiscardChanges'))
-}
 
 function closeRoutingFormDialogs() {
   mapperDialogOpen.value = false
@@ -165,7 +108,7 @@ function closeRoutingFormDialogs() {
   variantDialogOpen.value = false
 }
 
-function discardRoutingFormChanges() {
+function resetRoutingFormChanges() {
   cancelEditMapper()
   cancelEditCompatibility()
   cancelEditExperiment()
@@ -175,9 +118,7 @@ function discardRoutingFormChanges() {
 }
 
 function prepareRoutingFormSwitch() {
-  if (!confirmDiscardRoutingChanges()) return false
-  discardRoutingFormChanges()
-  return true
+  resetRoutingFormChanges()
 }
 
 function versionLabel(versionId: number) {
@@ -269,12 +210,12 @@ async function loadExperimentChildren(items: WorkflowExperiment[]) {
 }
 
 function startEditSchema(schema: WorkflowInputSchemaRecord) {
-  if (!prepareRoutingFormSwitch()) return
+  prepareRoutingFormSwitch()
   router.push(workflowInputSchemaEditorPath(orgId.value, workflowId.value, schema.id))
 }
 
 function openCreateSchemaDialog() {
-  if (!prepareRoutingFormSwitch()) return
+  prepareRoutingFormSwitch()
   router.push(workflowInputSchemaCreatePath(orgId.value, workflowId.value))
 }
 
@@ -365,12 +306,11 @@ async function onCreateMapper() {
 }
 
 function startEditMapper(mapper: WorkflowInputMapperRecord) {
-  if (!prepareRoutingFormSwitch()) return
+  prepareRoutingFormSwitch()
   editingMapperId.value = mapper.id
   mapperForm.name = mapper.name
   mapperForm.mapperType = mapper.mapper_type
   mapperForm.rulesJson = JSON.stringify(mapper.rules ?? {}, null, 2)
-  markMapperClean()
   mapperDialogOpen.value = true
 }
 
@@ -379,11 +319,10 @@ function cancelEditMapper() {
   mapperForm.name = 'Map public payload'
   mapperForm.mapperType = 'json'
   mapperForm.rulesJson = '{\n  "copy_all": true,\n  "mapping": {}\n}'
-  markMapperClean()
 }
 
 function openCreateMapperDialog() {
-  if (!prepareRoutingFormSwitch()) return
+  prepareRoutingFormSwitch()
   cancelEditMapper()
   mapperDialogOpen.value = true
 }
@@ -438,7 +377,7 @@ async function onCreateCompatibility() {
 }
 
 function startEditCompatibility(compatibility: WorkflowSchemaCompatibility) {
-  if (!prepareRoutingFormSwitch()) return
+  prepareRoutingFormSwitch()
   editingCompatibilityId.value = compatibility.id
   compatibilityForm.versionId = String(compatibility.workflow_version_id)
   compatibilityForm.inputSchemaId = String(compatibility.workflow_input_schema_id)
@@ -446,7 +385,6 @@ function startEditCompatibility(compatibility: WorkflowSchemaCompatibility) {
   compatibilityForm.compatibilityType = compatibility.compatibility_type
   compatibilityForm.isDefaultRoute = compatibility.is_default_route
   compatibilityForm.defaultValuesJson = JSON.stringify(compatibility.default_values ?? {}, null, 2)
-  markCompatibilityClean()
   compatibilityDialogOpen.value = true
 }
 
@@ -458,11 +396,10 @@ function cancelEditCompatibility() {
   compatibilityForm.compatibilityType = 'native'
   compatibilityForm.isDefaultRoute = false
   compatibilityForm.defaultValuesJson = '{}'
-  markCompatibilityClean()
 }
 
 function openCreateCompatibilityDialog() {
-  if (!prepareRoutingFormSwitch()) return
+  prepareRoutingFormSwitch()
   cancelEditCompatibility()
   compatibilityDialogOpen.value = true
 }
@@ -521,12 +458,11 @@ async function onCreateExperiment() {
 }
 
 function startEditExperiment(experiment: WorkflowExperiment) {
-  if (!prepareRoutingFormSwitch()) return
+  prepareRoutingFormSwitch()
   editingExperimentId.value = experiment.id
   experimentForm.name = experiment.name
   experimentForm.experimentType = experiment.experiment_type
   experimentForm.status = experiment.status
-  markExperimentClean()
   experimentDialogOpen.value = true
 }
 
@@ -535,11 +471,10 @@ function cancelEditExperiment() {
   experimentForm.name = 'Canary route'
   experimentForm.experimentType = 'canary'
   experimentForm.status = 'draft'
-  markExperimentClean()
 }
 
 function openCreateExperimentDialog() {
-  if (!prepareRoutingFormSwitch()) return
+  prepareRoutingFormSwitch()
   cancelEditExperiment()
   experimentDialogOpen.value = true
 }
@@ -597,7 +532,7 @@ async function onCreateScope() {
 }
 
 function startEditScope(experiment: WorkflowExperiment, scope: WorkflowExperimentScope) {
-  if (!prepareRoutingFormSwitch()) return
+  prepareRoutingFormSwitch()
   editingScopeId.value = scope.id
   scopeForm.experimentId = String(experiment.id)
   scopeForm.inputSchemaId = String(scope.workflow_input_schema_id)
@@ -605,7 +540,6 @@ function startEditScope(experiment: WorkflowExperiment, scope: WorkflowExperimen
   scopeForm.fallbackPolicy = scope.fallback_policy
   scopeForm.fallbackVersionId = scope.fallback_workflow_version_id ? String(scope.fallback_workflow_version_id) : ''
   scopeForm.trafficConditionsJson = JSON.stringify(scope.traffic_conditions ?? {}, null, 2)
-  markScopeClean()
   scopeDialogOpen.value = true
 }
 
@@ -617,14 +551,12 @@ function cancelEditScope() {
   scopeForm.fallbackPolicy = 'default_route'
   scopeForm.fallbackVersionId = ''
   scopeForm.trafficConditionsJson = '{}'
-  markScopeClean()
 }
 
 function openCreateScopeDialog(experiment?: WorkflowExperiment) {
-  if (!prepareRoutingFormSwitch()) return
+  prepareRoutingFormSwitch()
   cancelEditScope()
   if (experiment) scopeForm.experimentId = String(experiment.id)
-  markScopeClean()
   scopeDialogOpen.value = true
 }
 
@@ -668,14 +600,13 @@ async function onCreateVariant() {
 }
 
 function startEditVariant(scope: WorkflowExperimentScope, variant: WorkflowExperimentVariant) {
-  if (!prepareRoutingFormSwitch()) return
+  prepareRoutingFormSwitch()
   editingVariantId.value = variant.id
   variantForm.scopeId = String(scope.id)
   variantForm.versionId = String(variant.workflow_version_id)
   variantForm.trafficWeight = variant.traffic_weight
   variantForm.isControlGroup = variant.is_control_group
   variantForm.isActive = variant.is_active
-  markVariantClean()
   variantDialogOpen.value = true
 }
 
@@ -686,14 +617,12 @@ function cancelEditVariant() {
   variantForm.trafficWeight = 100
   variantForm.isControlGroup = false
   variantForm.isActive = true
-  markVariantClean()
 }
 
 function openCreateVariantDialog(scope?: WorkflowExperimentScope) {
-  if (!prepareRoutingFormSwitch()) return
+  prepareRoutingFormSwitch()
   cancelEditVariant()
   if (scope) variantForm.scopeId = String(scope.id)
-  markVariantClean()
   variantDialogOpen.value = true
 }
 
@@ -706,26 +635,8 @@ function onDeleteVariant(variant: WorkflowExperimentVariant) {
   })
 }
 
-function handleBeforeUnload(event: BeforeUnloadEvent) {
-  if (!hasUnsavedRoutingChanges.value) return
-  event.preventDefault()
-  event.returnValue = ''
-}
-
-markAllFormsClean()
-
 onMounted(() => {
   void loadData()
-  window.addEventListener('beforeunload', handleBeforeUnload)
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('beforeunload', handleBeforeUnload)
-})
-
-onBeforeRouteLeave(() => {
-  if (confirmDiscardRoutingChanges()) return
-  return false
 })
 </script>
 
@@ -772,20 +683,6 @@ onBeforeRouteLeave(() => {
     </div>
 
     <div v-else class="space-y-6">
-      <div
-        v-if="hasUnsavedRoutingChanges"
-        class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
-      >
-        <div>
-          <p class="font-medium">{{ t('workflowRouting.unsavedChanges') }}</p>
-          <p class="text-xs opacity-80">
-            {{ t('workflowRouting.unsavedChangesDescription', { forms: dirtyForms.join(', ') }) }}
-          </p>
-        </div>
-        <Button variant="outline" size="sm" :disabled="saving" @click="discardRoutingFormChanges">
-          {{ t('workflowRouting.discardChanges') }}
-        </Button>
-      </div>
       <div class="space-y-6">
         <RoutingInputSchemasList
           :schemas="schemas"

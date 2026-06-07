@@ -124,7 +124,6 @@ describe('workflow routing modal forms', () => {
     vi.stubGlobal('ref', ref)
     vi.stubGlobal('reactive', reactive)
     vi.stubGlobal('onMounted', (callback: () => void) => callback())
-    vi.stubGlobal('onBeforeUnmount', vi.fn())
     vi.stubGlobal('onBeforeRouteLeave', routeLeaveMock)
     vi.stubGlobal('getErrorMessage', getErrorMessage)
     vi.stubGlobal('useRoute', () => ({
@@ -158,8 +157,6 @@ describe('workflow routing modal forms', () => {
       value: vi.fn(() => true),
       configurable: true,
     })
-    vi.spyOn(window, 'addEventListener').mockImplementation(() => undefined)
-    vi.spyOn(window, 'removeEventListener').mockImplementation(() => undefined)
   })
 
   it('routes input schema create and edit to pages, lists fields, and confirms deletes in a dialog', async () => {
@@ -199,7 +196,7 @@ describe('workflow routing modal forms', () => {
     expect(routingMock.deleteInputSchema).toHaveBeenCalledWith(11)
   })
 
-  it('registers route leave guard without deprecated next callback', async () => {
+  it('does not register route leave guard now that local routing changes are not tracked', async () => {
     mount(WorkflowRoutingPage, {
       global: {
         stubs: pageStubs(),
@@ -207,10 +204,7 @@ describe('workflow routing modal forms', () => {
     })
     await flushPromises()
 
-    expect(routeLeaveMock).toHaveBeenCalledTimes(1)
-    const guard = routeLeaveMock.mock.calls[0]?.[0] as Function
-    expect(guard.length).toBeLessThanOrEqual(2)
-    expect(guard()).toBeUndefined()
+    expect(routeLeaveMock).not.toHaveBeenCalled()
   })
 
   it('shows field labels above every routing form control', () => {
