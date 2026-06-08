@@ -8,12 +8,18 @@ export interface WorkflowInputSchemaRecord {
   schema_json: Record<string, unknown>
   status: 'draft' | 'active' | 'deprecated' | 'archived'
   is_default: boolean
+  usage?: {
+    used_by_message: boolean
+    used_by_mapper: boolean
+    used_by_experiment: boolean
+    is_readonly: boolean
+    reasons: string[]
+  }
 }
 
 export interface WorkflowInputMapperRecord {
   id: number
   workflow_id: number
-  name: string
   mapper_type: string
   rules: Record<string, unknown>
   is_active: boolean
@@ -28,6 +34,50 @@ export interface WorkflowSchemaCompatibility {
   default_values: Record<string, unknown>
   is_active: boolean
   is_default_route: boolean
+}
+
+export interface InputSchemaCompatibilityRow {
+  id: number
+  workflow_version_id: number
+  workflow_version_name: string
+  workflow_version_number: number
+  workflow_input_schema_id: number
+  compatibility_type: string
+  workflow_input_mapper_id?: number
+  is_active: boolean
+  is_default_route: boolean
+}
+
+export interface RoutingSupportedSchemaRecord {
+  compatibility_id: number
+  schema_id: number
+  schema_code: string
+  schema_version_number: number
+  compatibility_type: string
+  mapper_id?: number
+  support_mode: 'native' | 'mapper'
+  is_default_route: boolean
+}
+
+export interface RoutingActiveTestRecord {
+  id: number
+  name: string
+  experiment_type: string
+  status: string
+}
+
+export interface RoutingVersionRowRecord {
+  workflow_version_id: number
+  workflow_id: number
+  workflow_version_name: string
+  workflow_version_number: number
+  is_valid: boolean
+  is_active: boolean
+  native_input_schema_id: number
+  native_input_schema_code: string
+  native_input_schema_version_number: number
+  supported_schemas: RoutingSupportedSchemaRecord[]
+  active_tests: RoutingActiveTestRecord[]
 }
 
 export interface WorkflowExperiment {
@@ -81,6 +131,18 @@ export function workflowInputSchemaEditorPath(orgId: number, workflowId: number,
   return `${workflowRoutingPath(orgId, workflowId)}/input-schemas/${inputSchemaId}/edit`
 }
 
+export function workflowInputSchemaCompatibilitiesPath(orgId: number, workflowId: number, inputSchemaId: number) {
+  return `${workflowInputSchemaEditorPath(orgId, workflowId, inputSchemaId).replace('/edit', '')}/compatibilities`
+}
+
+export function workflowInputSchemaCompatibilityCreatePath(orgId: number, workflowId: number, inputSchemaId: number) {
+  return `${workflowInputSchemaCompatibilitiesPath(orgId, workflowId, inputSchemaId)}/new`
+}
+
+export function workflowRoutingTestingPath(orgId: number, workflowId: number) {
+  return `${workflowRoutingPath(orgId, workflowId)}/testing`
+}
+
 export function nativeInputSchemaForVersion(
   versionId: number,
   schemas: WorkflowInputSchemaRecord[],
@@ -96,7 +158,6 @@ export function nativeInputSchemaForVersion(
 }
 
 export interface CreateInputMapperPayload {
-  name: string
   mapper_type: string
   rules: Record<string, unknown>
   is_active?: boolean
@@ -108,6 +169,19 @@ export interface CreateCompatibilityPayload {
   workflow_input_mapper_id?: number
   default_values: Record<string, unknown>
   is_active?: boolean
+  is_default_route?: boolean
+}
+
+export interface CompatibilityMappingFieldPayload {
+  target_path: string
+  source_path?: string
+  default?: unknown
+  ignore?: boolean
+}
+
+export interface ValidateAndCreateCompatibilityPayload {
+  target_input_schema_id: number
+  fields: CompatibilityMappingFieldPayload[]
   is_default_route?: boolean
 }
 
@@ -172,6 +246,8 @@ function jsonObject(value: unknown): Record<string, unknown> {
 
 function normalizeInputSchema(value: unknown): WorkflowInputSchemaRecord {
   const raw = recordValue(value)
+  const usageRaw = recordValue(raw.usage)
+  const reasons = Array.isArray(usageRaw.reasons) ? usageRaw.reasons.map(String) : []
   return {
     id: Number(raw.id ?? 0),
     workflow_id: Number(raw.workflow_id ?? 0),
@@ -180,6 +256,13 @@ function normalizeInputSchema(value: unknown): WorkflowInputSchemaRecord {
     schema_json: jsonObject(raw.schema_json),
     status: raw.status ?? 'draft',
     is_default: Boolean(raw.is_default),
+    usage: {
+      used_by_message: Boolean(usageRaw.used_by_message),
+      used_by_mapper: Boolean(usageRaw.used_by_mapper),
+      used_by_experiment: Boolean(usageRaw.used_by_experiment),
+      is_readonly: Boolean(usageRaw.is_readonly),
+      reasons,
+    },
   }
 }
 
@@ -188,7 +271,6 @@ function normalizeInputMapper(value: unknown): WorkflowInputMapperRecord {
   return {
     id: Number(raw.id ?? 0),
     workflow_id: Number(raw.workflow_id ?? 0),
-    name: String(raw.name ?? ''),
     mapper_type: String(raw.mapper_type ?? ''),
     rules: jsonObject(raw.rules),
     is_active: Boolean(raw.is_active),
@@ -206,6 +288,60 @@ function normalizeCompatibility(value: unknown): WorkflowSchemaCompatibility {
     default_values: jsonObject(raw.default_values),
     is_active: Boolean(raw.is_active),
     is_default_route: Boolean(raw.is_default_route),
+  }
+}
+
+function normalizeInputSchemaCompatibilityRow(value: unknown): InputSchemaCompatibilityRow {
+  const raw = recordValue(value)
+  return {
+    id: Number(raw.id ?? 0),
+    workflow_version_id: Number(raw.workflow_version_id ?? 0),
+    workflow_version_name: String(raw.workflow_version_name ?? ''),
+    workflow_version_number: Number(raw.workflow_version_number ?? 0),
+    workflow_input_schema_id: Number(raw.workflow_input_schema_id ?? 0),
+    compatibility_type: String(raw.compatibility_type ?? ''),
+    workflow_input_mapper_id: nullableNumber(raw.workflow_input_mapper_id),
+    is_active: Boolean(raw.is_active),
+    is_default_route: Boolean(raw.is_default_route),
+  }
+}
+
+function normalizeRoutingVersionRow(value: unknown): RoutingVersionRowRecord {
+  const raw = recordValue(value)
+  const supported = Array.isArray(raw.supported_schemas) ? raw.supported_schemas : []
+  const tests = Array.isArray(raw.active_tests) ? raw.active_tests : []
+  return {
+    workflow_version_id: Number(raw.workflow_version_id ?? 0),
+    workflow_id: Number(raw.workflow_id ?? 0),
+    workflow_version_name: String(raw.workflow_version_name ?? ''),
+    workflow_version_number: Number(raw.workflow_version_number ?? 0),
+    is_valid: Boolean(raw.is_valid),
+    is_active: Boolean(raw.is_active),
+    native_input_schema_id: Number(raw.native_input_schema_id ?? 0),
+    native_input_schema_code: String(raw.native_input_schema_code ?? ''),
+    native_input_schema_version_number: Number(raw.native_input_schema_version_number ?? 0),
+    supported_schemas: supported.map((item) => {
+      const schema = recordValue(item)
+      return {
+        compatibility_id: Number(schema.compatibility_id ?? 0),
+        schema_id: Number(schema.schema_id ?? 0),
+        schema_code: String(schema.schema_code ?? ''),
+        schema_version_number: Number(schema.schema_version_number ?? 0),
+        compatibility_type: String(schema.compatibility_type ?? ''),
+        mapper_id: nullableNumber(schema.mapper_id),
+        support_mode: schema.support_mode === 'mapper' ? 'mapper' : 'native',
+        is_default_route: Boolean(schema.is_default_route),
+      } satisfies RoutingSupportedSchemaRecord
+    }),
+    active_tests: tests.map((item) => {
+      const test = recordValue(item)
+      return {
+        id: Number(test.id ?? 0),
+        name: String(test.name ?? ''),
+        experiment_type: String(test.experiment_type ?? ''),
+        status: String(test.status ?? ''),
+      }
+    }),
   }
 }
 
@@ -251,6 +387,12 @@ function normalizeExperimentVariant(value: unknown): WorkflowExperimentVariant {
 
 export function useWorkflowRouting() {
   const { api } = useApi()
+
+  async function fetchRoutingVersionRows(workflowId: number): Promise<RoutingVersionRowRecord[]> {
+    const resp = await api<ApiResponse<RoutingVersionRowRecord[]>>(`/workflows/${workflowId}/routing/versions`)
+    const data = requireData(resp, 'Failed to fetch workflow routing versions')
+    return Array.isArray(data) ? data.map(normalizeRoutingVersionRow) : []
+  }
 
   async function fetchInputSchemas(workflowId: number): Promise<WorkflowInputSchemaRecord[]> {
     const resp = await api<ApiResponse<WorkflowInputSchemaRecord[]>>(`/workflows/${workflowId}/input-schemas`)
@@ -301,6 +443,23 @@ export function useWorkflowRouting() {
     if (!resp.success) throw new Error(resp.error?.message ?? 'Failed to delete input schema')
   }
 
+  async function archiveInputSchema(inputSchemaId: number, confirmationName: string): Promise<WorkflowInputSchemaRecord> {
+    const resp = await api<ApiResponse<WorkflowInputSchemaRecord>>(`/input-schemas/${inputSchemaId}/archive`, {
+      method: 'POST',
+      body: { confirmation_name: confirmationName },
+    })
+    return normalizeInputSchema(requireData(resp, 'Failed to archive input schema'))
+  }
+
+  async function searchInputSchemas(workflowId: number, query: string, excludeInputSchemaId?: number): Promise<WorkflowInputSchemaRecord[]> {
+    const params = new URLSearchParams()
+    params.set('query', query)
+    if (excludeInputSchemaId) params.set('exclude_input_schema_id', String(excludeInputSchemaId))
+    const resp = await api<ApiResponse<WorkflowInputSchemaRecord[]>>(`/workflows/${workflowId}/input-schemas/search?${params.toString()}`)
+    const data = requireData(resp, 'Failed to search input schemas')
+    return Array.isArray(data) ? data.map(normalizeInputSchema) : []
+  }
+
   async function fetchInputMappers(workflowId: number): Promise<WorkflowInputMapperRecord[]> {
     const resp = await api<ApiResponse<WorkflowInputMapperRecord[]>>(`/workflows/${workflowId}/input-mappers`)
     const data = requireData(resp, 'Failed to fetch input mappers')
@@ -342,6 +501,28 @@ export function useWorkflowRouting() {
     const resp = await api<ApiResponse<WorkflowSchemaCompatibility[]>>(`/workflows/${workflowId}/schema-compatibilities`)
     const data = requireData(resp, 'Failed to fetch schema compatibilities')
     return Array.isArray(data) ? data.map(normalizeCompatibility) : []
+  }
+
+  async function fetchInputSchemaCompatibilities(inputSchemaId: number): Promise<InputSchemaCompatibilityRow[]> {
+    const resp = await api<ApiResponse<InputSchemaCompatibilityRow[]>>(`/input-schemas/${inputSchemaId}/compatibilities`)
+    const data = requireData(resp, 'Failed to fetch input schema compatibilities')
+    return Array.isArray(data) ? data.map(normalizeInputSchemaCompatibilityRow) : []
+  }
+
+  async function validateAndCreateCompatibility(
+    sourceInputSchemaId: number,
+    payload: ValidateAndCreateCompatibilityPayload,
+  ): Promise<WorkflowSchemaCompatibility> {
+    const resp = await api<ApiResponse<WorkflowSchemaCompatibility>>(`/input-schemas/${sourceInputSchemaId}/compatibilities`, {
+      method: 'POST',
+      body: payload,
+    })
+    if (!resp.success || !resp.data) {
+      const error = new Error(resp.error?.message ?? 'Failed to create schema compatibility')
+      ;(error as Error & { details?: unknown }).details = (resp.error as { details?: unknown } | undefined)?.details
+      throw error
+    }
+    return normalizeCompatibility(resp.data)
   }
 
   async function createCompatibility(versionId: number, payload: CreateCompatibilityPayload): Promise<WorkflowSchemaCompatibility> {
@@ -478,6 +659,7 @@ export function useWorkflowRouting() {
   }
 
   return {
+    fetchRoutingVersionRows,
     fetchInputSchemas,
     fetchInputSchema,
     createInputSchema,
@@ -485,6 +667,8 @@ export function useWorkflowRouting() {
     setInputSchemaDefault,
     updateInputSchemaStatus,
     deleteInputSchema,
+    archiveInputSchema,
+    searchInputSchemas,
     fetchInputMappers,
     createInputMapper,
     updateInputMapper,
@@ -496,6 +680,8 @@ export function useWorkflowRouting() {
     setCompatibilityDefaultRoute,
     deactivateCompatibility,
     deleteCompatibility,
+    fetchInputSchemaCompatibilities,
+    validateAndCreateCompatibility,
     fetchExperiments,
     createExperiment,
     updateExperiment,

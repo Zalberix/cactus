@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -27,7 +28,6 @@ type inputSchemaStatusBody struct {
 }
 
 type inputMapperBody struct {
-	Name       string          `json:"name"`
 	MapperType string          `json:"mapper_type"`
 	Rules      json.RawMessage `json:"rules"`
 	IsActive   *bool           `json:"is_active"`
@@ -51,18 +51,26 @@ type defaultRouteBody struct {
 }
 
 func (h *Handler) registerWorkflowConfigurationRoutes(v1 *gin.RouterGroup) {
+	v1.GET("/workflows/:workflowId/routing/versions",
+		middleware.RequirePermission(h.permChecker, permissions.WorkflowRead), h.ListWorkflowRoutingVersionRows)
 	v1.GET("/workflows/:workflowId/input-schemas",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowRead), h.ListWorkflowInputSchemas)
+	v1.GET("/workflows/:workflowId/input-schemas/search",
+		middleware.RequirePermission(h.permChecker, permissions.WorkflowRead), h.SearchWorkflowInputSchemas)
 	v1.POST("/workflows/:workflowId/input-schemas",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.CreateWorkflowInputSchemaRecord)
 	v1.GET("/input-schemas/:inputSchemaId",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowRead), h.GetWorkflowInputSchemaRecord)
+	v1.GET("/input-schemas/:inputSchemaId/usage",
+		middleware.RequirePermission(h.permChecker, permissions.WorkflowRead), h.GetWorkflowInputSchemaUsage)
 	v1.PUT("/input-schemas/:inputSchemaId",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.UpdateWorkflowInputSchemaRecord)
 	v1.PATCH("/input-schemas/:inputSchemaId/status",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.UpdateWorkflowInputSchemaRecordStatus)
 	v1.PATCH("/input-schemas/:inputSchemaId/default",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.SetDefaultWorkflowInputSchemaRecord)
+	v1.POST("/input-schemas/:inputSchemaId/archive",
+		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.ArchiveWorkflowInputSchemaRecord)
 	v1.DELETE("/input-schemas/:inputSchemaId",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.DeleteWorkflowInputSchemaRecord)
 
@@ -83,6 +91,8 @@ func (h *Handler) registerWorkflowConfigurationRoutes(v1 *gin.RouterGroup) {
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowRead), h.ListVersionCompatibilities)
 	v1.GET("/input-schemas/:inputSchemaId/compatibilities",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowRead), h.ListInputSchemaCompatibilities)
+	v1.POST("/input-schemas/:inputSchemaId/compatibilities",
+		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.ValidateAndCreateInputSchemaCompatibility)
 	v1.POST("/versions/:versionId/schema-compatibilities",
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.CreateWorkflowCompatibility)
 	v1.PUT("/schema-compatibilities/:compatibilityId",
@@ -95,12 +105,45 @@ func (h *Handler) registerWorkflowConfigurationRoutes(v1 *gin.RouterGroup) {
 		middleware.RequirePermission(h.permChecker, permissions.WorkflowWrite), h.DeleteWorkflowCompatibility)
 }
 
+func (h *Handler) ListWorkflowRoutingVersionRows(c *gin.Context) {
+	workflowID, ok := parseID(c, "workflowId")
+	if !ok {
+		return
+	}
+	rows, err := h.service.ListWorkflowRoutingVersionRows(c.Request.Context(), workflowID)
+	if err != nil {
+		writeWorkflowConfigurationError(c, err)
+		return
+	}
+	response.OK(c, rows)
+}
+
 func (h *Handler) ListWorkflowInputSchemas(c *gin.Context) {
 	workflowID, ok := parseID(c, "workflowId")
 	if !ok {
 		return
 	}
 	items, err := h.service.ListWorkflowInputSchemas(c.Request.Context(), workflowID)
+	if err != nil {
+		writeWorkflowConfigurationError(c, err)
+		return
+	}
+	response.OK(c, inputSchemaResponses(items))
+}
+
+func (h *Handler) SearchWorkflowInputSchemas(c *gin.Context) {
+	workflowID, ok := parseID(c, "workflowId")
+	if !ok {
+		return
+	}
+	excludeID := int32(0)
+	if raw := c.Query("exclude_input_schema_id"); raw != "" {
+		parsed, err := strconv.ParseInt(raw, 10, 32)
+		if err == nil && parsed > 0 {
+			excludeID = int32(parsed)
+		}
+	}
+	items, err := h.service.SearchWorkflowInputSchemas(c.Request.Context(), workflowID, c.Query("query"), excludeID)
 	if err != nil {
 		writeWorkflowConfigurationError(c, err)
 		return
@@ -136,7 +179,12 @@ func (h *Handler) GetWorkflowInputSchemaRecord(c *gin.Context) {
 		writeWorkflowConfigurationError(c, err)
 		return
 	}
-	response.OK(c, inputSchemaResponse(item))
+	usage, err := h.service.GetWorkflowInputSchemaUsage(c.Request.Context(), inputSchemaID)
+	if err != nil {
+		writeWorkflowConfigurationError(c, err)
+		return
+	}
+	response.OK(c, inputSchemaResponseWithUsage(item, usage))
 }
 
 func (h *Handler) UpdateWorkflowInputSchemaRecord(c *gin.Context) {
@@ -155,6 +203,19 @@ func (h *Handler) UpdateWorkflowInputSchemaRecord(c *gin.Context) {
 		return
 	}
 	response.OK(c, inputSchemaResponse(item))
+}
+
+func (h *Handler) GetWorkflowInputSchemaUsage(c *gin.Context) {
+	inputSchemaID, ok := parseID(c, "inputSchemaId")
+	if !ok {
+		return
+	}
+	usage, err := h.service.GetWorkflowInputSchemaUsage(c.Request.Context(), inputSchemaID)
+	if err != nil {
+		writeWorkflowConfigurationError(c, err)
+		return
+	}
+	response.OK(c, usage)
 }
 
 func (h *Handler) UpdateWorkflowInputSchemaRecordStatus(c *gin.Context) {
@@ -188,16 +249,39 @@ func (h *Handler) SetDefaultWorkflowInputSchemaRecord(c *gin.Context) {
 	response.OK(c, inputSchemaResponse(item))
 }
 
+func (h *Handler) ArchiveWorkflowInputSchemaRecord(c *gin.Context) {
+	inputSchemaID, ok := parseID(c, "inputSchemaId")
+	if !ok {
+		return
+	}
+	var body ArchiveInputSchemaRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.BadRequest(c, "INVALID_BODY", err.Error())
+		return
+	}
+	item, err := h.service.ArchiveWorkflowInputSchemaRecord(c.Request.Context(), inputSchemaID, actorUserID(c), body.ConfirmationName)
+	if err != nil {
+		writeWorkflowConfigurationError(c, err)
+		return
+	}
+	response.OK(c, inputSchemaResponse(item))
+}
+
 func (h *Handler) DeleteWorkflowInputSchemaRecord(c *gin.Context) {
 	inputSchemaID, ok := parseID(c, "inputSchemaId")
 	if !ok {
 		return
 	}
-	if err := h.service.DeleteWorkflowInputSchemaRecord(c.Request.Context(), inputSchemaID, actorUserID(c)); err != nil {
+	var body ArchiveInputSchemaRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.BadRequest(c, "INVALID_BODY", "delete requires archive confirmation")
+		return
+	}
+	if _, err := h.service.ArchiveWorkflowInputSchemaRecord(c.Request.Context(), inputSchemaID, actorUserID(c), body.ConfirmationName); err != nil {
 		writeWorkflowConfigurationError(c, err)
 		return
 	}
-	response.OK(c, gin.H{"message": "input schema deleted or archived"})
+	response.OK(c, gin.H{"message": "input schema archived"})
 }
 
 func (h *Handler) ListWorkflowInputMappers(c *gin.Context) {
@@ -310,12 +394,12 @@ func (h *Handler) ListInputSchemaCompatibilities(c *gin.Context) {
 	if !ok {
 		return
 	}
-	items, err := h.service.ListInputSchemaCompatibilities(c.Request.Context(), inputSchemaID)
+	items, err := h.service.ListInputSchemaCompatibilityRows(c.Request.Context(), inputSchemaID)
 	if err != nil {
 		writeWorkflowConfigurationError(c, err)
 		return
 	}
-	response.OK(c, compatibilityResponses(items))
+	response.OK(c, items)
 }
 
 func (h *Handler) CreateWorkflowCompatibility(c *gin.Context) {
@@ -331,6 +415,28 @@ func (h *Handler) CreateWorkflowCompatibility(c *gin.Context) {
 	item, err := h.service.CreateWorkflowCompatibility(c.Request.Context(), versionID, actorUserID(c), body.compatibilityMutation())
 	if err != nil {
 		writeWorkflowConfigurationError(c, err)
+		return
+	}
+	response.Created(c, compatibilityResponse(item))
+}
+
+func (h *Handler) ValidateAndCreateInputSchemaCompatibility(c *gin.Context) {
+	inputSchemaID, ok := parseID(c, "inputSchemaId")
+	if !ok {
+		return
+	}
+	var body ValidateAndCreateCompatibilityRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.BadRequest(c, "INVALID_BODY", err.Error())
+		return
+	}
+	item, validation, err := h.service.ValidateAndCreateInputSchemaCompatibility(c.Request.Context(), inputSchemaID, actorUserID(c), body)
+	if err != nil {
+		writeWorkflowConfigurationError(c, err)
+		return
+	}
+	if !validation.IsValid {
+		response.Fail(c, http.StatusUnprocessableEntity, "COMPATIBILITY_VALIDATION_FAILED", "compatibility validation failed", validation.Errors...)
 		return
 	}
 	response.Created(c, compatibilityResponse(item))
@@ -413,7 +519,6 @@ func (b inputSchemaBody) inputSchemaMutation() inputSchemaMutation {
 
 func (b inputMapperBody) inputMapperMutation() inputMapperMutation {
 	return inputMapperMutation{
-		Name:       b.Name,
 		MapperType: b.MapperType,
 		Rules:      b.Rules,
 		IsActive:   b.IsActive,
@@ -476,6 +581,12 @@ func inputSchemaResponse(item db.WorkflowInputSchema) gin.H {
 	}
 }
 
+func inputSchemaResponseWithUsage(item db.WorkflowInputSchema, usage InputSchemaUsageResponse) gin.H {
+	resp := inputSchemaResponse(item)
+	resp["usage"] = usage
+	return resp
+}
+
 func inputMapperResponses(items []db.WorkflowInputMapper) []gin.H {
 	result := make([]gin.H, 0, len(items))
 	for _, item := range items {
@@ -488,7 +599,6 @@ func inputMapperResponse(item db.WorkflowInputMapper) gin.H {
 	return gin.H{
 		"id":                 item.ID,
 		"workflow_id":        item.WorkflowID,
-		"name":               item.Name,
 		"mapper_type":        item.MapperType,
 		"rules":              json.RawMessage(item.Rules),
 		"is_active":          item.IsActive,

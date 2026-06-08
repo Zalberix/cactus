@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	dagpkg "github.com/zalberix/cactus/apps/core/internal/dag"
+	"github.com/zalberix/cactus/apps/core/internal/http/response"
 	db "github.com/zalberix/cactus/apps/core/storage/db"
 )
 
@@ -78,7 +79,6 @@ type WorkflowInputSchemaStatusRequest struct {
 }
 
 type CreateWorkflowInputMapperRequest struct {
-	Name       string          `json:"name" binding:"required,min=1,max=255"`
 	MapperType string          `json:"mapper_type" binding:"required,oneof=internal jsonata jq javascript"`
 	Rules      json.RawMessage `json:"rules" binding:"required"`
 	IsActive   bool            `json:"is_active"`
@@ -101,6 +101,80 @@ type UpdateCompatibilityRequest struct {
 	DefaultValues         json.RawMessage   `json:"default_values,omitempty"`
 	IsActive              bool              `json:"is_active"`
 	IsDefaultRoute        bool              `json:"is_default_route"`
+}
+
+type RoutingSupportedSchemaResponse struct {
+	CompatibilityID     int32  `json:"compatibility_id"`
+	SchemaID            int32  `json:"schema_id"`
+	SchemaCode          string `json:"schema_code"`
+	SchemaVersionNumber int32  `json:"schema_version_number"`
+	CompatibilityType   string `json:"compatibility_type"`
+	MapperID            *int32 `json:"mapper_id,omitempty"`
+	SupportMode         string `json:"support_mode"`
+	IsDefaultRoute      bool   `json:"is_default_route"`
+}
+
+type RoutingActiveTestResponse struct {
+	ID             int32  `json:"id"`
+	Name           string `json:"name"`
+	ExperimentType string `json:"experiment_type"`
+	Status         string `json:"status"`
+}
+
+type RoutingVersionRowResponse struct {
+	WorkflowVersionID        int32                            `json:"workflow_version_id"`
+	WorkflowID               int32                            `json:"workflow_id"`
+	WorkflowVersionName      string                           `json:"workflow_version_name"`
+	WorkflowVersionNumber    int32                            `json:"workflow_version_number"`
+	IsValid                  bool                             `json:"is_valid"`
+	IsActive                 bool                             `json:"is_active"`
+	NativeInputSchemaID      int32                            `json:"native_input_schema_id"`
+	NativeInputSchemaCode    string                           `json:"native_input_schema_code"`
+	NativeInputSchemaVersion int32                            `json:"native_input_schema_version_number"`
+	SupportedSchemas         []RoutingSupportedSchemaResponse `json:"supported_schemas"`
+	ActiveTests              []RoutingActiveTestResponse      `json:"active_tests"`
+}
+
+type InputSchemaUsageResponse struct {
+	UsedByMessage    bool     `json:"used_by_message"`
+	UsedByMapper     bool     `json:"used_by_mapper"`
+	UsedByExperiment bool     `json:"used_by_experiment"`
+	IsReadOnly       bool     `json:"is_readonly"`
+	Reasons          []string `json:"reasons"`
+}
+
+type ArchiveInputSchemaRequest struct {
+	ConfirmationName string `json:"confirmation_name" binding:"required"`
+}
+
+type CompatibilityMappingFieldRequest struct {
+	TargetPath string          `json:"target_path"`
+	SourcePath string          `json:"source_path,omitempty"`
+	Default    json.RawMessage `json:"default,omitempty"`
+	Ignore     bool            `json:"ignore,omitempty"`
+}
+
+type ValidateAndCreateCompatibilityRequest struct {
+	TargetInputSchemaID int32                              `json:"target_input_schema_id" binding:"required"`
+	Fields              []CompatibilityMappingFieldRequest `json:"fields" binding:"required"`
+	IsDefaultRoute      bool                               `json:"is_default_route"`
+}
+
+type CompatibilityValidationResponse struct {
+	IsValid bool                   `json:"is_valid"`
+	Errors  []response.ErrorDetail `json:"errors,omitempty"`
+}
+
+type InputSchemaCompatibilityRowResponse struct {
+	ID                    int32  `json:"id"`
+	WorkflowVersionID     int32  `json:"workflow_version_id"`
+	WorkflowVersionName   string `json:"workflow_version_name"`
+	WorkflowVersionNumber int32  `json:"workflow_version_number"`
+	WorkflowInputSchemaID int32  `json:"workflow_input_schema_id"`
+	CompatibilityType     string `json:"compatibility_type"`
+	WorkflowInputMapperID *int32 `json:"workflow_input_mapper_id,omitempty"`
+	IsActive              bool   `json:"is_active"`
+	IsDefaultRoute        bool   `json:"is_default_route"`
 }
 
 type CreateExperimentRequest struct {

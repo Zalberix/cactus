@@ -42,13 +42,13 @@ const { t } = useI18n()
         <div>
           <CardTitle class="flex items-center gap-2">
             <GitBranch class="h-5 w-5" />
-            {{ t('workflowRouting.experiments') }}
+            {{ t('workflowRouting.testing') }}
           </CardTitle>
-          <CardDescription>{{ t('workflowRouting.experimentsDescription') }}</CardDescription>
+          <CardDescription>{{ t('workflowRouting.testingDescription') }}</CardDescription>
         </div>
         <Button type="button" class="gap-2" :disabled="saving" data-testid="open-create-experiment-modal" @click="emit('create')">
           <Plus class="h-4 w-4" />
-          {{ t('workflowRouting.createExperiment') }}
+          {{ t('workflowRouting.createTesting') }}
         </Button>
       </div>
     </CardHeader>
@@ -123,7 +123,7 @@ const { t } = useI18n()
         </div>
       </div>
       <div v-if="experiments.length === 0" class="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">
-        {{ t('workflowRouting.noExperiments') }}
+        {{ t('workflowRouting.noTesting') }}
       </div>
     </CardContent>
   </Card>

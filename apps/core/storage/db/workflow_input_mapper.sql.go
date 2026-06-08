@@ -12,14 +12,13 @@ import (
 )
 
 const createWorkflowInputMapper = `-- name: CreateWorkflowInputMapper :one
-INSERT INTO "workflow_input_mapper" (workflow_id, name, mapper_type, rules, is_active, created_by_user_id, updated_by_user_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, workflow_id, name, mapper_type, rules, is_active, created_by_user_id, updated_by_user_id, created_at, updated_at, deleted_at
+INSERT INTO "workflow_input_mapper" (workflow_id, mapper_type, rules, is_active, created_by_user_id, updated_by_user_id)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, workflow_id, mapper_type, rules, is_active, created_by_user_id, updated_by_user_id, created_at, updated_at, deleted_at
 `
 
 type CreateWorkflowInputMapperParams struct {
 	WorkflowID      int32       `json:"workflow_id"`
-	Name            string      `json:"name"`
 	MapperType      string      `json:"mapper_type"`
 	Rules           []byte      `json:"rules"`
 	IsActive        bool        `json:"is_active"`
@@ -30,7 +29,6 @@ type CreateWorkflowInputMapperParams struct {
 func (q *Queries) CreateWorkflowInputMapper(ctx context.Context, arg CreateWorkflowInputMapperParams) (WorkflowInputMapper, error) {
 	row := q.db.QueryRow(ctx, createWorkflowInputMapper,
 		arg.WorkflowID,
-		arg.Name,
 		arg.MapperType,
 		arg.Rules,
 		arg.IsActive,
@@ -41,7 +39,6 @@ func (q *Queries) CreateWorkflowInputMapper(ctx context.Context, arg CreateWorkf
 	err := row.Scan(
 		&i.ID,
 		&i.WorkflowID,
-		&i.Name,
 		&i.MapperType,
 		&i.Rules,
 		&i.IsActive,
@@ -55,7 +52,7 @@ func (q *Queries) CreateWorkflowInputMapper(ctx context.Context, arg CreateWorkf
 }
 
 const getWorkflowInputMapperByID = `-- name: GetWorkflowInputMapperByID :one
-SELECT id, workflow_id, name, mapper_type, rules, is_active, created_by_user_id, updated_by_user_id, created_at, updated_at, deleted_at FROM "workflow_input_mapper"
+SELECT id, workflow_id, mapper_type, rules, is_active, created_by_user_id, updated_by_user_id, created_at, updated_at, deleted_at FROM "workflow_input_mapper"
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -65,7 +62,6 @@ func (q *Queries) GetWorkflowInputMapperByID(ctx context.Context, id int32) (Wor
 	err := row.Scan(
 		&i.ID,
 		&i.WorkflowID,
-		&i.Name,
 		&i.MapperType,
 		&i.Rules,
 		&i.IsActive,
@@ -79,9 +75,9 @@ func (q *Queries) GetWorkflowInputMapperByID(ctx context.Context, id int32) (Wor
 }
 
 const listWorkflowInputMappersByWorkflowID = `-- name: ListWorkflowInputMappersByWorkflowID :many
-SELECT id, workflow_id, name, mapper_type, rules, is_active, created_by_user_id, updated_by_user_id, created_at, updated_at, deleted_at FROM "workflow_input_mapper"
+SELECT id, workflow_id, mapper_type, rules, is_active, created_by_user_id, updated_by_user_id, created_at, updated_at, deleted_at FROM "workflow_input_mapper"
 WHERE workflow_id = $1 AND deleted_at IS NULL
-ORDER BY is_active DESC, name, id
+ORDER BY is_active DESC, id
 `
 
 func (q *Queries) ListWorkflowInputMappersByWorkflowID(ctx context.Context, workflowID int32) ([]WorkflowInputMapper, error) {
@@ -96,7 +92,6 @@ func (q *Queries) ListWorkflowInputMappersByWorkflowID(ctx context.Context, work
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkflowID,
-			&i.Name,
 			&i.MapperType,
 			&i.Rules,
 			&i.IsActive,
@@ -130,19 +125,17 @@ func (q *Queries) SoftDeleteWorkflowInputMapper(ctx context.Context, id int32) e
 
 const updateWorkflowInputMapper = `-- name: UpdateWorkflowInputMapper :one
 UPDATE "workflow_input_mapper"
-SET name = $2,
-    mapper_type = $3,
-    rules = $4,
-    is_active = $5,
-    updated_by_user_id = $6,
+SET mapper_type = $2,
+    rules = $3,
+    is_active = $4,
+    updated_by_user_id = $5,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, workflow_id, name, mapper_type, rules, is_active, created_by_user_id, updated_by_user_id, created_at, updated_at, deleted_at
+RETURNING id, workflow_id, mapper_type, rules, is_active, created_by_user_id, updated_by_user_id, created_at, updated_at, deleted_at
 `
 
 type UpdateWorkflowInputMapperParams struct {
 	ID              int32       `json:"id"`
-	Name            string      `json:"name"`
 	MapperType      string      `json:"mapper_type"`
 	Rules           []byte      `json:"rules"`
 	IsActive        bool        `json:"is_active"`
@@ -152,7 +145,6 @@ type UpdateWorkflowInputMapperParams struct {
 func (q *Queries) UpdateWorkflowInputMapper(ctx context.Context, arg UpdateWorkflowInputMapperParams) (WorkflowInputMapper, error) {
 	row := q.db.QueryRow(ctx, updateWorkflowInputMapper,
 		arg.ID,
-		arg.Name,
 		arg.MapperType,
 		arg.Rules,
 		arg.IsActive,
@@ -162,7 +154,6 @@ func (q *Queries) UpdateWorkflowInputMapper(ctx context.Context, arg UpdateWorkf
 	err := row.Scan(
 		&i.ID,
 		&i.WorkflowID,
-		&i.Name,
 		&i.MapperType,
 		&i.Rules,
 		&i.IsActive,
@@ -181,7 +172,7 @@ SET is_active = $2,
     updated_by_user_id = $3,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, workflow_id, name, mapper_type, rules, is_active, created_by_user_id, updated_by_user_id, created_at, updated_at, deleted_at
+RETURNING id, workflow_id, mapper_type, rules, is_active, created_by_user_id, updated_by_user_id, created_at, updated_at, deleted_at
 `
 
 type UpdateWorkflowInputMapperActiveParams struct {
@@ -196,7 +187,6 @@ func (q *Queries) UpdateWorkflowInputMapperActive(ctx context.Context, arg Updat
 	err := row.Scan(
 		&i.ID,
 		&i.WorkflowID,
-		&i.Name,
 		&i.MapperType,
 		&i.Rules,
 		&i.IsActive,

@@ -43,8 +43,8 @@ function cancel() {
     <DialogContent class="max-w-2xl">
       <div data-testid="experiment-routing-dialog">
         <DialogHeader>
-          <DialogTitle>{{ editingId ? t('workflowRouting.editExperiment') : t('workflowRouting.createExperiment') }}</DialogTitle>
-          <DialogDescription>{{ t('workflowRouting.experimentsDescription') }}</DialogDescription>
+          <DialogTitle>{{ editingId ? t('workflowRouting.editTesting') : t('workflowRouting.createTesting') }}</DialogTitle>
+          <DialogDescription>{{ t('workflowRouting.testingDescription') }}</DialogDescription>
         </DialogHeader>
         <form class="mt-4 space-y-3" @submit.prevent="emit('submit')">
           <label class="block space-y-1.5">
@@ -73,7 +73,7 @@ function cancel() {
               {{ t('common.cancel') }}
             </Button>
             <Button type="submit" :disabled="saving">
-              {{ editingId ? t('workflowRouting.updateExperiment') : t('workflowRouting.createExperiment') }}
+              {{ editingId ? t('workflowRouting.updateTesting') : t('workflowRouting.createTesting') }}
             </Button>
           </DialogFooter>
         </form>

@@ -6,7 +6,6 @@ export type RoutingSchemaForm = {
 }
 
 export type RoutingMapperForm = {
-  name: string
   mapperType: string
   rulesJson: string
 }

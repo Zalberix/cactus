@@ -11,6 +11,42 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const archiveWorkflowInputSchema = `-- name: ArchiveWorkflowInputSchema :one
+UPDATE "workflow_input_schema"
+SET status = 'archived',
+    is_default = FALSE,
+    updated_by_user_id = $2,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+  AND deleted_at IS NULL
+RETURNING id, workflow_id, code, version_number, schema_json, status, is_default, created_by_user_id, updated_by_user_id, created_at, updated_at, deleted_at
+`
+
+type ArchiveWorkflowInputSchemaParams struct {
+	ID              int32       `json:"id"`
+	UpdatedByUserID pgtype.Int4 `json:"updated_by_user_id"`
+}
+
+func (q *Queries) ArchiveWorkflowInputSchema(ctx context.Context, arg ArchiveWorkflowInputSchemaParams) (WorkflowInputSchema, error) {
+	row := q.db.QueryRow(ctx, archiveWorkflowInputSchema, arg.ID, arg.UpdatedByUserID)
+	var i WorkflowInputSchema
+	err := row.Scan(
+		&i.ID,
+		&i.WorkflowID,
+		&i.Code,
+		&i.VersionNumber,
+		&i.SchemaJson,
+		&i.Status,
+		&i.IsDefault,
+		&i.CreatedByUserID,
+		&i.UpdatedByUserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const clearDefaultWorkflowInputSchema = `-- name: ClearDefaultWorkflowInputSchema :exec
 UPDATE "workflow_input_schema"
 SET is_default = FALSE,
@@ -138,6 +174,60 @@ func (q *Queries) GetDefaultWorkflowInputSchema(ctx context.Context, workflowID 
 	return i, err
 }
 
+const getInputSchemaUsageSummary = `-- name: GetInputSchemaUsageSummary :one
+WITH target_native_versions AS (
+    SELECT c.workflow_version_id
+    FROM "workflow_version_input_schema_compatibility" c
+    WHERE c.workflow_input_schema_id = $1
+      AND c.compatibility_type = 'native'
+      AND c.deleted_at IS NULL
+), mapper_source_usage AS (
+    SELECT 1
+    FROM "workflow_version_input_schema_compatibility" c
+    WHERE c.workflow_input_schema_id = $1
+      AND c.workflow_input_mapper_id IS NOT NULL
+      AND c.compatibility_type != 'native'
+      AND c.deleted_at IS NULL
+    LIMIT 1
+), mapper_target_usage AS (
+    SELECT 1
+    FROM "workflow_version_input_schema_compatibility" c
+    JOIN target_native_versions tv ON tv.workflow_version_id = c.workflow_version_id
+    WHERE c.workflow_input_mapper_id IS NOT NULL
+      AND c.compatibility_type != 'native'
+      AND c.deleted_at IS NULL
+    LIMIT 1
+)
+SELECT
+    EXISTS (
+        SELECT 1 FROM "message" m
+        WHERE m.workflow_input_schema_id = $1
+          AND m.deleted_at IS NULL
+    ) AS used_by_message,
+    EXISTS (SELECT 1 FROM mapper_source_usage)
+        OR EXISTS (SELECT 1 FROM mapper_target_usage) AS used_by_mapper,
+    EXISTS (
+        SELECT 1 FROM "workflow_experiment_scope" s
+        JOIN "workflow_experiment" e ON e.id = s.workflow_experiment_id
+        WHERE s.workflow_input_schema_id = $1
+          AND s.deleted_at IS NULL
+          AND e.deleted_at IS NULL
+    ) AS used_by_experiment
+`
+
+type GetInputSchemaUsageSummaryRow struct {
+	UsedByMessage    bool        `json:"used_by_message"`
+	UsedByMapper     pgtype.Bool `json:"used_by_mapper"`
+	UsedByExperiment bool        `json:"used_by_experiment"`
+}
+
+func (q *Queries) GetInputSchemaUsageSummary(ctx context.Context, workflowInputSchemaID pgtype.Int4) (GetInputSchemaUsageSummaryRow, error) {
+	row := q.db.QueryRow(ctx, getInputSchemaUsageSummary, workflowInputSchemaID)
+	var i GetInputSchemaUsageSummaryRow
+	err := row.Scan(&i.UsedByMessage, &i.UsedByMapper, &i.UsedByExperiment)
+	return i, err
+}
+
 const getNextWorkflowInputSchemaVersionNumber = `-- name: GetNextWorkflowInputSchemaVersionNumber :one
 SELECT COALESCE(MAX(version_number), 0)::int + 1 FROM "workflow_input_schema"
 WHERE workflow_id = $1 AND deleted_at IS NULL
@@ -262,6 +352,60 @@ ORDER BY is_default DESC, version_number DESC, id DESC
 
 func (q *Queries) ListWorkflowInputSchemasByWorkflowID(ctx context.Context, workflowID int32) ([]WorkflowInputSchema, error) {
 	rows, err := q.db.Query(ctx, listWorkflowInputSchemasByWorkflowID, workflowID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkflowInputSchema
+	for rows.Next() {
+		var i WorkflowInputSchema
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkflowID,
+			&i.Code,
+			&i.VersionNumber,
+			&i.SchemaJson,
+			&i.Status,
+			&i.IsDefault,
+			&i.CreatedByUserID,
+			&i.UpdatedByUserID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchWorkflowInputSchemas = `-- name: SearchWorkflowInputSchemas :many
+SELECT id, workflow_id, code, version_number, schema_json, status, is_default, created_by_user_id, updated_by_user_id, created_at, updated_at, deleted_at FROM "workflow_input_schema"
+WHERE workflow_id = $1
+  AND deleted_at IS NULL
+  AND status != 'archived'
+  AND ($2::int <= 0 OR id != $2)
+  AND (
+    $3::text = ''
+    OR code ILIKE '%' || $3 || '%'
+    OR ('v' || version_number::text) ILIKE '%' || $3 || '%'
+  )
+ORDER BY is_default DESC, version_number DESC, id DESC
+LIMIT 20
+`
+
+type SearchWorkflowInputSchemasParams struct {
+	WorkflowID int32  `json:"workflow_id"`
+	Column2    int32  `json:"column_2"`
+	Column3    string `json:"column_3"`
+}
+
+func (q *Queries) SearchWorkflowInputSchemas(ctx context.Context, arg SearchWorkflowInputSchemasParams) ([]WorkflowInputSchema, error) {
+	rows, err := q.db.Query(ctx, searchWorkflowInputSchemas, arg.WorkflowID, arg.Column2, arg.Column3)
 	if err != nil {
 		return nil, err
 	}

@@ -10,7 +10,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '~/components/ui/dialog'
-import { Input } from '~/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -18,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '~/components/ui/select'
+import RoutingMapperBuilder from './RoutingMapperBuilder.vue'
 
 const props = defineProps<{
   open: boolean
@@ -56,10 +56,6 @@ function cancel() {
         </DialogHeader>
         <form class="mt-4 space-y-3" @submit.prevent="emit('submit')">
           <label class="block space-y-1.5">
-            <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldMapperName') }}</span>
-            <Input v-model="form.name" :placeholder="t('workflowRouting.placeholderMapperName')" />
-          </label>
-          <label class="block space-y-1.5">
             <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldMapperType') }}</span>
             <Select v-model="form.mapperType">
               <SelectTrigger>
@@ -76,10 +72,16 @@ function cancel() {
               </SelectContent>
             </Select>
           </label>
-          <label class="block space-y-1.5">
+          <div class="block space-y-1.5">
             <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldMapperRulesJson') }}</span>
-            <textarea v-model="form.rulesJson" class="min-h-32 w-full rounded-md border bg-background p-3 font-mono text-xs" />
-          </label>
+            <RoutingMapperBuilder v-model="form.rulesJson" :disabled="saving" />
+            <details class="rounded-md border bg-muted/20 p-3">
+              <summary class="cursor-pointer text-sm font-medium">
+                {{ t('workflowRouting.mapperAdvancedJson') }}
+              </summary>
+              <textarea v-model="form.rulesJson" class="mt-3 min-h-32 w-full rounded-md border bg-background p-3 font-mono text-xs" />
+            </details>
+          </div>
           <DialogFooter>
             <Button type="button" variant="outline" :disabled="saving" @click="cancel">
               {{ t('common.cancel') }}

@@ -12,6 +12,36 @@ SELECT * FROM "workflow_experiment"
 WHERE workflow_id = $1 AND deleted_at IS NULL
 ORDER BY status = 'active' DESC, created_at DESC, id DESC;
 
+-- name: ListActiveWorkflowTestsByVersionID :many
+SELECT DISTINCT
+    e.id,
+    e.workflow_id,
+    e.name,
+    e.description,
+    e.experiment_type,
+    e.status,
+    e.started_at,
+    e.ended_at,
+    e.created_by_user_id,
+    e.updated_by_user_id,
+    e.created_at,
+    e.updated_at,
+    e.deleted_at
+FROM "workflow_experiment" e
+JOIN "workflow_experiment_scope" s
+    ON s.workflow_experiment_id = e.id
+    AND s.deleted_at IS NULL
+JOIN "workflow_experiment_variant" v
+    ON v.workflow_experiment_scope_id = s.id
+    AND v.deleted_at IS NULL
+    AND v.is_active = TRUE
+WHERE v.workflow_version_id = $1
+  AND e.status = 'active'
+  AND e.deleted_at IS NULL
+  AND (e.started_at IS NULL OR e.started_at <= CURRENT_TIMESTAMP)
+  AND (e.ended_at IS NULL OR e.ended_at > CURRENT_TIMESTAMP)
+ORDER BY e.id DESC;
+
 -- name: UpdateWorkflowExperiment :one
 UPDATE "workflow_experiment"
 SET name = $2,

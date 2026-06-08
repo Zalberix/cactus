@@ -10,6 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/zalberix/cactus/apps/core/internal/http/response"
 	db "github.com/zalberix/cactus/apps/core/storage/db"
 )
 
@@ -57,6 +58,28 @@ type workflowCompatibilityQueries interface {
 	UpdateWorkflowVersionInputSchemaCompatibility(ctx context.Context, arg db.UpdateWorkflowVersionInputSchemaCompatibilityParams) (db.WorkflowVersionInputSchemaCompatibility, error)
 }
 
+type workflowInputSchemaUsageQueries interface {
+	GetInputSchemaUsageSummary(ctx context.Context, workflowInputSchemaID pgtype.Int4) (db.GetInputSchemaUsageSummaryRow, error)
+	GetWorkflowInputSchemaByID(ctx context.Context, id int32) (db.WorkflowInputSchema, error)
+}
+
+type workflowInputSchemaSearchQueries interface {
+	SearchWorkflowInputSchemas(ctx context.Context, arg db.SearchWorkflowInputSchemasParams) ([]db.WorkflowInputSchema, error)
+}
+
+type workflowRoutingVersionRowQueries interface {
+	ListWorkflowRoutingVersionRows(ctx context.Context, workflowID int32) ([]db.ListWorkflowRoutingVersionRowsRow, error)
+	ListActiveWorkflowTestsByVersionID(ctx context.Context, workflowVersionID int32) ([]db.WorkflowExperiment, error)
+}
+
+type workflowInputSchemaCompatibilityRowQueries interface {
+	ListInputSchemaCompatibilityRows(ctx context.Context, workflowInputSchemaID int32) ([]db.ListInputSchemaCompatibilityRowsRow, error)
+}
+
+type workflowCompatibilityTargetQueries interface {
+	GetWorkflowVersionByNativeInputSchemaID(ctx context.Context, workflowInputSchemaID int32) (db.WorkflowVersion, error)
+}
+
 type inputSchemaMutation struct {
 	Code          string
 	VersionNumber int32
@@ -66,7 +89,6 @@ type inputSchemaMutation struct {
 }
 
 type inputMapperMutation struct {
-	Name       string
 	MapperType string
 	Rules      json.RawMessage
 	IsActive   *bool
@@ -123,6 +145,128 @@ func (s *Service) GetWorkflowInputSchemaRecord(ctx context.Context, inputSchemaI
 		return db.WorkflowInputSchema{}, fmt.Errorf("%w: %v", ErrWorkflowConfigurationNotFound, err)
 	}
 	return schema, nil
+}
+
+func (s *Service) SearchWorkflowInputSchemas(ctx context.Context, workflowID int32, query string, excludeInputSchemaID int32) ([]db.WorkflowInputSchema, error) {
+	q, ok := s.store.(workflowInputSchemaSearchQueries)
+	if !ok {
+		return nil, ErrWorkflowConfigurationUnsupported
+	}
+	return q.SearchWorkflowInputSchemas(ctx, db.SearchWorkflowInputSchemasParams{
+		WorkflowID: workflowID,
+		Column2:    excludeInputSchemaID,
+		Column3:    strings.TrimSpace(query),
+	})
+}
+
+func (s *Service) GetWorkflowInputSchemaUsage(ctx context.Context, inputSchemaID int32) (InputSchemaUsageResponse, error) {
+	q, ok := s.store.(workflowInputSchemaUsageQueries)
+	if !ok {
+		return InputSchemaUsageResponse{}, ErrWorkflowConfigurationUnsupported
+	}
+	if _, err := q.GetWorkflowInputSchemaByID(ctx, inputSchemaID); err != nil {
+		return InputSchemaUsageResponse{}, fmt.Errorf("%w: %v", ErrWorkflowConfigurationNotFound, err)
+	}
+	row, err := q.GetInputSchemaUsageSummary(ctx, pgInt4(inputSchemaID))
+	if err != nil {
+		return InputSchemaUsageResponse{}, err
+	}
+	usedByMapper := row.UsedByMapper.Valid && row.UsedByMapper.Bool
+	usage := InputSchemaUsageResponse{
+		UsedByMessage:    row.UsedByMessage,
+		UsedByMapper:     usedByMapper,
+		UsedByExperiment: row.UsedByExperiment,
+	}
+	if usage.UsedByMessage {
+		usage.Reasons = append(usage.Reasons, "message")
+	}
+	if usage.UsedByMapper {
+		usage.Reasons = append(usage.Reasons, "mapper")
+	}
+	if usage.UsedByExperiment {
+		usage.Reasons = append(usage.Reasons, "experiment")
+	}
+	usage.IsReadOnly = len(usage.Reasons) > 0
+	return usage, nil
+}
+
+func (s *Service) ListWorkflowRoutingVersionRows(ctx context.Context, workflowID int32) ([]RoutingVersionRowResponse, error) {
+	q, ok := s.store.(workflowRoutingVersionRowQueries)
+	if !ok {
+		return nil, ErrWorkflowConfigurationUnsupported
+	}
+	rows, err := q.ListWorkflowRoutingVersionRows(ctx, workflowID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]RoutingVersionRowResponse, 0, len(rows))
+	for _, row := range rows {
+		supported, err := decodeRoutingSupportedSchemas(row.SupportedSchemas)
+		if err != nil {
+			return nil, fmt.Errorf("%w: decode supported schemas: %v", ErrWorkflowConfigurationInvalid, err)
+		}
+		tests, err := q.ListActiveWorkflowTestsByVersionID(ctx, row.WorkflowVersionID)
+		if err != nil {
+			return nil, err
+		}
+		activeTests := make([]RoutingActiveTestResponse, 0, len(tests))
+		for _, test := range tests {
+			activeTests = append(activeTests, RoutingActiveTestResponse{
+				ID:             test.ID,
+				Name:           test.Name,
+				ExperimentType: test.ExperimentType,
+				Status:         test.Status,
+			})
+		}
+		name := row.WorkflowVersionName.String
+		if !row.WorkflowVersionName.Valid || strings.TrimSpace(name) == "" {
+			name = fmt.Sprintf("Version %d", row.WorkflowVersionNumber)
+		}
+		result = append(result, RoutingVersionRowResponse{
+			WorkflowVersionID:        row.WorkflowVersionID,
+			WorkflowID:               row.WorkflowID,
+			WorkflowVersionName:      name,
+			WorkflowVersionNumber:    row.WorkflowVersionNumber,
+			IsValid:                  row.IsValid,
+			IsActive:                 row.IsActive,
+			NativeInputSchemaID:      row.NativeSchemaID,
+			NativeInputSchemaCode:    row.NativeSchemaCode,
+			NativeInputSchemaVersion: row.NativeSchemaVersionNumber,
+			SupportedSchemas:         supported,
+			ActiveTests:              activeTests,
+		})
+	}
+	return result, nil
+}
+
+func (s *Service) ListInputSchemaCompatibilityRows(ctx context.Context, inputSchemaID int32) ([]InputSchemaCompatibilityRowResponse, error) {
+	q, ok := s.store.(workflowInputSchemaCompatibilityRowQueries)
+	if !ok {
+		return nil, ErrWorkflowConfigurationUnsupported
+	}
+	rows, err := q.ListInputSchemaCompatibilityRows(ctx, inputSchemaID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]InputSchemaCompatibilityRowResponse, 0, len(rows))
+	for _, row := range rows {
+		name := row.WorkflowVersionName.String
+		if !row.WorkflowVersionName.Valid || strings.TrimSpace(name) == "" {
+			name = fmt.Sprintf("Version %d", row.WorkflowVersionNumber)
+		}
+		result = append(result, InputSchemaCompatibilityRowResponse{
+			ID:                    row.ID,
+			WorkflowVersionID:     row.WorkflowVersionID,
+			WorkflowVersionName:   name,
+			WorkflowVersionNumber: row.WorkflowVersionNumber,
+			WorkflowInputSchemaID: row.WorkflowInputSchemaID,
+			CompatibilityType:     row.CompatibilityType,
+			WorkflowInputMapperID: pgInt4ValuePtr(row.WorkflowInputMapperID),
+			IsActive:              row.IsActive,
+			IsDefaultRoute:        row.IsDefaultRoute,
+		})
+	}
+	return result, nil
 }
 
 func (s *Service) CreateWorkflowInputSchemaRecord(ctx context.Context, workflowID int32, actorUserID int32, req inputSchemaMutation) (db.WorkflowInputSchema, error) {
@@ -192,11 +336,11 @@ func (s *Service) UpdateWorkflowInputSchemaRecord(ctx context.Context, inputSche
 	if err != nil {
 		return db.WorkflowInputSchema{}, fmt.Errorf("%w: %v", ErrWorkflowConfigurationNotFound, err)
 	}
-	used, err := q.HasInputSchemaUsage(ctx, pgInt4(inputSchemaID))
+	usage, err := s.GetWorkflowInputSchemaUsage(ctx, inputSchemaID)
 	if err != nil {
 		return db.WorkflowInputSchema{}, err
 	}
-	if used {
+	if usage.IsReadOnly {
 		return db.WorkflowInputSchema{}, ErrWorkflowConfigurationInUse
 	}
 
@@ -263,8 +407,18 @@ func (s *Service) UpdateWorkflowInputSchemaRecordStatus(ctx context.Context, inp
 	if status == "" {
 		return db.WorkflowInputSchema{}, fmt.Errorf("%w: unsupported input schema status", ErrWorkflowConfigurationInvalid)
 	}
+	if status == "archived" {
+		return db.WorkflowInputSchema{}, fmt.Errorf("%w: use archive endpoint for archived schemas", ErrWorkflowConfigurationInvalid)
+	}
+	usage, err := s.GetWorkflowInputSchemaUsage(ctx, inputSchemaID)
+	if err != nil {
+		return db.WorkflowInputSchema{}, err
+	}
+	if usage.IsReadOnly {
+		return db.WorkflowInputSchema{}, ErrWorkflowConfigurationInUse
+	}
 	var schema db.WorkflowInputSchema
-	err := s.store.WithTx(ctx, func(tx *db.Queries) error {
+	err = s.store.WithTx(ctx, func(tx *db.Queries) error {
 		var err error
 		schema, err = tx.UpdateWorkflowInputSchemaStatus(ctx, db.UpdateWorkflowInputSchemaStatusParams{
 			ID:              inputSchemaID,
@@ -283,8 +437,15 @@ func (s *Service) UpdateWorkflowInputSchemaRecordStatus(ctx context.Context, inp
 }
 
 func (s *Service) SetDefaultWorkflowInputSchemaRecord(ctx context.Context, inputSchemaID int32, actorUserID int32) (db.WorkflowInputSchema, error) {
+	usage, err := s.GetWorkflowInputSchemaUsage(ctx, inputSchemaID)
+	if err != nil {
+		return db.WorkflowInputSchema{}, err
+	}
+	if usage.IsReadOnly {
+		return db.WorkflowInputSchema{}, ErrWorkflowConfigurationInUse
+	}
 	var updated db.WorkflowInputSchema
-	err := s.store.WithTx(ctx, func(tx *db.Queries) error {
+	err = s.store.WithTx(ctx, func(tx *db.Queries) error {
 		existing, err := tx.GetWorkflowInputSchemaByID(ctx, inputSchemaID)
 		if err != nil {
 			return fmt.Errorf("%w: %v", ErrWorkflowConfigurationNotFound, err)
@@ -343,6 +504,50 @@ func (s *Service) DeleteWorkflowInputSchemaRecord(ctx context.Context, inputSche
 	})
 }
 
+func (s *Service) ArchiveWorkflowInputSchemaRecord(ctx context.Context, inputSchemaID int32, actorUserID int32, confirmationName string) (db.WorkflowInputSchema, error) {
+	q, err := s.inputSchemaQueries()
+	if err != nil {
+		return db.WorkflowInputSchema{}, err
+	}
+	existing, err := q.GetWorkflowInputSchemaByID(ctx, inputSchemaID)
+	if err != nil {
+		return db.WorkflowInputSchema{}, fmt.Errorf("%w: %v", ErrWorkflowConfigurationNotFound, err)
+	}
+	required := fmt.Sprintf("%s v%d", existing.Code, existing.VersionNumber)
+	if strings.TrimSpace(confirmationName) != required {
+		return db.WorkflowInputSchema{}, fmt.Errorf("%w: confirmation must match %q", ErrWorkflowConfigurationInvalid, required)
+	}
+
+	var archived db.WorkflowInputSchema
+	err = s.store.WithTx(ctx, func(tx *db.Queries) error {
+		var err error
+		archived, err = tx.ArchiveWorkflowInputSchema(ctx, db.ArchiveWorkflowInputSchemaParams{
+			ID:              inputSchemaID,
+			UpdatedByUserID: pgInt4(actorUserID),
+		})
+		if err != nil {
+			return err
+		}
+		if err := tx.DeactivateCompatibilitiesByInputSchemaID(ctx, db.DeactivateCompatibilitiesByInputSchemaIDParams{
+			WorkflowInputSchemaID: inputSchemaID,
+			UpdatedByUserID:       pgInt4(actorUserID),
+		}); err != nil {
+			return err
+		}
+		if err := tx.DeactivateMappedCompatibilitiesByNativeTargetSchemaID(ctx, db.DeactivateMappedCompatibilitiesByNativeTargetSchemaIDParams{
+			WorkflowInputSchemaID: inputSchemaID,
+			UpdatedByUserID:       pgInt4(actorUserID),
+		}); err != nil {
+			return err
+		}
+		return auditWorkflowConfigurationWithQueries(ctx, tx, "workflow_input_schema", inputSchemaID, "archive", actorUserID, existing, archived)
+	})
+	if err != nil {
+		return db.WorkflowInputSchema{}, err
+	}
+	return archived, nil
+}
+
 func (s *Service) ListWorkflowInputMappers(ctx context.Context, workflowID int32) ([]db.WorkflowInputMapper, error) {
 	q, err := s.inputMapperQueries()
 	if err != nil {
@@ -354,10 +559,6 @@ func (s *Service) ListWorkflowInputMappers(ctx context.Context, workflowID int32
 func (s *Service) CreateWorkflowInputMapperRecord(ctx context.Context, workflowID int32, actorUserID int32, req inputMapperMutation) (db.WorkflowInputMapper, error) {
 	if _, err := s.inputMapperQueries(); err != nil {
 		return db.WorkflowInputMapper{}, err
-	}
-	name := strings.TrimSpace(req.Name)
-	if name == "" {
-		return db.WorkflowInputMapper{}, fmt.Errorf("%w: mapper name is required", ErrWorkflowConfigurationInvalid)
 	}
 	mapperType := strings.TrimSpace(req.MapperType)
 	if mapperType == "" {
@@ -375,7 +576,6 @@ func (s *Service) CreateWorkflowInputMapperRecord(ctx context.Context, workflowI
 		var err error
 		mapper, err = tx.CreateWorkflowInputMapper(ctx, db.CreateWorkflowInputMapperParams{
 			WorkflowID:      workflowID,
-			Name:            name,
 			MapperType:      mapperType,
 			Rules:           rules,
 			IsActive:        boolValue(req.IsActive, true),
@@ -402,10 +602,6 @@ func (s *Service) UpdateWorkflowInputMapperRecord(ctx context.Context, mapperID 
 	if err != nil {
 		return db.WorkflowInputMapper{}, fmt.Errorf("%w: %v", ErrWorkflowConfigurationNotFound, err)
 	}
-	name := strings.TrimSpace(req.Name)
-	if name == "" {
-		name = existing.Name
-	}
 	mapperType := strings.TrimSpace(req.MapperType)
 	if mapperType == "" {
 		mapperType = existing.MapperType
@@ -425,7 +621,6 @@ func (s *Service) UpdateWorkflowInputMapperRecord(ctx context.Context, mapperID 
 		var err error
 		mapper, err = tx.UpdateWorkflowInputMapper(ctx, db.UpdateWorkflowInputMapperParams{
 			ID:              mapperID,
-			Name:            name,
 			MapperType:      mapperType,
 			Rules:           rules,
 			IsActive:        boolValue(req.IsActive, existing.IsActive),
@@ -566,6 +761,66 @@ func (s *Service) CreateWorkflowCompatibility(ctx context.Context, versionID int
 		return created, err
 	}
 	return created, nil
+}
+
+func (s *Service) ValidateAndCreateInputSchemaCompatibility(ctx context.Context, sourceSchemaID int32, actorUserID int32, req ValidateAndCreateCompatibilityRequest) (db.WorkflowVersionInputSchemaCompatibility, CompatibilityValidationResponse, error) {
+	compatibility := db.WorkflowVersionInputSchemaCompatibility{}
+	validation, mapperRules, targetVersionID, err := s.validateCompatibilityBuilderRequest(ctx, sourceSchemaID, req)
+	if err != nil {
+		return compatibility, validation, err
+	}
+	if !validation.IsValid {
+		return compatibility, validation, nil
+	}
+
+	schemaQueries, err := s.inputSchemaQueries()
+	if err != nil {
+		return compatibility, validation, err
+	}
+	sourceSchema, err := schemaQueries.GetWorkflowInputSchemaByID(ctx, sourceSchemaID)
+	if err != nil {
+		return compatibility, validation, fmt.Errorf("%w: %v", ErrWorkflowConfigurationNotFound, err)
+	}
+	err = s.store.WithTx(ctx, func(tx *db.Queries) error {
+		mapper, err := tx.CreateWorkflowInputMapper(ctx, db.CreateWorkflowInputMapperParams{
+			WorkflowID:      sourceSchema.WorkflowID,
+			MapperType:      "internal",
+			Rules:           mapperRules,
+			IsActive:        true,
+			CreatedByUserID: pgInt4(actorUserID),
+			UpdatedByUserID: pgInt4(actorUserID),
+		})
+		if err != nil {
+			return err
+		}
+		if req.IsDefaultRoute {
+			if err := clearCompatibilityDefaultRoute(ctx, tx, sourceSchemaID, actorUserID, 0); err != nil {
+				return err
+			}
+		}
+		compatibility, err = tx.CreateWorkflowVersionInputSchemaCompatibility(ctx, db.CreateWorkflowVersionInputSchemaCompatibilityParams{
+			WorkflowVersionID:     targetVersionID,
+			WorkflowInputSchemaID: sourceSchemaID,
+			CompatibilityType:     "adapter",
+			WorkflowInputMapperID: pgInt4(mapper.ID),
+			DefaultValues:         []byte(`{}`),
+			IsActive:              true,
+			IsDefaultRoute:        req.IsDefaultRoute,
+			CreatedByUserID:       pgInt4(actorUserID),
+			UpdatedByUserID:       pgInt4(actorUserID),
+		})
+		if err != nil {
+			return err
+		}
+		if err := auditWorkflowConfigurationWithQueries(ctx, tx, "workflow_input_mapper", mapper.ID, "create", actorUserID, nil, mapper); err != nil {
+			return err
+		}
+		return auditWorkflowConfigurationWithQueries(ctx, tx, "workflow_version_input_schema_compatibility", compatibility.ID, "create", actorUserID, nil, compatibility)
+	})
+	if err != nil {
+		return db.WorkflowVersionInputSchemaCompatibility{}, validation, err
+	}
+	return compatibility, validation, nil
 }
 
 func (s *Service) UpdateWorkflowCompatibility(ctx context.Context, compatibilityID int32, actorUserID int32, req compatibilityMutation) (db.WorkflowVersionInputSchemaCompatibility, error) {
@@ -758,6 +1013,220 @@ func clearCompatibilityDefaultRoute(ctx context.Context, q workflowCompatibility
 	return nil
 }
 
+func (s *Service) validateCompatibilityBuilderRequest(ctx context.Context, sourceSchemaID int32, req ValidateAndCreateCompatibilityRequest) (CompatibilityValidationResponse, []byte, int32, error) {
+	validation := CompatibilityValidationResponse{IsValid: true}
+	schemaQueries, err := s.inputSchemaQueries()
+	if err != nil {
+		return validation, nil, 0, err
+	}
+	targetQueries, ok := s.store.(workflowCompatibilityTargetQueries)
+	if !ok {
+		return validation, nil, 0, ErrWorkflowConfigurationUnsupported
+	}
+	sourceSchema, err := schemaQueries.GetWorkflowInputSchemaByID(ctx, sourceSchemaID)
+	if err != nil {
+		return validation, nil, 0, fmt.Errorf("%w: %v", ErrWorkflowConfigurationNotFound, err)
+	}
+	targetSchema, err := schemaQueries.GetWorkflowInputSchemaByID(ctx, req.TargetInputSchemaID)
+	if err != nil {
+		return validation, nil, 0, fmt.Errorf("%w: %v", ErrWorkflowConfigurationNotFound, err)
+	}
+
+	var details []response.ErrorDetail
+	if sourceSchema.WorkflowID != targetSchema.WorkflowID {
+		details = append(details, compatibilityFieldError("", "source and target schemas must belong to the same workflow"))
+	}
+	if sourceSchema.Status == "archived" {
+		details = append(details, compatibilityFieldError("", "source schema is archived"))
+	}
+	if targetSchema.Status == "archived" {
+		details = append(details, compatibilityFieldError("", "target schema is archived"))
+	}
+
+	targetVersion, err := targetQueries.GetWorkflowVersionByNativeInputSchemaID(ctx, targetSchema.ID)
+	if err != nil {
+		details = append(details, compatibilityFieldError("target_input_schema_id", "target schema is not native for an available process version"))
+	}
+	if targetVersion.ArchivedAt.Valid {
+		details = append(details, compatibilityFieldError("target_input_schema_id", "target process version is archived"))
+	}
+
+	sourceFields, err := parseWorkflowInputSchema(sourceSchema.SchemaJson)
+	if err != nil {
+		details = append(details, compatibilityFieldError("", fmt.Sprintf("source schema is invalid: %v", err)))
+	}
+	targetFields, err := parseWorkflowInputSchema(targetSchema.SchemaJson)
+	if err != nil {
+		details = append(details, compatibilityFieldError("", fmt.Sprintf("target schema is invalid: %v", err)))
+	}
+
+	mapping := map[string]any{}
+	defaults := map[string]any{}
+	ignored := make([]string, 0)
+	seenTargets := map[string]struct{}{}
+	for _, field := range req.Fields {
+		targetPath := cleanCompatibilityFieldPath(field.TargetPath)
+		sourcePath := cleanCompatibilityFieldPath(field.SourcePath)
+		if targetPath == "" {
+			details = append(details, compatibilityFieldError("target_path", "target path is required"))
+			continue
+		}
+		if _, exists := seenTargets[targetPath]; exists {
+			details = append(details, compatibilityFieldError(targetPath, "duplicate target path"))
+			continue
+		}
+		seenTargets[targetPath] = struct{}{}
+		targetField, ok := targetFields[targetPath]
+		if !ok {
+			details = append(details, compatibilityFieldError(targetPath, "target field is not declared"))
+			continue
+		}
+
+		hasSource := sourcePath != ""
+		hasDefault := len(bytes.TrimSpace(field.Default)) > 0
+		hasIgnore := field.Ignore
+		actionCount := 0
+		for _, active := range []bool{hasSource, hasDefault, hasIgnore} {
+			if active {
+				actionCount++
+			}
+		}
+		if actionCount != 1 {
+			details = append(details, compatibilityFieldError(targetPath, "target field must have exactly one source, default, or ignore action"))
+			continue
+		}
+		switch {
+		case hasSource:
+			sourceField, ok := sourceFields[sourcePath]
+			if !ok {
+				details = append(details, compatibilityFieldError(targetPath, "source field is not declared"))
+				continue
+			}
+			if sourceField.Type != "" && targetField.Type != "" && sourceField.Type != targetField.Type {
+				details = append(details, compatibilityFieldError(targetPath, fmt.Sprintf("type mismatch: source %s, target %s", sourceField.Type, targetField.Type)))
+				continue
+			}
+			mapping[targetPath] = sourcePath
+		case hasDefault:
+			var value any
+			if err := json.Unmarshal(field.Default, &value); err != nil {
+				details = append(details, compatibilityFieldError(targetPath, "default value must be valid JSON"))
+				continue
+			}
+			if err := validateDefaultValueForSchemaType(value, targetField.Type); err != nil {
+				details = append(details, compatibilityFieldError(targetPath, err.Error()))
+				continue
+			}
+			defaults[targetPath] = value
+		case hasIgnore:
+			ignored = append(ignored, targetPath)
+		}
+	}
+	for targetPath := range targetFields {
+		if _, ok := seenTargets[targetPath]; !ok {
+			details = append(details, compatibilityFieldError(targetPath, "target field is not covered"))
+		}
+	}
+
+	if len(details) > 0 {
+		validation.IsValid = false
+		validation.Errors = details
+		return validation, nil, 0, nil
+	}
+	rules, err := json.Marshal(map[string]any{
+		"copy_all": false,
+		"mapping":  mapping,
+		"defaults": defaults,
+		"ignore":   ignored,
+	})
+	if err != nil {
+		return validation, nil, 0, err
+	}
+	return validation, rules, targetVersion.ID, nil
+}
+
+func decodeRoutingSupportedSchemas(value any) ([]RoutingSupportedSchemaResponse, error) {
+	if value == nil {
+		return []RoutingSupportedSchemaResponse{}, nil
+	}
+	var raw []byte
+	switch v := value.(type) {
+	case []byte:
+		raw = v
+	case string:
+		raw = []byte(v)
+	default:
+		encoded, err := json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+		raw = encoded
+	}
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return []RoutingSupportedSchemaResponse{}, nil
+	}
+	var supported []RoutingSupportedSchemaResponse
+	if err := json.Unmarshal(raw, &supported); err != nil {
+		return nil, err
+	}
+	if supported == nil {
+		return []RoutingSupportedSchemaResponse{}, nil
+	}
+	return supported, nil
+}
+
+func compatibilityFieldError(field string, message string) response.ErrorDetail {
+	return response.ErrorDetail{
+		Type:    "compatibility_validation",
+		Field:   field,
+		Message: message,
+	}
+}
+
+func cleanCompatibilityFieldPath(value string) string {
+	value = strings.TrimSpace(value)
+	value = strings.TrimPrefix(value, "$.")
+	value = strings.TrimPrefix(value, "payload.")
+	return value
+}
+
+func validateDefaultValueForSchemaType(value any, schemaType string) error {
+	switch schemaType {
+	case "", "string":
+		if _, ok := value.(string); !ok {
+			return fmt.Errorf("default value must be a string")
+		}
+	case "number":
+		if _, ok := value.(float64); !ok {
+			return fmt.Errorf("default value must be a number")
+		}
+	case "integer":
+		number, ok := value.(float64)
+		if !ok || number != float64(int64(number)) {
+			return fmt.Errorf("default value must be an integer")
+		}
+	case "boolean":
+		if _, ok := value.(bool); !ok {
+			return fmt.Errorf("default value must be a boolean")
+		}
+	}
+	return nil
+}
+
+func pgTextPtr(value pgtype.Text) *string {
+	if !value.Valid {
+		return nil
+	}
+	return &value.String
+}
+
+func pgInt4ValuePtr(value pgtype.Int4) *int32 {
+	if !value.Valid {
+		return nil
+	}
+	return &value.Int32
+}
+
 func validateCompatibilityMutationConfig(compatibilityType string, mapperID *int32, defaultValues []byte) error {
 	hasMapper := mapperID != nil && *mapperID > 0
 	hasDefaults := hasCompatibilityDefaultValues(defaultValues)
@@ -833,6 +1302,18 @@ func validateWorkflowInputMapperRules(raw []byte) error {
 	if defaults, exists := rules["defaults"]; exists {
 		if _, ok := defaults.(map[string]any); !ok {
 			return fmt.Errorf("%w: mapper defaults must be an object", ErrWorkflowConfigurationInvalid)
+		}
+	}
+	if ignore, exists := rules["ignore"]; exists {
+		items, ok := ignore.([]any)
+		if !ok {
+			return fmt.Errorf("%w: mapper ignore must be an array", ErrWorkflowConfigurationInvalid)
+		}
+		for _, item := range items {
+			path, ok := item.(string)
+			if !ok || strings.TrimSpace(path) == "" {
+				return fmt.Errorf("%w: mapper ignore entries must be non-empty strings", ErrWorkflowConfigurationInvalid)
+			}
 		}
 	}
 

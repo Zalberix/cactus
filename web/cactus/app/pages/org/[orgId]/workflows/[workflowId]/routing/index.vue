@@ -1,26 +1,14 @@
 <script setup lang="ts">
-import type { VersionSummary } from '~/composables/useVersions'
-import type {
-  WorkflowExperiment,
-  WorkflowExperimentScope,
-  WorkflowExperimentVariant,
-  WorkflowInputMapperRecord,
-  WorkflowInputSchemaRecord,
-  WorkflowSchemaCompatibility,
-} from '~/composables/useWorkflowRouting'
-import type { RoutingDeleteTarget } from '~/components/dag/routing/types'
+import type { RoutingVersionRowRecord } from '~/composables/useWorkflowRouting'
 import { ArrowLeft, Route } from 'lucide-vue-next'
-import { workflowInputSchemaCreatePath, workflowInputSchemaEditorPath } from '~/composables/useWorkflowRouting'
-import RoutingCompatibilitiesList from '~/components/dag/routing/RoutingCompatibilitiesList.vue'
-import RoutingCompatibilityDialog from '~/components/dag/routing/RoutingCompatibilityDialog.vue'
-import RoutingDeleteDialog from '~/components/dag/routing/RoutingDeleteDialog.vue'
-import RoutingExperimentDialog from '~/components/dag/routing/RoutingExperimentDialog.vue'
-import RoutingExperimentsList from '~/components/dag/routing/RoutingExperimentsList.vue'
-import RoutingInputMapperDialog from '~/components/dag/routing/RoutingInputMapperDialog.vue'
-import RoutingInputMappersList from '~/components/dag/routing/RoutingInputMappersList.vue'
-import RoutingInputSchemasList from '~/components/dag/routing/RoutingInputSchemasList.vue'
-import RoutingScopeDialog from '~/components/dag/routing/RoutingScopeDialog.vue'
-import RoutingVariantDialog from '~/components/dag/routing/RoutingVariantDialog.vue'
+import {
+  workflowInputSchemaCompatibilitiesPath,
+  workflowInputSchemaCreatePath,
+  workflowInputSchemaEditorPath,
+  workflowRoutingTestingPath,
+} from '~/composables/useWorkflowRouting'
+import RoutingArchiveSchemaDialog from '~/components/dag/routing/RoutingArchiveSchemaDialog.vue'
+import RoutingVersionTable from '~/components/dag/routing/RoutingVersionTable.vue'
 import { Button } from '~/components/ui/button'
 import { toast } from '~/components/ui/toast/use-toast'
 
@@ -32,160 +20,24 @@ const orgId = computed(() => Number(route.params.orgId))
 const workflowId = computed(() => Number(route.params.workflowId))
 
 const { fetchWorkflow } = useWorkflows()
-const { fetchVersionSummaries } = useVersions()
 const routing = useWorkflowRouting()
 
 const workflowName = ref('')
-const versions = ref<VersionSummary[]>([])
-const schemas = ref<WorkflowInputSchemaRecord[]>([])
-const mappers = ref<WorkflowInputMapperRecord[]>([])
-const compatibilities = ref<WorkflowSchemaCompatibility[]>([])
-const experiments = ref<WorkflowExperiment[]>([])
-const scopesByExperiment = ref<Record<number, WorkflowExperimentScope[]>>({})
-const variantsByScope = ref<Record<number, WorkflowExperimentVariant[]>>({})
+const rows = ref<RoutingVersionRowRecord[]>([])
 const loading = ref(true)
 const saving = ref(false)
-const mapperDialogOpen = ref(false)
-const compatibilityDialogOpen = ref(false)
-const experimentDialogOpen = ref(false)
-const scopeDialogOpen = ref(false)
-const variantDialogOpen = ref(false)
-const deleteDialogOpen = ref(false)
-const deleteTarget = ref<RoutingDeleteTarget | null>(null)
-
-const mapperForm = reactive({
-  name: 'Map public payload',
-  mapperType: 'internal',
-  rulesJson: '{\n  "copy_all": true,\n  "mapping": {}\n}',
-})
-
-const compatibilityForm = reactive({
-  versionId: '',
-  inputSchemaId: '',
-  mapperId: '',
-  compatibilityType: 'native',
-  isDefaultRoute: false,
-  defaultValuesJson: '{}',
-})
-
-const experimentForm = reactive({
-  name: 'Canary route',
-  experimentType: 'canary',
-  status: 'draft',
-})
-
-const scopeForm = reactive({
-  experimentId: '',
-  inputSchemaId: '',
-  trafficPercent: 100,
-  fallbackPolicy: 'default_route',
-  fallbackVersionId: '',
-  trafficConditionsJson: '{}',
-})
-
-const variantForm = reactive({
-  scopeId: '',
-  versionId: '',
-  trafficWeight: 100,
-  isControlGroup: false,
-  isActive: true,
-})
-
-const editingMapperId = ref<number | null>(null)
-const editingCompatibilityId = ref<number | null>(null)
-const editingExperimentId = ref<number | null>(null)
-const editingScopeId = ref<number | null>(null)
-const editingVariantId = ref<number | null>(null)
-
-const activeVersions = computed(() => versions.value.filter(version => version.is_active && version.is_valid))
-const activeSchemas = computed(() => schemas.value.filter(schema => schema.status === 'active'))
-
-function closeRoutingFormDialogs() {
-  mapperDialogOpen.value = false
-  compatibilityDialogOpen.value = false
-  experimentDialogOpen.value = false
-  scopeDialogOpen.value = false
-  variantDialogOpen.value = false
-}
-
-function resetRoutingFormChanges() {
-  cancelEditMapper()
-  cancelEditCompatibility()
-  cancelEditExperiment()
-  cancelEditScope()
-  cancelEditVariant()
-  closeRoutingFormDialogs()
-}
-
-function prepareRoutingFormSwitch() {
-  resetRoutingFormChanges()
-}
-
-function versionLabel(versionId: number) {
-  const version = versions.value.find(item => item.id === versionId)
-  if (!version) return `#${versionId}`
-  return `${version.name || 'Version'} v${version.version_number}`
-}
-
-function schemaLabel(schemaId: number) {
-  const schema = schemas.value.find(item => item.id === schemaId)
-  if (!schema) return `schema #${schemaId}`
-  return `${schema.code} v${schema.version_number}`
-}
-
-function parseObjectJson(raw: string, label: string): Record<string, unknown> {
-  const parsed = JSON.parse(raw || '{}')
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error(`${label} must be a JSON object`)
-  }
-  return parsed as Record<string, unknown>
-}
-
-function validateMapperRules(rules: Record<string, unknown>) {
-  if ('copy_all' in rules && typeof rules.copy_all !== 'boolean') {
-    throw new Error('Mapper copy_all must be boolean')
-  }
-  if ('defaults' in rules && (!rules.defaults || typeof rules.defaults !== 'object' || Array.isArray(rules.defaults))) {
-    throw new Error('Mapper defaults must be an object')
-  }
-  for (const key of ['fields', 'mapping', 'mappings']) {
-    if (!(key in rules)) continue
-    const mappings = rules[key]
-    if (!mappings || typeof mappings !== 'object' || Array.isArray(mappings)) {
-      throw new Error(`Mapper ${key} must be an object`)
-    }
-    for (const [targetPath, sourceSpec] of Object.entries(mappings as Record<string, unknown>)) {
-      if (!targetPath.trim()) throw new Error('Mapper target path is required')
-      if (typeof sourceSpec === 'string' && sourceSpec.trim()) continue
-      if (sourceSpec && typeof sourceSpec === 'object' && !Array.isArray(sourceSpec)) {
-        const spec = sourceSpec as Record<string, unknown>
-        if ('literal' in spec) continue
-        if (typeof spec.source === 'string' && spec.source.trim()) continue
-        if (typeof spec.path === 'string' && spec.path.trim()) continue
-      }
-      throw new Error('Mapper source must be a path string or object with source, path, or literal')
-    }
-  }
-}
+const archiveOpen = ref(false)
+const archiveRow = ref<RoutingVersionRowRecord | null>(null)
 
 async function loadData() {
   loading.value = true
   try {
-    const [workflow, versionList, schemaList, mapperList, compatibilityList, experimentList] = await Promise.all([
+    const [workflow, routingRows] = await Promise.all([
       fetchWorkflow(workflowId.value),
-      fetchVersionSummaries(workflowId.value),
-      routing.fetchInputSchemas(workflowId.value),
-      routing.fetchInputMappers(workflowId.value),
-      routing.fetchCompatibilities(workflowId.value),
-      routing.fetchExperiments(workflowId.value),
+      routing.fetchRoutingVersionRows(workflowId.value),
     ])
     workflowName.value = workflow.name
-    versions.value = versionList
-    schemas.value = schemaList
-    mappers.value = mapperList
-    compatibilities.value = compatibilityList
-    experiments.value = experimentList
-    await loadExperimentChildren(experimentList)
+    rows.value = routingRows
   }
   catch (err) {
     toast({ title: getErrorMessage(err, t('error.server')), variant: 'destructive' })
@@ -195,444 +47,35 @@ async function loadData() {
   }
 }
 
-async function loadExperimentChildren(items: WorkflowExperiment[]) {
-  const scopes: Record<number, WorkflowExperimentScope[]> = {}
-  const variants: Record<number, WorkflowExperimentVariant[]> = {}
-  await Promise.all(items.map(async (experiment) => {
-    const experimentScopes = await routing.fetchExperimentScopes(experiment.id)
-    scopes[experiment.id] = experimentScopes
-    await Promise.all(experimentScopes.map(async (scope) => {
-      variants[scope.id] = await routing.fetchExperimentVariants(scope.id)
-    }))
-  }))
-  scopesByExperiment.value = scopes
-  variantsByScope.value = variants
+function editRow(row: RoutingVersionRowRecord) {
+  router.push(workflowInputSchemaEditorPath(orgId.value, workflowId.value, row.native_input_schema_id))
 }
 
-function startEditSchema(schema: WorkflowInputSchemaRecord) {
-  prepareRoutingFormSwitch()
-  router.push(workflowInputSchemaEditorPath(orgId.value, workflowId.value, schema.id))
+function openCompatibility(row: RoutingVersionRowRecord) {
+  router.push(workflowInputSchemaCompatibilitiesPath(orgId.value, workflowId.value, row.native_input_schema_id))
 }
 
-function openCreateSchemaDialog() {
-  prepareRoutingFormSwitch()
-  router.push(workflowInputSchemaCreatePath(orgId.value, workflowId.value))
+function openArchive(row: RoutingVersionRowRecord) {
+  archiveRow.value = row
+  archiveOpen.value = true
 }
 
-async function runRoutingAction(action: () => Promise<unknown>, successTitle: string, fallbackError: string) {
+async function confirmArchive(requiredLabel: string) {
+  if (!archiveRow.value) return
   saving.value = true
   try {
-    await action()
-    toast({ title: successTitle })
+    await routing.archiveInputSchema(archiveRow.value.native_input_schema_id, requiredLabel)
+    toast({ title: t('workflowRouting.archivedInputSchema') })
+    archiveOpen.value = false
+    archiveRow.value = null
     await loadData()
   }
   catch (err) {
-    toast({ title: getErrorMessage(err, fallbackError), variant: 'destructive' })
+    toast({ title: getErrorMessage(err, t('workflowRouting.errorArchiveSchema')), variant: 'destructive' })
   }
   finally {
     saving.value = false
   }
-}
-
-function openRoutingDeleteDialog(target: RoutingDeleteTarget) {
-  deleteTarget.value = target
-  deleteDialogOpen.value = true
-}
-
-function cancelRoutingDelete() {
-  if (saving.value) return
-  deleteDialogOpen.value = false
-  deleteTarget.value = null
-}
-
-async function confirmRoutingDelete() {
-  if (!deleteTarget.value) return
-  const target = deleteTarget.value
-  await runRoutingAction(target.action, target.successTitle, target.fallbackError)
-  deleteDialogOpen.value = false
-  deleteTarget.value = null
-}
-
-function onDeleteSchema(schema: WorkflowInputSchemaRecord) {
-  openRoutingDeleteDialog({
-    message: t('workflowRouting.confirmDeleteSchema', { name: `${schema.code} v${schema.version_number}` }),
-    successTitle: t('workflowRouting.deletedInputSchema'),
-    fallbackError: 'Failed to delete input schema',
-    action: () => routing.deleteInputSchema(schema.id),
-  })
-}
-
-function onSetDefaultSchema(schema: WorkflowInputSchemaRecord) {
-  routing.setInputSchemaDefault(schema.id).then(loadData)
-}
-
-function onActivateSchema(schema: WorkflowInputSchemaRecord) {
-  routing.updateInputSchemaStatus(schema.id, 'active').then(loadData)
-}
-
-async function onCreateMapper() {
-  saving.value = true
-  try {
-    const rules = parseObjectJson(mapperForm.rulesJson, 'Mapper rules')
-    validateMapperRules(rules)
-    if (editingMapperId.value) {
-      await routing.updateInputMapper(editingMapperId.value, {
-        name: mapperForm.name.trim(),
-        mapper_type: mapperForm.mapperType,
-        rules,
-      })
-      editingMapperId.value = null
-      toast({ title: t('workflowRouting.updatedMapper') })
-    }
-    else {
-      await routing.createInputMapper(workflowId.value, {
-        name: mapperForm.name.trim(),
-        mapper_type: mapperForm.mapperType,
-        rules,
-        is_active: true,
-      })
-      toast({ title: t('workflowRouting.createdMapper') })
-    }
-    mapperDialogOpen.value = false
-    cancelEditMapper()
-    await loadData()
-  }
-  catch (err) {
-    toast({ title: getErrorMessage(err, t('workflowRouting.errorCreateMapper')), variant: 'destructive' })
-  }
-  finally {
-    saving.value = false
-  }
-}
-
-function startEditMapper(mapper: WorkflowInputMapperRecord) {
-  prepareRoutingFormSwitch()
-  editingMapperId.value = mapper.id
-  mapperForm.name = mapper.name
-  mapperForm.mapperType = mapper.mapper_type
-  mapperForm.rulesJson = JSON.stringify(mapper.rules ?? {}, null, 2)
-  mapperDialogOpen.value = true
-}
-
-function cancelEditMapper() {
-  editingMapperId.value = null
-  mapperForm.name = 'Map public payload'
-  mapperForm.mapperType = 'internal'
-  mapperForm.rulesJson = '{\n  "copy_all": true,\n  "mapping": {}\n}'
-}
-
-function openCreateMapperDialog() {
-  prepareRoutingFormSwitch()
-  cancelEditMapper()
-  mapperDialogOpen.value = true
-}
-
-async function onToggleMapper(mapper: WorkflowInputMapperRecord) {
-  await runRoutingAction(
-    () => routing.setInputMapperActive(mapper.id, !mapper.is_active),
-    mapper.is_active ? t('workflowRouting.deactivatedMapper') : t('workflowRouting.activatedMapper'),
-    'Failed to update mapper',
-  )
-}
-
-function onDeleteMapper(mapper: WorkflowInputMapperRecord) {
-  openRoutingDeleteDialog({
-    message: t('workflowRouting.confirmDeleteMapper', { name: mapper.name }),
-    successTitle: t('workflowRouting.deletedMapper'),
-    fallbackError: 'Failed to delete mapper',
-    action: () => routing.deleteInputMapper(mapper.id),
-  })
-}
-
-async function onCreateCompatibility() {
-  saving.value = true
-  try {
-    const payload = {
-      workflow_input_schema_id: Number(compatibilityForm.inputSchemaId),
-      workflow_input_mapper_id: compatibilityForm.mapperId ? Number(compatibilityForm.mapperId) : undefined,
-      compatibility_type: compatibilityForm.compatibilityType,
-      default_values: parseObjectJson(compatibilityForm.defaultValuesJson, 'Default values'),
-      is_active: true,
-      is_default_route: compatibilityForm.isDefaultRoute,
-    }
-    if (editingCompatibilityId.value) {
-      await routing.updateCompatibility(editingCompatibilityId.value, payload)
-      editingCompatibilityId.value = null
-      toast({ title: t('workflowRouting.updatedCompatibility') })
-    }
-    else {
-      await routing.createCompatibility(Number(compatibilityForm.versionId), payload)
-      toast({ title: t('workflowRouting.createdCompatibility') })
-    }
-    compatibilityDialogOpen.value = false
-    cancelEditCompatibility()
-    await loadData()
-  }
-  catch (err) {
-    toast({ title: getErrorMessage(err, t('workflowRouting.errorCreateCompatibility')), variant: 'destructive' })
-  }
-  finally {
-    saving.value = false
-  }
-}
-
-function startEditCompatibility(compatibility: WorkflowSchemaCompatibility) {
-  prepareRoutingFormSwitch()
-  editingCompatibilityId.value = compatibility.id
-  compatibilityForm.versionId = String(compatibility.workflow_version_id)
-  compatibilityForm.inputSchemaId = String(compatibility.workflow_input_schema_id)
-  compatibilityForm.mapperId = compatibility.workflow_input_mapper_id ? String(compatibility.workflow_input_mapper_id) : ''
-  compatibilityForm.compatibilityType = compatibility.compatibility_type
-  compatibilityForm.isDefaultRoute = compatibility.is_default_route
-  compatibilityForm.defaultValuesJson = JSON.stringify(compatibility.default_values ?? {}, null, 2)
-  compatibilityDialogOpen.value = true
-}
-
-function cancelEditCompatibility() {
-  editingCompatibilityId.value = null
-  compatibilityForm.versionId = ''
-  compatibilityForm.inputSchemaId = ''
-  compatibilityForm.mapperId = ''
-  compatibilityForm.compatibilityType = 'native'
-  compatibilityForm.isDefaultRoute = false
-  compatibilityForm.defaultValuesJson = '{}'
-}
-
-function openCreateCompatibilityDialog() {
-  prepareRoutingFormSwitch()
-  cancelEditCompatibility()
-  compatibilityDialogOpen.value = true
-}
-
-async function onDeactivateCompatibility(compatibility: WorkflowSchemaCompatibility) {
-  await runRoutingAction(
-    () => routing.deactivateCompatibility(compatibility.id),
-    t('workflowRouting.deactivatedCompatibility'),
-    'Failed to deactivate compatibility',
-  )
-}
-
-function onDeleteCompatibility(compatibility: WorkflowSchemaCompatibility) {
-  openRoutingDeleteDialog({
-    message: t('workflowRouting.confirmDeleteCompatibility', { route: `${schemaLabel(compatibility.workflow_input_schema_id)} ${t('workflowRouting.to')} ${versionLabel(compatibility.workflow_version_id)}` }),
-    successTitle: t('workflowRouting.deletedCompatibility'),
-    fallbackError: 'Failed to delete compatibility',
-    action: () => routing.deleteCompatibility(compatibility.id),
-  })
-}
-
-function onMakeDefaultCompatibility(compatibility: WorkflowSchemaCompatibility) {
-  routing.setCompatibilityDefaultRoute(compatibility.id, true).then(loadData)
-}
-
-async function onCreateExperiment() {
-  saving.value = true
-  try {
-    if (editingExperimentId.value) {
-      await routing.updateExperiment(editingExperimentId.value, {
-        name: experimentForm.name.trim(),
-        experiment_type: experimentForm.experimentType,
-      })
-      await routing.updateExperimentStatus(editingExperimentId.value, experimentForm.status)
-      editingExperimentId.value = null
-      toast({ title: t('workflowRouting.updatedExperiment') })
-    }
-    else {
-      await routing.createExperiment(workflowId.value, {
-        name: experimentForm.name.trim(),
-        experiment_type: experimentForm.experimentType,
-        status: experimentForm.status,
-      })
-      toast({ title: t('workflowRouting.createdExperiment') })
-    }
-    experimentDialogOpen.value = false
-    cancelEditExperiment()
-    await loadData()
-  }
-  catch (err) {
-    toast({ title: getErrorMessage(err, t('workflowRouting.errorCreateExperiment')), variant: 'destructive' })
-  }
-  finally {
-    saving.value = false
-  }
-}
-
-function startEditExperiment(experiment: WorkflowExperiment) {
-  prepareRoutingFormSwitch()
-  editingExperimentId.value = experiment.id
-  experimentForm.name = experiment.name
-  experimentForm.experimentType = experiment.experiment_type
-  experimentForm.status = experiment.status
-  experimentDialogOpen.value = true
-}
-
-function cancelEditExperiment() {
-  editingExperimentId.value = null
-  experimentForm.name = 'Canary route'
-  experimentForm.experimentType = 'canary'
-  experimentForm.status = 'draft'
-}
-
-function openCreateExperimentDialog() {
-  prepareRoutingFormSwitch()
-  cancelEditExperiment()
-  experimentDialogOpen.value = true
-}
-
-async function onPauseExperiment(experiment: WorkflowExperiment) {
-  await runRoutingAction(
-    () => routing.updateExperimentStatus(experiment.id, 'paused'),
-    t('workflowRouting.pausedExperiment'),
-    'Failed to pause experiment',
-  )
-}
-
-function onDeleteExperiment(experiment: WorkflowExperiment) {
-  openRoutingDeleteDialog({
-    message: t('workflowRouting.confirmDeleteExperiment', { name: experiment.name }),
-    successTitle: t('workflowRouting.deletedExperiment'),
-    fallbackError: 'Failed to delete experiment',
-    action: () => routing.deleteExperiment(experiment.id),
-  })
-}
-
-function onActivateExperiment(experiment: WorkflowExperiment) {
-  routing.updateExperimentStatus(experiment.id, 'active').then(loadData)
-}
-
-async function onCreateScope() {
-  saving.value = true
-  try {
-    const payload = {
-      workflow_input_schema_id: Number(scopeForm.inputSchemaId),
-      traffic_percent: Number(scopeForm.trafficPercent),
-      fallback_policy: scopeForm.fallbackPolicy,
-      fallback_workflow_version_id: scopeForm.fallbackVersionId ? Number(scopeForm.fallbackVersionId) : undefined,
-      traffic_conditions: parseObjectJson(scopeForm.trafficConditionsJson, 'Traffic conditions'),
-    }
-    if (editingScopeId.value) {
-      await routing.updateExperimentScope(editingScopeId.value, payload)
-      editingScopeId.value = null
-      toast({ title: t('workflowRouting.updatedScope') })
-    }
-    else {
-      await routing.createExperimentScope(Number(scopeForm.experimentId), payload)
-      toast({ title: t('workflowRouting.createdScope') })
-    }
-    scopeDialogOpen.value = false
-    cancelEditScope()
-    await loadData()
-  }
-  catch (err) {
-    toast({ title: getErrorMessage(err, t('workflowRouting.errorCreateScope')), variant: 'destructive' })
-  }
-  finally {
-    saving.value = false
-  }
-}
-
-function startEditScope(experiment: WorkflowExperiment, scope: WorkflowExperimentScope) {
-  prepareRoutingFormSwitch()
-  editingScopeId.value = scope.id
-  scopeForm.experimentId = String(experiment.id)
-  scopeForm.inputSchemaId = String(scope.workflow_input_schema_id)
-  scopeForm.trafficPercent = scope.traffic_percent
-  scopeForm.fallbackPolicy = scope.fallback_policy
-  scopeForm.fallbackVersionId = scope.fallback_workflow_version_id ? String(scope.fallback_workflow_version_id) : ''
-  scopeForm.trafficConditionsJson = JSON.stringify(scope.traffic_conditions ?? {}, null, 2)
-  scopeDialogOpen.value = true
-}
-
-function cancelEditScope() {
-  editingScopeId.value = null
-  scopeForm.experimentId = ''
-  scopeForm.inputSchemaId = ''
-  scopeForm.trafficPercent = 100
-  scopeForm.fallbackPolicy = 'default_route'
-  scopeForm.fallbackVersionId = ''
-  scopeForm.trafficConditionsJson = '{}'
-}
-
-function openCreateScopeDialog(experiment?: WorkflowExperiment) {
-  prepareRoutingFormSwitch()
-  cancelEditScope()
-  if (experiment) scopeForm.experimentId = String(experiment.id)
-  scopeDialogOpen.value = true
-}
-
-function onDeleteScope(scope: WorkflowExperimentScope) {
-  openRoutingDeleteDialog({
-    message: t('workflowRouting.confirmDeleteScope', { id: scope.id }),
-    successTitle: t('workflowRouting.deletedScope'),
-    fallbackError: 'Failed to delete scope',
-    action: () => routing.deleteExperimentScope(scope.id),
-  })
-}
-
-async function onCreateVariant() {
-  saving.value = true
-  try {
-    const payload = {
-      workflow_version_id: Number(variantForm.versionId),
-      traffic_weight: Number(variantForm.trafficWeight),
-      is_control_group: variantForm.isControlGroup,
-      is_active: variantForm.isActive,
-    }
-    if (editingVariantId.value) {
-      await routing.updateExperimentVariant(editingVariantId.value, payload)
-      editingVariantId.value = null
-      toast({ title: t('workflowRouting.updatedVariant') })
-    }
-    else {
-      await routing.createExperimentVariant(Number(variantForm.scopeId), payload)
-      toast({ title: t('workflowRouting.createdVariant') })
-    }
-    variantDialogOpen.value = false
-    cancelEditVariant()
-    await loadData()
-  }
-  catch (err) {
-    toast({ title: getErrorMessage(err, t('workflowRouting.errorCreateVariant')), variant: 'destructive' })
-  }
-  finally {
-    saving.value = false
-  }
-}
-
-function startEditVariant(scope: WorkflowExperimentScope, variant: WorkflowExperimentVariant) {
-  prepareRoutingFormSwitch()
-  editingVariantId.value = variant.id
-  variantForm.scopeId = String(scope.id)
-  variantForm.versionId = String(variant.workflow_version_id)
-  variantForm.trafficWeight = variant.traffic_weight
-  variantForm.isControlGroup = variant.is_control_group
-  variantForm.isActive = variant.is_active
-  variantDialogOpen.value = true
-}
-
-function cancelEditVariant() {
-  editingVariantId.value = null
-  variantForm.scopeId = ''
-  variantForm.versionId = ''
-  variantForm.trafficWeight = 100
-  variantForm.isControlGroup = false
-  variantForm.isActive = true
-}
-
-function openCreateVariantDialog(scope?: WorkflowExperimentScope) {
-  prepareRoutingFormSwitch()
-  cancelEditVariant()
-  if (scope) variantForm.scopeId = String(scope.id)
-  variantDialogOpen.value = true
-}
-
-function onDeleteVariant(variant: WorkflowExperimentVariant) {
-  openRoutingDeleteDialog({
-    message: t('workflowRouting.confirmDeleteVariant', { id: variant.id }),
-    successTitle: t('workflowRouting.deletedVariant'),
-    fallbackError: 'Failed to delete variant',
-    action: () => routing.deleteExperimentVariant(variant.id),
-  })
 }
 
 onMounted(() => {
@@ -654,26 +97,20 @@ onMounted(() => {
               <Route class="h-6 w-6" />
             </div>
             <div>
-              <h1 class="text-2xl font-semibold">{{ t('workflowRouting.title') }}</h1>
+              <h1 class="text-2xl font-semibold">{{ t('workflowRouting.routingVersions') }}</h1>
               <p class="text-sm text-muted-foreground">
                 {{ workflowName || t('common.loading') }}
               </p>
             </div>
           </div>
         </div>
-        <div class="grid grid-cols-3 gap-3 text-center text-sm">
-          <div class="rounded-2xl border bg-background/70 p-3">
-            <div class="text-xl font-semibold">{{ schemas.length }}</div>
-            <div class="text-muted-foreground">{{ t('workflowRouting.schemas') }}</div>
-          </div>
-          <div class="rounded-2xl border bg-background/70 p-3">
-            <div class="text-xl font-semibold">{{ compatibilities.length }}</div>
-            <div class="text-muted-foreground">{{ t('workflowRouting.routes') }}</div>
-          </div>
-          <div class="rounded-2xl border bg-background/70 p-3">
-            <div class="text-xl font-semibold">{{ experiments.length }}</div>
-            <div class="text-muted-foreground">{{ t('workflowRouting.experiments') }}</div>
-          </div>
+        <div class="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" @click="router.push(workflowRoutingTestingPath(orgId, workflowId))">
+            {{ t('workflowRouting.testing') }}
+          </Button>
+          <Button type="button" @click="router.push(workflowInputSchemaCreatePath(orgId, workflowId))">
+            {{ t('workflowRouting.createInputSchema') }}
+          </Button>
         </div>
       </div>
     </div>
@@ -681,127 +118,20 @@ onMounted(() => {
     <div v-if="loading" class="text-sm text-muted-foreground">
       {{ t('common.loading') }}
     </div>
-
-    <div v-else class="space-y-6">
-      <div class="space-y-6">
-        <RoutingInputSchemasList
-          :schemas="schemas"
-          :saving="saving"
-          @create="openCreateSchemaDialog"
-          @edit="startEditSchema"
-          @set-default="onSetDefaultSchema"
-          @activate="onActivateSchema"
-          @delete="onDeleteSchema"
-        />
-
-        <RoutingInputMappersList
-          :mappers="mappers"
-          :saving="saving"
-          @create="openCreateMapperDialog"
-          @edit="startEditMapper"
-          @toggle="onToggleMapper"
-          @delete="onDeleteMapper"
-        />
-
-        <RoutingCompatibilitiesList
-          :compatibilities="compatibilities"
-          :saving="saving"
-          :schema-label="schemaLabel"
-          :version-label="versionLabel"
-          @create="openCreateCompatibilityDialog"
-          @edit="startEditCompatibility"
-          @make-default="onMakeDefaultCompatibility"
-          @deactivate="onDeactivateCompatibility"
-          @delete="onDeleteCompatibility"
-        />
-
-        <RoutingExperimentsList
-          :experiments="experiments"
-          :scopes-by-experiment="scopesByExperiment"
-          :variants-by-scope="variantsByScope"
-          :saving="saving"
-          :schema-label="schemaLabel"
-          :version-label="versionLabel"
-          @create="openCreateExperimentDialog"
-          @create-scope="openCreateScopeDialog"
-          @edit="startEditExperiment"
-          @activate="onActivateExperiment"
-          @pause="onPauseExperiment"
-          @delete="onDeleteExperiment"
-          @create-variant="openCreateVariantDialog"
-          @edit-scope="startEditScope"
-          @delete-scope="onDeleteScope"
-          @edit-variant="startEditVariant"
-          @delete-variant="onDeleteVariant"
-        />
-      </div>
-    </div>
-
-    <RoutingInputMapperDialog
-      v-model:open="mapperDialogOpen"
-      :form="mapperForm"
+    <RoutingVersionTable
+      v-else
+      :rows="rows"
       :saving="saving"
-      :editing-id="editingMapperId"
-      @submit="onCreateMapper"
-      @cancel="cancelEditMapper"
+      @edit="editRow"
+      @compatibility="openCompatibility"
+      @archive="openArchive"
     />
 
-    <RoutingCompatibilityDialog
-      v-model:open="compatibilityDialogOpen"
-      :form="compatibilityForm"
-      :active-versions="activeVersions"
-      :active-schemas="activeSchemas"
-      :mappers="mappers"
+    <RoutingArchiveSchemaDialog
+      v-model:open="archiveOpen"
+      :row="archiveRow"
       :saving="saving"
-      :editing-id="editingCompatibilityId"
-      :version-label="versionLabel"
-      :schema-label="schemaLabel"
-      @submit="onCreateCompatibility"
-      @cancel="cancelEditCompatibility"
-    />
-
-    <RoutingExperimentDialog
-      v-model:open="experimentDialogOpen"
-      :form="experimentForm"
-      :saving="saving"
-      :editing-id="editingExperimentId"
-      @submit="onCreateExperiment"
-      @cancel="cancelEditExperiment"
-    />
-
-    <RoutingScopeDialog
-      v-model:open="scopeDialogOpen"
-      :form="scopeForm"
-      :experiments="experiments"
-      :active-schemas="activeSchemas"
-      :saving="saving"
-      :editing-id="editingScopeId"
-      :schema-label="schemaLabel"
-      @submit="onCreateScope"
-      @cancel="cancelEditScope"
-    />
-
-    <RoutingVariantDialog
-      v-model:open="variantDialogOpen"
-      :form="variantForm"
-      :experiments="experiments"
-      :scopes-by-experiment="scopesByExperiment"
-      :active-versions="activeVersions"
-      :saving="saving"
-      :editing-id="editingVariantId"
-      :version-label="versionLabel"
-      :schema-label="schemaLabel"
-      @submit="onCreateVariant"
-      @cancel="cancelEditVariant"
-    />
-
-    <RoutingDeleteDialog
-      v-model:open="deleteDialogOpen"
-      :target="deleteTarget"
-      :saving="saving"
-      @cancel="cancelRoutingDelete"
-      @confirm="confirmRoutingDelete"
+      @confirm="confirmArchive"
     />
   </div>
 </template>
-

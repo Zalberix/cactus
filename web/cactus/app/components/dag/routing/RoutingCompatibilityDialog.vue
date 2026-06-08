@@ -75,7 +75,7 @@ function cancel() {
             <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldInputMapper') }}</span>
             <select v-model="form.mapperId" class="h-10 w-full rounded-md border bg-background px-3 text-sm">
               <option value="">No mapper</option>
-              <option v-for="mapper in mappers" :key="mapper.id" :value="String(mapper.id)">{{ mapper.name }}</option>
+              <option v-for="mapper in mappers" :key="mapper.id" :value="String(mapper.id)">Mapper #{{ mapper.id }}</option>
             </select>
           </label>
           <label class="block space-y-1.5">

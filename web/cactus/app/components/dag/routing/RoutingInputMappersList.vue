@@ -39,11 +39,11 @@ const { t } = useI18n()
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div class="flex items-center gap-2">
-              <span class="font-medium">{{ mapper.name }}</span>
+              <span class="font-medium">Mapper #{{ mapper.id }}</span>
               <Badge variant="outline">{{ mapper.mapper_type }}</Badge>
               <Badge :variant="mapper.is_active ? 'default' : 'outline'">{{ mapper.is_active ? 'active' : 'inactive' }}</Badge>
             </div>
-            <p class="mt-1 text-xs text-muted-foreground">Mapper #{{ mapper.id }}</p>
+            <p class="mt-1 text-xs text-muted-foreground">{{ t('workflowRouting.fieldMapperRulesJson') }}</p>
           </div>
           <div class="flex gap-2">
             <Button size="sm" variant="outline" :disabled="saving" :data-testid="`edit-mapper-${mapper.id}`" @click="emit('edit', mapper)">

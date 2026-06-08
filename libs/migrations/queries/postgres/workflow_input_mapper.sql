@@ -1,6 +1,6 @@
 -- name: CreateWorkflowInputMapper :one
-INSERT INTO "workflow_input_mapper" (workflow_id, name, mapper_type, rules, is_active, created_by_user_id, updated_by_user_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO "workflow_input_mapper" (workflow_id, mapper_type, rules, is_active, created_by_user_id, updated_by_user_id)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: GetWorkflowInputMapperByID :one
@@ -10,15 +10,14 @@ WHERE id = $1 AND deleted_at IS NULL;
 -- name: ListWorkflowInputMappersByWorkflowID :many
 SELECT * FROM "workflow_input_mapper"
 WHERE workflow_id = $1 AND deleted_at IS NULL
-ORDER BY is_active DESC, name, id;
+ORDER BY is_active DESC, id;
 
 -- name: UpdateWorkflowInputMapper :one
 UPDATE "workflow_input_mapper"
-SET name = $2,
-    mapper_type = $3,
-    rules = $4,
-    is_active = $5,
-    updated_by_user_id = $6,
+SET mapper_type = $2,
+    rules = $3,
+    is_active = $4,
+    updated_by_user_id = $5,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;

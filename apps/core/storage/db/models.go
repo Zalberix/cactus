@@ -268,7 +268,6 @@ type WorkflowExperimentVariant struct {
 type WorkflowInputMapper struct {
 	ID              int32            `json:"id"`
 	WorkflowID      int32            `json:"workflow_id"`
-	Name            string           `json:"name"`
 	MapperType      string           `json:"mapper_type"`
 	Rules           []byte           `json:"rules"`
 	IsActive        bool             `json:"is_active"`

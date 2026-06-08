@@ -51,7 +51,7 @@ function cancel() {
       <div data-testid="scope-routing-dialog">
         <DialogHeader>
           <DialogTitle>{{ editingId ? t('workflowRouting.updateScope') : t('workflowRouting.createScope') }}</DialogTitle>
-          <DialogDescription>{{ t('workflowRouting.experimentsDescription') }}</DialogDescription>
+          <DialogDescription>{{ t('workflowRouting.testingDescription') }}</DialogDescription>
         </DialogHeader>
         <form class="mt-4 space-y-3" @submit.prevent="emit('submit')">
           <label class="block space-y-1.5">

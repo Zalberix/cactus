@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { WorkflowInputSchemaField } from '~/composables/useWorkflows'
+import type { WorkflowInputSchemaRecord } from '~/composables/useWorkflowRouting'
 import type { WorkflowInputField } from '~/components/dag/node-editor/workflow-input-utils'
 import { ArrowLeft, FileJson, Pencil, Plus, Trash2 } from 'lucide-vue-next'
 import {
@@ -43,6 +44,7 @@ const inputTypes: WorkflowInputSchemaField['type'][] = ['string', 'number', 'int
 const loading = ref(isEdit.value)
 const saving = ref(false)
 const schema = ref<Record<string, unknown>>(emptySchema())
+const loadedSchema = ref<WorkflowInputSchemaRecord | null>(null)
 const fields = computed(() => workflowInputFieldsFromSchema(schema.value))
 
 const form = reactive({
@@ -61,10 +63,13 @@ const fieldForm = ref<WorkflowInputSchemaField>({
   description: '',
 })
 
-const canSaveField = computed(() => fieldForm.value.name.trim().length > 0 && !saving.value)
-const canSaveSchema = computed(() => form.code.trim().length > 0 && !saving.value && !loading.value)
+const isReadonly = computed(() => isEdit.value && loadedSchema.value?.usage?.is_readonly === true)
+const isLocked = computed(() => saving.value || isReadonly.value)
+const canSaveField = computed(() => fieldForm.value.name.trim().length > 0 && !isLocked.value)
+const canSaveSchema = computed(() => form.code.trim().length > 0 && !loading.value && !isLocked.value)
 const pageTitle = computed(() => isEdit.value ? t('workflowRouting.editInputSchema') : t('workflowRouting.createInputSchema'))
 const saveLabel = computed(() => isEdit.value ? t('workflowRouting.updateInputSchema') : t('workflowRouting.createInputSchema'))
+const readonlyReasons = computed(() => loadedSchema.value?.usage?.reasons ?? [])
 
 function emptySchema(): Record<string, unknown> {
   return {
@@ -82,6 +87,7 @@ async function loadInputSchema() {
   loading.value = true
   try {
     const record = await routing.fetchInputSchema(inputSchemaId.value)
+    loadedSchema.value = record
     form.code = record.code
     form.status = record.status
     form.isDefault = record.is_default
@@ -100,6 +106,7 @@ function goBack() {
 }
 
 function startCreateField() {
+  if (isReadonly.value) return
   deletingField.value = null
   editingFieldName.value = null
   fieldForm.value = {
@@ -112,6 +119,7 @@ function startCreateField() {
 }
 
 function startEditField(field: WorkflowInputField) {
+  if (isReadonly.value) return
   deletingField.value = null
   editingFieldName.value = field.name
   fieldForm.value = {
@@ -124,7 +132,7 @@ function startEditField(field: WorkflowInputField) {
 }
 
 function saveField() {
-  if (!canSaveField.value) return
+  if (isReadonly.value || !canSaveField.value) return
   const fieldName = fieldForm.value.name.trim()
   const description = fieldForm.value.description?.trim()
   const baseSchema = editingFieldName.value && editingFieldName.value !== fieldName
@@ -141,18 +149,32 @@ function saveField() {
 }
 
 function confirmDeleteField(field: WorkflowInputField) {
+  if (isReadonly.value) return
   fieldFormOpen.value = false
   deletingField.value = field
 }
 
 function deleteField() {
-  if (!deletingField.value || saving.value) return
+  if (isReadonly.value || !deletingField.value || saving.value) return
   schema.value = deleteWorkflowInputFieldFromSchema(schema.value, deletingField.value.name)
   deletingField.value = null
 }
 
+function readonlyReasonLabel(reason: string) {
+  switch (reason) {
+    case 'message':
+      return t('workflowRouting.readonlyReasonMessage')
+    case 'mapper':
+      return t('workflowRouting.readonlyReasonMapper')
+    case 'experiment':
+      return t('workflowRouting.readonlyReasonTesting')
+    default:
+      return reason
+  }
+}
+
 async function saveSchema() {
-  if (!canSaveSchema.value) return
+  if (isReadonly.value || !canSaveSchema.value) return
   saving.value = true
   try {
     if (isEdit.value) {
@@ -225,6 +247,19 @@ onMounted(() => {
     </div>
 
     <div v-else class="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <div
+        v-if="isReadonly"
+        class="xl:col-span-2 rounded-2xl border border-amber-300/60 bg-amber-50 p-4 text-sm text-amber-950"
+        data-testid="routing-schema-readonly-banner"
+      >
+        <div class="font-medium">{{ t('workflowRouting.readonlySchema') }}</div>
+        <div class="mt-2 flex flex-wrap gap-2">
+          <Badge v-for="reason in readonlyReasons" :key="reason" variant="outline">
+            {{ readonlyReasonLabel(reason) }}
+          </Badge>
+        </div>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle>{{ t('workflowRouting.inputSchemas') }}</CardTitle>
@@ -237,7 +272,7 @@ onMounted(() => {
               v-model="form.code"
               data-testid="routing-schema-code-input"
               :placeholder="t('workflowRouting.placeholderSchemaCode')"
-              :disabled="saving"
+              :disabled="isLocked"
             />
           </label>
           <label class="block space-y-1.5">
@@ -245,7 +280,7 @@ onMounted(() => {
             <select
               v-model="form.status"
               class="h-10 w-full rounded-md border bg-background px-3 text-sm"
-              :disabled="saving"
+              :disabled="isLocked"
             >
               <option value="draft">{{ t('workflowRouting.statusDraft') }}</option>
               <option value="active">{{ t('workflowRouting.statusActive') }}</option>
@@ -255,7 +290,7 @@ onMounted(() => {
           <label class="block space-y-1.5">
             <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldDefaultSchema') }}</span>
             <span class="flex items-center gap-2 text-sm">
-              <input v-model="form.isDefault" type="checkbox" :disabled="saving">
+              <input v-model="form.isDefault" type="checkbox" :disabled="isLocked">
               {{ t('workflowRouting.fieldEnabled') }}
             </span>
           </label>
@@ -273,7 +308,7 @@ onMounted(() => {
               type="button"
               size="sm"
               class="gap-2"
-              :disabled="saving"
+              :disabled="isLocked"
               data-testid="routing-schema-add-field"
               @click="startCreateField"
             >
@@ -323,7 +358,7 @@ onMounted(() => {
                         class="h-8 w-8"
                         :aria-label="t('workflowInputs.editInput')"
                         :title="t('workflowInputs.editInput')"
-                        :disabled="saving"
+                        :disabled="isLocked"
                         :data-testid="`routing-schema-edit-field-${field.name}`"
                         @click="startEditField(field)"
                       >
@@ -336,7 +371,7 @@ onMounted(() => {
                         class="h-8 w-8 text-destructive hover:text-destructive"
                         :aria-label="t('workflowInputs.deleteInput')"
                         :title="t('workflowInputs.deleteInput')"
-                        :disabled="saving"
+                        :disabled="isLocked"
                         :data-testid="`routing-schema-delete-field-${field.name}`"
                         @click="confirmDeleteField(field)"
                       >
@@ -356,7 +391,7 @@ onMounted(() => {
                 <Input
                   v-model="fieldForm.name"
                   data-testid="routing-schema-field-name-input"
-                  :disabled="saving"
+                  :disabled="isLocked"
                   class="h-9"
                 />
               </label>
@@ -366,7 +401,7 @@ onMounted(() => {
                   v-model="fieldForm.type"
                   data-testid="routing-schema-field-type-select"
                   class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  :disabled="saving"
+                  :disabled="isLocked"
                 >
                   <option v-for="type in inputTypes" :key="type" :value="type">
                     {{ type }}
@@ -379,7 +414,7 @@ onMounted(() => {
                   data-testid="routing-schema-field-required-checkbox"
                   type="checkbox"
                   class="h-4 w-4 rounded border-input"
-                  :disabled="saving"
+                  :disabled="isLocked"
                 >
                 <span>{{ t('workflowInputs.required') }}</span>
               </label>
@@ -390,11 +425,11 @@ onMounted(() => {
                 v-model="fieldForm.description"
                 data-testid="routing-schema-field-description-input"
                 class="h-9"
-                :disabled="saving"
+                :disabled="isLocked"
               />
             </label>
             <div class="mt-4 flex justify-end gap-2">
-              <Button type="button" variant="outline" :disabled="saving" @click="fieldFormOpen = false">
+              <Button type="button" variant="outline" :disabled="isLocked" @click="fieldFormOpen = false">
                 {{ t('common.cancel') }}
               </Button>
               <Button type="button" :disabled="!canSaveField" data-testid="routing-schema-save-field" @click="saveField">
@@ -411,10 +446,10 @@ onMounted(() => {
               {{ t('workflowInputs.deleteConfirmBody') }}
             </p>
             <div class="mt-4 flex justify-end gap-2">
-              <Button type="button" variant="outline" :disabled="saving" @click="deletingField = null">
+              <Button type="button" variant="outline" :disabled="isLocked" @click="deletingField = null">
                 {{ t('common.cancel') }}
               </Button>
-              <Button type="button" variant="destructive" :disabled="saving" @click="deleteField">
+              <Button type="button" variant="destructive" :disabled="isLocked" @click="deleteField">
                 {{ t('common.delete') }}
               </Button>
             </div>

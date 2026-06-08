@@ -54,7 +54,7 @@ function cancel() {
       <div data-testid="variant-routing-dialog">
         <DialogHeader>
           <DialogTitle>{{ editingId ? t('workflowRouting.updateVariant') : t('workflowRouting.createVariant') }}</DialogTitle>
-          <DialogDescription>{{ t('workflowRouting.experimentsDescription') }}</DialogDescription>
+          <DialogDescription>{{ t('workflowRouting.testingDescription') }}</DialogDescription>
         </DialogHeader>
         <form class="mt-4 space-y-3" @submit.prevent="emit('submit')">
           <label class="block space-y-1.5">
