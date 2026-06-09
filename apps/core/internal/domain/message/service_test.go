@@ -305,6 +305,10 @@ func (s *sendMessageStore) ListActiveWorkflowExperimentVariantsByScopeID(_ conte
 	return s.variants[workflowExperimentScopeID], nil
 }
 
+func (s *sendMessageStore) CountExperimentVariantRunsSince(context.Context, db.CountExperimentVariantRunsSinceParams) ([]db.CountExperimentVariantRunsSinceRow, error) {
+	return nil, nil
+}
+
 func (s *sendMessageStore) ListActiveRoutingCompatibilitiesByInputSchemaID(context.Context, int32) ([]db.ListActiveRoutingCompatibilitiesByInputSchemaIDRow, error) {
 	return []db.ListActiveRoutingCompatibilitiesByInputSchemaIDRow{{
 		ID:                1,

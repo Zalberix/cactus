@@ -113,7 +113,22 @@ SELECT
     s.conditions_hash,
     s.traffic_percent,
     s.fallback_policy,
-    s.fallback_workflow_version_id
+    s.fallback_workflow_version_id,
+    GREATEST(
+        e.created_at,
+        COALESCE(e.updated_at, e.created_at),
+        s.created_at,
+        COALESCE(s.updated_at, s.created_at),
+        COALESCE((
+            SELECT MAX(GREATEST(
+                v.created_at,
+                COALESCE(v.updated_at, v.created_at),
+                COALESCE(v.deleted_at, v.created_at)
+            ))
+            FROM "workflow_experiment_variant" v
+            WHERE v.workflow_experiment_scope_id = s.id
+        ), s.created_at)
+    )::timestamp AS traffic_changed_at
 FROM "workflow_experiment" e
 JOIN "workflow_experiment_scope" s ON s.workflow_experiment_id = e.id AND s.deleted_at IS NULL
 WHERE e.workflow_id = $1

@@ -223,7 +223,22 @@ SELECT
     s.conditions_hash,
     s.traffic_percent,
     s.fallback_policy,
-    s.fallback_workflow_version_id
+    s.fallback_workflow_version_id,
+    GREATEST(
+        e.created_at,
+        COALESCE(e.updated_at, e.created_at),
+        s.created_at,
+        COALESCE(s.updated_at, s.created_at),
+        COALESCE((
+            SELECT MAX(GREATEST(
+                v.created_at,
+                COALESCE(v.updated_at, v.created_at),
+                COALESCE(v.deleted_at, v.created_at)
+            ))
+            FROM "workflow_experiment_variant" v
+            WHERE v.workflow_experiment_scope_id = s.id
+        ), s.created_at)
+    )::timestamp AS traffic_changed_at
 FROM "workflow_experiment" e
 JOIN "workflow_experiment_scope" s ON s.workflow_experiment_id = e.id AND s.deleted_at IS NULL
 WHERE e.workflow_id = $1
@@ -243,16 +258,17 @@ type ListActiveExperimentScopesForRoutingParams struct {
 }
 
 type ListActiveExperimentScopesForRoutingRow struct {
-	WorkflowExperimentID      int32       `json:"workflow_experiment_id"`
-	WorkflowID                int32       `json:"workflow_id"`
-	ExperimentType            string      `json:"experiment_type"`
-	WorkflowExperimentScopeID int32       `json:"workflow_experiment_scope_id"`
-	WorkflowInputSchemaID     int32       `json:"workflow_input_schema_id"`
-	TrafficConditions         []byte      `json:"traffic_conditions"`
-	ConditionsHash            string      `json:"conditions_hash"`
-	TrafficPercent            int32       `json:"traffic_percent"`
-	FallbackPolicy            string      `json:"fallback_policy"`
-	FallbackWorkflowVersionID pgtype.Int4 `json:"fallback_workflow_version_id"`
+	WorkflowExperimentID      int32            `json:"workflow_experiment_id"`
+	WorkflowID                int32            `json:"workflow_id"`
+	ExperimentType            string           `json:"experiment_type"`
+	WorkflowExperimentScopeID int32            `json:"workflow_experiment_scope_id"`
+	WorkflowInputSchemaID     int32            `json:"workflow_input_schema_id"`
+	TrafficConditions         []byte           `json:"traffic_conditions"`
+	ConditionsHash            string           `json:"conditions_hash"`
+	TrafficPercent            int32            `json:"traffic_percent"`
+	FallbackPolicy            string           `json:"fallback_policy"`
+	FallbackWorkflowVersionID pgtype.Int4      `json:"fallback_workflow_version_id"`
+	TrafficChangedAt          pgtype.Timestamp `json:"traffic_changed_at"`
 }
 
 func (q *Queries) ListActiveExperimentScopesForRouting(ctx context.Context, arg ListActiveExperimentScopesForRoutingParams) ([]ListActiveExperimentScopesForRoutingRow, error) {
@@ -275,6 +291,7 @@ func (q *Queries) ListActiveExperimentScopesForRouting(ctx context.Context, arg 
 			&i.TrafficPercent,
 			&i.FallbackPolicy,
 			&i.FallbackWorkflowVersionID,
+			&i.TrafficChangedAt,
 		); err != nil {
 			return nil, err
 		}

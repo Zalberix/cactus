@@ -3,8 +3,10 @@ package message
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,6 +22,7 @@ import (
 type runtimeRoutingStore interface {
 	ListActiveExperimentScopesForRouting(ctx context.Context, arg db.ListActiveExperimentScopesForRoutingParams) ([]db.ListActiveExperimentScopesForRoutingRow, error)
 	ListActiveWorkflowExperimentVariantsByScopeID(ctx context.Context, workflowExperimentScopeID int32) ([]db.WorkflowExperimentVariant, error)
+	CountExperimentVariantRunsSince(ctx context.Context, arg db.CountExperimentVariantRunsSinceParams) ([]db.CountExperimentVariantRunsSinceRow, error)
 	ListActiveRoutingCompatibilitiesByInputSchemaID(ctx context.Context, workflowInputSchemaID int32) ([]db.ListActiveRoutingCompatibilitiesByInputSchemaIDRow, error)
 	GetDefaultRouteForInputSchema(ctx context.Context, workflowInputSchemaID int32) (db.WorkflowVersionInputSchemaCompatibility, error)
 	GetActiveWorkflowVersionInputSchemaCompatibilityByPair(ctx context.Context, arg db.GetActiveWorkflowVersionInputSchemaCompatibilityByPairParams) (db.WorkflowVersionInputSchemaCompatibility, error)
@@ -79,10 +82,7 @@ func (s *Service) selectRuntimeRoute(ctx context.Context, workflowID int32, inpu
 	}
 
 	payload, _ := decodeJSONObject(payloadJSON)
-	seed := strings.TrimSpace(idempotencyKey)
-	if seed == "" {
-		seed = canonicalRouteSeed(payload)
-	}
+	seed := routeSelectionSeed(payload, idempotencyKey, newRandomRouteSeed)
 
 	if selected, ok, err := s.selectExperimentRuntimeRoute(ctx, store, workflowID, inputSchemaID, experimentID, payload, seed); err != nil || ok {
 		if err != nil {
@@ -142,7 +142,11 @@ func (s *Service) selectExperimentRuntimeRoute(
 		if err != nil {
 			return runtimeRouteSelection{}, false, fmt.Errorf("list active experiment variants: %w", err)
 		}
-		variant, ok := selectWeightedVariant(variants, seed+":variant:"+strconv.Itoa(int(scope.WorkflowExperimentScopeID)))
+		variantCounts, err := countExperimentVariantRunsSinceTrafficChange(ctx, store, scope)
+		if err != nil {
+			return runtimeRouteSelection{}, false, err
+		}
+		variant, ok := selectMostUnderrepresentedVariant(variants, variantCounts)
 		if !ok {
 			selected, err := s.selectExperimentFallbackRuntimeRoute(ctx, store, inputSchemaID, scope, "experiment_no_variant")
 			if err != nil {
@@ -249,16 +253,16 @@ func (s *Service) selectDefaultRuntimeRoute(ctx context.Context, store runtimeRo
 			}),
 		}, nil
 	}
-		return runtimeRouteSelection{
-			WorkflowVersionID:          route.WorkflowVersionID,
-			InputSchemaCompatibilityID: routePgInt4(route.ID),
-			WorkflowInputMapperID:      route.WorkflowInputMapperID,
-			CompatibilityType:          route.CompatibilityType,
-			DefaultValues:              route.DefaultValues,
-			SelectionReason:            canonicalSelectionReason(reason),
-			RoutingDecision: routingDecisionJSON(map[string]any{
-				"reason":                        reason,
-				"workflow_version_id":           route.WorkflowVersionID,
+	return runtimeRouteSelection{
+		WorkflowVersionID:          route.WorkflowVersionID,
+		InputSchemaCompatibilityID: routePgInt4(route.ID),
+		WorkflowInputMapperID:      route.WorkflowInputMapperID,
+		CompatibilityType:          route.CompatibilityType,
+		DefaultValues:              route.DefaultValues,
+		SelectionReason:            canonicalSelectionReason(reason),
+		RoutingDecision: routingDecisionJSON(map[string]any{
+			"reason":                        reason,
+			"workflow_version_id":           route.WorkflowVersionID,
 			"input_schema_compatibility_id": route.ID,
 			"default_route":                 route.IsDefaultRoute,
 		}),
@@ -463,7 +467,27 @@ func setPathValue(output map[string]any, path string, value any) {
 	current[parts[len(parts)-1]] = value
 }
 
-func selectWeightedVariant(variants []db.WorkflowExperimentVariant, seed string) (db.WorkflowExperimentVariant, bool) {
+func countExperimentVariantRunsSinceTrafficChange(
+	ctx context.Context,
+	store runtimeRoutingStore,
+	scope db.ListActiveExperimentScopesForRoutingRow,
+) (map[int32]int32, error) {
+	rows, err := store.CountExperimentVariantRunsSince(ctx, db.CountExperimentVariantRunsSinceParams{
+		WorkflowExperimentScopeID: routePgInt4(scope.WorkflowExperimentScopeID),
+		CreatedAt:                 scope.TrafficChangedAt,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("count experiment variant runs since traffic change: %w", err)
+	}
+
+	counts := make(map[int32]int32, len(rows))
+	for _, row := range rows {
+		counts[row.WorkflowExperimentVariantID] = row.RunCount
+	}
+	return counts, nil
+}
+
+func selectMostUnderrepresentedVariant(variants []db.WorkflowExperimentVariant, counts map[int32]int32) (db.WorkflowExperimentVariant, bool) {
 	total := int32(0)
 	for _, variant := range variants {
 		if variant.IsActive && variant.TrafficWeight > 0 {
@@ -478,18 +502,31 @@ func selectWeightedVariant(variants []db.WorkflowExperimentVariant, seed string)
 		}
 		return db.WorkflowExperimentVariant{}, false
 	}
-	bucket := bucketPercent(seed)
-	cursor := int32(0)
+
+	totalRuns := int64(0)
 	for _, variant := range variants {
 		if !variant.IsActive || variant.TrafficWeight <= 0 {
 			continue
 		}
-		cursor += variant.TrafficWeight
-		if bucket < cursor {
-			return variant, true
+		totalRuns += int64(counts[variant.ID])
+	}
+
+	var selected db.WorkflowExperimentVariant
+	bestDeficit := int64(0)
+	hasSelected := false
+	for _, variant := range variants {
+		if !variant.IsActive || variant.TrafficWeight <= 0 {
+			continue
+		}
+		actual := int64(counts[variant.ID])
+		deficit := (totalRuns+1)*int64(variant.TrafficWeight) - actual*int64(total)
+		if !hasSelected || deficit > bestDeficit {
+			selected = variant
+			bestDeficit = deficit
+			hasSelected = true
 		}
 	}
-	return db.WorkflowExperimentVariant{}, false
+	return selected, hasSelected
 }
 
 func routeConditionsMatch(raw []byte, payload map[string]any) bool {
@@ -587,6 +624,29 @@ func canonicalRouteSeed(payload map[string]any) string {
 	}
 	raw, _ := json.Marshal(ordered)
 	return string(raw)
+}
+
+func routeSelectionSeed(payload map[string]any, idempotencyKey string, randomSeed func() string) string {
+	seed := strings.TrimSpace(idempotencyKey)
+	if seed != "" {
+		return seed
+	}
+
+	if randomSeed != nil {
+		if seed = strings.TrimSpace(randomSeed()); seed != "" {
+			return seed
+		}
+	}
+
+	return canonicalRouteSeed(payload)
+}
+
+func newRandomRouteSeed() string {
+	var seed [16]byte
+	if _, err := rand.Read(seed[:]); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(seed[:])
 }
 
 func bucketPercent(seed string) int32 {

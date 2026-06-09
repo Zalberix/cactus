@@ -11,6 +11,49 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countExperimentVariantRunsSince = `-- name: CountExperimentVariantRunsSince :many
+SELECT
+    wr.workflow_experiment_variant_id::int AS workflow_experiment_variant_id,
+    COUNT(*)::int AS run_count
+FROM "workflow_run" wr
+JOIN "message" m ON m.id = wr.message_id
+WHERE wr.workflow_experiment_scope_id = $1
+  AND wr.workflow_experiment_variant_id IS NOT NULL
+  AND m.created_at >= $2
+GROUP BY wr.workflow_experiment_variant_id
+ORDER BY wr.workflow_experiment_variant_id
+`
+
+type CountExperimentVariantRunsSinceParams struct {
+	WorkflowExperimentScopeID pgtype.Int4      `json:"workflow_experiment_scope_id"`
+	CreatedAt                 pgtype.Timestamp `json:"created_at"`
+}
+
+type CountExperimentVariantRunsSinceRow struct {
+	WorkflowExperimentVariantID int32 `json:"workflow_experiment_variant_id"`
+	RunCount                    int32 `json:"run_count"`
+}
+
+func (q *Queries) CountExperimentVariantRunsSince(ctx context.Context, arg CountExperimentVariantRunsSinceParams) ([]CountExperimentVariantRunsSinceRow, error) {
+	rows, err := q.db.Query(ctx, countExperimentVariantRunsSince, arg.WorkflowExperimentScopeID, arg.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountExperimentVariantRunsSinceRow
+	for rows.Next() {
+		var i CountExperimentVariantRunsSinceRow
+		if err := rows.Scan(&i.WorkflowExperimentVariantID, &i.RunCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createWorkflowRun = `-- name: CreateWorkflowRun :one
 INSERT INTO "workflow_run" (
     workflow_version_id,

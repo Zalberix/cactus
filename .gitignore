@@ -48,3 +48,5 @@
 !/configs/nats/README.md
 /docs/superpowers/
 /docs/questions/
+/.gocache/*
+/.gomodcache/*

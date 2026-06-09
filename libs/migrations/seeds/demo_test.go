@@ -54,6 +54,22 @@ func TestDemoSeedDefinesCurrentMapsVersionsAndSettings(t *testing.T) {
 	)
 }
 
+func TestDemoSeedUsesRegisteredSMTPWorkerSchema(t *testing.T) {
+	source := readDemoSeedSource(t)
+
+	mustContainAll(t, source,
+		"0952a9a06c6fbd5136e9c05aa648bd1bd583d619ee568dbfc2172cad44c18541",
+		`{"from": "info@tyumen-city.ru", "host": "localhost", "port": 1025}`,
+		`{"type":"object","properties":{"from":{"type":"string","required":true},"host":{"type":"string","required":true},"port":{"type":"integer","required":true}}}`,
+	)
+
+	mustNotContainAny(t, source,
+		`('smtp'::text, 'v1'::text, '{"host": "mailhog", "port": 1025}'::jsonb)`,
+		`'{"type": "object", "properties": {"host": {"type": "string", "required": true}, "port": {"type": "integer", "required": true}}}'::jsonb`,
+		`(1::int, 'Итоговое письмо'::text, 'task'::text, 'smtp'::text, 'v1'::text, '{"host": "mailhog", "port": 1025}'::jsonb`,
+	)
+}
+
 func TestDemoSeedDefinesStartStepAndCanvasPositions(t *testing.T) {
 	source := readDemoSeedSource(t)
 
@@ -71,6 +87,30 @@ func TestDemoSeedDefinesStartStepAndCanvasPositions(t *testing.T) {
 		"'Письмо админа'::text",
 		"'Отправка письма'::text",
 		"'Итоговое письмо'::text",
+	)
+}
+
+func TestDemoSeedDefinesLoadTestExperiment(t *testing.T) {
+	source := readDemoSeedSource(t)
+
+	mustContainAll(t, source,
+		"seedDemoLoadTestExperiment(ctx, db)",
+		"load-test-version-split",
+		"workflow_experiment",
+		"workflow_experiment_scope",
+		"workflow_experiment_variant",
+		"experiment_type",
+		"conditions_hash",
+		"traffic_conditions",
+		"traffic_percent",
+		"fallback_policy",
+		"default_route",
+		"is_control_group",
+		"is_active",
+		"workflow_input_schema_id",
+		"encode(sha256('{}'::bytea), 'hex')",
+		"'experiment'",
+		"'active'",
 	)
 }
 

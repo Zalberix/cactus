@@ -35,6 +35,18 @@ SELECT * FROM "workflow_run"
 WHERE message_id = $1
 ORDER BY id;
 
+-- name: CountExperimentVariantRunsSince :many
+SELECT
+    wr.workflow_experiment_variant_id::int AS workflow_experiment_variant_id,
+    COUNT(*)::int AS run_count
+FROM "workflow_run" wr
+JOIN "message" m ON m.id = wr.message_id
+WHERE wr.workflow_experiment_scope_id = $1
+  AND wr.workflow_experiment_variant_id IS NOT NULL
+  AND m.created_at >= $2
+GROUP BY wr.workflow_experiment_variant_id
+ORDER BY wr.workflow_experiment_variant_id;
+
 -- name: UpdateWorkflowRunStatus :one
 UPDATE "workflow_run"
 SET status = $2, completed_at = $3, error_message = $4

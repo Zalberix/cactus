@@ -1,8 +1,9 @@
 {
-  "process": "2.v2",
+  "process": "1.v2",
   "value": {
     "to": "zalberix@gmail.com",
     "subject": "Приветствие",
+    "body": "123",
     "is_admin": false,
     "fields": {
       "name": "Игнат",

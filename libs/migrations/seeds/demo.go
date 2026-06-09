@@ -36,6 +36,9 @@ func SeedDemo(ctx context.Context, db *pgxpool.Pool) error {
 	if err := seedDemoWorkflowToken(ctx, db); err != nil {
 		return err
 	}
+	if err := seedDemoLoadTestExperiment(ctx, db); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -409,20 +412,6 @@ func seedDemoWorkerSettings(ctx context.Context, db *pgxpool.Pool) error {
 			FROM (VALUES
 				(
 					'smtp'::text,
-					'v1'::text,
-					'{"type": "object", "properties": {"host": {"type": "string", "required": true}, "port": {"type": "integer", "required": true}}}'::jsonb,
-					'{
-						"type": "object",
-						"properties": {
-							"to": {"type": "string", "required": true},
-							"subject": {"type": "string", "required": true},
-							"body": {"type": "string"}
-						}
-					}'::jsonb,
-					'{"type": "object", "properties": {"message_id": {"type": "string"}}}'::jsonb
-				),
-				(
-					'smtp'::text,
 					'0952a9a06c6fbd5136e9c05aa648bd1bd583d619ee568dbfc2172cad44c18541'::text,
 					'{"type":"object","properties":{"from":{"type":"string","required":true},"host":{"type":"string","required":true},"port":{"type":"integer","required":true}}}'::jsonb,
 					'{"type":"object","properties":{"to":{"type":"string","required":true},"subject":{"type":"string","required":true},"body":{"type":"string"}}}'::jsonb,
@@ -477,13 +466,6 @@ func seedDemoWorkerSettings(ctx context.Context, db *pgxpool.Pool) error {
 			FROM (VALUES
 				(
 					'smtp'::text,
-					'v1'::text,
-					'{"type": "object", "properties": {"host": {"type": "string", "required": true}, "port": {"type": "integer", "required": true}}}'::jsonb,
-					'{"type":"object","properties":{"to":{"type":"string","required":true},"subject":{"type":"string","required":true},"body":{"type":"string"}}}'::jsonb,
-					'{"type": "object", "properties": {"message_id": {"type": "string"}}}'::jsonb
-				),
-				(
-					'smtp'::text,
 					'0952a9a06c6fbd5136e9c05aa648bd1bd583d619ee568dbfc2172cad44c18541'::text,
 					'{"type":"object","properties":{"from":{"type":"string","required":true},"host":{"type":"string","required":true},"port":{"type":"integer","required":true}}}'::jsonb,
 					'{"type":"object","properties":{"to":{"type":"string","required":true},"subject":{"type":"string","required":true},"body":{"type":"string"}}}'::jsonb,
@@ -526,8 +508,6 @@ func seedDemoWorkerSettings(ctx context.Context, db *pgxpool.Pool) error {
 		WITH seed AS (
 			SELECT *
 			FROM (VALUES
-				('smtp'::text, 'v1'::text, '{"host": "mailhog", "port": 1025}'::jsonb),
-				('smtp'::text, 'v1'::text, '{"host": "localhost", "port": 1025}'::jsonb),
 				('smtp'::text, '0952a9a06c6fbd5136e9c05aa648bd1bd583d619ee568dbfc2172cad44c18541'::text, '{}'::jsonb),
 				('smtp'::text, '0952a9a06c6fbd5136e9c05aa648bd1bd583d619ee568dbfc2172cad44c18541'::text, '{"from": "info@tyumen-city.ru", "host": "localhost", "port": 1025}'::jsonb),
 				('smtp'::text, '8b206a607b285dfe131e06209716da0ecb36f1c085d2cbb8ac7c59c85ee78a70'::text, '{}'::jsonb),
@@ -609,8 +589,8 @@ func seedDemoWorkflowSteps(ctx context.Context, db *pgxpool.Pool) error {
 					'Итоговое письмо'::text,
 					'task'::text,
 					'smtp'::text,
-					'v1'::text,
-					'{"host": "mailhog", "port": 1025}'::jsonb,
+					'0952a9a06c6fbd5136e9c05aa648bd1bd583d619ee568dbfc2172cad44c18541'::text,
+					'{"from": "info@tyumen-city.ru", "host": "localhost", "port": 1025}'::jsonb,
 					NULL::text,
 					NULL::jsonb,
 					'[]'::jsonb,
@@ -754,7 +734,7 @@ func seedDemoWorkflowSteps(ctx context.Context, db *pgxpool.Pool) error {
 			FROM (VALUES
 				(1::int, 'Старт системы'::text, 'control'::text, NULL::text, NULL::text, NULL::jsonb, 'start'::text, '{"trigger":"system_message"}'::jsonb, '[]'::jsonb, '{"x":80,"y":200}'::jsonb),
 				(1::int, 'Генерация письма'::text, 'task'::text, 'html'::text, '4ab1225482a1a041a7d9a31f23a99112b20567cf94a4a41b5944d89243d43464'::text, '{}'::jsonb, NULL::text, NULL::jsonb, '[{"target":"fields","source":"$.message.value.fields"},{"target":"template","source":"$.message.value.template"}]'::jsonb, '{"x":360,"y":200}'::jsonb),
-				(1::int, 'Итоговое письмо'::text, 'task'::text, 'smtp'::text, 'v1'::text, '{"host": "mailhog", "port": 1025}'::jsonb, NULL::text, NULL::jsonb, '[]'::jsonb, '{"x":640,"y":200}'::jsonb),
+				(1::int, 'Итоговое письмо'::text, 'task'::text, 'smtp'::text, '0952a9a06c6fbd5136e9c05aa648bd1bd583d619ee568dbfc2172cad44c18541'::text, '{"from": "info@tyumen-city.ru", "host": "localhost", "port": 1025}'::jsonb, NULL::text, NULL::jsonb, '[]'::jsonb, '{"x":640,"y":200}'::jsonb),
 				(2::int, 'Старт системы'::text, 'control'::text, NULL::text, NULL::text, NULL::jsonb, 'start'::text, '{"trigger":"system_message"}'::jsonb, '[]'::jsonb, '{"x":80,"y":200}'::jsonb),
 				(2::int, 'Генерация письма'::text, 'task'::text, 'html'::text, '4ab1225482a1a041a7d9a31f23a99112b20567cf94a4a41b5944d89243d43464'::text, '{}'::jsonb, NULL::text, NULL::jsonb, '[{"target":"fields","source":"$.message.value.fields"},{"target":"template","source":"$.message.value.template"}]'::jsonb, '{"x":360,"y":200}'::jsonb),
 				(2::int, 'Проверка email'::text, 'control'::text, NULL::text, NULL::text, NULL::jsonb, 'condition'::text, '{"left":"$.message.value.to","right":"zalberix@gmail.com","operator":"eq"}'::jsonb, NULL::jsonb, '{"x":600,"y":200}'::jsonb),
@@ -1007,6 +987,293 @@ func seedDemoWorkflowToken(ctx context.Context, db *pgxpool.Pool) error {
 	`)
 	if err != nil {
 		return fmt.Errorf("seed workflow token: %w", err)
+	}
+	return nil
+}
+
+func seedDemoLoadTestExperiment(ctx context.Context, db *pgxpool.Pool) error {
+	_, err := db.Exec(ctx, `
+		DO $$
+		DECLARE
+			v_workflow_id int;
+			v_admin_id int;
+			v_input_schema_id int;
+			v_control_version_id int;
+			v_candidate_version_id int;
+			v_experiment_id int;
+			v_scope_id int;
+		BEGIN
+		SELECT wt.workflow_id
+		INTO v_workflow_id
+		FROM workflow_token wt
+		JOIN system_token st ON st.id = wt.system_token_id
+		WHERE st.public_token = 'demo-public-token'
+		  AND st.deleted_at IS NULL
+		LIMIT 1;
+
+			IF v_workflow_id IS NULL THEN
+				RAISE EXCEPTION 'No active workflow found for demo system token %', 'demo-public-token';
+			END IF;
+
+			SELECT id
+			INTO v_admin_id
+			FROM "user"
+			WHERE email = 'admin@test.local'
+			  AND deleted_at IS NULL
+			ORDER BY id
+			LIMIT 1;
+
+			IF v_admin_id IS NULL THEN
+				RAISE EXCEPTION 'No active admin user found for %', 'admin@test.local';
+			END IF;
+
+			SELECT id
+			INTO v_input_schema_id
+			FROM workflow_input_schema
+			WHERE workflow_id = v_workflow_id
+			  AND code = 'v2'
+			  AND deleted_at IS NULL
+			ORDER BY id
+			LIMIT 1;
+
+			IF v_input_schema_id IS NULL THEN
+				RAISE EXCEPTION 'No input schema v2 found for workflow_id=%', v_workflow_id;
+			END IF;
+
+			SELECT id
+			INTO v_control_version_id
+			FROM workflow_version
+			WHERE workflow_id = v_workflow_id
+			  AND version_number = 1
+			  AND deleted_at IS NULL
+			ORDER BY id
+			LIMIT 1;
+
+			IF v_control_version_id IS NULL THEN
+				RAISE EXCEPTION 'No workflow version 1 found for workflow_id=%', v_workflow_id;
+			END IF;
+
+			SELECT id
+			INTO v_candidate_version_id
+			FROM workflow_version
+			WHERE workflow_id = v_workflow_id
+			  AND version_number = 2
+			  AND deleted_at IS NULL
+			ORDER BY id
+			LIMIT 1;
+
+			IF v_candidate_version_id IS NULL THEN
+			RAISE EXCEPTION 'No workflow version 2 found for workflow_id=%', v_workflow_id;
+		END IF;
+
+		-- Keep both control and candidate versions routable for the v2 input schema used by the load-test experiment.
+		-- This allows selecting version 1 inside EXPERIMENT 4 even when payload schema is v2.
+		WITH seed AS (
+			SELECT *
+			FROM (VALUES
+				(v_control_version_id::int, false::boolean),
+				(v_candidate_version_id::int, true::boolean)
+			) AS s(workflow_version_id, is_default_route_value)
+		)
+		INSERT INTO workflow_version_input_schema_compatibility (
+			workflow_version_id,
+			workflow_input_schema_id,
+			compatibility_type,
+			workflow_input_mapper_id,
+			default_values,
+			is_active,
+			is_default_route,
+			created_by_user_id,
+			updated_by_user_id
+		)
+		SELECT
+			seed.workflow_version_id,
+			v_input_schema_id,
+			'native',
+			NULL,
+			'{}'::jsonb,
+			true,
+			seed.is_default_route_value,
+			v_admin_id,
+			v_admin_id
+		FROM seed
+		WHERE NOT EXISTS (
+			SELECT 1
+			FROM workflow_version_input_schema_compatibility c
+			WHERE c.workflow_version_id = seed.workflow_version_id
+			  AND c.workflow_input_schema_id = v_input_schema_id
+			  AND c.deleted_at IS NULL
+		);
+
+		WITH seed AS (
+			SELECT *
+			FROM (VALUES
+				(v_control_version_id::int, false::boolean),
+				(v_candidate_version_id::int, true::boolean)
+			) AS s(workflow_version_id, is_default_route_value)
+		)
+		UPDATE workflow_version_input_schema_compatibility c
+		SET compatibility_type = 'native',
+		    workflow_input_mapper_id = NULL,
+		    default_values = '{}'::jsonb,
+		    is_active = true,
+		    is_default_route = seed.is_default_route_value,
+		    updated_by_user_id = v_admin_id,
+		    updated_at = CURRENT_TIMESTAMP
+		FROM seed
+		WHERE c.workflow_version_id = seed.workflow_version_id
+		  AND c.workflow_input_schema_id = v_input_schema_id
+		  AND c.deleted_at IS NULL;
+
+		SELECT id
+		INTO v_experiment_id
+			FROM workflow_experiment
+			WHERE workflow_id = v_workflow_id
+			  AND name = 'load-test-version-split'
+			  AND deleted_at IS NULL
+			ORDER BY id DESC
+			LIMIT 1;
+
+			IF v_experiment_id IS NULL THEN
+				INSERT INTO workflow_experiment (
+					workflow_id,
+					name,
+					description,
+					experiment_type,
+					status,
+					started_at,
+					created_by_user_id,
+					updated_by_user_id
+				)
+				VALUES (
+					v_workflow_id,
+					'load-test-version-split',
+					'Load test split between workflow versions',
+					'experiment',
+					'active',
+					now(),
+					v_admin_id,
+					v_admin_id
+				)
+				RETURNING id INTO v_experiment_id;
+			ELSE
+				UPDATE workflow_experiment
+				SET
+					experiment_type = 'experiment',
+					status = 'active',
+					description = 'Load test split between workflow versions',
+					updated_by_user_id = v_admin_id,
+					updated_at = now()
+				WHERE id = v_experiment_id;
+			END IF;
+
+			SELECT id
+			INTO v_scope_id
+			FROM workflow_experiment_scope
+			WHERE workflow_experiment_id = v_experiment_id
+			  AND workflow_input_schema_id = v_input_schema_id
+			  AND deleted_at IS NULL
+			ORDER BY id DESC
+			LIMIT 1;
+
+			IF v_scope_id IS NULL THEN
+				INSERT INTO workflow_experiment_scope (
+					workflow_experiment_id,
+					workflow_input_schema_id,
+					traffic_conditions,
+					conditions_hash,
+					traffic_percent,
+					fallback_policy
+				)
+				VALUES (
+					v_experiment_id,
+					v_input_schema_id,
+					'{}'::jsonb,
+					encode(sha256('{}'::bytea), 'hex'),
+					100,
+					'default_route'
+				)
+				RETURNING id INTO v_scope_id;
+			ELSE
+				UPDATE workflow_experiment_scope
+				SET
+					traffic_conditions = '{}'::jsonb,
+					conditions_hash = encode(sha256('{}'::bytea), 'hex'),
+					traffic_percent = 100,
+					fallback_policy = 'default_route',
+					updated_at = now()
+				WHERE id = v_scope_id;
+			END IF;
+
+			IF EXISTS (
+				SELECT 1
+				FROM workflow_experiment_variant
+				WHERE workflow_experiment_scope_id = v_scope_id
+				  AND workflow_version_id = v_control_version_id
+				  AND deleted_at IS NULL
+			) THEN
+				UPDATE workflow_experiment_variant
+				SET
+					traffic_weight = 50,
+					is_control_group = TRUE,
+					is_active = TRUE,
+					updated_at = now()
+				WHERE workflow_experiment_scope_id = v_scope_id
+				  AND workflow_version_id = v_control_version_id
+				  AND deleted_at IS NULL;
+			ELSE
+				INSERT INTO workflow_experiment_variant (
+					workflow_experiment_scope_id,
+					workflow_version_id,
+					traffic_weight,
+					is_control_group,
+					is_active
+				)
+				VALUES (
+					v_scope_id,
+					v_control_version_id,
+					50,
+					TRUE,
+					TRUE
+				);
+			END IF;
+
+			IF EXISTS (
+				SELECT 1
+				FROM workflow_experiment_variant
+				WHERE workflow_experiment_scope_id = v_scope_id
+				  AND workflow_version_id = v_candidate_version_id
+				  AND deleted_at IS NULL
+			) THEN
+				UPDATE workflow_experiment_variant
+				SET
+					traffic_weight = 50,
+					is_control_group = FALSE,
+					is_active = TRUE,
+					updated_at = now()
+				WHERE workflow_experiment_scope_id = v_scope_id
+				  AND workflow_version_id = v_candidate_version_id
+				  AND deleted_at IS NULL;
+			ELSE
+				INSERT INTO workflow_experiment_variant (
+					workflow_experiment_scope_id,
+					workflow_version_id,
+					traffic_weight,
+					is_control_group,
+					is_active
+				)
+				VALUES (
+					v_scope_id,
+					v_candidate_version_id,
+					50,
+					FALSE,
+					TRUE
+				);
+			END IF;
+		END $$;
+	`)
+	if err != nil {
+		return fmt.Errorf("seed demo load test experiment: %w", err)
 	}
 	return nil
 }
