@@ -32,7 +32,7 @@ const isOpen = computed({
 })
 
 const requiredLabel = computed(() => props.row
-  ? `${props.row.native_input_schema_code} v${props.row.native_input_schema_version_number}`
+  ? `${props.row.input_schema_code} v${props.row.input_schema_version_number}`
   : '')
 
 watch(() => props.open, (open) => {

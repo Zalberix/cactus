@@ -6,8 +6,16 @@ import type { WorkflowInputSchemaRecord } from '~/composables/useWorkflowRouting
 import type { StepData } from '~/composables/useDagEditor'
 import type { WorkflowInputField } from './workflow-input-utils'
 import { Button } from '~/components/ui/button'
+import { Checkbox } from '~/components/ui/checkbox'
 import { Input } from '~/components/ui/input'
 import { ScrollArea } from '~/components/ui/scroll-area'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '~/components/ui/select'
 import { Separator } from '~/components/ui/separator'
 import { toast } from '~/components/ui/toast/use-toast'
 import SchemaTree from './SchemaTree.vue'
@@ -284,23 +292,24 @@ defineExpose({ createWorkflowInputFromField })
             <div class="grid grid-cols-[1fr_auto] gap-2">
               <label class="space-y-1">
                 <span class="text-[11px] font-medium text-muted-foreground">{{ t('workflowInputs.name') }}</span>
-                <Input v-model="workflowInputForm.name" readonly :disabled="workflowInputSaving" class="h-8 text-xs" />
+                <Input v-model="workflowInputForm.name" readonly :disabled="workflowInputSaving"/>
               </label>
               <label class="space-y-1">
                 <span class="text-[11px] font-medium text-muted-foreground">{{ t('workflowInputs.type') }}</span>
-                <select
-                  v-model="workflowInputForm.type"
-                  class="flex h-8 rounded-md border border-input bg-background px-2 text-xs"
-                  :disabled="workflowInputSaving"
-                >
-                  <option v-for="type in inputTypes" :key="type" :value="type">
-                    {{ type }}
-                  </option>
-                </select>
+                <Select v-model="workflowInputForm.type" :disabled="workflowInputSaving">
+                  <SelectTrigger size="sm" class="h-8 w-[120px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem v-for="type in inputTypes" :key="type" :value="type">
+                      {{ type }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </label>
             </div>
             <label class="flex items-center gap-2 text-xs">
-              <input v-model="workflowInputForm.required" type="checkbox" class="h-4 w-4 rounded border-input" :disabled="workflowInputSaving">
+              <Checkbox v-model="workflowInputForm.required" :disabled="workflowInputSaving" />
               <span>{{ t('workflowInputs.required') }}</span>
             </label>
             <label class="block space-y-1">

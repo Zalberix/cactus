@@ -7,7 +7,7 @@ import type {
   WorkflowInputSchemaRecord,
 } from '~/composables/useWorkflowRouting'
 import type { RoutingDeleteTarget } from '~/components/dag/routing/types'
-import { ArrowLeft, FlaskConical } from 'lucide-vue-next'
+import { ArrowLeft } from 'lucide-vue-next'
 import { workflowRoutingPath } from '~/composables/useWorkflowRouting'
 import RoutingDeleteDialog from '~/components/dag/routing/RoutingDeleteDialog.vue'
 import RoutingExperimentDialog from '~/components/dag/routing/RoutingExperimentDialog.vue'
@@ -321,23 +321,10 @@ onMounted(() => {
 
 <template>
   <div class="space-y-6">
-    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-      <div>
-        <Button variant="ghost" class="-ml-3 mb-3 gap-2" @click="router.push(workflowRoutingPath(orgId, workflowId))">
-          <ArrowLeft class="h-4 w-4" />
-          {{ t('common.back') }}
-        </Button>
-        <div class="flex items-center gap-3">
-          <div class="rounded-md bg-primary/10 p-3 text-primary">
-            <FlaskConical class="h-6 w-6" />
-          </div>
-          <div>
-            <h1 class="text-2xl font-semibold">{{ t('workflowRouting.testing') }}</h1>
-            <p class="text-sm text-muted-foreground">{{ t('workflowRouting.testingDescription') }}</p>
-          </div>
-        </div>
-      </div>
-    </div>
+    <Button variant="ghost" class="-ml-3 gap-2" @click="router.push(workflowRoutingPath(orgId, workflowId))">
+      <ArrowLeft class="h-4 w-4" />
+      {{ t('common.back') }}
+    </Button>
 
     <div v-if="loading" class="text-sm text-muted-foreground">
       {{ t('common.loading') }}

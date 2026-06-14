@@ -50,3 +50,4 @@
 /docs/questions/
 /.gocache/*
 /.gomodcache/*
+/.pnpm-store/*

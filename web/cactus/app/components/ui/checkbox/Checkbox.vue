@@ -1,47 +1,34 @@
 <script setup lang="ts">
-import { computed, type HTMLAttributes } from 'vue'
-import { cn } from '~/lib/utils'
-import { Check, Minus } from 'lucide-vue-next'
-import { CheckboxIndicator, CheckboxRoot } from 'reka-ui'
+import type { CheckboxRootEmits, CheckboxRootProps } from "reka-ui"
+import type { HTMLAttributes } from "vue"
+import { Check } from "lucide-vue-next"
+import { reactiveOmit } from "@vueuse/core"
+import { CheckboxIndicator, CheckboxRoot, useForwardPropsEmits } from "reka-ui"
+import { cn } from "~/lib/utils"
 
-const props = defineProps<{
-  class?: HTMLAttributes['class']
-  disabled?: boolean
-  required?: boolean
-  name?: string
-  value?: string
-  id?: string
-  checked?: boolean | 'indeterminate'
-  defaultChecked?: boolean
-}>()
+const props = defineProps<CheckboxRootProps & { class?: HTMLAttributes["class"] }>()
+const emits = defineEmits<CheckboxRootEmits>()
 
-const emits = defineEmits<{
-  'update:checked': [value: boolean | 'indeterminate']
-}>()
+const delegatedProps = reactiveOmit(props, "class")
 
-// Map checked/update:checked to v-model (modelValue/update:modelValue) for reka-ui v2
-const model = computed({
-  get: () => props.checked,
-  set: (val) => emits('update:checked', val as boolean | 'indeterminate'),
-})
+const forwarded = useForwardPropsEmits(delegatedProps, emits)
 </script>
 
 <template>
   <CheckboxRoot
-    v-model="model"
-    :disabled="props.disabled"
-    :required="props.required"
-    :name="props.name"
-    :value="props.value"
-    :id="props.id"
-    :class="
-      cn('peer h-4 w-4 shrink-0 rounded-sm border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground',
+      v-slot="slotProps"
+      data-slot="checkbox"
+      v-bind="forwarded"
+      :class="
+      cn('peer border-input data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:border-primary focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive size-4 shrink-0 rounded-[4px] border shadow-xs transition-shadow outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50',
          props.class)"
   >
-    <CheckboxIndicator class="flex h-full w-full items-center justify-center text-current">
-      <slot>
-        <Minus v-if="model === 'indeterminate'" class="h-4 w-4" />
-        <Check v-else class="h-4 w-4" />
+    <CheckboxIndicator
+        data-slot="checkbox-indicator"
+        class="grid place-content-center text-current transition-none"
+    >
+      <slot v-bind="slotProps">
+        <Check class="size-3.5" />
       </slot>
     </CheckboxIndicator>
   </CheckboxRoot>

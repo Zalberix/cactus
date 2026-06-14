@@ -68,8 +68,9 @@ type workflowInputSchemaSearchQueries interface {
 }
 
 type workflowRoutingVersionRowQueries interface {
-	ListWorkflowRoutingVersionRows(ctx context.Context, workflowID int32) ([]db.ListWorkflowRoutingVersionRowsRow, error)
-	ListActiveWorkflowTestsByVersionID(ctx context.Context, workflowVersionID int32) ([]db.WorkflowExperiment, error)
+	CountWorkflowRoutingVersionRows(ctx context.Context, workflowID int32) (int64, error)
+	ListWorkflowRoutingVersionRows(ctx context.Context, arg db.ListWorkflowRoutingVersionRowsParams) ([]db.ListWorkflowRoutingVersionRowsRow, error)
+	ListActiveWorkflowTestsByInputSchemaID(ctx context.Context, workflowInputSchemaID int32) ([]db.WorkflowExperiment, error)
 }
 
 type workflowInputSchemaCompatibilityRowQueries interface {
@@ -190,24 +191,33 @@ func (s *Service) GetWorkflowInputSchemaUsage(ctx context.Context, inputSchemaID
 	return usage, nil
 }
 
-func (s *Service) ListWorkflowRoutingVersionRows(ctx context.Context, workflowID int32) ([]RoutingVersionRowResponse, error) {
+func (s *Service) ListWorkflowRoutingVersionRows(ctx context.Context, workflowID int32, page, perPage int) ([]RoutingVersionRowResponse, int64, error) {
 	q, ok := s.store.(workflowRoutingVersionRowQueries)
 	if !ok {
-		return nil, ErrWorkflowConfigurationUnsupported
+		return nil, 0, ErrWorkflowConfigurationUnsupported
 	}
-	rows, err := q.ListWorkflowRoutingVersionRows(ctx, workflowID)
+	page, perPage = normalizeRoutingPagination(page, perPage)
+	total, err := q.CountWorkflowRoutingVersionRows(ctx, workflowID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
+	}
+	rows, err := q.ListWorkflowRoutingVersionRows(ctx, db.ListWorkflowRoutingVersionRowsParams{
+		WorkflowID: workflowID,
+		Limit:      int32(perPage),              // #nosec G115 -- perPage is bounded by normalizeRoutingPagination.
+		Offset:     int32((page - 1) * perPage), // #nosec G115 -- page/perPage are bounded by normalizeRoutingPagination.
+	})
+	if err != nil {
+		return nil, 0, err
 	}
 	result := make([]RoutingVersionRowResponse, 0, len(rows))
 	for _, row := range rows {
-		supported, err := decodeRoutingSupportedSchemas(row.SupportedSchemas)
+		supported, err := decodeRoutingSupportedVersions(row.SupportedVersions)
 		if err != nil {
-			return nil, fmt.Errorf("%w: decode supported schemas: %v", ErrWorkflowConfigurationInvalid, err)
+			return nil, 0, fmt.Errorf("%w: decode supported versions: %v", ErrWorkflowConfigurationInvalid, err)
 		}
-		tests, err := q.ListActiveWorkflowTestsByVersionID(ctx, row.WorkflowVersionID)
+		tests, err := q.ListActiveWorkflowTestsByInputSchemaID(ctx, row.InputSchemaID)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		activeTests := make([]RoutingActiveTestResponse, 0, len(tests))
 		for _, test := range tests {
@@ -218,25 +228,28 @@ func (s *Service) ListWorkflowRoutingVersionRows(ctx context.Context, workflowID
 				Status:         test.Status,
 			})
 		}
-		name := row.WorkflowVersionName.String
-		if !row.WorkflowVersionName.Valid || strings.TrimSpace(name) == "" {
-			name = fmt.Sprintf("Version %d", row.WorkflowVersionNumber)
-		}
 		result = append(result, RoutingVersionRowResponse{
-			WorkflowVersionID:        row.WorkflowVersionID,
+			InputSchemaID:            row.InputSchemaID,
 			WorkflowID:               row.WorkflowID,
-			WorkflowVersionName:      name,
-			WorkflowVersionNumber:    row.WorkflowVersionNumber,
-			IsValid:                  row.IsValid,
-			IsActive:                 row.IsActive,
-			NativeInputSchemaID:      row.NativeSchemaID,
-			NativeInputSchemaCode:    row.NativeSchemaCode,
-			NativeInputSchemaVersion: row.NativeSchemaVersionNumber,
-			SupportedSchemas:         supported,
+			InputSchemaCode:          row.InputSchemaCode,
+			InputSchemaVersionNumber: row.InputSchemaVersionNumber,
+			InputSchemaStatus:        row.InputSchemaStatus,
+			IsDefault:                row.IsDefault,
+			SupportedVersions:        supported,
 			ActiveTests:              activeTests,
 		})
 	}
-	return result, nil
+	return result, total, nil
+}
+
+func normalizeRoutingPagination(page, perPage int) (int, int) {
+	if page < 1 {
+		page = 1
+	}
+	if perPage < 1 || perPage > 100 {
+		perPage = 20
+	}
+	return page, perPage
 }
 
 func (s *Service) ListInputSchemaCompatibilityRows(ctx context.Context, inputSchemaID int32) ([]InputSchemaCompatibilityRowResponse, error) {
@@ -1145,9 +1158,9 @@ func (s *Service) validateCompatibilityBuilderRequest(ctx context.Context, sourc
 	return validation, rules, targetVersion.ID, nil
 }
 
-func decodeRoutingSupportedSchemas(value any) ([]RoutingSupportedSchemaResponse, error) {
+func decodeRoutingSupportedVersions(value any) ([]RoutingSupportedVersionResponse, error) {
 	if value == nil {
-		return []RoutingSupportedSchemaResponse{}, nil
+		return []RoutingSupportedVersionResponse{}, nil
 	}
 	var raw []byte
 	switch v := value.(type) {
@@ -1163,14 +1176,14 @@ func decodeRoutingSupportedSchemas(value any) ([]RoutingSupportedSchemaResponse,
 		raw = encoded
 	}
 	if len(bytes.TrimSpace(raw)) == 0 {
-		return []RoutingSupportedSchemaResponse{}, nil
+		return []RoutingSupportedVersionResponse{}, nil
 	}
-	var supported []RoutingSupportedSchemaResponse
+	var supported []RoutingSupportedVersionResponse
 	if err := json.Unmarshal(raw, &supported); err != nil {
 		return nil, err
 	}
 	if supported == nil {
-		return []RoutingSupportedSchemaResponse{}, nil
+		return []RoutingSupportedVersionResponse{}, nil
 	}
 	return supported, nil
 }

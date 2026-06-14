@@ -7,6 +7,7 @@ import type {
 import type { RoutingVariantForm } from './types'
 import { computed } from 'vue'
 import { Button } from '~/components/ui/button'
+import { Checkbox } from '~/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -16,6 +17,15 @@ import {
   DialogTitle,
 } from '~/components/ui/dialog'
 import { Input } from '~/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '~/components/ui/select'
 
 const props = defineProps<{
   open: boolean
@@ -36,10 +46,25 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const EMPTY_SELECT_VALUE = '__empty__'
 
 const isOpen = computed({
   get: () => props.open,
   set: value => emit('update:open', value),
+})
+
+const scopeSelectValue = computed({
+  get: () => props.form.scopeId || EMPTY_SELECT_VALUE,
+  set: (value: string) => {
+    props.form.scopeId = value === EMPTY_SELECT_VALUE ? '' : value
+  },
+})
+
+const versionSelectValue = computed({
+  get: () => props.form.versionId || EMPTY_SELECT_VALUE,
+  set: (value: string) => {
+    props.form.versionId = value === EMPTY_SELECT_VALUE ? '' : value
+  },
 })
 
 function cancel() {
@@ -59,22 +84,38 @@ function cancel() {
         <form class="mt-4 space-y-3" @submit.prevent="emit('submit')">
           <label class="block space-y-1.5">
             <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldScope') }}</span>
-            <select v-model="form.scopeId" class="h-10 w-full rounded-md border bg-background px-3 text-sm">
-              <option value="">Select scope</option>
-              <option v-for="experiment in experiments" :key="`exp-${experiment.id}`" disabled>{{ experiment.name }}</option>
-              <template v-for="experiment in experiments" :key="experiment.id">
-                <option v-for="scope in scopesByExperiment[experiment.id] || []" :key="scope.id" :value="String(scope.id)">
-                  {{ schemaLabel(scope.workflow_input_schema_id) }} &middot; {{ t('workflowRouting.scopeNumber', { id: scope.id }) }}
-                </option>
-              </template>
-            </select>
+            <Select v-model="scopeSelectValue">
+              <SelectTrigger class="h-10 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem :value="EMPTY_SELECT_VALUE">Select scope</SelectItem>
+                <SelectGroup v-for="experiment in experiments" :key="experiment.id">
+                  <SelectLabel>{{ experiment.name }}</SelectLabel>
+                  <SelectItem
+                    v-for="scope in scopesByExperiment[experiment.id] || []"
+                    :key="scope.id"
+                    :value="String(scope.id)"
+                  >
+                    {{ schemaLabel(scope.workflow_input_schema_id) }} &middot; {{ t('workflowRouting.scopeNumber', { id: scope.id }) }}
+                  </SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
           </label>
           <label class="block space-y-1.5">
             <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldWorkflowVersion') }}</span>
-            <select v-model="form.versionId" class="h-10 w-full rounded-md border bg-background px-3 text-sm">
-              <option value="">Select version</option>
-              <option v-for="version in activeVersions" :key="version.id" :value="String(version.id)">{{ versionLabel(version.id) }}</option>
-            </select>
+            <Select v-model="versionSelectValue">
+              <SelectTrigger class="h-10 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem :value="EMPTY_SELECT_VALUE">Select version</SelectItem>
+                <SelectItem v-for="version in activeVersions" :key="version.id" :value="String(version.id)">
+                  {{ versionLabel(version.id) }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </label>
           <label class="block space-y-1.5">
             <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldTrafficWeight') }}</span>
@@ -84,14 +125,14 @@ function cancel() {
             <label class="block space-y-1.5">
               <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldControlGroup') }}</span>
               <span class="flex items-center gap-2 text-sm">
-                <input v-model="form.isControlGroup" type="checkbox">
+                <Checkbox v-model="form.isControlGroup" />
                 {{ t('workflowRouting.fieldEnabled') }}
               </span>
             </label>
             <label class="block space-y-1.5">
               <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldActiveVariant') }}</span>
               <span class="flex items-center gap-2 text-sm">
-                <input v-model="form.isActive" type="checkbox">
+                <Checkbox v-model="form.isActive" />
                 {{ t('workflowRouting.fieldEnabled') }}
               </span>
             </label>

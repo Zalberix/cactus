@@ -4,6 +4,7 @@ import { computed, ref, watch } from 'vue'
 import type { WorkflowInputSchemaField } from '~/composables/useWorkflows'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
+import { Checkbox } from '~/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -13,6 +14,13 @@ import {
   DialogTitle,
 } from '~/components/ui/dialog'
 import { Input } from '~/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '~/components/ui/select'
 import {
   Table,
   TableBody,
@@ -119,7 +127,7 @@ watch(() => props.schema, () => {
       </DialogHeader>
 
       <div class="flex items-center justify-end">
-        <Button type="button" size="sm" class="gap-2" :disabled="saving" @click="startCreate">
+        <Button type="button" :disabled="saving" @click="startCreate">
           <Plus class="h-4 w-4" />
           {{ t('workflowInputs.addInput') }}
         </Button>
@@ -197,23 +205,23 @@ watch(() => props.schema, () => {
               v-model="form.name"
               :readonly="isEditing"
               :disabled="saving"
-              class="h-9"
             />
           </label>
           <label class="space-y-1">
             <span class="text-xs font-medium">{{ t('workflowInputs.type') }}</span>
-            <select
-              v-model="form.type"
-              class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              :disabled="saving"
-            >
-              <option v-for="type in inputTypes" :key="type" :value="type">
-                {{ type }}
-              </option>
-            </select>
+            <Select v-model="form.type" :disabled="saving">
+              <SelectTrigger class="h-9 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="type in inputTypes" :key="type" :value="type">
+                  {{ type }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </label>
           <label class="flex h-9 items-center gap-2 text-sm">
-            <input v-model="form.required" type="checkbox" class="h-4 w-4 rounded border-input" :disabled="saving">
+            <Checkbox v-model="form.required" :disabled="saving" />
             <span>{{ t('workflowInputs.required') }}</span>
           </label>
         </div>

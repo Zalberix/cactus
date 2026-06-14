@@ -2,7 +2,7 @@
 import type { WorkflowInputSchemaField } from '~/composables/useWorkflows'
 import type { WorkflowInputSchemaRecord } from '~/composables/useWorkflowRouting'
 import type { WorkflowInputField } from '~/components/dag/node-editor/workflow-input-utils'
-import { ArrowLeft, FileJson, Pencil, Plus, Trash2 } from 'lucide-vue-next'
+import { ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-vue-next'
 import {
   deleteWorkflowInputFieldFromSchema,
   upsertWorkflowInputFieldInSchema,
@@ -13,8 +13,23 @@ import {
 } from '~/composables/useWorkflowRouting'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
+import { Checkbox } from '~/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '~/components/ui/dialog'
 import { Input } from '~/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '~/components/ui/select'
 import {
   Table,
   TableBody,
@@ -105,6 +120,18 @@ function goBack() {
   router.push(routingListPath())
 }
 
+function closeFieldForm() {
+  if (isLocked.value) return
+  fieldFormOpen.value = false
+  editingFieldName.value = null
+  fieldForm.value = {
+    name: '',
+    type: 'string',
+    required: false,
+    description: '',
+  }
+}
+
 function startCreateField() {
   if (isReadonly.value) return
   deletingField.value = null
@@ -144,8 +171,7 @@ function saveField() {
     required: fieldForm.value.required,
     description: description || undefined,
   })
-  fieldFormOpen.value = false
-  editingFieldName.value = null
+  closeFieldForm()
 }
 
 function confirmDeleteField(field: WorkflowInputField) {
@@ -221,15 +247,7 @@ onMounted(() => {
           <ArrowLeft class="h-4 w-4" />
           {{ t('common.back') }}
         </Button>
-        <div class="flex items-center gap-3">
-          <div class="rounded-md bg-primary/10 p-3 text-primary">
-            <FileJson class="h-6 w-6" />
-          </div>
-          <div>
-            <h1 class="text-2xl font-semibold">{{ pageTitle }}</h1>
-            <p class="text-sm text-muted-foreground">{{ t('workflowRouting.inputSchemasDescription') }}</p>
-          </div>
-        </div>
+        <h1 class="text-2xl font-semibold">{{ pageTitle }}</h1>
       </div>
       <Button
         type="button"
@@ -246,10 +264,10 @@ onMounted(() => {
       {{ t('common.loading') }}
     </div>
 
-    <div v-else class="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+    <div v-else class="space-y-6">
       <div
         v-if="isReadonly"
-        class="xl:col-span-2 rounded-2xl border border-amber-300/60 bg-amber-50 p-4 text-sm text-amber-950"
+        class="rounded-2xl border border-amber-300/60 bg-amber-50 p-4 text-sm text-amber-950"
         data-testid="routing-schema-readonly-banner"
       >
         <div class="font-medium">{{ t('workflowRouting.readonlySchema') }}</div>
@@ -260,12 +278,9 @@ onMounted(() => {
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{{ t('workflowRouting.inputSchemas') }}</CardTitle>
-          <CardDescription>{{ t('workflowRouting.inputSchemasDescription') }}</CardDescription>
-        </CardHeader>
-        <CardContent class="space-y-4">
+      <section class="space-y-3">
+        <h2 class="text-lg font-semibold">{{ t('workflowRouting.inputSchemas') }}</h2>
+        <div class="grid gap-3 md:grid-cols-[2fr_1fr_160px] md:items-end">
           <label class="block space-y-1.5">
             <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldSchemaCode') }}</span>
             <Input
@@ -277,185 +292,189 @@ onMounted(() => {
           </label>
           <label class="block space-y-1.5">
             <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldStatus') }}</span>
-            <select
-              v-model="form.status"
-              class="h-10 w-full rounded-md border bg-background px-3 text-sm"
-              :disabled="isLocked"
-            >
-              <option value="draft">{{ t('workflowRouting.statusDraft') }}</option>
-              <option value="active">{{ t('workflowRouting.statusActive') }}</option>
-              <option value="deprecated">deprecated</option>
-            </select>
+            <Select v-model="form.status" :disabled="isLocked">
+              <SelectTrigger class="h-10 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="draft">{{ t('workflowRouting.statusDraft') }}</SelectItem>
+                <SelectItem value="active">{{ t('workflowRouting.statusActive') }}</SelectItem>
+                <SelectItem value="deprecated">deprecated</SelectItem>
+              </SelectContent>
+            </Select>
           </label>
-          <label class="block space-y-1.5">
-            <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldDefaultSchema') }}</span>
-            <span class="flex items-center gap-2 text-sm">
-              <input v-model="form.isDefault" type="checkbox" :disabled="isLocked">
-              {{ t('workflowRouting.fieldEnabled') }}
-            </span>
+          <label class="flex h-10 items-center gap-2 text-sm">
+            <Checkbox v-model="form.isDefault" :disabled="isLocked" />
+            {{ t('workflowRouting.fieldEnabled') }}
           </label>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
-      <Card>
-        <CardHeader class="space-y-3">
-          <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <CardTitle>{{ t('editor.inputSchema') }}</CardTitle>
-              <CardDescription>{{ t('editor.inputSchemaDescription') }}</CardDescription>
-            </div>
-            <Button
-              type="button"
-              size="sm"
-              class="gap-2"
-              :disabled="isLocked"
-              data-testid="routing-schema-add-field"
-              @click="startCreateField"
-            >
-              <Plus class="h-4 w-4" />
-              {{ t('workflowInputs.addInput') }}
+      <section class="space-y-3">
+        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 class="text-lg font-semibold">{{ t('editor.inputSchema') }}</h2>
+            <p class="text-sm text-muted-foreground">{{ t('editor.inputSchemaDescription') }}</p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            class="gap-2"
+            :disabled="isLocked"
+            data-testid="routing-schema-add-field"
+            @click="startCreateField"
+          >
+            <Plus class="h-4 w-4" />
+            {{ t('workflowInputs.addInput') }}
+          </Button>
+        </div>
+        <div class="max-h-[420px] overflow-auto">
+          <Table data-testid="workflow-input-schema-table">
+            <TableHeader>
+              <TableRow>
+                <TableHead>{{ t('workflowInputs.name') }}</TableHead>
+                <TableHead>{{ t('workflowInputs.type') }}</TableHead>
+                <TableHead>{{ t('workflowInputs.required') }}</TableHead>
+                <TableHead>{{ t('workflowInputs.description') }}</TableHead>
+                <TableHead class="w-24 text-right">{{ t('workflowInputs.actions') }}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableEmpty v-if="fields.length === 0" :colspan="5">
+                {{ t('workflowInputs.empty') }}
+              </TableEmpty>
+              <TableRow
+                v-for="field in fields"
+                :key="field.name"
+                :data-testid="`workflow-input-row-${field.name}`"
+              >
+                <TableCell class="font-medium">{{ field.name }}</TableCell>
+                <TableCell :data-testid="`workflow-input-type-${field.name}`">
+                  <Badge variant="secondary">{{ field.type }}</Badge>
+                </TableCell>
+                <TableCell :data-testid="`workflow-input-required-${field.name}`">
+                  <Badge v-if="field.required" variant="outline">{{ t('workflowInputs.required') }}</Badge>
+                  <span v-else class="text-sm text-muted-foreground">{{ t('workflowInputs.optional') }}</span>
+                </TableCell>
+                <TableCell class="max-w-[280px] truncate text-sm text-muted-foreground">
+                  {{ field.description || t('workflowInputs.noDescription') }}
+                </TableCell>
+                <TableCell>
+                  <div class="flex justify-end gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      class="h-8 w-8"
+                      :aria-label="t('workflowInputs.editInput')"
+                      :title="t('workflowInputs.editInput')"
+                      :disabled="isLocked"
+                      :data-testid="`routing-schema-edit-field-${field.name}`"
+                      @click="startEditField(field)"
+                    >
+                      <Pencil class="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      class="h-8 w-8 text-destructive hover:text-destructive"
+                      :aria-label="t('workflowInputs.deleteInput')"
+                      :title="t('workflowInputs.deleteInput')"
+                      :disabled="isLocked"
+                      :data-testid="`routing-schema-delete-field-${field.name}`"
+                      @click="confirmDeleteField(field)"
+                    >
+                      <Trash2 class="h-4 w-4" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </div>
+
+        <div v-if="deletingField" class="rounded-md border border-destructive/30 bg-destructive/5 p-4">
+          <p class="text-sm font-medium">
+            {{ t('workflowInputs.deleteConfirmTitle', { name: deletingField.name }) }}
+          </p>
+          <p class="mt-1 text-sm text-muted-foreground">
+            {{ t('workflowInputs.deleteConfirmBody') }}
+          </p>
+          <div class="mt-4 flex justify-end gap-2">
+            <Button type="button" variant="outline" :disabled="isLocked" @click="deletingField = null">
+              {{ t('common.cancel') }}
+            </Button>
+            <Button type="button" variant="destructive" :disabled="isLocked" @click="deleteField">
+              {{ t('common.delete') }}
             </Button>
           </div>
-        </CardHeader>
-        <CardContent class="space-y-4">
-          <div class="max-h-[420px] overflow-auto rounded-md border">
-            <Table data-testid="workflow-input-schema-table">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{{ t('workflowInputs.name') }}</TableHead>
-                  <TableHead>{{ t('workflowInputs.type') }}</TableHead>
-                  <TableHead>{{ t('workflowInputs.required') }}</TableHead>
-                  <TableHead>{{ t('workflowInputs.description') }}</TableHead>
-                  <TableHead class="w-24 text-right">{{ t('workflowInputs.actions') }}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableEmpty v-if="fields.length === 0" :colspan="5">
-                  {{ t('workflowInputs.empty') }}
-                </TableEmpty>
-                <TableRow
-                  v-for="field in fields"
-                  :key="field.name"
-                  :data-testid="`workflow-input-row-${field.name}`"
-                >
-                  <TableCell class="font-medium">{{ field.name }}</TableCell>
-                  <TableCell :data-testid="`workflow-input-type-${field.name}`">
-                    <Badge variant="secondary">{{ field.type }}</Badge>
-                  </TableCell>
-                  <TableCell :data-testid="`workflow-input-required-${field.name}`">
-                    <Badge v-if="field.required" variant="outline">{{ t('workflowInputs.required') }}</Badge>
-                    <span v-else class="text-sm text-muted-foreground">{{ t('workflowInputs.optional') }}</span>
-                  </TableCell>
-                  <TableCell class="max-w-[280px] truncate text-sm text-muted-foreground">
-                    {{ field.description || t('workflowInputs.noDescription') }}
-                  </TableCell>
-                  <TableCell>
-                    <div class="flex justify-end gap-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        class="h-8 w-8"
-                        :aria-label="t('workflowInputs.editInput')"
-                        :title="t('workflowInputs.editInput')"
-                        :disabled="isLocked"
-                        :data-testid="`routing-schema-edit-field-${field.name}`"
-                        @click="startEditField(field)"
-                      >
-                        <Pencil class="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        class="h-8 w-8 text-destructive hover:text-destructive"
-                        :aria-label="t('workflowInputs.deleteInput')"
-                        :title="t('workflowInputs.deleteInput')"
-                        :disabled="isLocked"
-                        :data-testid="`routing-schema-delete-field-${field.name}`"
-                        @click="confirmDeleteField(field)"
-                      >
-                        <Trash2 class="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
+        </div>
+      </section>
+    </div>
 
-          <form v-if="fieldFormOpen" class="rounded-md border bg-muted/30 p-4" @submit.prevent="saveField">
-            <div class="grid gap-3 md:grid-cols-[1.2fr_0.8fr_auto] md:items-end">
-              <label class="space-y-1">
-                <span class="text-xs font-medium">{{ t('workflowInputs.name') }}</span>
-                <Input
-                  v-model="fieldForm.name"
-                  data-testid="routing-schema-field-name-input"
-                  :disabled="isLocked"
-                  class="h-9"
-                />
-              </label>
-              <label class="space-y-1">
-                <span class="text-xs font-medium">{{ t('workflowInputs.type') }}</span>
-                <select
-                  v-model="fieldForm.type"
-                  data-testid="routing-schema-field-type-select"
-                  class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  :disabled="isLocked"
-                >
-                  <option v-for="type in inputTypes" :key="type" :value="type">
-                    {{ type }}
-                  </option>
-                </select>
-              </label>
-              <label class="flex h-9 items-center gap-2 text-sm">
-                <input
-                  v-model="fieldForm.required"
-                  data-testid="routing-schema-field-required-checkbox"
-                  type="checkbox"
-                  class="h-4 w-4 rounded border-input"
-                  :disabled="isLocked"
-                >
-                <span>{{ t('workflowInputs.required') }}</span>
-              </label>
-            </div>
-            <label class="mt-3 block space-y-1">
-              <span class="text-xs font-medium">{{ t('workflowInputs.description') }}</span>
+    <Dialog v-model:open="fieldFormOpen">
+      <DialogContent class="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>
+            {{ editingFieldName ? t('workflowInputs.editInput') : t('workflowInputs.addInput') }}
+          </DialogTitle>
+          <DialogDescription>{{ t('editor.inputSchemaDescription') }}</DialogDescription>
+        </DialogHeader>
+        <div class="mt-4 space-y-3" data-testid="routing-schema-field-form">
+          <div
+            class="grid gap-3 md:grid-cols-[1.2fr_0.8fr_auto] md:items-end"
+            data-testid="routing-schema-field-controls"
+          >
+            <label class="block space-y-1.5">
+              <span class="text-xs font-medium">{{ t('workflowInputs.name') }}</span>
               <Input
-                v-model="fieldForm.description"
-                data-testid="routing-schema-field-description-input"
-                class="h-9"
+                v-model="fieldForm.name"
+                data-testid="routing-schema-field-name-input"
                 :disabled="isLocked"
               />
             </label>
-            <div class="mt-4 flex justify-end gap-2">
-              <Button type="button" variant="outline" :disabled="isLocked" @click="fieldFormOpen = false">
-                {{ t('common.cancel') }}
-              </Button>
-              <Button type="button" :disabled="!canSaveField" data-testid="routing-schema-save-field" @click="saveField">
-                {{ t('common.save') }}
-              </Button>
-            </div>
-          </form>
-
-          <div v-if="deletingField" class="rounded-md border border-destructive/30 bg-destructive/5 p-4">
-            <p class="text-sm font-medium">
-              {{ t('workflowInputs.deleteConfirmTitle', { name: deletingField.name }) }}
-            </p>
-            <p class="mt-1 text-sm text-muted-foreground">
-              {{ t('workflowInputs.deleteConfirmBody') }}
-            </p>
-            <div class="mt-4 flex justify-end gap-2">
-              <Button type="button" variant="outline" :disabled="isLocked" @click="deletingField = null">
-                {{ t('common.cancel') }}
-              </Button>
-              <Button type="button" variant="destructive" :disabled="isLocked" @click="deleteField">
-                {{ t('common.delete') }}
-              </Button>
-            </div>
+            <label class="block space-y-1.5">
+              <span class="text-xs font-medium">{{ t('workflowInputs.type') }}</span>
+              <Select v-model="fieldForm.type" :disabled="isLocked">
+                <SelectTrigger data-testid="routing-schema-field-type-select" class="h-10 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem v-for="type in inputTypes" :key="type" :value="type">
+                    {{ type }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </label>
+            <label class="flex h-10 items-center gap-2 text-sm">
+              <Checkbox
+                v-model="fieldForm.required"
+                data-testid="routing-schema-field-required-checkbox"
+                :disabled="isLocked"
+              />
+              {{ t('workflowRouting.fieldEnabled') }}
+            </label>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+          <label class="mt-3 block space-y-1">
+            <span class="text-xs font-medium">{{ t('workflowInputs.description') }}</span>
+            <Input
+              v-model="fieldForm.description"
+              data-testid="routing-schema-field-description-input"
+              class="h-9"
+              :disabled="isLocked"
+            />
+          </label>
+          <DialogFooter>
+            <Button type="button" variant="outline" :disabled="isLocked" @click="closeFieldForm">
+              {{ t('common.cancel') }}
+            </Button>
+            <Button type="button" :disabled="!canSaveField" data-testid="routing-schema-save-field" @click="saveField">
+              {{ t('common.save') }}
+            </Button>
+          </DialogFooter>
+        </div>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>

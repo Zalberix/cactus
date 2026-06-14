@@ -15,6 +15,13 @@ import {
   DialogTitle,
 } from '~/components/ui/dialog'
 import { Input } from '~/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '~/components/ui/select'
 
 const props = defineProps<{
   open: boolean
@@ -33,10 +40,25 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const EMPTY_SELECT_VALUE = '__empty__'
 
 const isOpen = computed({
   get: () => props.open,
   set: value => emit('update:open', value),
+})
+
+const experimentSelectValue = computed({
+  get: () => props.form.experimentId || EMPTY_SELECT_VALUE,
+  set: (value: string) => {
+    props.form.experimentId = value === EMPTY_SELECT_VALUE ? '' : value
+  },
+})
+
+const inputSchemaSelectValue = computed({
+  get: () => props.form.inputSchemaId || EMPTY_SELECT_VALUE,
+  set: (value: string) => {
+    props.form.inputSchemaId = value === EMPTY_SELECT_VALUE ? '' : value
+  },
 })
 
 function cancel() {
@@ -56,17 +78,31 @@ function cancel() {
         <form class="mt-4 space-y-3" @submit.prevent="emit('submit')">
           <label class="block space-y-1.5">
             <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldExperiment') }}</span>
-            <select v-model="form.experimentId" class="h-10 w-full rounded-md border bg-background px-3 text-sm">
-              <option value="">Select experiment</option>
-              <option v-for="experiment in experiments" :key="experiment.id" :value="String(experiment.id)">{{ experiment.name }}</option>
-            </select>
+            <Select v-model="experimentSelectValue">
+              <SelectTrigger class="h-10 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem :value="EMPTY_SELECT_VALUE">Select experiment</SelectItem>
+                <SelectItem v-for="experiment in experiments" :key="experiment.id" :value="String(experiment.id)">
+                  {{ experiment.name }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </label>
           <label class="block space-y-1.5">
             <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldInputSchema') }}</span>
-            <select v-model="form.inputSchemaId" class="h-10 w-full rounded-md border bg-background px-3 text-sm">
-              <option value="">Select input schema</option>
-              <option v-for="schema in activeSchemas" :key="schema.id" :value="String(schema.id)">{{ schemaLabel(schema.id) }}</option>
-            </select>
+            <Select v-model="inputSchemaSelectValue">
+              <SelectTrigger class="h-10 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem :value="EMPTY_SELECT_VALUE">Select input schema</SelectItem>
+                <SelectItem v-for="schema in activeSchemas" :key="schema.id" :value="String(schema.id)">
+                  {{ schemaLabel(schema.id) }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </label>
           <label class="block space-y-1.5">
             <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldTrafficPercent') }}</span>

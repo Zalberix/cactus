@@ -429,8 +429,8 @@ onMounted(() => {
               class="flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2 text-sm hover:bg-muted/50"
             >
               <Checkbox
-                :checked="isWorkflowSelected(workflow.id)"
-                @update:checked="toggleWorkflow(workflow.id)"
+                :model-value="isWorkflowSelected(workflow.id)"
+                @update:model-value="toggleWorkflow(workflow.id)"
               />
               <span class="font-medium">{{ workflow.name }}</span>
             </label>

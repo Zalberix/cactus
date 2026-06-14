@@ -23,6 +23,13 @@ import {
 } from '~/components/ui/dialog'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '~/components/ui/select'
 import { toast } from '~/components/ui/toast/use-toast'
 
 interface TokenForm {
@@ -61,6 +68,13 @@ const form = ref<TokenForm>({
   description: '',
   expires_at: '',
   max_active_workers: 1,
+})
+
+const workTypeSelectValue = computed({
+  get: () => String(form.value.work_type_id || 0),
+  set: (value: string) => {
+    form.value.work_type_id = Number(value)
+  },
 })
 
 const columns: ColumnDef<WorkerBootstrapToken>[] = [
@@ -308,18 +322,19 @@ onMounted(() => {
             <div class="grid gap-4 sm:grid-cols-2">
               <div class="space-y-2">
                 <Label for="worker-token-work-type">{{ t('workerTokens.workType') }}</Label>
-                <select
-                  id="worker-token-work-type"
-                  v-model.number="form.work_type_id"
-                  class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                >
-                  <option :value="0" disabled>
-                    {{ t('workerTokens.selectWorkType') }}
-                  </option>
-                  <option v-for="workType in workTypes" :key="workType.id" :value="workType.id">
-                    {{ workType.name }}
-                  </option>
-                </select>
+                <Select v-model="workTypeSelectValue">
+                  <SelectTrigger id="worker-token-work-type" class="h-10 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0" disabled>
+                      {{ t('workerTokens.selectWorkType') }}
+                    </SelectItem>
+                    <SelectItem v-for="workType in workTypes" :key="workType.id" :value="String(workType.id)">
+                      {{ workType.name }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div class="space-y-2">
@@ -397,8 +412,7 @@ onMounted(() => {
 
         <label class="flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2 text-sm">
           <Checkbox
-            :checked="revokeActiveSessions"
-            @update:checked="value => revokeActiveSessions = Boolean(value)"
+            v-model="revokeActiveSessions"
           />
           <span>{{ t('workerTokens.revokeActiveSessions') }}</span>
         </label>

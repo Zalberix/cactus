@@ -124,9 +124,9 @@ function toggleGroup(group: typeof PERMISSION_GROUPS[number]) {
             >
               <div class="flex items-center gap-3">
                 <Checkbox
-                  :checked="groupCheckState(group)"
+                  :model-value="groupCheckState(group)"
                   @click.stop
-                  @update:checked="toggleGroup(group)"
+                  @update:model-value="toggleGroup(group)"
                 />
                 <span class="font-medium text-sm">{{ group.label }}</span>
                 <span class="text-xs text-muted-foreground">
@@ -155,8 +155,8 @@ function toggleGroup(group: typeof PERMISSION_GROUPS[number]) {
               >
                 <Checkbox
                   :id="`perm-${perm.value}`"
-                  :checked="isChecked(perm.value)"
-                  @update:checked="togglePermission(perm.value)"
+                  :model-value="isChecked(perm.value)"
+                  @update:model-value="togglePermission(perm.value)"
                 />
                 <Label :for="`perm-${perm.value}`" class="text-sm cursor-pointer">
                   {{ perm.label }}

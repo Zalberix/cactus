@@ -103,15 +103,17 @@ type UpdateCompatibilityRequest struct {
 	IsDefaultRoute        bool              `json:"is_default_route"`
 }
 
-type RoutingSupportedSchemaResponse struct {
-	CompatibilityID     int32  `json:"compatibility_id"`
-	SchemaID            int32  `json:"schema_id"`
-	SchemaCode          string `json:"schema_code"`
-	SchemaVersionNumber int32  `json:"schema_version_number"`
-	CompatibilityType   string `json:"compatibility_type"`
-	MapperID            *int32 `json:"mapper_id,omitempty"`
-	SupportMode         string `json:"support_mode"`
-	IsDefaultRoute      bool   `json:"is_default_route"`
+type RoutingSupportedVersionResponse struct {
+	CompatibilityID       int32  `json:"compatibility_id"`
+	WorkflowVersionID     int32  `json:"workflow_version_id"`
+	WorkflowVersionName   string `json:"workflow_version_name"`
+	WorkflowVersionNumber int32  `json:"workflow_version_number"`
+	CompatibilityType     string `json:"compatibility_type"`
+	WorkflowInputMapperID *int32 `json:"workflow_input_mapper_id,omitempty"`
+	SupportMode           string `json:"support_mode"`
+	IsDefaultRoute        bool   `json:"is_default_route"`
+	IsValid               bool   `json:"is_valid"`
+	IsActive              bool   `json:"is_active"`
 }
 
 type RoutingActiveTestResponse struct {
@@ -122,17 +124,14 @@ type RoutingActiveTestResponse struct {
 }
 
 type RoutingVersionRowResponse struct {
-	WorkflowVersionID        int32                            `json:"workflow_version_id"`
-	WorkflowID               int32                            `json:"workflow_id"`
-	WorkflowVersionName      string                           `json:"workflow_version_name"`
-	WorkflowVersionNumber    int32                            `json:"workflow_version_number"`
-	IsValid                  bool                             `json:"is_valid"`
-	IsActive                 bool                             `json:"is_active"`
-	NativeInputSchemaID      int32                            `json:"native_input_schema_id"`
-	NativeInputSchemaCode    string                           `json:"native_input_schema_code"`
-	NativeInputSchemaVersion int32                            `json:"native_input_schema_version_number"`
-	SupportedSchemas         []RoutingSupportedSchemaResponse `json:"supported_schemas"`
-	ActiveTests              []RoutingActiveTestResponse      `json:"active_tests"`
+	InputSchemaID            int32                             `json:"input_schema_id"`
+	WorkflowID               int32                             `json:"workflow_id"`
+	InputSchemaCode          string                            `json:"input_schema_code"`
+	InputSchemaVersionNumber int32                             `json:"input_schema_version_number"`
+	InputSchemaStatus        string                            `json:"input_schema_status"`
+	IsDefault                bool                              `json:"is_default"`
+	SupportedVersions        []RoutingSupportedVersionResponse `json:"supported_versions"`
+	ActiveTests              []RoutingActiveTestResponse       `json:"active_tests"`
 }
 
 type InputSchemaUsageResponse struct {

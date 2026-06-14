@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { GitBranch, Key, Route } from 'lucide-vue-next'
+import { ArrowLeft, GitBranch, Key, Route } from 'lucide-vue-next'
 import type { VersionSummary } from '~/composables/useVersions'
 import type { WorkflowInputSchemaRecord, WorkflowSchemaCompatibility } from '~/composables/useWorkflowRouting'
 import { buildSupportedSchemaLabelsByVersionId } from '~/components/dag/supported-schema-utils'
@@ -124,6 +124,10 @@ async function onCreateInitialVersion() {
   }
 }
 
+function onBackToWorkflows() {
+  router.push(`/org/${orgId.value}/workflows`)
+}
+
 async function onShowInputSchema(version: VersionSummary) {
   try {
     if (inputSchemas.value.length === 0 || compatibilities.value.length === 0) {
@@ -145,6 +149,10 @@ onMounted(loadData)
 
 <template>
   <div class="space-y-6">
+    <Button variant="ghost" class="-ml-3 mb-3 gap-2" @click="onBackToWorkflows">
+      <ArrowLeft class="h-4 w-4" />
+      {{ t('common.back') }}
+    </Button>
     <div class="flex flex-col gap-4 border-b pb-4 md:flex-row md:items-center">
       <div class="min-w-0 flex-1">
         <Input

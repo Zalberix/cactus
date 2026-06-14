@@ -84,65 +84,56 @@ WHERE c.workflow_input_schema_id = $1
   AND wv.archived_at IS NULL
 ORDER BY c.is_default_route DESC, wv.version_number DESC, c.id DESC;
 
+-- name: CountWorkflowRoutingVersionRows :one
+SELECT COUNT(*)
+FROM "workflow_input_schema" wis
+WHERE wis.workflow_id = $1
+  AND wis.deleted_at IS NULL
+  AND wis.status != 'archived';
+
 -- name: ListWorkflowRoutingVersionRows :many
-WITH native_schema AS (
-    SELECT
-        c.workflow_version_id,
-        wis.id AS native_schema_id,
-        wis.code AS native_schema_code,
-        wis.version_number AS native_schema_version_number,
-        wis.status AS native_schema_status
-    FROM "workflow_version_input_schema_compatibility" c
-    JOIN "workflow_input_schema" wis ON wis.id = c.workflow_input_schema_id
-    WHERE c.compatibility_type = 'native'
-      AND c.is_active = TRUE
-      AND c.deleted_at IS NULL
-      AND wis.deleted_at IS NULL
-      AND wis.status != 'archived'
-)
 SELECT
-    wv.id AS workflow_version_id,
-    wv.workflow_id,
-    COALESCE(wv.name, 'Version ' || wv.version_number::text) AS workflow_version_name,
-    wv.version_number AS workflow_version_number,
-    wv.is_valid,
-    wv.is_active,
-    ns.native_schema_id,
-    ns.native_schema_code,
-    ns.native_schema_version_number,
+    wis.id AS input_schema_id,
+    wis.workflow_id,
+    wis.code AS input_schema_code,
+    wis.version_number AS input_schema_version_number,
+    wis.status AS input_schema_status,
+    wis.is_default,
     COALESCE(
         jsonb_agg(
             DISTINCT jsonb_build_object(
                 'compatibility_id', c.id,
-                'schema_id', wis.id,
-                'schema_code', wis.code,
-                'schema_version_number', wis.version_number,
+                'workflow_version_id', wv.id,
+                'workflow_version_name', COALESCE(wv.name, 'Version ' || wv.version_number::text),
+                'workflow_version_number', wv.version_number,
                 'compatibility_type', c.compatibility_type,
-                'mapper_id', c.workflow_input_mapper_id,
+                'workflow_input_mapper_id', c.workflow_input_mapper_id,
                 'support_mode', CASE
-                    WHEN c.workflow_input_mapper_id IS NULL THEN 'native'
+                    WHEN c.compatibility_type = 'native' AND c.workflow_input_mapper_id IS NULL THEN 'native'
                     ELSE 'mapper'
                 END,
-                'is_default_route', c.is_default_route
+                'is_default_route', c.is_default_route,
+                'is_valid', wv.is_valid,
+                'is_active', wv.is_active
             )
-        ) FILTER (WHERE c.id IS NOT NULL AND wis.id IS NOT NULL),
+        ) FILTER (WHERE c.id IS NOT NULL AND wv.id IS NOT NULL),
         '[]'::jsonb
-    ) AS supported_schemas
-FROM "workflow_version" wv
-JOIN native_schema ns ON ns.workflow_version_id = wv.id
+    ) AS supported_versions
+FROM "workflow_input_schema" wis
 LEFT JOIN "workflow_version_input_schema_compatibility" c
-    ON c.workflow_version_id = wv.id
+    ON c.workflow_input_schema_id = wis.id
     AND c.is_active = TRUE
     AND c.deleted_at IS NULL
-LEFT JOIN "workflow_input_schema" wis
-    ON wis.id = c.workflow_input_schema_id
-    AND wis.deleted_at IS NULL
-    AND wis.status != 'archived'
-WHERE wv.workflow_id = $1
-  AND wv.deleted_at IS NULL
-  AND wv.archived_at IS NULL
-GROUP BY wv.id, ns.native_schema_id, ns.native_schema_code, ns.native_schema_version_number
-ORDER BY wv.is_active DESC, wv.version_number DESC, wv.id DESC;
+LEFT JOIN "workflow_version" wv
+    ON wv.id = c.workflow_version_id
+    AND wv.deleted_at IS NULL
+    AND wv.archived_at IS NULL
+WHERE wis.workflow_id = $1
+  AND wis.deleted_at IS NULL
+  AND wis.status != 'archived'
+GROUP BY wis.id
+ORDER BY wis.is_default DESC, wis.version_number DESC, wis.id DESC
+LIMIT $2 OFFSET $3;
 
 -- name: GetWorkflowVersionByNativeInputSchemaID :one
 SELECT wv.*

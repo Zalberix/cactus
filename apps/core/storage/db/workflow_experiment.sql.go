@@ -341,6 +341,67 @@ func (q *Queries) ListActiveWorkflowExperimentVariantsByScopeID(ctx context.Cont
 	return items, nil
 }
 
+const listActiveWorkflowTestsByInputSchemaID = `-- name: ListActiveWorkflowTestsByInputSchemaID :many
+SELECT DISTINCT
+    e.id,
+    e.workflow_id,
+    e.name,
+    e.description,
+    e.experiment_type,
+    e.status,
+    e.started_at,
+    e.ended_at,
+    e.created_by_user_id,
+    e.updated_by_user_id,
+    e.created_at,
+    e.updated_at,
+    e.deleted_at
+FROM "workflow_experiment" e
+JOIN "workflow_experiment_scope" s
+    ON s.workflow_experiment_id = e.id
+    AND s.deleted_at IS NULL
+WHERE s.workflow_input_schema_id = $1
+  AND e.status = 'active'
+  AND e.deleted_at IS NULL
+  AND (e.started_at IS NULL OR e.started_at <= CURRENT_TIMESTAMP)
+  AND (e.ended_at IS NULL OR e.ended_at > CURRENT_TIMESTAMP)
+ORDER BY e.id DESC
+`
+
+func (q *Queries) ListActiveWorkflowTestsByInputSchemaID(ctx context.Context, workflowInputSchemaID int32) ([]WorkflowExperiment, error) {
+	rows, err := q.db.Query(ctx, listActiveWorkflowTestsByInputSchemaID, workflowInputSchemaID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkflowExperiment
+	for rows.Next() {
+		var i WorkflowExperiment
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkflowID,
+			&i.Name,
+			&i.Description,
+			&i.ExperimentType,
+			&i.Status,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.CreatedByUserID,
+			&i.UpdatedByUserID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listActiveWorkflowTestsByVersionID = `-- name: ListActiveWorkflowTestsByVersionID :many
 SELECT DISTINCT
     e.id,

@@ -36,7 +36,7 @@ const { t } = useI18n()
 </script>
 
 <template>
-  <Card>
+  <Card class="border-0 shadow-none">
     <CardHeader class="space-y-3">
       <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>

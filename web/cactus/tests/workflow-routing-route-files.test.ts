@@ -21,4 +21,26 @@ describe('workflow routing page files', () => {
     expect(existsSync(inputSchemaIndex)).toBe(true)
     expect(readFileSync(inputSchemaIndex, 'utf8')).toContain('navigateTo')
   })
+
+  it('keeps the testing title in the experiments list header only', () => {
+    const componentRoot = resolve(__dirname, '../app/components/dag/routing')
+    const testingPage = readFileSync(resolve(componentRoot, 'RoutingTestingPage.vue'), 'utf8')
+    const experimentsList = readFileSync(resolve(componentRoot, 'RoutingExperimentsList.vue'), 'utf8')
+
+    expect(testingPage).not.toContain("t('workflowRouting.testing')")
+    expect(experimentsList).toContain("t('workflowRouting.testing')")
+    expect(experimentsList).toContain("t('workflowRouting.createTesting')")
+    expect(experimentsList).toContain('<Card class="border-0 shadow-none">')
+  })
+
+  it('renders a plain routing header with create schema before testing', () => {
+    const pagesRoot = resolve(__dirname, '../app/pages/org/[orgId]/workflows/[workflowId]')
+    const routingIndex = readFileSync(resolve(pagesRoot, 'routing/index.vue'), 'utf8')
+
+    expect(routingIndex).not.toContain('Route class="h-6 w-6"')
+    expect(routingIndex).not.toContain('rounded-3xl border')
+    expect(routingIndex.indexOf("t('workflowRouting.createInputSchema')")).toBeLessThan(
+      routingIndex.indexOf("t('workflowRouting.testing')"),
+    )
+  })
 })

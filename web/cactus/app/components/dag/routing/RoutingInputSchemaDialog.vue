@@ -2,6 +2,7 @@
 import type { RoutingSchemaForm } from './types'
 import { computed } from 'vue'
 import { Button } from '~/components/ui/button'
+import { Checkbox } from '~/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -11,6 +12,13 @@ import {
   DialogTitle,
 } from '~/components/ui/dialog'
 import { Input } from '~/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '~/components/ui/select'
 
 const props = defineProps<{
   open: boolean
@@ -53,16 +61,21 @@ function cancel() {
           </label>
           <label class="block space-y-1.5">
             <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldStatus') }}</span>
-            <select v-model="form.status" class="h-10 w-full rounded-md border bg-background px-3 text-sm">
-              <option value="draft">{{ t('workflowRouting.statusDraft') }}</option>
-              <option value="active">{{ t('workflowRouting.statusActive') }}</option>
-              <option value="deprecated">deprecated</option>
-            </select>
+            <Select v-model="form.status">
+              <SelectTrigger class="h-10 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="draft">{{ t('workflowRouting.statusDraft') }}</SelectItem>
+                <SelectItem value="active">{{ t('workflowRouting.statusActive') }}</SelectItem>
+                <SelectItem value="deprecated">deprecated</SelectItem>
+              </SelectContent>
+            </Select>
           </label>
           <label class="block space-y-1.5">
             <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldDefaultSchema') }}</span>
             <span class="flex items-center gap-2 text-sm">
-              <input v-model="form.isDefault" type="checkbox">
+              <Checkbox v-model="form.isDefault" />
               {{ t('workflowRouting.fieldEnabled') }}
             </span>
           </label>

@@ -7,6 +7,7 @@ import type {
 import type { RoutingCompatibilityForm } from './types'
 import { computed } from 'vue'
 import { Button } from '~/components/ui/button'
+import { Checkbox } from '~/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -16,6 +17,13 @@ import {
   DialogTitle,
 } from '~/components/ui/dialog'
 import { Input } from '~/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '~/components/ui/select'
 
 const props = defineProps<{
   open: boolean
@@ -36,10 +44,32 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const EMPTY_SELECT_VALUE = '__empty__'
 
 const isOpen = computed({
   get: () => props.open,
   set: value => emit('update:open', value),
+})
+
+const versionSelectValue = computed({
+  get: () => props.form.versionId || EMPTY_SELECT_VALUE,
+  set: (value: string) => {
+    props.form.versionId = value === EMPTY_SELECT_VALUE ? '' : value
+  },
+})
+
+const inputSchemaSelectValue = computed({
+  get: () => props.form.inputSchemaId || EMPTY_SELECT_VALUE,
+  set: (value: string) => {
+    props.form.inputSchemaId = value === EMPTY_SELECT_VALUE ? '' : value
+  },
+})
+
+const mapperSelectValue = computed({
+  get: () => props.form.mapperId || EMPTY_SELECT_VALUE,
+  set: (value: string) => {
+    props.form.mapperId = value === EMPTY_SELECT_VALUE ? '' : value
+  },
 })
 
 function cancel() {
@@ -59,24 +89,45 @@ function cancel() {
         <form class="mt-4 space-y-3" @submit.prevent="emit('submit')">
           <label class="block space-y-1.5">
             <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldWorkflowVersion') }}</span>
-            <select v-model="form.versionId" class="h-10 w-full rounded-md border bg-background px-3 text-sm">
-              <option value="">Select version</option>
-              <option v-for="version in activeVersions" :key="version.id" :value="String(version.id)">{{ versionLabel(version.id) }}</option>
-            </select>
+            <Select v-model="versionSelectValue">
+              <SelectTrigger class="h-10 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem :value="EMPTY_SELECT_VALUE">Select version</SelectItem>
+                <SelectItem v-for="version in activeVersions" :key="version.id" :value="String(version.id)">
+                  {{ versionLabel(version.id) }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </label>
           <label class="block space-y-1.5">
             <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldInputSchema') }}</span>
-            <select v-model="form.inputSchemaId" class="h-10 w-full rounded-md border bg-background px-3 text-sm">
-              <option value="">Select input schema</option>
-              <option v-for="schema in activeSchemas" :key="schema.id" :value="String(schema.id)">{{ schemaLabel(schema.id) }}</option>
-            </select>
+            <Select v-model="inputSchemaSelectValue">
+              <SelectTrigger class="h-10 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem :value="EMPTY_SELECT_VALUE">Select input schema</SelectItem>
+                <SelectItem v-for="schema in activeSchemas" :key="schema.id" :value="String(schema.id)">
+                  {{ schemaLabel(schema.id) }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </label>
           <label class="block space-y-1.5">
             <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldInputMapper') }}</span>
-            <select v-model="form.mapperId" class="h-10 w-full rounded-md border bg-background px-3 text-sm">
-              <option value="">No mapper</option>
-              <option v-for="mapper in mappers" :key="mapper.id" :value="String(mapper.id)">Mapper #{{ mapper.id }}</option>
-            </select>
+            <Select v-model="mapperSelectValue">
+              <SelectTrigger class="h-10 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem :value="EMPTY_SELECT_VALUE">No mapper</SelectItem>
+                <SelectItem v-for="mapper in mappers" :key="mapper.id" :value="String(mapper.id)">
+                  Mapper #{{ mapper.id }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </label>
           <label class="block space-y-1.5">
             <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldCompatibilityType') }}</span>
@@ -85,7 +136,7 @@ function cancel() {
           <label class="block space-y-1.5">
             <span class="text-sm font-medium leading-none">{{ t('workflowRouting.fieldDefaultRoute') }}</span>
             <span class="flex items-center gap-2 text-sm">
-              <input v-model="form.isDefaultRoute" type="checkbox">
+              <Checkbox v-model="form.isDefaultRoute" />
               {{ t('workflowRouting.fieldEnabled') }}
             </span>
           </label>

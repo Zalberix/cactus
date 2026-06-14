@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { Button } from '~/components/ui/button'
+import { Checkbox } from '~/components/ui/checkbox'
 import { Input } from '~/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '~/components/ui/select'
 import {
   builderStateToRulesJson,
   createMapperDefaultRow,
@@ -55,12 +63,7 @@ function removeMapping(index: number) {
 <template>
   <div class="space-y-4 rounded-md border bg-muted/20 p-3">
     <label class="flex items-center gap-2 text-sm">
-      <input
-        v-model="state.copyAll"
-        type="checkbox"
-        class="h-4 w-4 rounded border"
-        :disabled="disabled"
-      >
+      <Checkbox v-model="state.copyAll" :disabled="disabled" />
       <span>{{ t('workflowRouting.mapperCopyAll') }}</span>
     </label>
 
@@ -89,11 +92,16 @@ function removeMapping(index: number) {
         class="grid gap-2 rounded-md border bg-background p-2 md:grid-cols-[1fr_120px_1fr_auto]"
       >
         <Input v-model="row.key" :placeholder="t('workflowRouting.mapperDefaultKey')" :disabled="disabled" />
-        <select v-model="row.valueType" class="rounded-md border bg-background px-3 py-2 text-sm" :disabled="disabled">
-          <option v-for="valueType in valueTypes" :key="valueType" :value="valueType">
-            {{ valueType }}
-          </option>
-        </select>
+        <Select v-model="row.valueType" :disabled="disabled">
+          <SelectTrigger class="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem v-for="valueType in valueTypes" :key="valueType" :value="valueType">
+              {{ valueType }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
         <Input
           v-if="row.valueType !== 'json'"
           v-model="row.value"
@@ -138,14 +146,19 @@ function removeMapping(index: number) {
         class="grid gap-2 rounded-md border bg-background p-2 md:grid-cols-[1fr_120px_1fr_auto]"
       >
         <Input v-model="row.targetPath" :placeholder="t('workflowRouting.mapperTargetPath')" :disabled="disabled" />
-        <select v-model="row.mode" class="rounded-md border bg-background px-3 py-2 text-sm" :disabled="disabled">
-          <option value="source">
-            {{ t('workflowRouting.mapperModeSource') }}
-          </option>
-          <option value="literal">
-            {{ t('workflowRouting.mapperModeLiteral') }}
-          </option>
-        </select>
+        <Select v-model="row.mode" :disabled="disabled">
+          <SelectTrigger class="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="source">
+              {{ t('workflowRouting.mapperModeSource') }}
+            </SelectItem>
+            <SelectItem value="literal">
+              {{ t('workflowRouting.mapperModeLiteral') }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
 
         <Input
           v-if="row.mode === 'source'"
@@ -154,11 +167,16 @@ function removeMapping(index: number) {
           :disabled="disabled"
         />
         <div v-else class="grid gap-2 md:grid-cols-[120px_1fr]">
-          <select v-model="row.literalType" class="rounded-md border bg-background px-3 py-2 text-sm" :disabled="disabled">
-            <option v-for="valueType in valueTypes" :key="valueType" :value="valueType">
-              {{ valueType }}
-            </option>
-          </select>
+          <Select v-model="row.literalType" :disabled="disabled">
+            <SelectTrigger class="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem v-for="valueType in valueTypes" :key="valueType" :value="valueType">
+                {{ valueType }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
           <Input
             v-if="row.literalType !== 'json'"
             v-model="row.literalValue"

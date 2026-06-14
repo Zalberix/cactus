@@ -90,8 +90,7 @@ describe('workflow routing input schema pages', () => {
     await wrapper.get('[data-testid="routing-schema-code-input"]').setValue('public')
     await wrapper.get('[data-testid="routing-schema-add-field"]').trigger('click')
     await wrapper.get('[data-testid="routing-schema-field-name-input"]').setValue('email')
-    await wrapper.get('[data-testid="routing-schema-field-type-select"]').setValue('string')
-    await wrapper.get('[data-testid="routing-schema-field-required-checkbox"]').setValue(true)
+    await wrapper.get('[data-testid="routing-schema-field-required-checkbox"]').trigger('click')
     await wrapper.get('[data-testid="routing-schema-field-description-input"]').setValue('Recipient address')
     await wrapper.get('[data-testid="routing-schema-save-field"]').trigger('click')
 
@@ -112,6 +111,34 @@ describe('workflow routing input schema pages', () => {
       },
     })
     expect(routerPushMock).toHaveBeenCalledWith('/org/7/workflows/42/routing')
+  })
+
+  it('renders field dialog controls with the same row alignment as the page filter', async () => {
+    vi.stubGlobal('useRoute', () => ({
+      params: { orgId: '7', workflowId: '42' },
+    }))
+
+    const wrapper = mount(NewInputSchemaPage, {
+      global: { stubs: pageStubs() },
+    })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="routing-schema-add-field"]').trigger('click')
+
+    const fieldForm = wrapper.get('[data-testid="routing-schema-field-form"]')
+    const fieldGrid = wrapper.get('[data-testid="routing-schema-field-controls"]')
+    const fieldLabels = wrapper.findAll('[data-testid="routing-schema-field-controls"] > label')
+    expect(fieldLabels).toHaveLength(3)
+    expect(fieldForm.element.tagName).toBe('DIV')
+    expect(fieldForm.find('select').exists()).toBe(false)
+    expect(fieldGrid.classes()).toContain('md:items-end')
+    expect(fieldGrid.classes()).not.toContain('md:items-start')
+    expect(fieldLabels[0].classes()).toContain('block')
+    expect(fieldLabels[1].classes()).toContain('block')
+    expect(fieldLabels[0].classes()).toContain('space-y-1.5')
+    expect(fieldLabels[1].classes()).toContain('space-y-1.5')
+    expect(wrapper.get('[data-testid="routing-schema-field-type-select"]').classes()).toContain('h-10')
+    expect(fieldLabels[2].classes()).toContain('h-10')
   })
 
   it('edits an existing versioned input schema from table fields', async () => {
@@ -225,7 +252,39 @@ function pageStubs() {
         disabled: { type: Boolean, default: false },
       },
       setup(props, { attrs, slots }) {
-        return () => h('button', { ...attrs, disabled: props.disabled }, slots.default?.())
+        return () => h('button', {
+          ...attrs,
+          disabled: props.disabled,
+          onClick: (event: MouseEvent) => {
+            const clickHandler = attrs.onClick
+            if (typeof clickHandler === 'function') clickHandler(event)
+            const type = attrs.type === undefined ? 'submit' : String(attrs.type)
+            if (!event.defaultPrevented && type === 'submit') {
+              ;(event.currentTarget as HTMLButtonElement).form?.dispatchEvent(
+                new Event('submit', { bubbles: true, cancelable: true }),
+              )
+            }
+          },
+        }, slots.default?.())
+      },
+    }),
+    Checkbox: defineComponent({
+      props: {
+        modelValue: { type: Boolean, default: false },
+        disabled: { type: Boolean, default: false },
+      },
+      emits: ['update:modelValue'],
+      setup(props, { attrs, emit }) {
+        return () => h('button', {
+          ...attrs,
+          disabled: props.disabled,
+          type: 'button',
+          role: 'checkbox',
+          'aria-checked': props.modelValue,
+          onClick: () => {
+            if (!props.disabled) emit('update:modelValue', !props.modelValue)
+          },
+        })
       },
     }),
     Card: passthrough,
@@ -233,7 +292,12 @@ function pageStubs() {
     CardDescription: { template: '<p><slot /></p>' },
     CardHeader: passthrough,
     CardTitle: { template: '<h2><slot /></h2>' },
+    Dialog: passthrough,
+    DialogContent: passthrough,
+    DialogDescription: { template: '<p><slot /></p>' },
     DialogFooter: passthrough,
+    DialogHeader: passthrough,
+    DialogTitle: { template: '<h2><slot /></h2>' },
     Input: defineComponent({
       props: {
         modelValue: { type: [String, Number], default: '' },

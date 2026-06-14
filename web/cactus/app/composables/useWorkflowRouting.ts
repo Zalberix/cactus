@@ -1,4 +1,4 @@
-import type { ApiResponse } from '~/utils/api-types'
+import type { ApiResponse, PaginationMeta } from '~/utils/api-types'
 
 export interface WorkflowInputSchemaRecord {
   id: number
@@ -48,15 +48,17 @@ export interface InputSchemaCompatibilityRow {
   is_default_route: boolean
 }
 
-export interface RoutingSupportedSchemaRecord {
+export interface RoutingSupportedVersionRecord {
   compatibility_id: number
-  schema_id: number
-  schema_code: string
-  schema_version_number: number
+  workflow_version_id: number
+  workflow_version_name: string
+  workflow_version_number: number
   compatibility_type: string
-  mapper_id?: number
+  workflow_input_mapper_id?: number
   support_mode: 'native' | 'mapper'
   is_default_route: boolean
+  is_valid: boolean
+  is_active: boolean
 }
 
 export interface RoutingActiveTestRecord {
@@ -67,17 +69,19 @@ export interface RoutingActiveTestRecord {
 }
 
 export interface RoutingVersionRowRecord {
-  workflow_version_id: number
+  input_schema_id: number
   workflow_id: number
-  workflow_version_name: string
-  workflow_version_number: number
-  is_valid: boolean
-  is_active: boolean
-  native_input_schema_id: number
-  native_input_schema_code: string
-  native_input_schema_version_number: number
-  supported_schemas: RoutingSupportedSchemaRecord[]
+  input_schema_code: string
+  input_schema_version_number: number
+  input_schema_status: WorkflowInputSchemaRecord['status']
+  is_default: boolean
+  supported_versions: RoutingSupportedVersionRecord[]
   active_tests: RoutingActiveTestRecord[]
+}
+
+export interface RoutingVersionRowsPage {
+  data: RoutingVersionRowRecord[]
+  meta: PaginationMeta
 }
 
 export interface WorkflowExperiment {
@@ -308,30 +312,34 @@ function normalizeInputSchemaCompatibilityRow(value: unknown): InputSchemaCompat
 
 function normalizeRoutingVersionRow(value: unknown): RoutingVersionRowRecord {
   const raw = recordValue(value)
-  const supported = Array.isArray(raw.supported_schemas) ? raw.supported_schemas : []
+  const supported = Array.isArray(raw.supported_versions) ? raw.supported_versions : []
   const tests = Array.isArray(raw.active_tests) ? raw.active_tests : []
   return {
-    workflow_version_id: Number(raw.workflow_version_id ?? 0),
+    input_schema_id: Number(raw.input_schema_id ?? 0),
     workflow_id: Number(raw.workflow_id ?? 0),
-    workflow_version_name: String(raw.workflow_version_name ?? ''),
-    workflow_version_number: Number(raw.workflow_version_number ?? 0),
-    is_valid: Boolean(raw.is_valid),
-    is_active: Boolean(raw.is_active),
-    native_input_schema_id: Number(raw.native_input_schema_id ?? 0),
-    native_input_schema_code: String(raw.native_input_schema_code ?? ''),
-    native_input_schema_version_number: Number(raw.native_input_schema_version_number ?? 0),
-    supported_schemas: supported.map((item) => {
-      const schema = recordValue(item)
+    input_schema_code: String(raw.input_schema_code ?? ''),
+    input_schema_version_number: Number(raw.input_schema_version_number ?? 0),
+    input_schema_status: (raw.input_schema_status as WorkflowInputSchemaRecord['status']) ?? 'draft',
+    is_default: Boolean(raw.is_default),
+    supported_versions: supported.map((item) => {
+      const version = recordValue(item)
+      const mapperId = nullableNumber(version.workflow_input_mapper_id)
+      const compatibilityType = String(version.compatibility_type ?? '')
+      const supportMode = version.support_mode === 'native' && compatibilityType === 'native' && mapperId === undefined
+        ? 'native'
+        : 'mapper'
       return {
-        compatibility_id: Number(schema.compatibility_id ?? 0),
-        schema_id: Number(schema.schema_id ?? 0),
-        schema_code: String(schema.schema_code ?? ''),
-        schema_version_number: Number(schema.schema_version_number ?? 0),
-        compatibility_type: String(schema.compatibility_type ?? ''),
-        mapper_id: nullableNumber(schema.mapper_id),
-        support_mode: schema.support_mode === 'mapper' ? 'mapper' : 'native',
-        is_default_route: Boolean(schema.is_default_route),
-      } satisfies RoutingSupportedSchemaRecord
+        compatibility_id: Number(version.compatibility_id ?? 0),
+        workflow_version_id: Number(version.workflow_version_id ?? 0),
+        workflow_version_name: String(version.workflow_version_name ?? ''),
+        workflow_version_number: Number(version.workflow_version_number ?? 0),
+        compatibility_type: compatibilityType,
+        workflow_input_mapper_id: mapperId,
+        support_mode: supportMode,
+        is_default_route: Boolean(version.is_default_route),
+        is_valid: Boolean(version.is_valid),
+        is_active: Boolean(version.is_active),
+      } satisfies RoutingSupportedVersionRecord
     }),
     active_tests: tests.map((item) => {
       const test = recordValue(item)
@@ -388,10 +396,25 @@ function normalizeExperimentVariant(value: unknown): WorkflowExperimentVariant {
 export function useWorkflowRouting() {
   const { api } = useApi()
 
-  async function fetchRoutingVersionRows(workflowId: number): Promise<RoutingVersionRowRecord[]> {
-    const resp = await api<ApiResponse<RoutingVersionRowRecord[]>>(`/workflows/${workflowId}/routing/versions`)
+  async function fetchRoutingVersionRows(workflowId: number): Promise<RoutingVersionRowRecord[]>
+  async function fetchRoutingVersionRows(workflowId: number, page: number, perPage: number): Promise<RoutingVersionRowsPage>
+  async function fetchRoutingVersionRows(
+    workflowId: number,
+    page?: number,
+    perPage: number = 20,
+  ): Promise<RoutingVersionRowRecord[] | RoutingVersionRowsPage> {
+    const paginated = page !== undefined
+    const resp = await api<ApiResponse<RoutingVersionRowRecord[]>>(
+      `/workflows/${workflowId}/routing/versions`,
+      paginated ? { params: { page, per_page: perPage } } : undefined,
+    )
     const data = requireData(resp, 'Failed to fetch workflow routing versions')
-    return Array.isArray(data) ? data.map(normalizeRoutingVersionRow) : []
+    const rows = Array.isArray(data) ? data.map(normalizeRoutingVersionRow) : []
+    if (!paginated) return rows
+    return {
+      data: rows,
+      meta: resp.meta ?? { total: 0, page, per_page: perPage, total_pages: 0 },
+    }
   }
 
   async function fetchInputSchemas(workflowId: number): Promise<WorkflowInputSchemaRecord[]> {

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { PaginationMeta } from '../app/utils/api-types'
 import { useWorkflowRouting } from '../app/composables/useWorkflowRouting'
 
 describe('workflow routing API composable', () => {
@@ -38,6 +39,13 @@ describe('workflow routing API composable', () => {
       schema_json: { type: 'object', properties: { email: { type: 'string' } } },
       status: 'active',
       is_default: true,
+      usage: {
+        used_by_message: false,
+        used_by_mapper: false,
+        used_by_experiment: false,
+        is_readonly: false,
+        reasons: [],
+      },
     }])
   })
 
@@ -74,6 +82,148 @@ describe('workflow routing API composable', () => {
     expect(compatibilities[0].default_values).toEqual({ locale: 'en' })
     expect(compatibilities[1].workflow_input_mapper_id).toBeUndefined()
     expect(compatibilities[1].is_default_route).toBe(true)
+  })
+
+  it('normalizes routing rows as input schema versions with supported workflow versions', async () => {
+    const calls: string[] = []
+    vi.stubGlobal('useApi', () => ({
+      api: async (url: string) => {
+        calls.push(url)
+        return {
+          success: true,
+          data: [{
+            input_schema_id: 11,
+            workflow_id: 7,
+            input_schema_code: 'v2',
+            input_schema_version_number: 2,
+            input_schema_status: 'active',
+            is_default: true,
+            supported_versions: [{
+              compatibility_id: 31,
+              workflow_version_id: 21,
+              workflow_version_name: 'Version 1',
+              workflow_version_number: 1,
+              compatibility_type: 'native',
+              workflow_input_mapper_id: { Int32: 0, Valid: false },
+              support_mode: 'native',
+              is_default_route: false,
+              is_valid: true,
+              is_active: true,
+            }, {
+              compatibility_id: 32,
+              workflow_version_id: 22,
+              workflow_version_name: 'Version 2',
+              workflow_version_number: 2,
+              compatibility_type: 'native',
+              workflow_input_mapper_id: { Int32: 0, Valid: false },
+              support_mode: 'native',
+              is_default_route: true,
+              is_valid: true,
+              is_active: true,
+            }],
+            active_tests: [{ id: 41, name: 'load-test-version-split', experiment_type: 'experiment', status: 'active' }],
+          }],
+        }
+      },
+    }))
+
+    const { fetchRoutingVersionRows } = useWorkflowRouting()
+    const rows = await fetchRoutingVersionRows(7)
+
+    expect(calls).toEqual(['/workflows/7/routing/versions'])
+    expect(rows).toEqual([{
+      input_schema_id: 11,
+      workflow_id: 7,
+      input_schema_code: 'v2',
+      input_schema_version_number: 2,
+      input_schema_status: 'active',
+      is_default: true,
+      supported_versions: [{
+        compatibility_id: 31,
+        workflow_version_id: 21,
+        workflow_version_name: 'Version 1',
+        workflow_version_number: 1,
+        compatibility_type: 'native',
+        workflow_input_mapper_id: undefined,
+        support_mode: 'native',
+        is_default_route: false,
+        is_valid: true,
+        is_active: true,
+      }, {
+        compatibility_id: 32,
+        workflow_version_id: 22,
+        workflow_version_name: 'Version 2',
+        workflow_version_number: 2,
+        compatibility_type: 'native',
+        workflow_input_mapper_id: undefined,
+        support_mode: 'native',
+        is_default_route: true,
+        is_valid: true,
+        is_active: true,
+      }],
+      active_tests: [{ id: 41, name: 'load-test-version-split', experiment_type: 'experiment', status: 'active' }],
+    }])
+  })
+
+  it('fetches routing rows with pagination params and metadata', async () => {
+    const calls: Array<[string, unknown]> = []
+    vi.stubGlobal('useApi', () => ({
+      api: async (url: string, options?: unknown) => {
+        calls.push([url, options])
+        return {
+          success: true,
+          data: [],
+          meta: { total: 25, page: 2, per_page: 10, total_pages: 3 } satisfies PaginationMeta,
+        }
+      },
+    }))
+
+    const { fetchRoutingVersionRows } = useWorkflowRouting()
+    const result = await fetchRoutingVersionRows(7, 2, 10)
+
+    expect(calls).toEqual([[
+      '/workflows/7/routing/versions',
+      { params: { page: 2, per_page: 10 } },
+    ]])
+    expect(result).toEqual({
+      data: [],
+      meta: { total: 25, page: 2, per_page: 10, total_pages: 3 },
+    })
+  })
+
+  it('treats mapped routing support as mapper even when the raw type is native', async () => {
+    vi.stubGlobal('useApi', () => ({
+      api: async () => ({
+        success: true,
+        data: [{
+          input_schema_id: 11,
+          workflow_id: 7,
+          input_schema_code: 'v2',
+          input_schema_version_number: 2,
+          input_schema_status: 'active',
+          is_default: false,
+          supported_versions: [{
+            compatibility_id: 31,
+            workflow_version_id: 21,
+            workflow_version_name: 'Version 1',
+            workflow_version_number: 1,
+            compatibility_type: 'native',
+            workflow_input_mapper_id: { Int32: 77, Valid: true },
+            support_mode: 'native',
+            is_default_route: false,
+            is_valid: true,
+            is_active: true,
+          }],
+          active_tests: [],
+        }],
+      }),
+    }))
+
+    const { fetchRoutingVersionRows } = useWorkflowRouting()
+    const rows = await fetchRoutingVersionRows(7)
+
+    expect(rows[0].supported_versions[0].workflow_input_mapper_id).toBe(77)
+    expect(rows[0].supported_versions[0].support_mode).toBe('mapper')
   })
 
   it('normalizes experiment timestamp and text fields', async () => {

@@ -110,12 +110,13 @@ func (h *Handler) ListWorkflowRoutingVersionRows(c *gin.Context) {
 	if !ok {
 		return
 	}
-	rows, err := h.service.ListWorkflowRoutingVersionRows(c.Request.Context(), workflowID)
+	page, perPage := parsePaginationQuery(c)
+	rows, total, err := h.service.ListWorkflowRoutingVersionRows(c.Request.Context(), workflowID, page, perPage)
 	if err != nil {
 		writeWorkflowConfigurationError(c, err)
 		return
 	}
-	response.OK(c, rows)
+	response.OKPaginated(c, rows, total, page, perPage)
 }
 
 func (h *Handler) ListWorkflowInputSchemas(c *gin.Context) {
@@ -542,6 +543,12 @@ func actorUserID(c *gin.Context) int32 {
 		return 0
 	}
 	return claims.UserID
+}
+
+func parsePaginationQuery(c *gin.Context) (int, int) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "20"))
+	return normalizeRoutingPagination(page, perPage)
 }
 
 func writeWorkflowConfigurationError(c *gin.Context, err error) {
