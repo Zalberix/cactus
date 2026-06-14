@@ -17,22 +17,52 @@ var CleanPortsCmd = &cli.Command{
 	Name:  "clean-ports",
 	Usage: "Kill all processes listening on development ports",
 	Action: func(_ *cli.Context) error {
-		// Главное не задеть порты docker, тк он зависает
-		ports := []int{80, 3010, 3009}
-		for _, app := range goapp.Apps {
-			ports = append(ports, app.DebugPort)
+		return CleanPorts(context.Background(), ptermPortReporter{})
+	},
+}
+
+type PortReporter interface {
+	Infof(format string, args ...any)
+	Warnf(format string, args ...any)
+	Successf(format string, args ...any)
+}
+
+func CleanPorts(ctx context.Context, reporter PortReporter) error {
+	// Keep Docker-owned ports out of this list; killing them can hang dependent services.
+	ports := []int{80, 3010, 3009}
+	for _, app := range goapp.Apps {
+		ports = append(ports, app.DebugPort)
+	}
+
+	reporter.Infof("Cleaning %d ports", len(ports))
+	for _, port := range ports {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
 		}
 
-		pterm.Info.Printfln("Cleaning %d ports...", len(ports))
-		for _, port := range ports {
-			if err := killPort(port); err != nil {
-				pterm.Warning.Printfln("Port %d: %v", port, err)
-			} else {
-				pterm.Success.Printfln("Port %d cleared", port)
-			}
+		if err := killPort(port); err != nil {
+			reporter.Warnf("Port %d: %v", port, err)
+			continue
 		}
-		return nil
-	},
+		reporter.Successf("Port %d cleared", port)
+	}
+	return nil
+}
+
+type ptermPortReporter struct{}
+
+func (ptermPortReporter) Infof(format string, args ...any) {
+	pterm.Info.Printfln(format, args...)
+}
+
+func (ptermPortReporter) Warnf(format string, args ...any) {
+	pterm.Warning.Printfln(format, args...)
+}
+
+func (ptermPortReporter) Successf(format string, args ...any) {
+	pterm.Success.Printfln(format, args...)
 }
 
 func killPort(port int) error {
@@ -45,7 +75,7 @@ func killPort(port int) error {
 func killPortUnix(port int) error {
 	out, err := exec.CommandContext(context.Background(), "lsof", "-ti", fmt.Sprintf(":%d", port)).Output() // #nosec G204 -- port is selected by the CLI from known dev ports.
 	if err != nil {
-		// no process on this port — not an error
+		// No process on this port is not an error.
 		return nil //nolint:nilerr
 	}
 	pids := strings.Fields(strings.TrimSpace(string(out)))

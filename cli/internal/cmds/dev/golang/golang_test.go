@@ -1,9 +1,11 @@
 package golang
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
+	devruntime "github.com/zalberix/cactus/cli/internal/cmds/dev/runtime"
 	"github.com/zalberix/cactus/cli/internal/goapp"
 	"github.com/zalberix/cactus/cli/internal/services"
 )
@@ -93,6 +95,52 @@ func TestExpandWorkerTemplatesAssignsUniqueDebugPortsAcrossSameApp(t *testing.T)
 		if ports[i] != want[i] {
 			t.Fatalf("expected debug ports %v, got %v", want, ports)
 		}
+	}
+}
+
+func TestGoAppsTargetSpecsExposeRuntimeProcesses(t *testing.T) {
+	port := 3009
+	apps := &GoApps{
+		apps: []*goapp.GoApp{
+			{
+				Name:      "manager",
+				CorePath:  t.TempDir(),
+				AppDir:    "apps",
+				Port:      &port,
+				DebugPort: 2346,
+			},
+			{
+				Name:      "worker",
+				CorePath:  t.TempDir(),
+				AppDir:    filepath.Join("apps", "workers"),
+				DependsOn: []string{"manager"},
+				DebugPort: 2348,
+			},
+		},
+	}
+
+	specs := apps.TargetSpecs()
+	if len(specs) != 2 {
+		t.Fatalf("expected 2 specs, got %d", len(specs))
+	}
+
+	manager := specs[0]
+	if manager.ID != "manager" || manager.Kind != devruntime.TargetProcess {
+		t.Fatalf("unexpected manager spec: %#v", manager)
+	}
+	if manager.Ready == nil || manager.Build == nil || manager.Command == nil {
+		t.Fatalf("manager target must include build, command, and readiness: %#v", manager)
+	}
+	if !manager.RestartOnFileChange || len(manager.WatchPaths) != 1 {
+		t.Fatalf("manager watcher settings not populated: %#v", manager)
+	}
+
+	worker := specs[1]
+	if len(worker.DependsOn) != 1 || worker.DependsOn[0] != "manager" {
+		t.Fatalf("worker deps = %#v, want manager", worker.DependsOn)
+	}
+	if worker.Ready == nil {
+		t.Fatal("worker target must receive an immediate readiness probe")
 	}
 }
 

@@ -3,9 +3,13 @@ package golang
 import (
 	"context"
 	"fmt"
+	"io"
+	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/pterm/pterm"
+	devruntime "github.com/zalberix/cactus/cli/internal/cmds/dev/runtime"
 	"github.com/zalberix/cactus/cli/internal/goapp"
 	"github.com/zalberix/cactus/cli/internal/services"
 )
@@ -86,11 +90,9 @@ func expandWorkers(templates []goapp.GoApp) []goapp.GoApp {
 	cfg, cfgErr := services.LoadServices(servicesConfigPath)
 	instances, err := services.Reconcile(servicesConfigPath, servicesLockPath, workerIDDir)
 	if err != nil {
-		pterm.Warning.Printfln("services reconcile: %v (workers will run with default count)", err)
 		return templates
 	}
 	if cfgErr != nil {
-		pterm.Warning.Printfln("services config: %v (core workers will not be expanded)", cfgErr)
 		return expandServiceTemplates(templates, instances, 0)
 	}
 
@@ -127,7 +129,6 @@ func expandServiceTemplates(templates []goapp.GoApp, instances []services.Worker
 		default:
 			workerInstances, ok := byApp[tmpl.Name]
 			if !ok || len(workerInstances) == 0 {
-				pterm.Info.Printfln("Worker app %q not in cactus-services.yaml, skipping", tmpl.Name)
 				continue
 			}
 
@@ -219,6 +220,35 @@ func (c *GoApps) Stop() {
 		app.Watcher.Stop()
 		app.Stop()
 	}
+}
+
+func (c *GoApps) TargetSpecs() []devruntime.TargetSpec {
+	specs := make([]devruntime.TargetSpec, 0, len(c.apps))
+	for _, app := range c.apps {
+		app := app
+		ready := devruntime.ImmediateReady()
+		if app.Port != nil {
+			ready = devruntime.PortReadyProbe(*app.Port, 300*time.Millisecond, 60*time.Second)
+		}
+
+		specs = append(specs, devruntime.TargetSpec{
+			ID:                  app.Name,
+			Name:                app.Name,
+			Kind:                devruntime.TargetProcess,
+			DependsOn:           app.DependsOn,
+			GracefulTimeout:     5 * time.Second,
+			RestartOnFileChange: true,
+			WatchPaths:          []string{app.GetAppPath()},
+			Build: func(ctx context.Context, stdout io.Writer, stderr io.Writer) error {
+				return app.BuildWith(ctx, stdout, stderr)
+			},
+			Command: func(ctx context.Context, stdout io.Writer, stderr io.Writer) (*exec.Cmd, error) {
+				return app.CreateAppCommandWith(ctx, stdout, stderr)
+			},
+			Ready: ready,
+		})
+	}
+	return specs
 }
 
 func detectCycles(apps []goapp.GoApp) error {

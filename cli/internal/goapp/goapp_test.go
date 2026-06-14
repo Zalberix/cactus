@@ -1,6 +1,8 @@
 package goapp
 
 import (
+	"bytes"
+	"context"
 	"path/filepath"
 	"testing"
 )
@@ -45,6 +47,35 @@ func TestBuildArgsUsesCustomCommandDir(t *testing.T) {
 	want := filepath.Join(app.CorePath, "apps", "core", "cmd")
 	if target != want {
 		t.Fatalf("expected build target %q, got %q", want, target)
+	}
+}
+
+func TestCreateAppCommandWithInjectsContextWritersAndArgs(t *testing.T) {
+	app := GoApp{
+		Name:      "manager",
+		CorePath:  t.TempDir(),
+		AppDir:    "apps",
+		ExtraArgs: []string{"--config", "local"},
+	}
+	stdout := bytes.NewBuffer(nil)
+	stderr := bytes.NewBuffer(nil)
+
+	cmd, err := app.CreateAppCommandWith(context.Background(), stdout, stderr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if cmd.Stdout != stdout {
+		t.Fatal("stdout writer was not injected")
+	}
+	if cmd.Stderr != stderr {
+		t.Fatal("stderr writer was not injected")
+	}
+	if cmd.Dir != app.CorePath {
+		t.Fatalf("cmd.Dir = %q, want %q", cmd.Dir, app.CorePath)
+	}
+	if got := cmd.Args[len(cmd.Args)-2:]; got[0] != "--config" || got[1] != "local" {
+		t.Fatalf("extra args were not preserved: %#v", cmd.Args)
 	}
 }
 

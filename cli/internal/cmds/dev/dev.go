@@ -1,21 +1,15 @@
 package dev
 
 import (
-	"fmt"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 
-	"github.com/zalberix/cactus/cli/internal/cmds/dependencies"
-
-	devgolang "github.com/zalberix/cactus/cli/internal/cmds/dev/golang"
-	"github.com/zalberix/cactus/cli/internal/cmds/dev/helpers"
-	"github.com/zalberix/cactus/cli/internal/cmds/migrations"
-	"github.com/zalberix/cactus/cli/internal/cmds/proxy"
-
-	"github.com/pterm/pterm"
 	"github.com/urfave/cli/v2"
+	"github.com/zalberix/cactus/cli/internal/cmds/dev/helpers"
+	devruntime "github.com/zalberix/cactus/cli/internal/cmds/dev/runtime"
+	"github.com/zalberix/cactus/cli/internal/cmds/dev/tui"
 )
 
 // Cmd is the top-level `dev` command.
@@ -40,65 +34,15 @@ var Cmd = &cli.Command{
 		helpers.CleanPortsCmd,
 	},
 	Action: func(c *cli.Context) error {
-		wd, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-		pterm.Info.Printf("Приложение запущено из: %s\n", wd)
-		installDeps := c.Bool("deps")
-		runMigrations := c.Bool("migrate")
-		isDebugEnabled := c.Bool("debug")
+		ctx, stop := signal.NotifyContext(c.Context, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
 
-		if isDebugEnabled {
-			pterm.Info.Println("Режим отладки ВКЛЮЧЕН")
-		} else {
-			pterm.Info.Println("Режим отладки ВЫКЛЮЧЕН")
-		}
-
-		if err := helpers.CleanPortsCmd.Run(c); err != nil {
-			return fmt.Errorf("clear ports: %w", err)
-		}
-
-		proxyStartedChan, err := proxy.StartProxy(false)
-		if err != nil {
-			pterm.Fatal.Printfln("Proxy failed to start: %v", err)
-			return err
-		}
-
-		// wait proxy to up
-		<-proxyStartedChan
-
-		if installDeps {
-			if err := dependencies.Cmd.Run(c); err != nil {
-				return fmt.Errorf("install deps: %w", err)
-			}
-		}
-
-		if runMigrations {
-			if err := migrations.UpMigrationCmd.Run(c); err != nil {
-				pterm.Warning.Printfln("Migrations failed: %v (continuing anyway)", err)
-			}
-		}
-
-		golangApps, err := devgolang.New(isDebugEnabled)
-		if err != nil {
-			pterm.Fatal.Println(err)
-			return err
-		}
-
-		if err := golangApps.Start(c.Context); err != nil {
-			pterm.Error.Println("Error start: ", err)
-			return err
-		}
-
-		exitSignal := make(chan os.Signal, 1)
-		signal.Notify(exitSignal, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
-
-		<-exitSignal
-		pterm.Info.Println("Shutting down, waiting for services to stop...")
-		golangApps.Stop()
-		pterm.Success.Println("All services stopped")
-		return nil
+		return tui.Run(ctx, devruntime.Options{
+			InstallDeps:   c.Bool("deps"),
+			RunMigrations: c.Bool("migrate"),
+			Debug:         c.Bool("debug"),
+			LogCapacity:   2000,
+		})
 	},
 }
 

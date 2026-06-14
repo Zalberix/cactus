@@ -21,11 +21,10 @@ func New() *Watcher {
 }
 
 func (c *Watcher) Start(path string) (chan struct{}, error) {
-	watchPath := path + "..."
-
 	updateChannel := make(chan struct{}, 1)
 
-	if err := notify.Watch(watchPath, c.chann, notify.All); err != nil {
+	events, err := c.StartEvents(path)
+	if err != nil {
 		return nil, err
 	}
 
@@ -37,14 +36,33 @@ func (c *Watcher) Start(path string) (chan struct{}, error) {
 	)
 
 	go func() {
+		for path := range events {
+			pterm.Warning.Printfln("File changed, triggering restart: %s", path)
+			reload()
+		}
+	}()
+
+	return updateChannel, nil
+}
+
+func (c *Watcher) StartEvents(path string) (chan string, error) {
+	watchPath := path + "..."
+	updateChannel := make(chan string, 1)
+
+	if err := notify.Watch(watchPath, c.chann, notify.All); err != nil {
+		return nil, err
+	}
+
+	go func() {
 		for event := range c.chann {
 			if strings.HasSuffix(event.Path(), "~") || strings.Contains(event.Path(), ".out") {
 				continue
 			}
 
-			pterm.Warning.Printfln("Файл изменен, триггерим рестарт: %s", event.Path())
-
-			reload()
+			select {
+			case updateChannel <- event.Path():
+			default:
+			}
 		}
 	}()
 

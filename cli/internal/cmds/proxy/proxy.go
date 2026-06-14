@@ -3,10 +3,13 @@ package proxy
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"os"
+	"os/exec"
 	"time"
 
+	devruntime "github.com/zalberix/cactus/cli/internal/cmds/dev/runtime"
 	"github.com/zalberix/cactus/cli/internal/shell"
 
 	"github.com/pterm/pterm"
@@ -50,6 +53,29 @@ func StartProxy(_ bool) (<-chan struct{}, error) {
 	}()
 
 	return startChannel, err
+}
+
+func TargetSpec() devruntime.TargetSpec {
+	return devruntime.TargetSpec{
+		ID:              "caddy-proxy",
+		Name:            "caddy-proxy",
+		Kind:            devruntime.TargetProcess,
+		GracefulTimeout: 5 * time.Second,
+		Command: func(ctx context.Context, stdout io.Writer, stderr io.Writer) (*exec.Cmd, error) {
+			wd, err := os.Getwd()
+			if err != nil {
+				return nil, err
+			}
+			return shell.CreateCommand(shell.ExecCommandOpts{
+				Context: ctx,
+				Command: "go tool caddy run --watch --config Caddyfile",
+				Stdout:  stdout,
+				Stderr:  stderr,
+				Pwd:     wd,
+			})
+		},
+		Ready: devruntime.PortReadyProbe(80, 500*time.Millisecond, 60*time.Second),
+	}
 }
 
 func checkIsProxyStarted(port int) bool {

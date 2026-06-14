@@ -1,6 +1,8 @@
 package frontend
 
 import (
+	"context"
+	"io"
 	"os"
 	"os/exec"
 	"syscall"
@@ -41,12 +43,17 @@ func (c *app) stop() error {
 }
 
 func (c *app) createAppCommand() (*exec.Cmd, error) {
+	return c.createAppCommandWith(context.Background(), os.Stdout, os.Stderr)
+}
+
+func (c *app) createAppCommandWith(ctx context.Context, stdout io.Writer, stderr io.Writer) (*exec.Cmd, error) {
 	cmd, err := shell.CreateCommand(
 		shell.ExecCommandOpts{
+			Context: ctx,
 			Command: "npm run dev",
 			Pwd:     c.path,
-			Stdout:  os.Stdout,
-			Stderr:  os.Stderr,
+			Stdout:  stdout,
+			Stderr:  stderr,
 		},
 	)
 	if err != nil {
