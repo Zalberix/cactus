@@ -8,4 +8,4 @@ sql:
         package: "db"
         sql_package: "pgx/v5"
         emit_json_tags: true
-        out: "./apps/core/storage/db"
+        out: "./libs/storage/db"

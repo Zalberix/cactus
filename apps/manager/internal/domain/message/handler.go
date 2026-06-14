@@ -1,0 +1,174 @@
+package message
+
+import (
+	"fmt"
+	"log/slog"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+
+	"github.com/zalberix/cactus/apps/manager/internal/http/middleware"
+	"github.com/zalberix/cactus/apps/manager/internal/http/response"
+)
+
+// Handler — HTTP-обработчики для message domain.
+type Handler struct {
+	service *Service
+}
+
+// NewHandler создаёт новый Handler.
+func NewHandler(svc *Service) *Handler {
+	return &Handler{service: svc}
+}
+
+// SendMessage обрабатывает запрос на отправку сообщения.
+//
+// Авторизация: system token (X-Public-Token + X-Private-Token) ИЛИ JWT.
+// Для system token: middleware.SystemTokenAuth уже проверил credentials,
+// публичный токен используется для CheckWorkflowAccess.
+// Для JWT: пользователь аутентифицирован через middleware.Auth.
+func (h *Handler) SendMessage(c *gin.Context) {
+	var req SendMessageRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "INVALID_REQUEST", "Некорректный формат запроса",
+			response.ErrorDetail{Message: err.Error()})
+		return
+	}
+
+	// Определяем public token если system token auth
+	publicToken := ""
+	if token := middleware.GetSystemToken(c); token != nil {
+		publicToken = token.PublicToken
+	}
+
+	resp, validationErrors, err := h.service.SendMessage(c.Request.Context(), req, publicToken)
+	if err != nil {
+		slog.Error("SendMessage error", slog.String("error", err.Error()))
+
+		// Различаем типы ошибок
+		errMsg := err.Error()
+		switch {
+		case strings.Contains(errMsg, "PROCESS_INVALID"):
+			response.BadRequest(c, "PROCESS_INVALID", err.Error())
+		case strings.Contains(errMsg, "PROCESS_REQUIRED"):
+			response.BadRequest(c, "PROCESS_REQUIRED", err.Error())
+		case strings.Contains(errMsg, "PROCESS_WORKFLOW_MISMATCH"):
+			response.BadRequest(c, "PROCESS_WORKFLOW_MISMATCH", err.Error())
+		case strings.Contains(errMsg, "EXPERIMENT_NOT_ROUTABLE"):
+			response.BadRequest(c, "EXPERIMENT_NOT_ROUTABLE", err.Error())
+		case strings.Contains(errMsg, "not found"):
+			response.NotFound(c, err.Error())
+		case strings.Contains(errMsg, "access denied"):
+			response.Forbidden(c, err.Error())
+		case strings.Contains(errMsg, "no active version"):
+			response.BadRequest(c, "NO_ACTIVE_VERSION", err.Error())
+		default:
+			response.InternalError(c, "Ошибка обработки сообщения")
+		}
+		return
+	}
+
+	if len(validationErrors) > 0 {
+		response.BadRequest(c, "VALIDATION_ERROR", "Payload не прошёл валидацию", validationErrors...)
+		return
+	}
+
+	response.OK(c, resp)
+}
+
+// GetMessageStatus returns message status.
+// GET /api/v1/messages/:id/status
+func (h *Handler) GetMessageStatus(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 32)
+	if err != nil {
+		response.BadRequest(c, "INVALID_ID", "Invalid message ID")
+		return
+	}
+
+	resp, err := h.service.GetMessageStatus(c.Request.Context(), int32(id))
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "no rows") {
+			response.Fail(c, http.StatusNotFound, "MESSAGE_NOT_FOUND",
+				fmt.Sprintf("Message with ID %d not found", id))
+			return
+		}
+		response.InternalError(c, "Error fetching message status")
+		return
+	}
+
+	response.OK(c, resp)
+}
+
+// GetMessageDetail returns message detail with run graph and runtime step data.
+// GET /api/v1/messages/:id/detail
+func (h *Handler) GetMessageDetail(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "INVALID_ID", "Invalid message ID")
+		return
+	}
+
+	resp, err := h.service.GetMessageDetail(c.Request.Context(), int32(id))
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "no rows") {
+			response.Fail(c, http.StatusNotFound, "MESSAGE_NOT_FOUND",
+				fmt.Sprintf("Message with ID %d not found", id))
+			return
+		}
+		response.InternalError(c, "Error fetching message detail")
+		return
+	}
+
+	response.OK(c, resp)
+}
+
+// ListMessages returns paginated messages for an organization.
+// GET /api/v1/organizations/:orgId/messages?page=1&per_page=20
+func (h *Handler) ListMessages(c *gin.Context) {
+	orgIDStr := c.Param("orgId")
+	orgID, err := strconv.ParseInt(orgIDStr, 10, 32)
+	if err != nil {
+		response.BadRequest(c, "INVALID_ID", "Invalid organization ID")
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "20"))
+
+	items, total, err := h.service.ListMessages(c.Request.Context(), int32(orgID), page, perPage)
+	if err != nil {
+		response.InternalError(c, "Ошибка получения списка сообщений: "+err.Error())
+		return
+	}
+
+	response.OKPaginated(c, items, total, page, perPage)
+}
+
+// RegisterRoutes регистрирует маршруты message domain.
+// endpoint доступен через system token auth (M2M) И JWT auth (UI).
+//
+// Поскольку Gin не допускает регистрацию одного пути с разными middleware,
+// используем два пути:
+//   - POST /api/v1/messages/send — M2M (system token auth)
+//   - POST /api/v1/messages/send-user — UI (JWT auth)
+//   - GET /api/v1/messages/:id/status-system — M2M (system token auth)
+//   - GET /api/v1/messages/:id/status — UI (JWT auth)
+//
+// Оба пути ведут в один handler SendMessage/GetMessageStatus.
+func (h *Handler) RegisterRoutes(r *gin.Engine, jwtAuthMw gin.HandlerFunc, systemTokenAuthMw gin.HandlerFunc) {
+	v1 := r.Group("/api/v1")
+
+	// M2M endpoints (system token auth)
+	v1.POST("/messages/send", systemTokenAuthMw, h.SendMessage)
+	v1.GET("/messages/:id/status-system", systemTokenAuthMw, h.GetMessageStatus)
+
+	// JWT endpoints
+	jwtGroup := v1.Group("", jwtAuthMw)
+	jwtGroup.POST("/messages/send-user", h.SendMessage)
+	jwtGroup.GET("/messages/:id/status", h.GetMessageStatus)
+	jwtGroup.GET("/messages/:id/detail", h.GetMessageDetail)
+	jwtGroup.GET("/organizations/:orgId/messages", h.ListMessages)
+}

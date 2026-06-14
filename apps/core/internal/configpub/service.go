@@ -12,7 +12,7 @@ import (
 	"github.com/nats-io/nats.go"
 
 	"github.com/zalberix/cactus/apps/core/internal/natssubjects"
-	"github.com/zalberix/cactus/apps/core/storage/db"
+	"github.com/zalberix/cactus/libs/storage/db"
 )
 
 type Payload struct {

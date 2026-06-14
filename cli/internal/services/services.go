@@ -17,8 +17,13 @@ type WorkerDef struct {
 	Count   int    `yaml:"count"`
 }
 
+type CoreWorkersDef struct {
+	Count int `yaml:"count"`
+}
+
 type Config struct {
-	Workers []WorkerDef `yaml:"workers"`
+	CoreWorkers CoreWorkersDef `yaml:"core_workers"`
+	Workers     []WorkerDef    `yaml:"workers"`
 }
 
 type Lock struct {
@@ -57,6 +62,10 @@ func LoadServices(path string) (*Config, error) {
 }
 
 func validateConfig(cfg Config) error {
+	if cfg.CoreWorkers.Count < 0 {
+		return fmt.Errorf("core_workers.count must be >= 0")
+	}
+
 	seen := make(map[string]struct{}, len(cfg.Workers))
 	for i, worker := range cfg.Workers {
 		if worker.Name == "" {

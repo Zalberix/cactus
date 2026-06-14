@@ -27,11 +27,14 @@ type GoApp struct {
 	Cmd          *exec.Cmd
 	CorePath     string
 	AppDir       string
+	SourceDir    string
+	CommandDir   string
 	Watcher      *watcher.Watcher
 	debugEnabled bool
 
 	// IsWorker — true для worker-сервисов, которые масштабируются через cactus-services.yaml.
-	IsWorker bool
+	IsWorker     bool
+	IsCoreWorker bool
 	// WorkerUUID — UUID инстанса из lock-файла. Заполняется при expansion.
 	WorkerUUID string
 	// WorkerGroupName identifies the launch group from cactus-services.yaml.
@@ -44,7 +47,7 @@ type GoApp struct {
 	ExtraArgs []string
 }
 
-func NewApplication(name string, enableDebug bool, appDir string, port *int, debugPort int, onPortReady func(), dependsOn []string) (
+func NewApplication(name string, enableDebug bool, appDir string, sourceDir string, commandDir string, isCoreWorker bool, port *int, debugPort int, onPortReady func(), dependsOn []string) (
 	*GoApp,
 	error,
 ) {
@@ -58,6 +61,9 @@ func NewApplication(name string, enableDebug bool, appDir string, port *int, deb
 		Cmd:          nil,
 		CorePath:     wd,
 		AppDir:       appDir,
+		SourceDir:    sourceDir,
+		CommandDir:   commandDir,
+		IsCoreWorker: isCoreWorker,
 		Watcher:      watcher.New(),
 		debugEnabled: enableDebug,
 		Port:         port,
@@ -88,6 +94,9 @@ func (g *GoApp) getBinAppPath() string {
 }
 
 func (g *GoApp) GetAppPath() string {
+	if g.SourceDir != "" {
+		return filepath.Join(g.CorePath, g.SourceDir)
+	}
 	name := g.Name
 	if g.BaseName != "" {
 		name = g.BaseName
@@ -103,6 +112,13 @@ func (g *GoApp) getConfigPath() string {
 	return filepath.Join(g.CorePath, "configs", g.AppDir, name+".yaml")
 }
 
+func (g *GoApp) getBuildTarget() string {
+	if g.CommandDir != "" {
+		return filepath.Join(g.CorePath, g.CommandDir)
+	}
+	return filepath.Join(g.GetAppPath(), "cmd")
+}
+
 func (g *GoApp) buildArgs() []string {
 	args := []string{"build"}
 	if g.debugEnabled {
@@ -110,7 +126,7 @@ func (g *GoApp) buildArgs() []string {
 	} else {
 		args = append(args, `-ldflags=-s -w`)
 	}
-	return append(args, "-o", g.getBinAppPath(), filepath.Join(g.GetAppPath(), "cmd"))
+	return append(args, "-o", g.getBinAppPath(), g.getBuildTarget())
 }
 
 // Build compiles the binary for this service.

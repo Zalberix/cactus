@@ -20,9 +20,10 @@ jobs:
       matrix:
         module: &go-modules
           - apps/core
+          - apps/manager
+          - apps/workers/template
           - apps/workers/smtp
           - apps/workers/telegram
-          - apps/workers/template
           - cli
           - libs/bus
           - libs/config
@@ -30,6 +31,7 @@ jobs:
           - libs/migrations
           - libs/permissions
           - libs/pipeline
+          - libs/storage
           - libs/worker
     steps:
       - name: Check out code

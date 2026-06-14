@@ -6,8 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/zalberix/cactus/apps/core/internal/domain/worktype"
-	db "github.com/zalberix/cactus/apps/core/storage/db"
+	db "github.com/zalberix/cactus/libs/storage/db"
 )
 
 type Store struct {
@@ -26,20 +25,6 @@ func (s *Store) WithTx(ctx context.Context, fn func(q *db.Queries) error) error 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	if err := fn(db.New(tx)); err != nil {
-		return err
-	}
-
-	return tx.Commit(ctx)
-}
-
-func (s *Store) WithRegistrationTx(ctx context.Context, fn func(worktype.RegistrationTx) error) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin registration tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
 

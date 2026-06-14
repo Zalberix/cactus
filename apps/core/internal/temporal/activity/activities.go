@@ -16,8 +16,8 @@ import (
 	"github.com/zalberix/cactus/apps/core/internal/natssubjects"
 	"github.com/zalberix/cactus/apps/core/internal/store"
 	temporaltypes "github.com/zalberix/cactus/apps/core/internal/temporal"
-	"github.com/zalberix/cactus/apps/core/storage/db"
 	"github.com/zalberix/cactus/libs/bus"
+	"github.com/zalberix/cactus/libs/storage/db"
 )
 
 // Activities contains activity implementations for Temporal worker.

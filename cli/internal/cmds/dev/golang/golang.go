@@ -17,7 +17,6 @@ type GoApps struct {
 }
 
 func New(enableDebug bool) (*GoApps, error) {
-	// Развернуть worker-шаблоны в N инстансов через cactus-services.yaml
 	apps := expandWorkers(goapp.Apps)
 
 	ga := &GoApps{
@@ -25,15 +24,13 @@ func New(enableDebug bool) (*GoApps, error) {
 		appsByName:   make(map[string]*goapp.GoApp, len(apps)),
 	}
 
-	// Валидация уникальности имён
 	for _, app := range apps {
 		if _, exists := ga.appsByName[app.Name]; exists {
 			return nil, fmt.Errorf("duplicate app name: %q", app.Name)
 		}
-		ga.appsByName[app.Name] = nil // placeholder, заполним после создания
+		ga.appsByName[app.Name] = nil
 	}
 
-	// Валидация DependsOn — все имена должны существовать
 	for _, app := range apps {
 		for _, dep := range app.DependsOn {
 			if _, exists := ga.appsByName[dep]; !exists {
@@ -42,20 +39,19 @@ func New(enableDebug bool) (*GoApps, error) {
 		}
 	}
 
-	// Проверка циклических зависимостей
 	if err := detectCycles(apps); err != nil {
 		return nil, err
 	}
 
-	// Топологическая сортировка
 	sorted := topoSort(apps)
-
-	// Создание экземпляров в отсортированном порядке
 	for _, app := range sorted {
 		application, err := goapp.NewApplication(
 			app.Name,
 			enableDebug,
 			app.AppDir,
+			app.SourceDir,
+			app.CommandDir,
+			app.IsCoreWorker,
 			app.Port,
 			app.DebugPort,
 			app.OnPortReady,
@@ -64,8 +60,13 @@ func New(enableDebug bool) (*GoApps, error) {
 		if err != nil {
 			return nil, err
 		}
+		application.SourceDir = app.SourceDir
+		application.CommandDir = app.CommandDir
 		application.IsWorker = app.IsWorker
+		application.IsCoreWorker = app.IsCoreWorker
 		application.WorkerUUID = app.WorkerUUID
+		application.WorkerGroupName = app.WorkerGroupName
+		application.WorkerVariant = app.WorkerVariant
 		application.BaseName = app.BaseName
 		application.ExtraArgs = app.ExtraArgs
 		ga.apps = append(ga.apps, application)
@@ -81,60 +82,81 @@ const (
 	workerIDDir        = ".worker_id"
 )
 
-// expandWorkers загружает cactus-services.yaml, выполняет reconciliation
-// и разворачивает worker-шаблоны из goapp.Apps в N инстансов с UUID.
 func expandWorkers(templates []goapp.GoApp) []goapp.GoApp {
+	cfg, cfgErr := services.LoadServices(servicesConfigPath)
 	instances, err := services.Reconcile(servicesConfigPath, servicesLockPath, workerIDDir)
 	if err != nil {
 		pterm.Warning.Printfln("services reconcile: %v (workers will run with default count)", err)
 		return templates
 	}
+	if cfgErr != nil {
+		pterm.Warning.Printfln("services config: %v (core workers will not be expanded)", cfgErr)
+		return expandServiceTemplates(templates, instances, 0)
+	}
 
-	// Индексируем инстансы по типу
+	return expandServiceTemplates(templates, instances, cfg.CoreWorkers.Count)
+}
+
+func expandServiceTemplates(templates []goapp.GoApp, instances []services.WorkerInstance, coreWorkerCount int) []goapp.GoApp {
 	byApp := make(map[string][]services.WorkerInstance)
 	for _, inst := range instances {
 		byApp[inst.App] = append(byApp[inst.App], inst)
 	}
 
 	var result []goapp.GoApp
-	for _, tmpl := range templates { //nolint:dupl // Reconcile wrapper intentionally mirrors testable expansion helper.
-		if !tmpl.IsWorker {
+	for _, tmpl := range templates {
+		switch {
+		case tmpl.IsCoreWorker:
+			for i := 1; i <= coreWorkerCount; i++ {
+				expanded := tmpl
+				expanded.BaseName = tmpl.Name
+				expanded.Name = fmt.Sprintf("%s-%d", tmpl.Name, i)
+				expanded.DebugPort = tmpl.DebugPort + i - 1
+				expanded.IsWorker = false
+				expanded.IsCoreWorker = true
+				expanded.WorkerUUID = ""
+				expanded.WorkerGroupName = ""
+				expanded.WorkerVariant = ""
+				expanded.ExtraArgs = nil
+				result = append(result, expanded)
+			}
+
+		case !tmpl.IsWorker:
 			result = append(result, tmpl)
-			continue
-		}
 
-		workerInstances, ok := byApp[tmpl.Name]
-		if !ok || len(workerInstances) == 0 {
-			// Тип не указан в services.yaml — пропускаем
-			pterm.Info.Printfln("Worker %q not in cactus-services.yaml, skipping", tmpl.Name)
-			continue
-		}
-
-		groupCounts := make(map[string]int)
-		for i, inst := range workerInstances {
-			expanded := tmpl
-			expanded.BaseName = tmpl.Name
-			expanded.WorkerUUID = inst.UUID
-			expanded.WorkerGroupName = inst.Name
-			expanded.WorkerVariant = inst.Variant
-			expanded.IsWorker = true
-			expanded.DebugPort = tmpl.DebugPort + i
-
-			groupCounts[inst.Name]++
-			if countInstancesForGroup(workerInstances, inst.Name) > 1 {
-				expanded.Name = fmt.Sprintf("%s-%d", inst.Name, groupCounts[inst.Name])
-			} else {
-				expanded.Name = inst.Name
+		default:
+			workerInstances, ok := byApp[tmpl.Name]
+			if !ok || len(workerInstances) == 0 {
+				pterm.Info.Printfln("Worker app %q not in cactus-services.yaml, skipping", tmpl.Name)
+				continue
 			}
 
-			absPath, _ := filepath.Abs(inst.IDPath)
-			expanded.ExtraArgs = []string{
-				"--worker-id-path", absPath,
-				"--worker-variant", inst.Variant,
-				"--worker-name", expanded.Name,
-			}
+			groupCounts := make(map[string]int)
+			for i, inst := range workerInstances {
+				expanded := tmpl
+				expanded.BaseName = tmpl.Name
+				expanded.WorkerUUID = inst.UUID
+				expanded.WorkerGroupName = inst.Name
+				expanded.WorkerVariant = inst.Variant
+				expanded.IsWorker = true
+				expanded.DebugPort = tmpl.DebugPort + i
 
-			result = append(result, expanded)
+				groupCounts[inst.Name]++
+				if countInstancesForGroup(workerInstances, inst.Name) > 1 {
+					expanded.Name = fmt.Sprintf("%s-%d", inst.Name, groupCounts[inst.Name])
+				} else {
+					expanded.Name = inst.Name
+				}
+
+				absPath, _ := filepath.Abs(inst.IDPath)
+				expanded.ExtraArgs = []string{
+					"--worker-id-path", absPath,
+					"--worker-variant", inst.Variant,
+					"--worker-name", expanded.Name,
+				}
+
+				result = append(result, expanded)
+			}
 		}
 	}
 
@@ -142,53 +164,7 @@ func expandWorkers(templates []goapp.GoApp) []goapp.GoApp {
 }
 
 func expandWorkerTemplates(templates []goapp.GoApp, instances []services.WorkerInstance) []goapp.GoApp {
-	byApp := make(map[string][]services.WorkerInstance)
-	for _, inst := range instances {
-		byApp[inst.App] = append(byApp[inst.App], inst)
-	}
-
-	var result []goapp.GoApp
-	for _, tmpl := range templates { //nolint:dupl // Kept separate so tests can pass explicit instances without file IO.
-		if !tmpl.IsWorker {
-			result = append(result, tmpl)
-			continue
-		}
-
-		workerInstances, ok := byApp[tmpl.Name]
-		if !ok || len(workerInstances) == 0 {
-			pterm.Info.Printfln("Worker app %q not in cactus-services.yaml, skipping", tmpl.Name)
-			continue
-		}
-
-		groupCounts := make(map[string]int)
-		for i, inst := range workerInstances {
-			expanded := tmpl
-			expanded.BaseName = tmpl.Name
-			expanded.WorkerUUID = inst.UUID
-			expanded.WorkerGroupName = inst.Name
-			expanded.WorkerVariant = inst.Variant
-			expanded.IsWorker = true
-			expanded.DebugPort = tmpl.DebugPort + i
-
-			groupCounts[inst.Name]++
-			if countInstancesForGroup(workerInstances, inst.Name) > 1 {
-				expanded.Name = fmt.Sprintf("%s-%d", inst.Name, groupCounts[inst.Name])
-			} else {
-				expanded.Name = inst.Name
-			}
-
-			absPath, _ := filepath.Abs(inst.IDPath)
-			expanded.ExtraArgs = []string{
-				"--worker-id-path", absPath,
-				"--worker-variant", inst.Variant,
-				"--worker-name", expanded.Name,
-			}
-
-			result = append(result, expanded)
-		}
-	}
-
-	return result
+	return expandServiceTemplates(templates, instances, 0)
 }
 
 func countInstancesForGroup(instances []services.WorkerInstance, name string) int {
@@ -205,10 +181,9 @@ func (c *GoApps) Start(ctx context.Context) error {
 	for _, app := range c.apps {
 		app := app
 
-		// Ждём готовности всех зависимостей
 		for _, depName := range app.DependsOn {
 			dep := c.appsByName[depName]
-			pterm.Info.Printfln("[%s] Ожидание %s...", app.Name, depName)
+			pterm.Info.Printfln("[%s] Waiting for %s...", app.Name, depName)
 			select {
 			case <-dep.Ready:
 			case <-ctx.Done():
@@ -246,12 +221,11 @@ func (c *GoApps) Stop() {
 	}
 }
 
-// detectCycles проверяет наличие циклических зависимостей через DFS.
 func detectCycles(apps []goapp.GoApp) error {
 	const (
-		white = 0 // не посещён
-		gray  = 1 // в обработке (на стеке)
-		black = 2 // завершён
+		white = 0
+		gray  = 1
+		black = 2
 	)
 	color := make(map[string]int, len(apps))
 
@@ -268,7 +242,6 @@ func detectCycles(apps []goapp.GoApp) error {
 		for _, dep := range deps[name] {
 			switch color[dep] {
 			case gray:
-				// Нашли цикл — формируем путь
 				cycle := append([]string{}, path...)
 				cycle = append(cycle, dep)
 				return fmt.Errorf("circular dependency: %s", formatCycle(cycle))
@@ -301,8 +274,6 @@ func formatCycle(path []string) string {
 	return result
 }
 
-// topoSort выполняет топологическую сортировку приложений по зависимостям.
-// Зависимости идут первыми.
 func topoSort(apps []goapp.GoApp) []goapp.GoApp {
 	byName := make(map[string]goapp.GoApp, len(apps))
 	for _, app := range apps {

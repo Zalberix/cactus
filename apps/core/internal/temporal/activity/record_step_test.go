@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	temporaltypes "github.com/zalberix/cactus/apps/core/internal/temporal"
-	db "github.com/zalberix/cactus/apps/core/storage/db"
+	db "github.com/zalberix/cactus/libs/storage/db"
 )
 
 type recordStepStore struct {

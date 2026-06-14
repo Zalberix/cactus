@@ -93,10 +93,31 @@ LIMIT 1;
 -- name: ListMessagesByOrganizationID :many
 -- List messages for all workflows belonging to systems within an organization.
 -- Joins: message -> workflow -> system (filtered by organization_id), plus latest workflow_run -> workflow_version.
+WITH latest_messages AS MATERIALIZED (
 SELECT
     m.id,
     m.workflow_id,
     w."name" AS workflow_name,
+    m.workflow_input_schema_id,
+    m.status,
+    m.created_at,
+    m.updated_at
+FROM "message" m
+         JOIN "workflow" w
+              ON w.id = m.workflow_id
+                  AND w.deleted_at IS NULL
+         JOIN "system" s
+              ON s.id = w.system_id
+                  AND s.deleted_at IS NULL
+WHERE s.organization_id = $1
+  AND m.deleted_at IS NULL
+ORDER BY m.created_at DESC
+    LIMIT $2 OFFSET $3
+    )
+SELECT
+    m.id,
+    m.workflow_id,
+    m.workflow_name,
     m.workflow_input_schema_id,
     wis.code AS workflow_input_schema_code,
     wis.version_number AS workflow_input_schema_version_number,
@@ -109,11 +130,11 @@ SELECT
     wr.workflow_experiment_id,
     wr.workflow_experiment_variant_id,
     COALESCE(wr.selection_reason, 'standard') AS selection_reason
-FROM "message" m
-JOIN "workflow" w ON w.id = m.workflow_id AND w.deleted_at IS NULL
-JOIN "system" s ON s.id = w.system_id AND s.deleted_at IS NULL
-LEFT JOIN "workflow_input_schema" wis ON wis.id = m.workflow_input_schema_id AND wis.deleted_at IS NULL
-LEFT JOIN LATERAL (
+FROM latest_messages m
+         LEFT JOIN "workflow_input_schema" wis
+                   ON wis.id = m.workflow_input_schema_id
+                       AND wis.deleted_at IS NULL
+         LEFT JOIN LATERAL (
     SELECT
         run.workflow_version_id,
         run.workflow_experiment_id,
@@ -122,12 +143,12 @@ LEFT JOIN LATERAL (
     FROM "workflow_run" run
     WHERE run.message_id = m.id
     ORDER BY run.id DESC
-    LIMIT 1
-) wr ON TRUE
-LEFT JOIN "workflow_version" wv ON wv.id = wr.workflow_version_id AND wv.deleted_at IS NULL
-WHERE s.organization_id = $1 AND m.deleted_at IS NULL
-ORDER BY m.created_at DESC
-LIMIT $2 OFFSET $3;
+        LIMIT 1
+    ) wr ON TRUE
+    LEFT JOIN "workflow_version" wv
+    ON wv.id = wr.workflow_version_id
+    AND wv.deleted_at IS NULL
+ORDER BY m.created_at DESC;
 
 -- name: CountMessagesByOrganizationID :one
 SELECT COUNT(*) AS total

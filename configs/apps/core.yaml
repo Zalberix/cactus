@@ -21,6 +21,12 @@ temporal:
   host_port: "127.0.0.1:7233"
   namespace: "default"
   task_queue: "cactus-core"
+  worker:
+    max_concurrent_activity_execution_size: 128
+    max_concurrent_workflow_task_execution_size: 64
+    max_concurrent_activity_task_pollers: 16
+    max_concurrent_workflow_task_pollers: 8
+    worker_activities_per_second: 0
 jwt:
   secret: "dev-secret-change-in-production-32chars!"
   access_ttl: 15m

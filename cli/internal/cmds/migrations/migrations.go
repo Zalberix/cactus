@@ -10,8 +10,8 @@ import (
 	"github.com/pterm/pterm"
 	"github.com/urfave/cli/v2"
 
-	"github.com/zalberix/cactus/apps/core/config"
-	pkgdb "github.com/zalberix/cactus/apps/core/pkg/db"
+	"github.com/zalberix/cactus/apps/manager/config"
+	pkgdb "github.com/zalberix/cactus/apps/manager/pkg/db"
 	cfgloader "github.com/zalberix/cactus/libs/config"
 
 	// Register embedded postgres migrations for goose.
@@ -36,7 +36,7 @@ func Command() *cli.Command {
 }
 
 func runMigration(migrationsDir string, fn func(*goose.Provider) error) error {
-	cfg := cfgloader.MustLoad[config.Config]("configs/apps/core.yaml")
+	cfg := cfgloader.MustLoad[config.Config]("configs/apps/manager.yaml")
 
 	pool, err := pkgdb.New(
 		context.Background(),
@@ -61,7 +61,7 @@ func runMigration(migrationsDir string, fn func(*goose.Provider) error) error {
 }
 
 func runMigrationWithPool(fn func(*pgxpool.Pool) error) error {
-	cfg := cfgloader.MustLoad[config.Config]("configs/apps/core.yaml")
+	cfg := cfgloader.MustLoad[config.Config]("configs/apps/manager.yaml")
 
 	pool, err := pkgdb.New(
 		context.Background(),

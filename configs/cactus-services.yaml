@@ -1,3 +1,6 @@
+core_workers:
+  count: 2
+
 workers:
   - name: smtp-basic
     app: smtp

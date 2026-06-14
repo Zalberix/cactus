@@ -59,6 +59,43 @@ workers:
 	}
 }
 
+func TestLoadServicesParsesCoreWorkers(t *testing.T) {
+	path := writeTempConfig(t, `
+core_workers:
+  count: 3
+workers:
+  - name: smtp-basic
+    app: smtp
+    variant: basic
+    count: 1
+`)
+
+	cfg, err := LoadServices(path)
+	if err != nil {
+		t.Fatalf("LoadServices returned error: %v", err)
+	}
+
+	if cfg.CoreWorkers.Count != 3 {
+		t.Fatalf("expected 3 core workers, got %d", cfg.CoreWorkers.Count)
+	}
+}
+
+func TestLoadServicesRejectsNegativeCoreWorkerCount(t *testing.T) {
+	path := writeTempConfig(t, `
+core_workers:
+  count: -1
+workers: []
+`)
+
+	_, err := LoadServices(path)
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	if !strings.Contains(err.Error(), "core_workers.count must be >= 0") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestLoadServicesRejectsLegacyMapFormat(t *testing.T) {
 	path := writeTempConfig(t, `
 workers:

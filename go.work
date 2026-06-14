@@ -1,9 +1,10 @@
 go 1.25.5
 
-// ./apps/core/... ./apps/workers/smtp/... ./apps/workers/telegram/... ./cli/... ./libs/bus/... ./libs/worker/... ./libs/config/... ./libs/logger/... ./libs/migrations/... ./libs/pipeline/... ./libs/permissions/...
+// ./apps/core/... ./apps/workers/smtp/... ./apps/workers/telegram/... ./cli/... ./libs/bus/... ./libs/worker/... ./libs/config/... ./libs/logger/... ./libs/migrations/... ./libs/pipeline/... ./libs/permissions/... ./libs/storage/...
 
 use (
 	./apps/core
+	./apps/manager
 	./apps/workers/template
 	./apps/workers/smtp
 	./apps/workers/telegram
@@ -14,5 +15,6 @@ use (
 	./libs/migrations
 	./libs/permissions
 	./libs/pipeline
+	./libs/storage
 	./libs/worker
 )

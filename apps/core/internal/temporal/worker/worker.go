@@ -30,9 +30,21 @@ func NewTemporalClient(cfg *config.Config) (client.Client, error) {
 	return c, nil
 }
 
+// BuildWorkerOptions maps cactus config to Temporal SDK worker options.
+// Zero values are intentionally passed through so the Temporal SDK keeps its defaults.
+func BuildWorkerOptions(cfg config.TemporalWorker) worker.Options {
+	return worker.Options{
+		MaxConcurrentActivityExecutionSize:     cfg.MaxConcurrentActivityExecutionSize,
+		MaxConcurrentWorkflowTaskExecutionSize: cfg.MaxConcurrentWorkflowTaskExecutionSize,
+		MaxConcurrentActivityTaskPollers:       cfg.MaxConcurrentActivityTaskPollers,
+		MaxConcurrentWorkflowTaskPollers:       cfg.MaxConcurrentWorkflowTaskPollers,
+		WorkerActivitiesPerSecond:              cfg.WorkerActivitiesPerSecond,
+	}
+}
+
 // RegisterTemporalWorker регистрирует Temporal worker в fx lifecycle.
 func RegisterTemporalWorker(lc fx.Lifecycle, c client.Client, cfg *config.Config, acts *activity.Activities) {
-	w := worker.New(c, cfg.Temporal.TaskQueue, worker.Options{})
+	w := worker.New(c, cfg.Temporal.TaskQueue, BuildWorkerOptions(cfg.Temporal.Worker))
 	w.RegisterWorkflow(dagworkflow.DAGExecutorWorkflow)
 	w.RegisterActivity(acts)
 

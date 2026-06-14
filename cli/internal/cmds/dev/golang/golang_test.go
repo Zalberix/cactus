@@ -10,8 +10,8 @@ import (
 
 func TestExpandWorkerTemplatesUsesAppAndNamesByGroup(t *testing.T) {
 	templates := []goapp.GoApp{
-		{Name: "core", DebugPort: 2346, AppDir: "apps"},
-		{Name: "smtp", IsWorker: true, DebugPort: 2348, AppDir: "apps/workers", DependsOn: []string{"core"}},
+		{Name: "manager", DebugPort: 2346, AppDir: "apps"},
+		{Name: "smtp", IsWorker: true, DebugPort: 2348, AppDir: "apps/workers", DependsOn: []string{"manager"}},
 	}
 	instances := []services.WorkerInstance{
 		{Name: "smtp-basic", App: "smtp", Variant: "basic", UUID: "uuid-1", IDPath: ".worker_id/smtp-basic/uuid-1"},
@@ -25,13 +25,13 @@ func TestExpandWorkerTemplatesUsesAppAndNamesByGroup(t *testing.T) {
 	for _, app := range expanded {
 		names = append(names, app.Name)
 	}
-	wantNames := []string{"core", "smtp-basic", "smtp-auth-1", "smtp-auth-2"}
+	wantNames := []string{"manager", "smtp-basic", "smtp-auth-1", "smtp-auth-2"}
 	if strings.Join(names, ",") != strings.Join(wantNames, ",") {
 		t.Fatalf("expected names %v, got %v", wantNames, names)
 	}
 
 	for _, app := range expanded {
-		if app.Name == "core" {
+		if app.Name == "manager" {
 			continue
 		}
 		if app.BaseName != "smtp" {
@@ -92,6 +92,40 @@ func TestExpandWorkerTemplatesAssignsUniqueDebugPortsAcrossSameApp(t *testing.T)
 	for i := range want {
 		if ports[i] != want[i] {
 			t.Fatalf("expected debug ports %v, got %v", want, ports)
+		}
+	}
+}
+
+func TestExpandServiceTemplatesExpandsCoreWorkersWithoutBusinessWorkerArgs(t *testing.T) {
+	templates := []goapp.GoApp{
+		{Name: "manager", AppDir: "apps"},
+		{Name: "core-worker", IsCoreWorker: true, SourceDir: "apps/core", CommandDir: "apps/core/cmd", DependsOn: []string{"manager"}},
+	}
+
+	apps := expandServiceTemplates(templates, nil, 2)
+
+	var coreWorkers []goapp.GoApp
+	for _, app := range apps {
+		if app.BaseName == "core-worker" || app.Name == "core-worker" || app.Name == "core-worker-1" || app.Name == "core-worker-2" {
+			coreWorkers = append(coreWorkers, app)
+		}
+	}
+
+	if len(coreWorkers) != 2 {
+		t.Fatalf("expected 2 core workers, got %d: %#v", len(coreWorkers), coreWorkers)
+	}
+	for _, app := range coreWorkers {
+		if app.IsWorker {
+			t.Fatalf("core-worker must not be IsWorker: %#v", app)
+		}
+		if !app.IsCoreWorker {
+			t.Fatalf("core-worker must keep IsCoreWorker: %#v", app)
+		}
+		if len(app.ExtraArgs) != 0 {
+			t.Fatalf("core-worker must not receive --worker args: %#v", app.ExtraArgs)
+		}
+		if app.WorkerUUID != "" || app.WorkerVariant != "" || app.WorkerGroupName != "" {
+			t.Fatalf("core-worker must not receive business worker identity: %#v", app)
 		}
 	}
 }
